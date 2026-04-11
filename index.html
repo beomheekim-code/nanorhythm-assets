@@ -4761,7 +4761,7 @@ function renderUI() {
   rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
   // Glow when low
   if (gauge < 0.3) {
-    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(_fNow*0.008)*5;
+    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(Date.now()*0.008)*5;
     rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
     ctx.shadowBlur = 0;
   }
