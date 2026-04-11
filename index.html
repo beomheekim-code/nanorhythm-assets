@@ -407,47 +407,61 @@ function stemDuckAll() {}
 let gameMode = safeGetItem('rhythm_gameMode') || 'rhythm';
 function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
-// ===== 미스 볼륨 duck 시스템 =====
-let stemMissDuck = {}; // { stemIdx: { start: ms, dur: ms } }  (-1 = 전체)
-let stemNanoActive = {}; // 나노모드: { stemIdx: true/false } — HIT하면 활성, MISS하면 비활성
-const MISS_DUCK_VOL_RHYTHM = 1.0;   // 리듬모드: 100% (음량 변화 없음)
-const MISS_DUCK_DUR_RHYTHM = 1500;  // 리듬모드: 1.5초 복귀
-function getMissDuckVol() { return MISS_DUCK_VOL_RHYTHM; }
-function getMissDuckDur() { return MISS_DUCK_DUR_RHYTHM; }
+// ===== 나노모드 로우패스 필터 시스템 =====
+let nanoFilter = null;       // BiquadFilterNode
+let nanoFilterTarget = 20000; // 목표 주파수 (20000=클리어, 낮을수록 먹먹)
+let nanoFilterCurrent = 20000;
+const NANO_FILTER_CLEAR = 20000;  // HIT: 풀 개방
+const NANO_FILTER_MISS = 400;     // MISS: 먹먹한 소리
+const NANO_FILTER_RECOVER = 8;    // 복구 속도 (높을수록 빠름)
+const NANO_FILTER_DROP = 20;      // 떨어지는 속도 (즉각적)
+
+function initNanoFilter() {
+  if (!actx || nanoFilter) return;
+  nanoFilter = actx.createBiquadFilter();
+  nanoFilter.type = 'lowpass';
+  nanoFilter.frequency.value = NANO_FILTER_CLEAR;
+  nanoFilter.Q.value = 0.7;
+  nanoFilterCurrent = NANO_FILTER_CLEAR;
+  nanoFilterTarget = NANO_FILTER_CLEAR;
+}
+function nanoHit() {
+  if (gameMode !== 'nano') return;
+  nanoFilterTarget = NANO_FILTER_CLEAR;
+}
+function nanoMiss() {
+  if (gameMode !== 'nano') return;
+  nanoFilterTarget = NANO_FILTER_MISS;
+}
+function updateNanoFilter(dt) {
+  if (!nanoFilter || gameMode !== 'nano') return;
+  // 부드러운 주파수 보간
+  if (nanoFilterCurrent < nanoFilterTarget) {
+    nanoFilterCurrent += (nanoFilterTarget - nanoFilterCurrent) * Math.min(1, NANO_FILTER_RECOVER * dt);
+  } else if (nanoFilterCurrent > nanoFilterTarget) {
+    nanoFilterCurrent += (nanoFilterTarget - nanoFilterCurrent) * Math.min(1, NANO_FILTER_DROP * dt);
+  }
+  nanoFilter.frequency.value = nanoFilterCurrent;
+}
 
 function updateNanoPreDuck() {}
 function updateStemVolumes(dt) {
+  updateNanoFilter(dt);
   if (usingStemMode) {
     const songEnded = songDuration > 0 && gameTime >= songDuration - 1;
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const useAbs = window._absGains && window._absGains.length > 0;
-    const isNano = gameMode === 'nano';
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
       const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
-      let targetVol = baseVol * vol;
-      if (isNano && !isAlways) {
-        // 나노모드: HIT한 스템만 소리, MISS하면 해당 스템 음소거
-        targetVol = stemNanoActive[i] ? targetVol : 0;
-      }
+      const targetVol = baseVol * vol;
       if (useAbs && window._absGains[i]) {
         window._absGains[i].gain.value = targetVol;
       }
       if (allStemAudios[i]) allStemAudios[i].volume = useAbs ? 0 : targetVol;
     }
   } else if (songAudio) {
-    let duckMul = 1;
-    const now = performance.now();
-    const duck = stemMissDuck[-1];
-    if (duck) {
-      const elapsed = now - duck.start;
-      if (elapsed >= duck.dur) { stemMissDuck[-1] = null; }
-      else {
-        const dv = getMissDuckVol();
-        duckMul = gameMode === 'nano' ? dv : dv + (1 - dv) * (elapsed / duck.dur);
-      }
-    }
-    songAudio.volume = 0.7 * volBgm * duckMul;
+    songAudio.volume = 0.7 * volBgm;
   }
 }
 
@@ -3074,7 +3088,7 @@ function handleLanePress(lane) {
   closest.hit = true;
 
   if (closest.type === 'trap') {
-    stemMissDuck[-1] = { start: performance.now(), dur: getMissDuckDur() };
+    nanoMiss();
     playDissonance(); combo = 0; fever = false; feverTimer = 0;
     if (!devInvincible) gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain * 2 : 0.08));
     judgmentText = 'TRAP!'; judgmentTimer = 0.7; judgmentColor = '#ff3333'; judgmentPriority = 2;
@@ -3088,7 +3102,7 @@ function handleLanePress(lane) {
     if (closestDist < 22 * _hs) holdGrade = 'perfect';
     else if (closestDist < 42 * _hs) holdGrade = 'great';
     else holdGrade = 'good';
-    if (closest.stem != null) { delete stemMissDuck[closest.stem]; if (gameMode === 'nano') stemNanoActive[closest.stem] = true; }
+    if (closest.stem != null) nanoHit();
     playHoldStartSfx();
     startHoldSound(closest);
     closest.holding = true;
@@ -3113,7 +3127,7 @@ function handleLanePress(lane) {
     if (closestDist < 28 * _hs2) { pts=200; txt='PERFECT'; col='#ffd700'; grade='perfect'; }
     else if (closestDist < 52 * _hs2) { pts=150; txt='GREAT'; col='#00d4ff'; grade='great'; }
     else { pts=80; txt='GOOD'; col='#44dd66'; grade='good'; }
-    if (closest.stem != null) { delete stemMissDuck[closest.stem]; if (gameMode === 'nano') stemNanoActive[closest.stem] = true; }
+    if (closest.stem != null) nanoHit();
     combo++; if (combo > maxCombo) maxCombo = combo;
     checkFeverActivate();
     const fm = fever ? 2 : 1;
@@ -3359,8 +3373,9 @@ function startSong(idx) {
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
   usingStemMode = false;
   stemSyncTime = 0;
-  stemMissDuck = {};
-  stemNanoActive = {};
+  nanoFilterTarget = NANO_FILTER_CLEAR;
+  nanoFilterCurrent = NANO_FILTER_CLEAR;
+  if (nanoFilter) nanoFilter.frequency.value = NANO_FILTER_CLEAR;
   initStemTargets();
   allStemAudios = [];
   // 로딩 상태 시작
@@ -3773,12 +3788,21 @@ function update(dt) {
         window._absNodes = [];
         window._absGains = [];
         window._absStartCtx = actx.currentTime;
+        // 나노모드: 로우패스 필터 초기화 및 연결
+        if (gameMode === 'nano') {
+          initNanoFilter();
+          nanoFilterTarget = NANO_FILTER_CLEAR;
+          nanoFilterCurrent = NANO_FILTER_CLEAR;
+          if (nanoFilter) nanoFilter.frequency.value = NANO_FILTER_CLEAR;
+        }
+        const _audioDest = (gameMode === 'nano' && nanoFilter) ? nanoFilter : actx.destination;
+        if (gameMode === 'nano' && nanoFilter) nanoFilter.connect(actx.destination);
         for (let i = 0; i < allStemAudios.length; i++) {
           if (stemAudioBuffers[i] && actx) {
             const gain = actx.createGain();
             const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
-            gain.gain.value = (gameMode === 'nano' && !_isAlways) ? 0 : (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
-            gain.connect(actx.destination);
+            gain.gain.value = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+            gain.connect(_audioDest);
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
             src.connect(gain);
@@ -3933,7 +3957,7 @@ function update(dt) {
     }
     // 홀드 중 키음 스템 볼륨 유지 (DJMAX식: 홀드하는 동안 소리 지속)
     if (usingStemMode) stemBoost(n.lane, 'perfect');
-    if (gameMode === 'nano' && n.stem != null) stemNanoActive[n.stem] = true;
+    if (gameMode === 'nano') nanoHit();
     // Combo ticks while holding
     if (!n._comboTimer) n._comboTimer = 0;
     n._comboTimer += dt;
@@ -3971,7 +3995,7 @@ function update(dt) {
         judgmentText = 'OK'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
       } else {
-        if (n.stem != null && gameMode === 'nano') stemNanoActive[n.stem] = false;
+        nanoMiss();
         collected--; missed++; combo = 0; fever = false; feverTimer = 0;
         judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
       }
@@ -3982,7 +4006,7 @@ function update(dt) {
       n.holdComplete = true;
       n.missed = true;
       stopHoldSound(n);
-      if (n.stem != null && gameMode === 'nano') stemNanoActive[n.stem] = false;
+      nanoMiss();
       collected--; missed++; combo = 0; fever = false; feverTimer = 0;
       judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
     }
@@ -3996,7 +4020,7 @@ function update(dt) {
     if (sy > hitY + getHitWindow() + 40 * getHeightScale()) {
       n.missed = true;
       if (n.type === 'note' || n.type === 'hold') {
-        if (n.stem != null && gameMode === 'nano') stemNanoActive[n.stem] = false;
+        nanoMiss();
         combo = 0; missed++; fever = false; feverTimer = 0;
         if (!devInvincible) gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         shakeX = (Math.random()-0.5)*8; shakeY = (Math.random()-0.5)*6;
