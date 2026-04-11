@@ -425,22 +425,7 @@ function getMissDuckDur() {
   return MISS_DUCK_DUR_RHYTHM;
 }
 
-function updateNanoPreDuck() {
-  if (gameMode !== 'nano' || !usingStemMode) return;
-  // 판정선 근처 노트의 스템을 선제적으로 duck (아직 HIT/MISS 안 된 노트)
-  const preDuckStems = {};
-  const hitW = getHitWindow();
-  const preDuckWindow = hitW / noteSpeed + 0.15; // 판정선 도달 ~0.15초 전부터
-  for (const n of nodes) {
-    if (n.hit || n.missed || n.stem == null) continue;
-    if (ALWAYS_AUDIBLE_STEMS.includes(n.stem)) continue;
-    const timeToHit = n.time - gameTime;
-    if (timeToHit > -0.05 && timeToHit < preDuckWindow) {
-      preDuckStems[n.stem] = true;
-    }
-  }
-  stemPreDuck = preDuckStems;
-}
+function updateNanoPreDuck() {}
 function updateStemVolumes(dt) {
   if (usingStemMode) {
     const songEnded = songDuration > 0 && gameTime >= songDuration - 1;
@@ -453,22 +438,14 @@ function updateStemVolumes(dt) {
       const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
       let targetVol = baseVol * vol;
       if (isNano && !isAlways) {
-        // 나노모드: 선제적 duck + MISS duck + HIT boost
+        // 나노모드: 기본 음소거, HIT boost 있을 때만 소리
         const boost = stemHitBoost[i];
         if (boost) {
           const elapsed = now - boost.start;
-          if (elapsed >= boost.dur) { stemHitBoost[i] = null; }
-          // HIT boost 활성: 풀 볼륨 유지
-        } else if (stemPreDuck[i]) {
-          // 노트 접근 중: 음소거 (HIT 대기)
+          if (elapsed >= boost.dur) { stemHitBoost[i] = null; targetVol = 0; }
+          // boost 활성: targetVol 유지 (풀 볼륨)
+        } else {
           targetVol = 0;
-        }
-        // MISS duck 처리
-        const duck = stemMissDuck[i];
-        if (duck) {
-          const elapsed = now - duck.start;
-          if (elapsed >= duck.dur) { stemMissDuck[i] = null; }
-          else { targetVol = 0; }
         }
       } else {
         // 리듬모드: duck 로직
@@ -3826,7 +3803,8 @@ function update(dt) {
         for (let i = 0; i < allStemAudios.length; i++) {
           if (stemAudioBuffers[i] && actx) {
             const gain = actx.createGain();
-            gain.gain.value = (ALWAYS_AUDIBLE_STEMS.includes(i) ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+            const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+            gain.gain.value = (gameMode === 'nano' && !_isAlways) ? 0 : (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
             gain.connect(actx.destination);
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
