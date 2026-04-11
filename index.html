@@ -451,12 +451,13 @@ function updateStemVolumes(dt) {
       const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
       const targetVol = baseVol * vol;
       if (useAbs && window._absGains[i]) {
-        window._absGains[i].gain.value = targetVol;
+        const g = window._absGains[i].gain;
+        if (Math.abs(g.value - targetVol) > 0.001) g.value = targetVol;
       }
-      if (allStemAudios[i]) allStemAudios[i].volume = useAbs ? 0 : targetVol;
+      if (allStemAudios[i]) { const nv = useAbs ? 0 : targetVol; if (Math.abs(allStemAudios[i].volume - nv) > 0.001) allStemAudios[i].volume = nv; }
     }
   } else if (songAudio) {
-    songAudio.volume = 0.7 * volBgm;
+    const nv = 0.7 * volBgm; if (Math.abs(songAudio.volume - nv) > 0.001) songAudio.volume = nv;
   }
 }
 
@@ -4124,15 +4125,23 @@ function render() {
     ctx.restore(); return;
   }
 
+  // === 프레임 캐시 (매 프레임 1회만 계산) ===
+  const _fNow = Date.now();
+  const _fLaneW = getLaneW();
+  const _fLaneStartX = getLaneStartX();
+  const _fTotalLW = _fLaneW * laneCount;
+  const _fHitY = getHitY();
+  const _fHS = getHeightScale();
+
   // Stars
   for (const s of stars) {
-    ctx.globalAlpha = s.b * (0.3 + Math.sin(Date.now()*0.002+s.x)*0.2);
+    ctx.globalAlpha = s.b * (0.3 + Math.sin(_fNow*0.002+s.x)*0.2);
     ctx.fillStyle = '#fff'; ctx.fillRect(s.x, s.y, s.s, s.s);
   }
   ctx.globalAlpha = 1;
 
   // In-game ambient particles
-  const lsx = getLaneStartX(), totalLW = getLaneW()*laneCount;
+  const lsx = _fLaneStartX, totalLW = _fTotalLW;
   const songCol = curSong ? curSong.color : '#fff';
   // Spawn various types
   if (gameParticles.length < 25) {
@@ -4172,7 +4181,7 @@ function render() {
     if (gp.kind === 'streak') gp.vy *= 0.995;
     if (gp.life <= 0 || gp.y < -20) { gameParticles.splice(i,1); continue; }
     if (gp.kind === 'sparkle') {
-      const flicker = Math.sin(Date.now()*0.02+i*7)*0.5+0.5;
+      const flicker = Math.sin(_fNow*0.02+i*7)*0.5+0.5;
       ctx.globalAlpha = gp.life * flicker * 0.7;
       ctx.fillStyle = gp.color;
       ctx.fillRect(gp.x-0.5, gp.y-0.5, gp.size, gp.size);
@@ -4199,8 +4208,8 @@ function render() {
 
   // Fever overlay
   if (fever) {
-    const t = Date.now();
-    const lw = getLaneW(), lsx = getLaneStartX(), tw = lw * laneCount;
+    const t = _fNow;
+    const lw = _fLaneW, lsx = _fLaneStartX, tw = _fTotalLW;
 
     // Smooth golden aura along lane edges
     ctx.globalAlpha = 0.15;
@@ -4251,7 +4260,7 @@ function render() {
     ctx.save();
     const fs = sz(44);
     const bop = Math.sin(t*0.004) * 3;
-    const feverCY = getHitY() * 0.5;
+    const feverCY = _fHitY * 0.5;
     ctx.translate(lsx + tw/2, feverCY + bop);
     ctx.font = `bold ${fs}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -4281,7 +4290,7 @@ function render() {
   // Low gauge danger vignette
   if (gauge < 0.35) {
     const intensity = (0.35 - gauge) / 0.35;
-    const pulse = 0.5 + Math.sin(Date.now() * 0.006) * 0.5;
+    const pulse = 0.5 + Math.sin(_fNow * 0.006) * 0.5;
     const vg = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
     vg.addColorStop(0, 'transparent');
     vg.addColorStop(1, `rgba(255,0,0,${intensity * 0.25 * pulse})`);
@@ -4346,7 +4355,7 @@ function renderLanes() {
 }
 
 function renderHitLine() {
-  const lsx = getLaneStartX(), tw = getTotalLaneW(), hitY = getHitY();
+  const lw = getLaneW(), lsx = getLaneStartX(), tw = lw * laneCount, hitY = getHitY();
 
   // Glow line
   ctx.shadowColor = curSong.color; ctx.shadowBlur = 6;
@@ -4365,9 +4374,8 @@ function renderHitLine() {
   ctx.fillRect(lsx, hitY-60, tw, 60);
 
   // Receptors
-  const lw = getLaneW();
   for (let i = 0; i < laneCount; i++) {
-    const cx = getLaneX(i);
+    const cx = lsx + i * lw + lw / 2;
     const held = keyHeld[i], flash = keyFlash[i] > 0;
 
     const rw = lw - 8, rh = 20;
@@ -4750,7 +4758,7 @@ function renderUI() {
   rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
   // Glow when low
   if (gauge < 0.3) {
-    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(Date.now()*0.008)*5;
+    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(_fNow*0.008)*5;
     rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
     ctx.shadowBlur = 0;
   }
