@@ -3978,8 +3978,9 @@ function update(dt) {
         judgmentText = 'OK'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
       } else {
-        if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now(), dur: getMissDuckDur() };
-        else stemMissDuck[-1] = { start: performance.now(), dur: getMissDuckDur() };
+        const _missOffset = Math.max(0, gameTime - n.endTime) * 1000;
+        if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
+        else stemMissDuck[-1] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
         collected--; missed++; combo = 0; fever = false; feverTimer = 0;
         judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
       }
@@ -3990,8 +3991,9 @@ function update(dt) {
       n.holdComplete = true;
       n.missed = true;
       stopHoldSound(n);
-      if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now(), dur: getMissDuckDur() };
-      else stemMissDuck[-1] = { start: performance.now(), dur: getMissDuckDur() };
+      const _missOffset = Math.max(0, gameTime - n.endTime) * 1000;
+      if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
+      else stemMissDuck[-1] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
       collected--; missed++; combo = 0; fever = false; feverTimer = 0;
       judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
     }
@@ -4005,8 +4007,9 @@ function update(dt) {
     if (sy > hitY + getHitWindow() + 40 * getHeightScale()) {
       n.missed = true;
       if (n.type === 'note' || n.type === 'hold') {
-        if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now(), dur: getMissDuckDur() };
-        else stemMissDuck[-1] = { start: performance.now(), dur: getMissDuckDur() };
+        const _missOffset = Math.max(0, gameTime - n.time) * 1000;
+        if (n.stem != null) stemMissDuck[n.stem] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
+        else stemMissDuck[-1] = { start: performance.now() - _missOffset, dur: getMissDuckDur() };
         combo = 0; missed++; fever = false; feverTimer = 0;
         if (!devInvincible) gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         shakeX = (Math.random()-0.5)*8; shakeY = (Math.random()-0.5)*6;
