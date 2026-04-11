@@ -412,29 +412,38 @@ let nanoFilter = null;       // BiquadFilterNode
 let nanoFilterTarget = 20000; // 목표 주파수 (20000=클리어, 낮을수록 먹먹)
 let nanoFilterCurrent = 20000;
 const NANO_FILTER_CLEAR = 20000;  // HIT: 풀 개방
-const NANO_FILTER_MISS = 400;     // MISS: 먹먹한 소리
-const NANO_FILTER_RECOVER = 8;    // 복구 속도 (높을수록 빠름)
-const NANO_FILTER_DROP = 20;      // 떨어지는 속도 (즉각적)
+const NANO_FILTER_MISS = 250;     // MISS: 강한 먹먹함
+const NANO_FILTER_RECOVER = 1.8;  // 복구 속도 (느리게 — MISS 체감 유지)
+const NANO_FILTER_DROP = 30;      // 떨어지는 속도 (즉각적)
+let nanoFilterHoldUntil = 0;      // MISS 후 최소 유지 시간
 
 function initNanoFilter() {
   if (!actx || nanoFilter) return;
   nanoFilter = actx.createBiquadFilter();
   nanoFilter.type = 'lowpass';
   nanoFilter.frequency.value = NANO_FILTER_CLEAR;
-  nanoFilter.Q.value = 0.7;
+  nanoFilter.Q.value = 1.0;
   nanoFilterCurrent = NANO_FILTER_CLEAR;
   nanoFilterTarget = NANO_FILTER_CLEAR;
 }
 function nanoHit() {
   if (gameMode !== 'nano') return;
-  nanoFilterTarget = NANO_FILTER_CLEAR;
+  // MISS 유지 시간이 지나야 복구 가능
+  if (performance.now() >= nanoFilterHoldUntil) {
+    nanoFilterTarget = NANO_FILTER_CLEAR;
+  }
 }
 function nanoMiss() {
   if (gameMode !== 'nano') return;
   nanoFilterTarget = NANO_FILTER_MISS;
+  nanoFilterHoldUntil = performance.now() + 600; // 최소 0.6초 먹먹 유지
 }
 function updateNanoFilter(dt) {
   if (!nanoFilter || gameMode !== 'nano') return;
+  // MISS 유지 시간 경과 후 자동 복구 시작
+  if (nanoFilterTarget === NANO_FILTER_MISS && performance.now() >= nanoFilterHoldUntil) {
+    nanoFilterTarget = NANO_FILTER_CLEAR;
+  }
   // 부드러운 주파수 보간
   if (nanoFilterCurrent < nanoFilterTarget) {
     nanoFilterCurrent += (nanoFilterTarget - nanoFilterCurrent) * Math.min(1, NANO_FILTER_RECOVER * dt);
