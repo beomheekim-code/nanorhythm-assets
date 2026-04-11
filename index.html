@@ -403,7 +403,7 @@ function stemDuckAll() {}
 
 // ===== 게임 모드 =====
 // 'rhythm' (리듬모드, 기본): 미스 시 50% 볼륨 → 서서히 복귀
-// 'nano' (나노모드): 미스 시 해당 구간 완전 음소거
+// 'nano' (나노모드): 미스 시 로우패스 필터 적용 (먹먹한 소리)
 let gameMode = safeGetItem('rhythm_gameMode') || 'rhythm';
 function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
@@ -5102,7 +5102,7 @@ function renderSettingsOverlay() {
   // 설명
   ctx.font = `${sz(9)}px sans-serif`; ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText(gameMode === 'nano' ? 'MISS 판정 구간의 비트가 음소거되어 더 섬세한 연주를 요구합니다' : '음악의 순수한 리듬을 즐기실 수 있습니다', W/2, gmBtnY + gmBtnH + sz(8));
+  ctx.fillText(gameMode === 'nano' ? 'MISS 시 사운드가 먹먹해집니다' : '음악의 순수한 리듬을 즐기실 수 있습니다', W/2, gmBtnY + gmBtnH + sz(8));
   // 클릭 영역 저장
   window._modeBtnRhythm = { x: sliderX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
   window._modeBtnNano = { x: nBtnX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
