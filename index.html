@@ -409,6 +409,9 @@ function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
 // ===== 미스 볼륨 duck 시스템 =====
 let stemMissDuck = {}; // { stemIdx: { start: ms, dur: ms } }  (-1 = 전체)
+let stemHitBoost = {}; // 나노모드: { stemIdx: { start: ms, dur: ms } } — HIT 시 언뮤트
+// 나노모드: 노트 접근 시 선제적 duck (판정선 도달 전 미리 음소거)
+let stemPreDuck = {}; // { stemIdx: true } — 노트가 접근 중이면 해당 스템 duck
 const MISS_DUCK_VOL_RHYTHM = 1.0;   // 리듬모드: 100% (음량 변화 없음)
 const MISS_DUCK_VOL_NANO = 0;       // 나노모드: 완전 음소거
 const MISS_DUCK_DUR_RHYTHM = 1500;  // 리듬모드: 1.5초 복귀
@@ -422,23 +425,58 @@ function getMissDuckDur() {
   return MISS_DUCK_DUR_RHYTHM;
 }
 
+function updateNanoPreDuck() {
+  if (gameMode !== 'nano' || !usingStemMode) return;
+  // 판정선 근처 노트의 스템을 선제적으로 duck (아직 HIT/MISS 안 된 노트)
+  const preDuckStems = {};
+  const hitW = getHitWindow();
+  const preDuckWindow = hitW / noteSpeed + 0.15; // 판정선 도달 ~0.15초 전부터
+  for (const n of nodes) {
+    if (n.hit || n.missed || n.stem == null) continue;
+    if (ALWAYS_AUDIBLE_STEMS.includes(n.stem)) continue;
+    const timeToHit = n.time - gameTime;
+    if (timeToHit > -0.05 && timeToHit < preDuckWindow) {
+      preDuckStems[n.stem] = true;
+    }
+  }
+  stemPreDuck = preDuckStems;
+}
 function updateStemVolumes(dt) {
   if (usingStemMode) {
     const songEnded = songDuration > 0 && gameTime >= songDuration - 1;
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const now = performance.now();
     const useAbs = window._absGains && window._absGains.length > 0;
+    const isNano = gameMode === 'nano';
     for (let i = 0; i < allStemAudios.length; i++) {
-      const vol = ALWAYS_AUDIBLE_STEMS.includes(i) ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
+      const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+      const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
       let targetVol = baseVol * vol;
-      const duck = stemMissDuck[i];
-      if (duck) {
-        const elapsed = now - duck.start;
-        if (elapsed >= duck.dur) { stemMissDuck[i] = null; }
-        else {
-          const dv = getMissDuckVol();
-          // 나노모드: 즉시 음소거 → 즉시 복귀 / 리듬모드: 서서히 복귀
-          targetVol *= gameMode === 'nano' ? dv : dv + (1 - dv) * (elapsed / duck.dur);
+      if (isNano && !isAlways) {
+        // 나노모드: 선제적 duck + MISS duck + HIT boost
+        const boost = stemHitBoost[i];
+        if (boost) {
+          const elapsed = now - boost.start;
+          if (elapsed >= boost.dur) { stemHitBoost[i] = null; }
+          // HIT boost 활성: 풀 볼륨 유지
+        } else if (stemPreDuck[i]) {
+          // 노트 접근 중: 음소거 (HIT 대기)
+          targetVol = 0;
+        }
+        // MISS duck 처리
+        const duck = stemMissDuck[i];
+        if (duck) {
+          const elapsed = now - duck.start;
+          if (elapsed >= duck.dur) { stemMissDuck[i] = null; }
+          else { targetVol = 0; }
+        }
+      } else {
+        // 리듬모드: duck 로직
+        const duck = stemMissDuck[i];
+        if (duck) {
+          const elapsed = now - duck.start;
+          if (elapsed >= duck.dur) { stemMissDuck[i] = null; }
+          else { targetVol *= getMissDuckVol() + (1 - getMissDuckVol()) * (elapsed / duck.dur); }
         }
       }
       if (useAbs && window._absGains[i]) {
@@ -3099,7 +3137,7 @@ function handleLanePress(lane) {
     if (closestDist < 22 * _hs) holdGrade = 'perfect';
     else if (closestDist < 42 * _hs) holdGrade = 'great';
     else holdGrade = 'good';
-    if (closest.stem != null) delete stemMissDuck[closest.stem];
+    if (closest.stem != null) { delete stemMissDuck[closest.stem]; delete stemPreDuck[closest.stem]; stemHitBoost[closest.stem] = { start: performance.now(), dur: getMissDuckDur() }; }
     playHoldStartSfx();
     startHoldSound(closest);
     closest.holding = true;
@@ -3124,7 +3162,7 @@ function handleLanePress(lane) {
     if (closestDist < 28 * _hs2) { pts=200; txt='PERFECT'; col='#ffd700'; grade='perfect'; }
     else if (closestDist < 52 * _hs2) { pts=150; txt='GREAT'; col='#00d4ff'; grade='great'; }
     else { pts=80; txt='GOOD'; col='#44dd66'; grade='good'; }
-    if (closest.stem != null) delete stemMissDuck[closest.stem];
+    if (closest.stem != null) { delete stemMissDuck[closest.stem]; delete stemPreDuck[closest.stem]; stemHitBoost[closest.stem] = { start: performance.now(), dur: getMissDuckDur() }; }
     combo++; if (combo > maxCombo) maxCombo = combo;
     checkFeverActivate();
     const fm = fever ? 2 : 1;
@@ -3371,6 +3409,8 @@ function startSong(idx) {
   usingStemMode = false;
   stemSyncTime = 0;
   stemMissDuck = {};
+  stemHitBoost = {};
+  stemPreDuck = {};
   initStemTargets();
   allStemAudios = [];
   // 로딩 상태 시작
@@ -3843,6 +3883,7 @@ function update(dt) {
     }
   }
 
+  updateNanoPreDuck();
   updateStemVolumes(dt);
   scheduleNotes();
 
@@ -3941,6 +3982,7 @@ function update(dt) {
     }
     // 홀드 중 키음 스템 볼륨 유지 (DJMAX식: 홀드하는 동안 소리 지속)
     if (usingStemMode) stemBoost(n.lane, 'perfect');
+    if (gameMode === 'nano' && n.stem != null) stemHitBoost[n.stem] = { start: performance.now(), dur: getMissDuckDur() };
     // Combo ticks while holding
     if (!n._comboTimer) n._comboTimer = 0;
     n._comboTimer += dt;
