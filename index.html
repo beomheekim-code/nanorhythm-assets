@@ -409,7 +409,7 @@ function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
 // ===== 미스 볼륨 duck 시스템 =====
 let stemMissDuck = {}; // { stemIdx: { start: ms, dur: ms } }  (-1 = 전체)
-const MISS_DUCK_VOL_RHYTHM = 0.5;   // 리듬모드: 50%
+const MISS_DUCK_VOL_RHYTHM = 1.0;   // 리듬모드: 100% (음량 변화 없음)
 const MISS_DUCK_VOL_NANO = 0;       // 나노모드: 완전 음소거
 const MISS_DUCK_DUR_RHYTHM = 1500;  // 리듬모드: 1.5초 복귀
 function getMissDuckVol() { return gameMode === 'nano' ? MISS_DUCK_VOL_NANO : MISS_DUCK_VOL_RHYTHM; }
