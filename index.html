@@ -3797,7 +3797,7 @@ function update(dt) {
             const gain = actx.createGain();
             const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
             gain.gain.value = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
-            gain.connect(_audioDest);
+            gain.connect(_isAlways ? actx.destination : _audioDest);
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
             src.connect(gain);
