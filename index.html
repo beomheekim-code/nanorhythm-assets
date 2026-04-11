@@ -416,11 +416,20 @@ const MISS_DUCK_VOL_RHYTHM = 1.0;   // 리듬모드: 100% (음량 변화 없음)
 const MISS_DUCK_VOL_NANO = 0;       // 나노모드: 완전 음소거
 const MISS_DUCK_DUR_RHYTHM = 1500;  // 리듬모드: 1.5초 복귀
 function getMissDuckVol() { return gameMode === 'nano' ? MISS_DUCK_VOL_NANO : MISS_DUCK_VOL_RHYTHM; }
+function getNanoBoostBeats() {
+  // 난이도별 노트밀도 + 키 수에 따라 boost 지속 비트 수 조절
+  // 노트 적을수록 길게, 많을수록 짧게 → 전 난이도에서 자연스러운 음악 연속성
+  const density = curDiff ? curDiff.noteDensity : 0.45;
+  const keyMul = Math.max(0.7, 1 - (laneCount - 4) * 0.1); // 4K=1.0, 5K=0.9, 6K=0.8, 7K=0.7
+  if (density <= 0.3) return 5 * keyMul;   // Easy: 5비트
+  if (density <= 0.5) return 3.5 * keyMul; // Normal: 3.5비트
+  if (density <= 0.9) return 2.5 * keyMul; // Hard: 2.5비트
+  return 1.5 * keyMul;                     // Hell: 1.5비트
+}
 function getMissDuckDur() {
   if (gameMode === 'nano') {
-    // 나노모드: 비트 단위 음소거 (BPM 기반)
     const bpm = curSong ? curSong.bpm : 120;
-    return (60 / bpm) * 2 * 1000; // 2비트 (반 마디)
+    return (60 / bpm) * getNanoBoostBeats() * 1000;
   }
   return MISS_DUCK_DUR_RHYTHM;
 }
