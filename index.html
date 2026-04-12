@@ -3200,7 +3200,7 @@ function detectOnsets(audioBuffer) {
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
   const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.04); // 40ms 최소 간격
+  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
   const onsets = [];
   let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
@@ -3209,7 +3209,8 @@ function detectOnsets(audioBuffer) {
     const end = Math.min(i + winSamples, data.length);
     for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    if (energy > 0.005 && energy > smoothed * 1.2 && i - lastOnset > minGapSamples) {
+    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
+    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
