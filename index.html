@@ -3270,16 +3270,18 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     merged.push(o);
   }
 
-  // 무음 제거
-  const nonSilent = merged.filter(o => o.energy >= 0.005);
+  // 무음 제거 (0.02 이하 = 거의 들리지 않는 구간 제거)
+  const nonSilent = merged.filter(o => o.energy >= 0.02);
 
   // 난이도 필터링 (균등 분배 + 최소 간격)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
+  // 조용한 구간(energy < 0.2)은 밀도를 에너지 비례로 축소
   const density = diff.noteDensity;
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
                : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
                : sixteenth;                        // 지옥: 16분음표
+  const QUIET_THRESH = 0.2;  // 이 아래면 "조용한 구간"
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -3295,7 +3297,15 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         }
         nsIdx++;
       }
-      if (best) filtered.push(best);
+      if (best) {
+        // 조용한 구간: 에너지 비례 확률로 스킵 (결정적 - 시드 RNG)
+        if (bestEnergy < QUIET_THRESH) {
+          const keepProb = bestEnergy / QUIET_THRESH;
+          if (rng() < keepProb) filtered.push(best);
+        } else {
+          filtered.push(best);
+        }
+      }
       slotStart = slotEnd;
     }
   }
