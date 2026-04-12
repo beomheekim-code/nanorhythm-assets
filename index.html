@@ -3274,34 +3274,29 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const nonSilent = merged.filter(o => o.energy >= 0.005);
 
   // 난이도 필터링 (균등 분배 + 최소 간격)
+  // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  const isHell = diff.sub === 'HELL';
-  let filtered = [];
-  if (isHell) {
-    // 지옥: 필터 없이 모든 nonSilent onset을 노트로 사용 (모든 비트 전부)
-    filtered = nonSilent;
-  } else {
-    const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
-                 : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
-                 : sixteenth * 1.5;                  // 어려움: 점8분음표
-    if (nonSilent.length > 0) {
-      // 곡 전체를 minGap 간격 구간으로 나누고, 각 구간에서 에너지 최대 onset 1개 선택
-      const songStart = nonSilent[0].time;
-      const songEnd = nonSilent[nonSilent.length - 1].time;
-      let slotStart = songStart;
-      let nsIdx = 0; // nonSilent 탐색 인덱스
-      while (slotStart < songEnd + minGap) {
-        const slotEnd = slotStart + minGap;
-        let best = null, bestEnergy = -1;
-        while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-          if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
-            best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
-          }
-          nsIdx++;
+  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
+               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
+               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
+               : sixteenth;                        // 지옥: 16분음표
+  const filtered = [];
+  if (nonSilent.length > 0) {
+    const songStart = nonSilent[0].time;
+    const songEnd = nonSilent[nonSilent.length - 1].time;
+    let slotStart = songStart;
+    let nsIdx = 0;
+    while (slotStart < songEnd + minGap) {
+      const slotEnd = slotStart + minGap;
+      let best = null, bestEnergy = -1;
+      while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
+        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
+          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
         }
-        if (best) filtered.push(best);
-        slotStart = slotEnd;
+        nsIdx++;
       }
+      if (best) filtered.push(best);
+      slotStart = slotEnd;
     }
   }
 
