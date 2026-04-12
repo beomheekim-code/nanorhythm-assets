@@ -1267,8 +1267,8 @@ const DIFFICULTIES = [
 const SPEED_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]; // 업적용
 const SPEED_MIN = 0.5, SPEED_MAX = 5.0, SPEED_STEP = 0.1;
 function getSpeedValue() { return parseFloat(selectedSpeed.toFixed(1)); }
-function speedUp() { selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1))); saveDiffSpeed(); if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); }
-function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1))); saveDiffSpeed(); if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); }
+function speedUp() { selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
+function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
 
 // ===== LEVEL RATING =====
 // 곡+난이도별 레벨(1~15) 계산: 노트 밀도, BPM, 홀드, 트랩 고려
@@ -3117,18 +3117,16 @@ addEventListener('touchstart', e => {
       }
     }
     // Speed control buttons (below HP bar, 반응형)
-    // 모바일 터치 여유: 히트 영역을 좌/우/상/하로 18px씩 확장
     const _tgx = getLaneStartX() - sz(34), _tgy = sz(44), _tgw = sz(18), _tgh = getHitY() - sz(120);
     const _tspCx = _tgx + _tgw/2, _tspBtn = sz(30), _tspGap = sz(5);
     const _tspBaseY = _tgy + _tgh + sz(24);
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
     const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
-    const _tspPad = sz(18);
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX - _tspPad, _tspMinusY - _tspPad, _tspBtn + _tspPad*2, _tspBtn + _tspPad*2)) {
-      speedDown(); return;
+    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
+      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
     }
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX - _tspPad, _tspPlusY - _tspPad, _tspBtn + _tspPad*2, _tspBtn + _tspPad*2)) {
-      speedUp(); return;
+    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
+      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     for (const touch of e.changedTouches) {
