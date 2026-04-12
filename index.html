@@ -1711,6 +1711,8 @@ function getAllScores() {
 // 점수 키: `{songIdx}_{diffIdx}_{laneCount}` (신형). 레거시: `{songIdx}_{diffIdx}` = 4K
 function _scoreKey(songIdx, diffIdx, lc) { return songIdx + '_' + diffIdx + '_' + lc; }
 function _legacyKey(songIdx, diffIdx) { return songIdx + '_' + diffIdx; }
+// Firebase 글로벌 랭킹 캐시: key(songIdx_diffIdx_lc) → { user: score }
+let fbRankingsCache = {};
 function saveScore(songIdx, diffIdx, newScore, lc) {
   if (!currentUser) return;
   if (lc == null) lc = laneCount;
@@ -1720,6 +1722,23 @@ function saveScore(songIdx, diffIdx, newScore, lc) {
   const prev = all[currentUser][key] || 0;
   if (newScore > prev) all[currentUser][key] = newScore;
   safeSetItem('rhythm_allScores', JSON.stringify(all));
+  // Firebase 글로벌 랭킹에 저장 (최고 점수만)
+  if (fbDb && newScore > prev) {
+    try {
+      fbDb.ref('scores/' + key + '/' + currentUser).set(newScore);
+    } catch(e) {}
+  }
+}
+// 특정 key의 Firebase 랭킹 실시간 구독 (랭킹 화면 진입 시 호출)
+const _fbRankingSubs = {};
+function subscribeFbRanking(songIdx, diffIdx, lc) {
+  if (!fbDb) return;
+  const key = _scoreKey(songIdx, diffIdx, lc);
+  if (_fbRankingSubs[key]) return;
+  _fbRankingSubs[key] = true;
+  fbDb.ref('scores/' + key).on('value', snap => {
+    fbRankingsCache[key] = snap.val() || {};
+  }, () => {});
 }
 function getMyBest(songIdx, diffIdx, lc) {
   if (!currentUser) return 0;
@@ -1736,16 +1755,25 @@ function getMyBest(songIdx, diffIdx, lc) {
 }
 function getRankings(songIdx, diffIdx, lc) {
   if (lc == null) lc = laneCount;
-  const all = getAllScores();
   const key = _scoreKey(songIdx, diffIdx, lc);
   const legacyKey = _legacyKey(songIdx, diffIdx);
-  const list = [];
+  // Firebase 글로벌 + 로컬 병합 (최대값 우선)
+  const merged = {};
+  // 1) Firebase 글로벌 랭킹
+  const fbData = fbRankingsCache[key] || {};
+  for (const user in fbData) {
+    const sc = fbData[user];
+    if (typeof sc === 'number' && sc > 0) merged[user] = sc;
+  }
+  // 2) 로컬 점수도 병합 (오프라인 기록 보장)
+  const all = getAllScores();
   for (const user in all) {
     let sc = all[user][key];
-    // 레거시 폴백: 4K 탭에서 이전 저장 데이터도 포함
     if (!sc && lc === 4 && all[user][legacyKey]) sc = all[user][legacyKey];
-    if (sc) list.push({ name: user, score: sc });
+    if (sc && (!merged[user] || sc > merged[user])) merged[user] = sc;
   }
+  const list = [];
+  for (const user in merged) list.push({ name: user, score: merged[user] });
   list.sort((a, b) => b.score - a.score);
   return list;
 }
@@ -2548,9 +2576,9 @@ function handleSelectClick(mx, my) {
     const cpX = isMobileC ? 6 : 8;
     const cpY = isMobileC ? H - Math.min(H * 0.35, 200) - sz(30) : 50;
     const tabH = sz(20), tabGap = sz(2);
-    const tabW = (chartPanelWC - sz(10) - tabGap * 3) / 4;
+    const tabW = (chartPanelWC - sz(10) - tabGap * (CHART_TABS.length - 1)) / CHART_TABS.length;
     // 탭 클릭
-    for (let ti = 0; ti < 4; ti++) {
+    for (let ti = 0; ti < CHART_TABS.length; ti++) {
       const tx = cpX + sz(5) + ti * (tabW + tabGap), ty = cpY + sz(5);
       if (hitTest(mx, my, tx, ty, tabW, tabH)) {
         playScrollTick(); chartTab = ti; chartLastUpdate = 0; chartScroll = 0;
@@ -2646,7 +2674,7 @@ function handleSelectClick(mx, my) {
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal' && hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
-  if (playMode === 'normal' && hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
+  if (playMode === 'normal' && hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
   // Difficulty buttons
   const optY1 = subBtnY + lay.subBtnH + lay.sectionGap + 18;
   const diffBtnW = (lay.optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
@@ -2743,7 +2771,7 @@ function handleRankingClick(mx, my) {
   const tabBtnW = tabW / DIFFICULTIES.length;
   const tabX = (W - tabW) / 2, tabY = H*0.17;
   for (let i = 0; i < DIFFICULTIES.length; i++) {
-    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) { selectedDiff=i; saveDiffSpeed(); rankingScroll = 0; return; }
+    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) { selectedDiff=i; saveDiffSpeed(); rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
   }
   // Key count sub-tabs
   const keyTabCount = 5;
@@ -2751,7 +2779,7 @@ function handleRankingClick(mx, my) {
   const keyBtnW = keyTabW / keyTabCount;
   const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + 34;
   for (let k = 0; k < keyTabCount; k++) {
-    if (hitTest(mx, my, keyTabX + k*keyBtnW, keyTabY, keyBtnW, 22)) { rankingKeyCount = k + 4; rankingScroll = 0; return; }
+    if (hitTest(mx, my, keyTabX + k*keyBtnW, keyTabY, keyBtnW, 22)) { rankingKeyCount = k + 4; rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
   }
 }
 
@@ -3858,7 +3886,7 @@ function update(dt) {
   if (state === 'select') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
-      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
+      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
       if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
@@ -6795,8 +6823,8 @@ function renderSelect() {
 
     // 탭 버튼
     const tabH = sz(20), tabGap = sz(2);
-    const tabW = (chartPanelW - sz(10) - tabGap * 3) / 4;
-    for (let ti = 0; ti < 4; ti++) {
+    const tabW = (chartPanelW - sz(10) - tabGap * (CHART_TABS.length - 1)) / CHART_TABS.length;
+    for (let ti = 0; ti < CHART_TABS.length; ti++) {
       const tx = cpX + sz(5) + ti * (tabW + tabGap);
       const ty = cpY + sz(5);
       const sel = ti === chartTab;
