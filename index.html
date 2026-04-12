@@ -1961,7 +1961,7 @@ try {
     if (Object.keys(cached).length > 0) { fbPlayData = cached; fbPlaysLoaded = true; }
   }
 } catch(e) { safeRemoveItem('rhythm_playsCache'); }
-// 곡별 total + logs 리스닝 (DAILY/WEEKLY 차트용)
+// 곡별 total 리스닝만 (TOP 차트용) — 실시간 구독
 for (let _si = 0; _si < songs.length; _si++) {
   const _key = 'song_' + _si;
   fbDb.ref('plays/' + _key + '/total').on('value', snap => {
@@ -1969,12 +1969,21 @@ for (let _si = 0; _si < songs.length; _si++) {
     fbPlayData[_key].total = snap.val() || 0;
     fbConnected = true; fbPlaysLoaded = true; chartLastUpdate = 0;
   }, () => { fbConnected = false; });
-  // logs 구독 시 최근 500개만 (모바일 데이터량 제한)
-  fbDb.ref('plays/' + _key + '/logs').limitToLast(500).on('value', snap => {
-    if (!fbPlayData[_key]) fbPlayData[_key] = { total: 0, logs: {} };
-    fbPlayData[_key].logs = snap.val() || {};
-    chartLastUpdate = 0;
-  }, () => {});
+}
+// logs는 선곡 화면 진입 시 lazy 로드 (DAILY/WEEKLY 차트용)
+let _fbLogsLoaded = false;
+function loadFbLogsLazy() {
+  if (_fbLogsLoaded || !fbDb) return;
+  _fbLogsLoaded = true;
+  for (let _si = 0; _si < songs.length; _si++) {
+    const _key = 'song_' + _si;
+    // 최근 300개만 once (실시간 필요 없음)
+    fbDb.ref('plays/' + _key + '/logs').limitToLast(300).once('value', snap => {
+      if (!fbPlayData[_key]) fbPlayData[_key] = { total: 0, logs: {} };
+      fbPlayData[_key].logs = snap.val() || {};
+      chartLastUpdate = 0;
+    }, () => {});
+  }
 }
 setTimeout(() => { if (fbConnected) flushLocalPlaysToFb(); }, 5000);
 
@@ -3863,7 +3872,7 @@ function update(dt) {
         if (!titleBgmUnlocked) {
           startTitleBgm(); titleBgmUnlocked = true;
         } else {
-          stopTitleBgm(); transitionTo('select');
+          stopTitleBgm(); loadFbLogsLazy(); transitionTo('select');
         }
       }
     }
