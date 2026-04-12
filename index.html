@@ -2428,7 +2428,7 @@ function handleHamburgerClick(mx, my) {
       const idx = Math.floor((my - m.y) / m.itemH);
       playScrollTick(); hamburgerOpen = false;
       if (idx === 0) { shopScroll = 0; stopPreview(); startShopBgm(); transitionTo('shop'); }
-      else if (idx === 1) { settingsOpen = true; settingsBindingLane = -1; }
+      else if (idx === 1) { settingsOpen = true; settingsBindingLane = -1; settingsScrollY = 0; }
       return true;
     }
     hamburgerOpen = false; return true;
@@ -2815,7 +2815,7 @@ addEventListener('mousedown', e => {
       return;
     }
     // 로그인 완료 상태: 설정 버튼 + 모드 선택 + TAP TO START
-    if (hitTest(mx, my, W - sz(38) - sz(8), H - sz(28) - sz(8), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; return; }
+    if (hitTest(mx, my, W - sz(38) - sz(8), H - sz(28) - sz(8), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
     // 모드 선택 버튼 처리 (탭하면 선택만 변경, 화면 전환 X)
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
