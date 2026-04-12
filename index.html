@@ -1791,7 +1791,7 @@ speedInputElHidden.addEventListener('keydown', e => {
   }
 });
 let rankingScroll = 0;
-let rankingKeyCount = 4; // 랭킹 화면 키 탭 (4~8)
+let rankingKeyCount = laneCount; // 랭킹 화면 키 탭 (4~8, 기본값 = 현재 키 설정)
 
 // ===== ACHIEVEMENT & COIN SYSTEM =====
 const SCORE_THRESHOLDS = [200000, 400000, 600000, 800000];
@@ -5298,6 +5298,19 @@ function renderSettingsOverlay() {
     ctx.fillText('\uACC4\uC815 \uC0AD\uC81C', delX + actBtnW / 2, actY + actBtnH / 2);
   }
 
+  // 타이틀 화면으로 돌아가기 버튼 (모드 변경용)
+  const ttY = actY + actBtnH + sz(10);
+  const ttW = Math.min(sz(240), panelW * 0.8), ttH = sz(32);
+  const ttX = (W - ttW) / 2;
+  ctx.fillStyle = 'rgba(140,100,255,0.12)'; rrFill(ttX, ttY, ttW, ttH, sz(8));
+  ctx.strokeStyle = 'rgba(160,120,255,0.5)'; ctx.lineWidth = 1; rrStroke(ttX, ttY, ttW, ttH, sz(8));
+  ctx.font = `bold ${sz(12)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(200,180,255,0.9)';
+  ctx.fillText('타이틀 화면으로 (모드 변경)', ttX + ttW / 2, ttY + ttH / 2);
+  ctx.textBaseline = 'alphabetic';
+  // 저장용
+  window._settingsTitleBtn = { x: ttX, y: ttY, w: ttW, h: ttH };
+
   // 계정 삭제 확인 팝업
   if (deleteAccountPopup) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H);
@@ -5405,6 +5418,17 @@ function handleSettingsClick(mx, my) {
   // 닫기 버튼
   const bbW = sz(30), bbH = sz(24), bbX = popX + popW - bbW - sz(6), bbY = popY + sz(6);
   if (hitTest(mx, my, bbX, bbY, bbW, bbH)) { settingsOpen = false; settingsBindingLane = -1; googleLinkPopup = false; deleteAccountPopup = false; return; }
+
+  // 타이틀 화면으로 돌아가기 (모드 변경)
+  if (window._settingsTitleBtn) {
+    const tb = window._settingsTitleBtn;
+    if (hitTest(mx, my, tb.x, tb.y, tb.w, tb.h)) {
+      settingsOpen = false; settingsBindingLane = -1;
+      stopSongAudio(); stopPreview(); stopRankingBgm(); stopShopBgm(); stopAchievementBgm();
+      transitionTo('title');
+      return;
+    }
+  }
 
   // 게임 모드 토글
   if (window._modeBtnRhythm && hitTest(mx, my, _modeBtnRhythm.x, _modeBtnRhythm.y, _modeBtnRhythm.w, _modeBtnRhythm.h)) {
@@ -5973,9 +5997,10 @@ function renderTitle() {
     const pmStartX = (W - pmTotalW) / 2, pmY = H*0.58;
     loginModeBtnAreas = [];
     const modes = [
-      { key: 'normal', label: '일반 모드', sub: 'HP · 랭킹 · 업적', color: '#00d4ff' },
-      { key: 'freestyle', label: '프리스타일', sub: 'HP 없음 · 자유 연주', color: '#ffd700' },
+      { key: 'normal', label: '일반 모드', desc: '일반적인 싱글모드입니다', color: '#00d4ff' },
+      { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
     ];
+    let selectedModeDesc = '', selectedModeColor = '';
     modes.forEach((m, i) => {
       const bx = pmStartX + i * (pmBtnW + pmGap);
       const sel = playMode === m.key;
@@ -5984,21 +6009,27 @@ function renderTitle() {
       ctx.strokeStyle = sel ? m.color : 'rgba(255,255,255,0.15)';
       ctx.lineWidth = sel ? 2 : 1;
       rrStroke(bx, pmY, pmBtnW, pmBtnH, sz(10));
-      ctx.font = `bold ${sz(14)}px sans-serif`;
+      ctx.font = `bold ${sz(15)}px sans-serif`;
       ctx.fillStyle = sel ? m.color : 'rgba(255,255,255,0.75)';
-      ctx.fillText(m.label, bx + pmBtnW/2, pmY + sz(22));
-      ctx.font = `${sz(10)}px sans-serif`;
-      ctx.fillStyle = sel ? m.color + 'cc' : 'rgba(255,255,255,0.35)';
-      ctx.fillText(m.sub, bx + pmBtnW/2, pmY + sz(40));
+      ctx.fillText(m.label, bx + pmBtnW/2, pmY + pmBtnH/2 + sz(5));
+      if (sel) { selectedModeDesc = m.desc; selectedModeColor = m.color; }
       loginModeBtnAreas.push({ x: bx, y: pmY, w: pmBtnW, h: pmBtnH, key: m.key });
     });
+
+    // 선택된 모드 설명 (버튼 아래, 가로 꽉 차게 줄바꿈 처리)
+    if (selectedModeDesc) {
+      ctx.font = `${sz(11)}px sans-serif`;
+      ctx.fillStyle = selectedModeColor + 'cc';
+      ctx.textAlign = 'center';
+      ctx.fillText(selectedModeDesc, W/2, pmY + pmBtnH + sz(18));
+    }
 
     // TAP TO START
     ctx.font=`${sz(14)}px sans-serif`;
     const promptAlpha = 0.5 + Math.sin(t*0.003)*0.25;
     ctx.fillStyle=`rgba(180,170,230,${promptAlpha})`;
     const promptText = titleBgmUnlocked ? '\uD654\uBA74\uC744 \uD130\uCE58\uD558\uC5EC \uC2DC\uC791' : '\uD654\uBA74\uC744 \uD130\uCE58\uD574\uC8FC\uC138\uC694';
-    ctx.fillText(promptText, W/2, pmY + pmBtnH + sz(30));
+    ctx.fillText(promptText, W/2, pmY + pmBtnH + sz(44));
   }
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
