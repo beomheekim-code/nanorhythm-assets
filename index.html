@@ -436,6 +436,12 @@ function stemDuckAll() {}
 let gameMode = safeGetItem('rhythm_gameMode') || 'rhythm';
 function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
+// ===== 플레이 모드 =====
+// 'normal' (일반): 기존 로직. HP/랭킹/업적 활성
+// 'freestyle' (프리스타일): HP 없음. 랭킹/업적 비활성
+let playMode = safeGetItem('rhythm_playMode') || 'normal';
+function savePlayMode() { safeSetItem('rhythm_playMode', playMode); }
+
 // ===== 나노모드 로우패스 필터 시스템 =====
 let nanoFilter = null;       // BiquadFilterNode
 let nanoFilterTarget = 20000; // 목표 주파수 (20000=클리어, 낮을수록 먹먹)
@@ -1379,6 +1385,7 @@ let authMethod = safeGetItem('rhythm_authMethod') || '';
 let guestWarningOpen = false;
 let loginAuthPending = false;
 let loginBtnAreas = []; // {x,y,w,h,type} calculated in renderLogin
+let loginModeBtnAreas = []; // 플레이 모드 선택 버튼
 let nicknameOverlay = false; // 닉네임 입력 오버레이
 let deleteAccountPopup = false; // 계정 삭제 확인 팝업
 let googleLinkPopup = false; // Google 연동 확인 팝업
@@ -2633,8 +2640,8 @@ function handleSelectClick(mx, my) {
   const subBtnGapX = 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
-  if (hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
-  if (hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
+  if (playMode === 'normal' && hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
+  if (playMode === 'normal' && hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
   // Difficulty buttons
   const optY1 = subBtnY + lay.subBtnH + lay.sectionGap + 18;
   const diffBtnW = (lay.optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
@@ -2805,8 +2812,14 @@ addEventListener('mousedown', e => {
       }
       return;
     }
-    // 로그인 완료 상태: 설정 버튼 + TAP TO START
+    // 로그인 완료 상태: 설정 버튼 + 모드 선택 + TAP TO START
     if (hitTest(mx, my, W - sz(38) - sz(8), H - sz(28) - sz(8), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; return; }
+    // 모드 선택 버튼 처리 (탭하면 선택만 변경, 화면 전환 X)
+    for (const b of loginModeBtnAreas) {
+      if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
+        playMode = b.key; savePlayMode(); return;
+      }
+    }
     inputQueue.push('confirm'); return;
   }
   if (state === 'result') { inputQueue.push('confirm'); return; }
@@ -2994,6 +3007,12 @@ addEventListener('touchstart', e => {
       }
       return;
     }
+    // 모드 선택 버튼 처리
+    for (const b of loginModeBtnAreas) {
+      if (hitTest(tmx, tmy, b.x, b.y, b.w, b.h)) {
+        playMode = b.key; savePlayMode(); return;
+      }
+    }
     inputQueue.push('confirm'); return;
   }
   if (state === 'result') { inputQueue.push('confirm'); return; }
@@ -3163,7 +3182,7 @@ function handleLanePress(lane) {
   if (closest.type === 'trap') {
     nanoMiss();
     playDissonance(); combo = 0; fever = false; feverTimer = 0;
-    if (!devInvincible) gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain * 2 : 0.08));
+    if (!devInvincible && playMode === 'normal') gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain * 2 : 0.08));
     judgmentText = 'TRAP!'; judgmentTimer = 0.7; judgmentColor = '#ff3333'; judgmentPriority = 2;
     shakeX = (Math.random()-0.5)*18; shakeY = (Math.random()-0.5)*12;
     playerAnim = -0.3;
@@ -4117,7 +4136,7 @@ function update(dt) {
       if (n.type === 'note' || n.type === 'hold') {
         nanoMiss();
         combo = 0; missed++; fever = false; feverTimer = 0;
-        if (!devInvincible) gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
+        if (!devInvincible && playMode === 'normal') gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         shakeX = (Math.random()-0.5)*8; shakeY = (Math.random()-0.5)*6;
         if (judgmentPriority < 2) { judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; }
       }
@@ -4141,14 +4160,18 @@ function update(dt) {
     if (holdGlows[i].time >= holdGlows[i].maxTime) holdGlows.splice(i, 1);
   }
 
-  if ((gauge <= 0 || gameTime >= songDuration) && state === 'playing' && fadeDir === 0) {
+  // 프리스타일: HP 게임오버 없음. 곡 종료로만 result 전환
+  const gameoverByHP = playMode === 'normal' && gauge <= 0;
+  if ((gameoverByHP || gameTime >= songDuration) && state === 'playing' && fadeDir === 0) {
     state = 'ending';
     fadeOutSongAudio(1.0);
     // 점수 정규화: 만점 100만점 기준
     const _rawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
     const _normalizedScore = Math.round(score / _rawMax * 1000000);
-    saveScore(curSongIdx, selectedDiff, _normalizedScore);
-    checkAndAwardAchievements();
+    if (playMode === 'normal') {
+      saveScore(curSongIdx, selectedDiff, _normalizedScore);
+      checkAndAwardAchievements();
+    }
     transitionTo('result');
   }
 }
@@ -4387,7 +4410,7 @@ function render() {
   }
 
   // Low gauge danger vignette
-  if (gauge < 0.35) {
+  if (gauge < 0.35 && playMode === 'normal') {
     const intensity = (0.35 - gauge) / 0.35;
     const pulse = 0.5 + Math.sin(_fNow * 0.006) * 0.5;
     const vg = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
@@ -4837,7 +4860,9 @@ function renderJudgment() {
 
 function renderUI() {
   const song = curSong;
-  // Gauge bar (left side, vertical, thick)
+  // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
+  if (playMode !== 'normal') { /* 프리스타일은 HP UI 없음 */ }
+  else {
   const gx = getLaneStartX() - sz(34), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
   // BG
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -4874,6 +4899,7 @@ function renderUI() {
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillText(Math.round(gauge*100)+'%', gx+gw/2, gy+gh+sz(14));
   ctx.restore();
+  } // HP UI block end (프리스타일 스킵)
 
   // Score top-left (safeTop 반영)
   ctx.textAlign='left';
@@ -5935,13 +5961,44 @@ function renderTitle() {
       ctx.globalAlpha = 1;
     }
   } else {
-    // ===== 로그인 완료: TAP TO START =====
+    // ===== 로그인 완료: 모드 선택 + TAP TO START =====
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    ctx.font=`bold ${sz(13)}px sans-serif`;
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillText('플레이 모드 선택', W/2, H*0.55);
+
+    // 두 모드 버튼
+    const pmBtnW = Math.min(sz(150), W*0.42), pmBtnH = sz(56), pmGap = sz(14);
+    const pmTotalW = pmBtnW * 2 + pmGap;
+    const pmStartX = (W - pmTotalW) / 2, pmY = H*0.58;
+    loginModeBtnAreas = [];
+    const modes = [
+      { key: 'normal', label: '일반 모드', sub: 'HP · 랭킹 · 업적', color: '#00d4ff' },
+      { key: 'freestyle', label: '프리스타일', sub: 'HP 없음 · 자유 연주', color: '#ffd700' },
+    ];
+    modes.forEach((m, i) => {
+      const bx = pmStartX + i * (pmBtnW + pmGap);
+      const sel = playMode === m.key;
+      ctx.fillStyle = sel ? m.color + '22' : 'rgba(255,255,255,0.04)';
+      rrFill(bx, pmY, pmBtnW, pmBtnH, sz(10));
+      ctx.strokeStyle = sel ? m.color : 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = sel ? 2 : 1;
+      rrStroke(bx, pmY, pmBtnW, pmBtnH, sz(10));
+      ctx.font = `bold ${sz(14)}px sans-serif`;
+      ctx.fillStyle = sel ? m.color : 'rgba(255,255,255,0.75)';
+      ctx.fillText(m.label, bx + pmBtnW/2, pmY + sz(22));
+      ctx.font = `${sz(10)}px sans-serif`;
+      ctx.fillStyle = sel ? m.color + 'cc' : 'rgba(255,255,255,0.35)';
+      ctx.fillText(m.sub, bx + pmBtnW/2, pmY + sz(40));
+      loginModeBtnAreas.push({ x: bx, y: pmY, w: pmBtnW, h: pmBtnH, key: m.key });
+    });
+
+    // TAP TO START
     ctx.font=`${sz(14)}px sans-serif`;
     const promptAlpha = 0.5 + Math.sin(t*0.003)*0.25;
     ctx.fillStyle=`rgba(180,170,230,${promptAlpha})`;
     const promptText = titleBgmUnlocked ? '\uD654\uBA74\uC744 \uD130\uCE58\uD558\uC5EC \uC2DC\uC791' : '\uD654\uBA74\uC744 \uD130\uCE58\uD574\uC8FC\uC138\uC694';
-    ctx.fillText(promptText, W/2, H*0.68);
+    ctx.fillText(promptText, W/2, pmY + pmBtnH + sz(30));
   }
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
@@ -6476,21 +6533,24 @@ function renderSelect() {
   }
 
   // Achievement + Ranking buttons (below song cards, for selected song only)
+  // 프리스타일 모드: 랭킹/업적 숨김
   const subBtnY = songRowY + cardH + cdTextH + subBtnGap;
   const subBtnW = Math.min(120, optW * 0.28);
   const subBtnGapX = 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
-  ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnH, 8);
-  ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnH, 8);
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(13)}px sans-serif`;
-  ctx.fillStyle = '#ffd700bb';
-  ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnH/2 + 5);
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
-  ctx.font = `bold ${sz(13)}px sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnH/2 + 5);
+  if (playMode === 'normal') {
+    ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnH, 8);
+    ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnH, 8);
+    ctx.textAlign = 'center'; ctx.font = `bold ${sz(13)}px sans-serif`;
+    ctx.fillStyle = '#ffd700bb';
+    ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnH/2 + 5);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
+    ctx.font = `bold ${sz(13)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnH/2 + 5);
+  }
 
   // Difficulty selector
   const labelH = 18; // 라벨 텍스트 공간
