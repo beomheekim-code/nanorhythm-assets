@@ -2020,17 +2020,15 @@ function getChartData(type) {
     if (type === 'top') count = total;
     else if (type === 'daily') count = logs.filter(t => t >= todayStart.getTime()).length;
     else if (type === 'weekly') count = logs.filter(t => t >= weekStart.getTime()).length;
-    else if (type === 'hot') count = logs.filter(t => t >= hourAgo).length;
     list.push({ idx: i, count });
   }
-  // count=0인 곡 제외 (DAILY/WEEKLY/HOT에서 기록 없는 곡 숨김), TOP은 전부 표시
+  // count=0인 곡 제외 (DAILY/WEEKLY에서 기록 없는 곡 숨김), TOP은 전부 표시
   const filtered = type === 'top' ? list : list.filter(item => item.count > 0);
   filtered.sort((a, b) => b.count - a.count || a.idx - b.idx);
   return filtered;
 }
 
 const CHART_TABS = [
-  { key: 'hot', label: 'HOT' },
   { key: 'daily', label: 'DAILY' },
   { key: 'weekly', label: 'WEEKLY' },
   { key: 'top', label: 'TOP' },
@@ -6866,12 +6864,6 @@ function renderSelect() {
       ctx.fillStyle = s.color + (isSel ? 'cc' : '77');
       ctx.fillText(item.count + ' plays', cpX + sz(42), iy + itemH/2 + sz(8));
 
-      // HOT 탭이면 실시간 불꽃 이펙트 (1위)
-      if (chartTab === 0 && ci === 0 && item.count > 0) {
-        ctx.fillStyle = '#ffd700';
-        ctx.font = `${sz(10)}px sans-serif`;
-        ctx.fillText('🔥', cpX + chartPanelW - sz(22), iy + itemH/2);
-      }
     }
     ctx.restore();
 
