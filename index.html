@@ -108,7 +108,7 @@ if (window.visualViewport) {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@6b37b0f/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@4caeb75/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -769,6 +769,26 @@ const songs = [
     stemPrefix: '힙합_오소리',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 100, color: '#ff6699',
+    bg1: '#0e0408', bg2: '#1c0810', bars: 45,
+    cover: 'Music/Heart_On_The_Line/Heart_On_The_Line.png',
+    file: 'Music/Heart_On_The_Line.ogg',
+    stemDir: 'Music/Heart_On_The_Line/',
+    stemPrefix: 'Heart_on_the_Line',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 80, color: '#9999dd',
+    bg1: '#060610', bg2: '#0c0c1c', bars: 37,
+    cover: 'Music/기억의_사물함/기억의_사물함.png',
+    file: 'Music/기억의_사물함.ogg',
+    stemDir: 'Music/기억의_사물함/',
+    stemPrefix: '기억의_사물함',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
   },
 ];
 
@@ -3251,28 +3271,33 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // 난이도 필터링 (균등 분배 + 최소 간격)
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
-               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
-               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
-               : sixteenth;                        // 지옥: 16분음표
-  const filtered = [];
-  if (nonSilent.length > 0) {
-    // 곡 전체를 minGap 간격 구간으로 나누고, 각 구간에서 에너지 최대 onset 1개 선택
-    const songStart = nonSilent[0].time;
-    const songEnd = nonSilent[nonSilent.length - 1].time;
-    let slotStart = songStart;
-    let nsIdx = 0; // nonSilent 탐색 인덱스
-    while (slotStart < songEnd + minGap) {
-      const slotEnd = slotStart + minGap;
-      let best = null, bestEnergy = -1;
-      while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
-          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+  const isHell = diff.sub === 'HELL';
+  let filtered = [];
+  if (isHell) {
+    // 지옥: 필터 없이 모든 nonSilent onset을 노트로 사용 (모든 비트 전부)
+    filtered = nonSilent;
+  } else {
+    const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
+                 : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
+                 : sixteenth * 1.5;                  // 어려움: 점8분음표
+    if (nonSilent.length > 0) {
+      // 곡 전체를 minGap 간격 구간으로 나누고, 각 구간에서 에너지 최대 onset 1개 선택
+      const songStart = nonSilent[0].time;
+      const songEnd = nonSilent[nonSilent.length - 1].time;
+      let slotStart = songStart;
+      let nsIdx = 0; // nonSilent 탐색 인덱스
+      while (slotStart < songEnd + minGap) {
+        const slotEnd = slotStart + minGap;
+        let best = null, bestEnergy = -1;
+        while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
+          if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
+            best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+          }
+          nsIdx++;
         }
-        nsIdx++;
+        if (best) filtered.push(best);
+        slotStart = slotEnd;
       }
-      if (best) filtered.push(best);
-      slotStart = slotEnd;
     }
   }
 
