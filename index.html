@@ -2053,6 +2053,7 @@ let curSong = null, curSongIdx = 0, curDiff = null;
 let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 0;
 let noteSpeed = 0;
 let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [];
+let nodeScanStart = 0; // 활성 노트 스캔 시작 인덱스 (hit/missed prefix 스킵)
 let stars = [];
 let countdownTime = 0, gameTime = 0, songDuration = 0;
 let shakeX = 0, shakeY = 0;
@@ -2118,6 +2119,7 @@ let songEnergyMap = null; // 0.5초 단위 에너지 (0~1), 드럼 기준
 
 function generateNodes(song, diff, energyMap) {
   nodes = [];
+  nodeScanStart = 0;
   const songIdx = songs.indexOf(song);
   const diffIdx = DIFFICULTIES.indexOf(diff);
   const seed = (songIdx + 1) * 10000 + (diffIdx + 1) * 100 + song.bpm;
@@ -3221,6 +3223,7 @@ function detectOnsets(audioBuffer) {
 
 function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   nodes = [];
+  nodeScanStart = 0;
   const songIdx = songs.indexOf(song);
   const diffIdx = DIFFICULTIES.indexOf(diff);
   const seed = (songIdx + 1) * 10000 + (diffIdx + 1) * 100 + song.bpm;
@@ -4037,12 +4040,22 @@ function update(dt) {
     }
   }
 
-  // Miss detection
+  // Miss detection — 활성 윈도우만 스캔 (nodeScanStart ~ 미래 컷오프)
+  // nodes는 시간순 정렬. 시작점은 hit/missed가 전부인 앞쪽 prefix를 건너뜀.
+  // 끝은 gameTime보다 많이 미래인 노트에서 break.
   const hitY = getHitY();
-  for (const n of nodes) {
+  const missCut = (getHitWindow() + 40 * getHeightScale()) / noteSpeed; // 초 단위 miss 컷오프
+  const missTimeThresh = gameTime - missCut; // n.time < missTimeThresh 이면 MISS
+  const futureCut = gameTime + 0.5; // 0.5초 이후 미래 노트는 스캔 불필요
+  // 앞쪽 dead prefix 자동 advance
+  while (nodeScanStart < nodes.length && (nodes[nodeScanStart].hit || nodes[nodeScanStart].missed)) {
+    nodeScanStart++;
+  }
+  for (let i = nodeScanStart; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.time > futureCut) break; // 미래 노트 — 이후 전부 미래
     if (n.hit || n.missed) continue;
-    const sy = hitY - (n.time - gameTime) * noteSpeed;
-    if (sy > hitY + getHitWindow() + 40 * getHeightScale()) {
+    if (n.time < missTimeThresh) {
       n.missed = true;
       if (n.type === 'note' || n.type === 'hold') {
         nanoMiss();
