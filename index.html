@@ -1711,22 +1711,27 @@ function getAllScores() {
 // 점수 키: `{songIdx}_{diffIdx}_{laneCount}` (신형). 레거시: `{songIdx}_{diffIdx}` = 4K
 function _scoreKey(songIdx, diffIdx, lc) { return songIdx + '_' + diffIdx + '_' + lc; }
 function _legacyKey(songIdx, diffIdx) { return songIdx + '_' + diffIdx; }
-// Firebase 글로벌 랭킹 캐시: key(songIdx_diffIdx_lc) → { user: score }
+// Firebase 글로벌 랭킹 캐시: key(songIdx_diffIdx_lc) → { user: { score, ts } | number(legacy) }
 let fbRankingsCache = {};
+// 로컬 점수 엔트리 해석: 숫자(레거시) 또는 { score, ts } 객체
+function _scoreValue(v) { return (v != null && typeof v === 'object') ? (v.score || 0) : (v || 0); }
+function _scoreTs(v) { return (v != null && typeof v === 'object') ? (v.ts || 0) : 0; }
 function saveScore(songIdx, diffIdx, newScore, lc) {
   if (!currentUser) return;
   if (lc == null) lc = laneCount;
   const all = getAllScores();
   if (!all[currentUser]) all[currentUser] = {};
   const key = _scoreKey(songIdx, diffIdx, lc);
-  const prev = all[currentUser][key] || 0;
-  if (newScore > prev) all[currentUser][key] = newScore;
-  safeSetItem('rhythm_allScores', JSON.stringify(all));
-  // Firebase 글로벌 랭킹에 저장 (최고 점수만)
-  if (fbDb && newScore > prev) {
-    try {
-      fbDb.ref('scores/' + key + '/' + currentUser).set(newScore);
-    } catch(e) {}
+  const prevEntry = all[currentUser][key];
+  const prev = _scoreValue(prevEntry);
+  if (newScore > prev) {
+    // 첫 기록 또는 갱신: 새 타임스탬프
+    const entry = { score: newScore, ts: Date.now() };
+    all[currentUser][key] = entry;
+    safeSetItem('rhythm_allScores', JSON.stringify(all));
+    if (fbDb) {
+      try { fbDb.ref('scores/' + key + '/' + currentUser).set(entry); } catch(e) {}
+    }
   }
 }
 // 특정 key의 Firebase 랭킹 실시간 구독 (랭킹 화면 진입 시 호출)
@@ -1746,10 +1751,10 @@ function getMyBest(songIdx, diffIdx, lc) {
   const all = getAllScores();
   if (!all[currentUser]) return 0;
   const key = _scoreKey(songIdx, diffIdx, lc);
-  if (all[currentUser][key]) return all[currentUser][key];
+  if (all[currentUser][key] != null) return _scoreValue(all[currentUser][key]);
   // 레거시 폴백: 4K에서만 이전 키 사용
-  if (lc === 4 && all[currentUser][_legacyKey(songIdx, diffIdx)]) {
-    return all[currentUser][_legacyKey(songIdx, diffIdx)];
+  if (lc === 4 && all[currentUser][_legacyKey(songIdx, diffIdx)] != null) {
+    return _scoreValue(all[currentUser][_legacyKey(songIdx, diffIdx)]);
   }
   return 0;
 }
@@ -1757,24 +1762,33 @@ function getRankings(songIdx, diffIdx, lc) {
   if (lc == null) lc = laneCount;
   const key = _scoreKey(songIdx, diffIdx, lc);
   const legacyKey = _legacyKey(songIdx, diffIdx);
-  // Firebase 글로벌 + 로컬 병합 (최대값 우선)
-  const merged = {};
+  // Firebase 글로벌 + 로컬 병합 (최대 점수, 동률 시 더 이른 ts 우선)
+  const merged = {}; // user → { score, ts }
+  function _merge(user, sc, ts) {
+    if (!sc || sc <= 0) return;
+    const cur = merged[user];
+    if (!cur || sc > cur.score) {
+      merged[user] = { score: sc, ts: ts || 0 };
+    } else if (sc === cur.score && ts && (!cur.ts || ts < cur.ts)) {
+      merged[user] = { score: sc, ts: ts };
+    }
+  }
   // 1) Firebase 글로벌 랭킹
   const fbData = fbRankingsCache[key] || {};
   for (const user in fbData) {
-    const sc = fbData[user];
-    if (typeof sc === 'number' && sc > 0) merged[user] = sc;
+    _merge(user, _scoreValue(fbData[user]), _scoreTs(fbData[user]));
   }
   // 2) 로컬 점수도 병합 (오프라인 기록 보장)
   const all = getAllScores();
   for (const user in all) {
-    let sc = all[user][key];
-    if (!sc && lc === 4 && all[user][legacyKey]) sc = all[user][legacyKey];
-    if (sc && (!merged[user] || sc > merged[user])) merged[user] = sc;
+    let v = all[user][key];
+    if (v == null && lc === 4) v = all[user][legacyKey];
+    _merge(user, _scoreValue(v), _scoreTs(v));
   }
   const list = [];
-  for (const user in merged) list.push({ name: user, score: merged[user] });
-  list.sort((a, b) => b.score - a.score);
+  for (const user in merged) list.push({ name: user, score: merged[user].score, ts: merged[user].ts });
+  // 점수 내림차순 → 동률 시 먼저 등록(ts 작은 순)이 상위
+  list.sort((a, b) => b.score - a.score || (a.ts || 0) - (b.ts || 0));
   return list;
 }
 let loginInput = '';
