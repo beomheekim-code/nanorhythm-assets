@@ -1919,7 +1919,7 @@ try {
     if (Object.keys(cached).length > 0) { fbPlayData = cached; fbPlaysLoaded = true; }
   }
 } catch(e) { safeRemoveItem('rhythm_playsCache'); }
-// 곡별 total만 리스닝 (logs는 차트 계산 시 1회 fetch)
+// 곡별 total + logs 리스닝 (DAILY/WEEKLY 차트용)
 for (let _si = 0; _si < songs.length; _si++) {
   const _key = 'song_' + _si;
   fbDb.ref('plays/' + _key + '/total').on('value', snap => {
@@ -1927,6 +1927,11 @@ for (let _si = 0; _si < songs.length; _si++) {
     fbPlayData[_key].total = snap.val() || 0;
     fbConnected = true; fbPlaysLoaded = true; chartLastUpdate = 0;
   }, () => { fbConnected = false; });
+  fbDb.ref('plays/' + _key + '/logs').on('value', snap => {
+    if (!fbPlayData[_key]) fbPlayData[_key] = { total: 0, logs: {} };
+    fbPlayData[_key].logs = snap.val() || {};
+    chartLastUpdate = 0;
+  }, () => {});
 }
 setTimeout(() => { if (fbConnected) flushLocalPlaysToFb(); }, 5000);
 
