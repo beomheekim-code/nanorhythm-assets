@@ -6365,15 +6365,16 @@ function updateSelectScroll(dt) {
   }
 
   // 매 프레임 selectedSong을 스크롤 위치에 동기화 (스냅 애니메이션 중에는 스킵)
-  const curSongByScroll = Math.round(Math.max(0, Math.min(maxScroll, selectScrollX)) / step);
+  // 즐겨찾기 모드: 스크롤 위치 → 표시 리스트 인덱스 → 실제 songIdx
+  const _scrollDl = favFilterActive ? getFavorites().sort((a,b)=>a-b) : null;
+  const _scrollListLen = _scrollDl ? _scrollDl.length : songs.length;
+  const curPosByScroll = Math.round(Math.max(0, Math.min(maxScroll, selectScrollX)) / step);
+  const clampedPos = Math.max(0, Math.min(curPosByScroll, _scrollListLen - 1));
+  const curSongByScroll = _scrollDl ? (_scrollDl[clampedPos] != null ? _scrollDl[clampedPos] : selectedSong) : clampedPos;
   if (selectTargetScrollX === null) {
-    const clampedSong = Math.max(0, Math.min(curSongByScroll, songs.length - 1));
-    if (clampedSong !== selectedSong) {
-      // 즐겨찾기 모드: 비즐겨찾기 곡은 선택 안 함 (스냅에서 처리)
-      if (!favFilterActive || isFavorite(clampedSong)) {
-        selectedSong = clampedSong;
-        loadSongDiffSpeed(selectedSong);
-      }
+    if (curSongByScroll !== selectedSong && curSongByScroll >= 0 && curSongByScroll < songs.length) {
+      selectedSong = curSongByScroll;
+      loadSongDiffSpeed(selectedSong);
     }
   }
 
