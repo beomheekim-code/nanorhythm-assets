@@ -5101,9 +5101,10 @@ function renderSettingsOverlay() {
   ctx.textBaseline='middle';
   ctx.fillText('✕', bbX+bbW/2, bbY+bbH/2);
 
-  // 스크롤 컨텍스트 저장: 팝업 내부 영역만 클립 + translate
-  const _scrollClipY = popY + sz(34); // 닫기 버튼 아래부터 스크롤
-  const _scrollClipH = popH - sz(44);
+  // 스크롤 컨텍스트 저장: 팝업 내부 영역 클립 + translate
+  // 닫기 버튼은 이미 그려진 후이므로 클립이 전체 팝업을 덮어도 무방
+  const _scrollClipY = popY + sz(4);
+  const _scrollClipH = popH - sz(8);
   ctx.save();
   ctx.beginPath();
   ctx.rect(popX, _scrollClipY, popW, _scrollClipH);
@@ -5348,7 +5349,7 @@ function renderSettingsOverlay() {
   window._settingsTitleBtn = { x: ttX, y: ttY, w: ttW, h: ttH };
 
   // 콘텐츠 총 높이 저장 후 클립/스크롤 종료
-  settingsContentH = (ttY + ttH) - (popY + sz(34));
+  settingsContentH = (ttY + ttH) - (popY + sz(4));
   ctx.restore();
   // 스크롤 범위 클램프
   const _scrollMax = Math.max(0, settingsContentH - _scrollClipH + sz(20));
