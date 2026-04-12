@@ -4887,9 +4887,10 @@ function renderJudgment() {
 
 function renderUI() {
   const song = curSong;
+  // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
+  const gx = getLaneStartX() - sz(34), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
-    const gx = getLaneStartX() - sz(34), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
     // BG
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     rrFill(gx-1, gy-1, gw+2, gh+2, 6);
