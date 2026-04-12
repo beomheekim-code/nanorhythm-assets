@@ -2082,17 +2082,32 @@ const CHART_TABS = [
 ];
 let chartTab = 0;
 let chartScroll = 0;
-let chartPrevRanks = {};
+let chartPrevRanks = {};      // 순위 변동 비교용 "이전 랭크" 스냅샷
+let chartPrevTab = -1;        // prevRanks가 어느 탭 기준인지 기록
+let chartPrevSnapTime = 0;    // prevRanks 스냅샷 생성 시각
 let chartLastUpdate = 0;
 let chartCache = [];
 let mobileChartCollapsed = true; // 모바일에서 차트 기본 접힘
+const CHART_PREV_TTL = 30000; // prevRanks 유지 시간 (변동 표시가 너무 빨리 사라지지 않도록)
 
 function updateChartCache() {
   const now = Date.now();
-  if (now - chartLastUpdate < 3000) return; // 3초마다 갱신
-  chartPrevRanks = {};
-  chartCache.forEach((item, rank) => { chartPrevRanks[item.idx] = rank; });
-  chartCache = getChartData(CHART_TABS[chartTab].key);
+  // 탭이 바뀌면 prev 스냅샷 폐기(엉뚱한 변동 방지)
+  if (chartPrevTab !== chartTab) {
+    chartPrevRanks = {};
+    chartPrevTab = chartTab;
+    chartPrevSnapTime = 0;
+  }
+  if (now - chartLastUpdate < 3000) return; // 3초마다 재계산
+  // 랭크 데이터 갱신
+  const newCache = getChartData(CHART_TABS[chartTab].key);
+  // 이전 스냅샷이 없거나 TTL 경과 → 현재 데이터로 prev 스냅샷 새로 생성
+  if (chartPrevSnapTime === 0 || now - chartPrevSnapTime > CHART_PREV_TTL) {
+    chartPrevRanks = {};
+    chartCache.forEach((item, rank) => { chartPrevRanks[item.idx] = rank; });
+    chartPrevSnapTime = now;
+  }
+  chartCache = newCache;
   chartLastUpdate = now;
 }
 
