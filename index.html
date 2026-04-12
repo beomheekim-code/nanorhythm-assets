@@ -1792,6 +1792,8 @@ speedInputElHidden.addEventListener('keydown', e => {
 });
 let rankingScroll = 0;
 let rankingKeyCount = laneCount; // 랭킹 화면 키 탭 (4~8, 기본값 = 현재 키 설정)
+let settingsScrollY = 0; // 설정창 세로 스크롤 (8키 등 콘텐츠 초과 시)
+let settingsContentH = 0; // 렌더된 콘텐츠 총 높이
 
 // ===== ACHIEVEMENT & COIN SYSTEM =====
 const SCORE_THRESHOLDS = [200000, 400000, 600000, 800000];
@@ -2936,6 +2938,11 @@ addEventListener('mouseup', () => {
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
 });
 addEventListener('wheel', e => {
+  if (settingsOpen) {
+    settingsScrollY = Math.max(0, settingsScrollY + (e.deltaY || 0) * 0.5);
+    e.preventDefault();
+    return;
+  }
   if (state === 'select') {
     selectTargetScrollX = null;
     selectScrollVel = Math.max(-8, Math.min(8, selectScrollVel + (e.deltaY || e.deltaX) * 0.03));
@@ -2956,6 +2963,15 @@ addEventListener('touchstart', e => {
   }
   // 인게임 플레이 중이 아닌 모든 터치에 자동 클릭음
   if (state !== 'playing' && state !== 'select' && state !== 'shop' && state !== 'ranking' && state !== 'achievement') playScrollTick();
+  // 설정창 스크롤 드래그 시작 기록
+  if (settingsOpen) {
+    const t0 = e.changedTouches[0];
+    if (t0) {
+      _settingsTouchStartY = gameY(t0.clientY);
+      _settingsTouchStartScroll = settingsScrollY;
+      _settingsTouching = true;
+    }
+  }
   // 닉네임 오버레이
   if (nicknameOverlay) {
     const t0 = e.changedTouches[0];
@@ -3074,8 +3090,18 @@ addEventListener('touchstart', e => {
     }
   }
 }, { passive: false });
+let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching = false;
 addEventListener('touchmove', e => {
   e.preventDefault();
+  // 설정창 열려있으면 스크롤 드래그
+  if (settingsOpen && _settingsTouching) {
+    const t = e.touches[0];
+    if (t) {
+      const dy = _settingsTouchStartY - gameY(t.clientY);
+      settingsScrollY = Math.max(0, _settingsTouchStartScroll + dy);
+    }
+    return;
+  }
   // 인게임: 터치 슬라이드로 옆 레인 입력
   if (state === 'playing' && !gamePaused && countdownTime <= 0) {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
@@ -3136,6 +3162,7 @@ addEventListener('touchmove', e => {
 }, { passive: false });
 addEventListener('touchend', e => {
   e.preventDefault();
+  if (_settingsTouching) _settingsTouching = false;
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
   // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락은 유지)
   for (const touch of e.changedTouches) {
@@ -4861,45 +4888,44 @@ function renderJudgment() {
 function renderUI() {
   const song = curSong;
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
-  if (playMode !== 'normal') { /* 프리스타일은 HP UI 없음 */ }
-  else {
-  const gx = getLaneStartX() - sz(34), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
-  // BG
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  rrFill(gx-1, gy-1, gw+2, gh+2, 6);
-  // Fill (bottom-up)
-  const fillH = gh * gauge;
-  const gCol = gauge > 0.5 ? '#00ff88' : gauge > 0.25 ? '#ffaa00' : '#ff3333';
-  const gGrad = ctx.createLinearGradient(0, gy+gh-fillH, 0, gy+gh);
-  gGrad.addColorStop(0, gCol); gGrad.addColorStop(1, gCol+'66');
-  ctx.fillStyle = gGrad;
-  rrFill(gx, gy + gh - fillH, gw, fillH, 5);
-  // Inner highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  rrFill(gx+1, gy + gh - fillH, gw/3, fillH, 3);
-  // Border
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
-  rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
-  // Glow when low
-  if (gauge < 0.3) {
-    ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(Date.now()*0.008)*5;
+  if (playMode === 'normal') {
+    const gx = getLaneStartX() - sz(34), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
+    // BG
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    rrFill(gx-1, gy-1, gw+2, gh+2, 6);
+    // Fill (bottom-up)
+    const fillH = gh * gauge;
+    const gCol = gauge > 0.5 ? '#00ff88' : gauge > 0.25 ? '#ffaa00' : '#ff3333';
+    const gGrad = ctx.createLinearGradient(0, gy+gh-fillH, 0, gy+gh);
+    gGrad.addColorStop(0, gCol); gGrad.addColorStop(1, gCol+'66');
+    ctx.fillStyle = gGrad;
+    rrFill(gx, gy + gh - fillH, gw, fillH, 5);
+    // Inner highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(gx+1, gy + gh - fillH, gw/3, fillH, 3);
+    // Border
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
     rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
-    ctx.shadowBlur = 0;
+    // Glow when low
+    if (gauge < 0.3) {
+      ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(Date.now()*0.008)*5;
+      rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
+      ctx.shadowBlur = 0;
+    }
+    // Label
+    ctx.save();
+    ctx.translate(gx + gw/2, gy - sz(10));
+    ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = gCol;
+    ctx.fillText('HP', 0, 0);
+    ctx.restore();
+    // Percentage text on gauge
+    ctx.save();
+    ctx.font = `bold ${sz(9)}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(Math.round(gauge*100)+'%', gx+gw/2, gy+gh+sz(14));
+    ctx.restore();
   }
-  // Label
-  ctx.save();
-  ctx.translate(gx + gw/2, gy - sz(10));
-  ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center';
-  ctx.fillStyle = gCol;
-  ctx.fillText('HP', 0, 0);
-  ctx.restore();
-  // Percentage text on gauge
-  ctx.save();
-  ctx.font = `bold ${sz(9)}px sans-serif`; ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(Math.round(gauge*100)+'%', gx+gw/2, gy+gh+sz(14));
-  ctx.restore();
-  } // HP UI block end (프리스타일 스킵)
 
   // Score top-left (safeTop 반영)
   ctx.textAlign='left';
@@ -5073,6 +5099,15 @@ function renderSettingsOverlay() {
   ctx.fillStyle='rgba(255,255,255,0.7)';
   ctx.textBaseline='middle';
   ctx.fillText('✕', bbX+bbW/2, bbY+bbH/2);
+
+  // 스크롤 컨텍스트 저장: 팝업 내부 영역만 클립 + translate
+  const _scrollClipY = popY + sz(34); // 닫기 버튼 아래부터 스크롤
+  const _scrollClipH = popH - sz(44);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(popX, _scrollClipY, popW, _scrollClipH);
+  ctx.clip();
+  ctx.translate(0, -settingsScrollY);
 
   // 타이틀 + 닉네임
   ctx.font=`bold ${sz(20)}px sans-serif`;
@@ -5308,8 +5343,26 @@ function renderSettingsOverlay() {
   ctx.fillStyle = 'rgba(200,180,255,0.9)';
   ctx.fillText('타이틀 화면으로 (모드 변경)', ttX + ttW / 2, ttY + ttH / 2);
   ctx.textBaseline = 'alphabetic';
-  // 저장용
+  // 저장용 (스크롤 반영된 위치로 저장)
   window._settingsTitleBtn = { x: ttX, y: ttY, w: ttW, h: ttH };
+
+  // 콘텐츠 총 높이 저장 후 클립/스크롤 종료
+  settingsContentH = (ttY + ttH) - (popY + sz(34));
+  ctx.restore();
+  // 스크롤 범위 클램프
+  const _scrollMax = Math.max(0, settingsContentH - _scrollClipH + sz(20));
+  if (settingsScrollY > _scrollMax) settingsScrollY = _scrollMax;
+  if (settingsScrollY < 0) settingsScrollY = 0;
+  // 스크롤바 (콘텐츠 오버플로우 시)
+  if (_scrollMax > 0) {
+    const sbX = popX + popW - sz(6), sbY = _scrollClipY + sz(4), sbH = _scrollClipH - sz(8);
+    const thumbH = Math.max(sz(30), sbH * _scrollClipH / (settingsContentH + sz(20)));
+    const thumbY = sbY + (sbH - thumbH) * (settingsScrollY / _scrollMax);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(sbX - 2, sbY, 4, sbH, 2);
+    ctx.fillStyle = 'rgba(160,130,255,0.6)';
+    rrFill(sbX - 2, thumbY, 4, thumbH, 2);
+  }
 
   // 계정 삭제 확인 팝업
   if (deleteAccountPopup) {
@@ -5419,10 +5472,13 @@ function handleSettingsClick(mx, my) {
   const bbW = sz(30), bbH = sz(24), bbX = popX + popW - bbW - sz(6), bbY = popY + sz(6);
   if (hitTest(mx, my, bbX, bbY, bbW, bbH)) { settingsOpen = false; settingsBindingLane = -1; googleLinkPopup = false; deleteAccountPopup = false; return; }
 
+  // 스크롤 영역 내부는 my + scrollY 사용
+  const mys = my + settingsScrollY;
+
   // 타이틀 화면으로 돌아가기 (모드 변경)
   if (window._settingsTitleBtn) {
     const tb = window._settingsTitleBtn;
-    if (hitTest(mx, my, tb.x, tb.y, tb.w, tb.h)) {
+    if (hitTest(mx, mys, tb.x, tb.y, tb.w, tb.h)) {
       settingsOpen = false; settingsBindingLane = -1;
       stopSongAudio(); stopPreview(); stopRankingBgm(); stopShopBgm(); stopAchievementBgm();
       transitionTo('title');
@@ -5431,10 +5487,10 @@ function handleSettingsClick(mx, my) {
   }
 
   // 게임 모드 토글
-  if (window._modeBtnRhythm && hitTest(mx, my, _modeBtnRhythm.x, _modeBtnRhythm.y, _modeBtnRhythm.w, _modeBtnRhythm.h)) {
+  if (window._modeBtnRhythm && hitTest(mx, mys, _modeBtnRhythm.x, _modeBtnRhythm.y, _modeBtnRhythm.w, _modeBtnRhythm.h)) {
     gameMode = 'rhythm'; saveGameMode(); return;
   }
-  if (window._modeBtnNano && hitTest(mx, my, _modeBtnNano.x, _modeBtnNano.y, _modeBtnNano.w, _modeBtnNano.h)) {
+  if (window._modeBtnNano && hitTest(mx, mys, _modeBtnNano.x, _modeBtnNano.y, _modeBtnNano.w, _modeBtnNano.h)) {
     gameMode = 'nano'; saveGameMode(); return;
   }
 
@@ -5446,7 +5502,7 @@ function handleSettingsClick(mx, my) {
   const modeX = (W - modeTotalW) / 2;
   for (let mi = 0; mi < modeKeys.length; mi++) {
     const bx = modeX + mi * (modeBtnW + modeGap);
-    if (hitTest(mx, my, bx, modeY, modeBtnW, modeBtnH) && laneCount !== modeKeys[mi]) {
+    if (hitTest(mx, mys, bx, modeY, modeBtnW, modeBtnH) && laneCount !== modeKeys[mi]) {
       setLaneMode(modeKeys[mi]); settingsBindingLane = -1; return;
     }
   }
@@ -5461,7 +5517,7 @@ function handleSettingsClick(mx, my) {
     const ry = startY + i * rowH;
     const kbW = Math.min(sz(90), panelW * 0.3), kbH = sz(28);
     const kbX = panelX + panelW - kbW - sz(8), kbY = ry + (rowH - sz(4) - kbH) / 2;
-    if (hitTest(mx, my, kbX, kbY, kbW, kbH)) {
+    if (hitTest(mx, mys, kbX, kbY, kbW, kbH)) {
       settingsBindingLane = (settingsBindingLane === i) ? -1 : i;
       return;
     }
@@ -5471,7 +5527,7 @@ function handleSettingsClick(mx, my) {
   const resetY = startY + laneCount * rowH + sz(10);
   const resetW = Math.min(sz(120), panelW * 0.4), resetH = sz(30);
   const resetX = (W - resetW) / 2;
-  if (hitTest(mx, my, resetX, resetY, resetW, resetH)) {
+  if (hitTest(mx, mys, resetX, resetY, resetW, resetH)) {
     resetKeymap(); settingsBindingLane = -1; return;
   }
 
@@ -5482,12 +5538,12 @@ function handleSettingsClick(mx, my) {
   const volRowH = sz(38), sliderHitH = sz(26);
   const bgmTrackY = volY + sz(20);
   const sfxTrackY = volY + volRowH + sz(20);
-  if (my >= bgmTrackY - sliderHitH/2 && my <= bgmTrackY + sliderHitH/2 && mx >= sliderX - sz(8) && mx <= sliderX + sliderW + sz(8)) {
+  if (mys >= bgmTrackY - sliderHitH/2 && mys <= bgmTrackY + sliderHitH/2 && mx >= sliderX - sz(8) && mx <= sliderX + sliderW + sz(8)) {
     settingsDragging = 'bgm';
     volBgm = Math.max(0, Math.min(1, (mx - sliderX) / sliderW));
     applyBgmVol(); saveVolSettings(); return;
   }
-  if (my >= sfxTrackY - sliderHitH/2 && my <= sfxTrackY + sliderHitH/2 && mx >= sliderX - sz(8) && mx <= sliderX + sliderW + sz(8)) {
+  if (mys >= sfxTrackY - sliderHitH/2 && mys <= sfxTrackY + sliderHitH/2 && mx >= sliderX - sz(8) && mx <= sliderX + sliderW + sz(8)) {
     settingsDragging = 'sfx';
     volSfx = Math.max(0, Math.min(1, (mx - sliderX) / sliderW));
     applySfxVol(); saveVolSettings(); return;
@@ -5503,16 +5559,16 @@ function handleSettingsClick(mx, my) {
     // 게스트: Google 연동 + 계정 삭제
     const actTotalW = actBtnW * 2 + actGap;
     const actStartX = (W - actTotalW) / 2;
-    if (hitTest(mx, my, actStartX, actY, actBtnW, actBtnH)) { startGoogleLink(); return; }
+    if (hitTest(mx, mys, actStartX, actY, actBtnW, actBtnH)) { startGoogleLink(); return; }
     const delX = actStartX + actBtnW + actGap;
-    if (hitTest(mx, my, delX, actY, actBtnW, actBtnH)) { deleteAccountPopup = true; return; }
+    if (hitTest(mx, mys, delX, actY, actBtnW, actBtnH)) { deleteAccountPopup = true; return; }
   } else {
     // Google: 로그아웃 + 계정 삭제
     const actTotalW = actBtnW * 2 + actGap;
     const actStartX = (W - actTotalW) / 2;
-    if (hitTest(mx, my, actStartX, actY, actBtnW, actBtnH)) { logoutUser(); return; }
+    if (hitTest(mx, mys, actStartX, actY, actBtnW, actBtnH)) { logoutUser(); return; }
     const delX = actStartX + actBtnW + actGap;
-    if (hitTest(mx, my, delX, actY, actBtnW, actBtnH)) { deleteAccountPopup = true; return; }
+    if (hitTest(mx, mys, delX, actY, actBtnW, actBtnH)) { deleteAccountPopup = true; return; }
   }
 }
 
