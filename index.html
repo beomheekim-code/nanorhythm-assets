@@ -1688,26 +1688,43 @@ function deleteAccount() {
 function getAllScores() {
   try { return JSON.parse(safeGetItem('rhythm_allScores') || '{}'); } catch(e) { return {}; }
 }
-function saveScore(songIdx, diffIdx, newScore) {
+// 점수 키: `{songIdx}_{diffIdx}_{laneCount}` (신형). 레거시: `{songIdx}_{diffIdx}` = 4K
+function _scoreKey(songIdx, diffIdx, lc) { return songIdx + '_' + diffIdx + '_' + lc; }
+function _legacyKey(songIdx, diffIdx) { return songIdx + '_' + diffIdx; }
+function saveScore(songIdx, diffIdx, newScore, lc) {
   if (!currentUser) return;
+  if (lc == null) lc = laneCount;
   const all = getAllScores();
   if (!all[currentUser]) all[currentUser] = {};
-  const key = songIdx + '_' + diffIdx;
+  const key = _scoreKey(songIdx, diffIdx, lc);
   const prev = all[currentUser][key] || 0;
   if (newScore > prev) all[currentUser][key] = newScore;
   safeSetItem('rhythm_allScores', JSON.stringify(all));
 }
-function getMyBest(songIdx, diffIdx) {
+function getMyBest(songIdx, diffIdx, lc) {
   if (!currentUser) return 0;
+  if (lc == null) lc = laneCount;
   const all = getAllScores();
-  return (all[currentUser] && all[currentUser][songIdx + '_' + diffIdx]) || 0;
+  if (!all[currentUser]) return 0;
+  const key = _scoreKey(songIdx, diffIdx, lc);
+  if (all[currentUser][key]) return all[currentUser][key];
+  // 레거시 폴백: 4K에서만 이전 키 사용
+  if (lc === 4 && all[currentUser][_legacyKey(songIdx, diffIdx)]) {
+    return all[currentUser][_legacyKey(songIdx, diffIdx)];
+  }
+  return 0;
 }
-function getRankings(songIdx, diffIdx) {
+function getRankings(songIdx, diffIdx, lc) {
+  if (lc == null) lc = laneCount;
   const all = getAllScores();
-  const key = songIdx + '_' + diffIdx;
+  const key = _scoreKey(songIdx, diffIdx, lc);
+  const legacyKey = _legacyKey(songIdx, diffIdx);
   const list = [];
   for (const user in all) {
-    if (all[user][key]) list.push({ name: user, score: all[user][key] });
+    let sc = all[user][key];
+    // 레거시 폴백: 4K 탭에서 이전 저장 데이터도 포함
+    if (!sc && lc === 4 && all[user][legacyKey]) sc = all[user][legacyKey];
+    if (sc) list.push({ name: user, score: sc });
   }
   list.sort((a, b) => b.score - a.score);
   return list;
@@ -1754,6 +1771,7 @@ speedInputElHidden.addEventListener('keydown', e => {
   }
 });
 let rankingScroll = 0;
+let rankingKeyCount = 4; // 랭킹 화면 키 탭 (4~8)
 
 // ===== ACHIEVEMENT & COIN SYSTEM =====
 const SCORE_THRESHOLDS = [200000, 400000, 600000, 800000];
@@ -2603,7 +2621,7 @@ function handleSelectClick(mx, my) {
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; transitionTo('achievement'); return; }
-  if (hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
+  if (hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
   // Difficulty buttons
   const optY1 = subBtnY + lay.subBtnH + lay.sectionGap + 18;
   const diffBtnW = (lay.optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
@@ -2700,7 +2718,15 @@ function handleRankingClick(mx, my) {
   const tabBtnW = tabW / DIFFICULTIES.length;
   const tabX = (W - tabW) / 2, tabY = H*0.17;
   for (let i = 0; i < DIFFICULTIES.length; i++) {
-    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) { selectedDiff=i; saveDiffSpeed(); return; }
+    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) { selectedDiff=i; saveDiffSpeed(); rankingScroll = 0; return; }
+  }
+  // Key count sub-tabs
+  const keyTabCount = 5;
+  const keyTabW = sz(220);
+  const keyBtnW = keyTabW / keyTabCount;
+  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + 34;
+  for (let k = 0; k < keyTabCount; k++) {
+    if (hitTest(mx, my, keyTabX + k*keyBtnW, keyTabY, keyBtnW, 22)) { rankingKeyCount = k + 4; rankingScroll = 0; return; }
   }
 }
 
@@ -3770,7 +3796,7 @@ function update(dt) {
   if (state === 'select') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
-      if (inp === 'ranking') { rankingScroll = 0; stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
+      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
       if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
@@ -7136,9 +7162,27 @@ function renderRanking() {
     ctx.fillText(d.name, bx + tabBtnW/2, tabY + 18);
   });
 
+  // Key count sub-tabs (4K~8K)
+  const keyTabCount = 5;
+  const keyTabW = sz(220);
+  const keyBtnW = keyTabW / keyTabCount;
+  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + 34;
+  for (let k = 0; k < keyTabCount; k++) {
+    const kCount = k + 4;
+    const bx = keyTabX + k * keyBtnW;
+    const sel = kCount === rankingKeyCount;
+    ctx.fillStyle = sel ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
+    ctx.fillRect(bx, keyTabY, keyBtnW, 22);
+    if (sel) { ctx.fillStyle = '#fff'; ctx.fillRect(bx, keyTabY+20, keyBtnW, 2); }
+    ctx.textAlign='center';
+    ctx.font=`bold ${sz(11)}px sans-serif`;
+    ctx.fillStyle = sel ? '#fff' : 'rgba(255,255,255,0.4)';
+    ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + 14);
+  }
+
   // Rankings list
-  const rankings = getRankings(selectedSong, selectedDiff);
-  const listY = H*0.27, rowH = 32;
+  const rankings = getRankings(selectedSong, selectedDiff, rankingKeyCount);
+  const listY = H*0.27 + 20, rowH = 32;
   const listW = sz(300);
   const listX = (W - listW) / 2;
   const maxVisible = Math.floor((H*0.6) / rowH);
