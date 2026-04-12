@@ -1267,8 +1267,8 @@ const DIFFICULTIES = [
 const SPEED_OPTIONS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]; // 업적용
 const SPEED_MIN = 0.5, SPEED_MAX = 5.0, SPEED_STEP = 0.1;
 function getSpeedValue() { return parseFloat(selectedSpeed.toFixed(1)); }
-function speedUp() { selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
-function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
+function speedUp() { selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1))); saveDiffSpeed(); if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); }
+function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1))); saveDiffSpeed(); if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); }
 
 // ===== LEVEL RATING =====
 // 곡+난이도별 레벨(1~15) 계산: 노트 밀도, BPM, 홀드, 트랩 고려
