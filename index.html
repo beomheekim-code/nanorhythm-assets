@@ -108,7 +108,7 @@ if (window.visualViewport) {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@6b37b0f/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@4caeb75/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -769,6 +769,26 @@ const songs = [
     stemPrefix: '힙합_오소리',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 100, color: '#ff6699',
+    bg1: '#0e0408', bg2: '#1c0810', bars: 45,
+    cover: 'Music/Heart_On_The_Line/Heart_On_The_Line.png',
+    file: 'Music/Heart_On_The_Line.ogg',
+    stemDir: 'Music/Heart_On_The_Line/',
+    stemPrefix: 'Heart_on_the_Line',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 80, color: '#9999dd',
+    bg1: '#060610', bg2: '#0c0c1c', bars: 37,
+    cover: 'Music/기억의_사물함/기억의_사물함.png',
+    file: 'Music/기억의_사물함.ogg',
+    stemDir: 'Music/기억의_사물함/',
+    stemPrefix: '기억의_사물함',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
   },
 ];
 
