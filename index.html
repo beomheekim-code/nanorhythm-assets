@@ -136,6 +136,7 @@ function applyBgmVol() {
   titleBgm.volume = 0.55 * volBgm;
   rankingBgm.volume = 0.55 * volBgm;
   shopBgm.volume = 0.55 * volBgm;
+  if (typeof achievementBgm !== 'undefined') achievementBgm.volume = 0.55 * volBgm;
   if (masterGain) masterGain.gain.value = 0.6 * volBgm;
 }
 function applySfxVol() {
@@ -158,6 +159,18 @@ function startRankingBgm() {
 }
 function stopRankingBgm() {
   if (rankingBgmPlaying) { rankingBgm.pause(); rankingBgmPlaying = false; }
+}
+
+// Achievement BGM
+const achievementBgm = new Audio(assetUrl('Music/Heart_On_The_Line.ogg'));
+achievementBgm.loop = true;
+achievementBgm.volume = 0.55;
+let achievementBgmPlaying = false;
+function startAchievementBgm() {
+  if (!achievementBgmPlaying) { achievementBgm.currentTime = 0; achievementBgm.play().catch(()=>{}); achievementBgmPlaying = true; }
+}
+function stopAchievementBgm() {
+  if (achievementBgmPlaying) { achievementBgm.pause(); achievementBgmPlaying = false; }
 }
 
 // Shop BGM
@@ -2620,7 +2633,7 @@ function handleSelectClick(mx, my) {
   const subBtnGapX = 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
-  if (hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; transitionTo('achievement'); return; }
+  if (hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
   if (hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
   // Difficulty buttons
   const optY1 = subBtnY + lay.subBtnH + lay.sectionGap + 18;
@@ -2679,7 +2692,7 @@ function getAchRows() {
 function handleAchievementClick(mx, my) {
   if (handleHamburgerClick(mx, my)) return;
   // Back button
-  if (hitTest(mx, my, 12, H - 48, 70, 38)) { transitionTo('select'); return; }
+  if (hitTest(mx, my, 12, H - 48, 70, 38)) { stopAchievementBgm(); transitionTo('select'); return; }
   // Type tabs
   const tabW = sz(300);
   const tabBtnW = tabW / ACH_TABS.length;
@@ -3785,7 +3798,7 @@ function update(dt) {
   }
   if (state === 'achievement') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
-      if (inp==='back' || inp==='confirm') { transitionTo('select'); }
+      if (inp==='back' || inp==='confirm') { stopAchievementBgm(); transitionTo('select'); }
       if (inp==='up') achievementScroll = Math.max(0, achievementScroll - 1);
       if (inp==='down') achievementScroll++;
       if (inp==='left') { achievementTab = Math.max(0, achievementTab - 1); achievementScroll = 0; }
@@ -3797,7 +3810,7 @@ function update(dt) {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
       if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
-      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
+      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         if (inp==='right') { const p = _dPos(selectedSong); selectedSong = _dSong(p < _dLen() - 1 ? p + 1 : 0); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
@@ -7110,7 +7123,7 @@ function renderAchievement() {
         ctx.fillText('수령완료', listX+listW-16, ry+rowH*0.55);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillText('+'+a.coins, listX+listW-16, ry+rowH*0.55);
+        ctx.fillText('+'+a.coins+'♪', listX+listW-16, ry+rowH*0.55);
       }
     }
   }
@@ -7356,10 +7369,11 @@ let bgAudioState = null; // 백그라운드 진입 전 오디오 상태 저장
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // 모든 오디오 일시정지 (백그라운드/최소화)
-    bgAudioState = { titleBgm: titleBgmPlaying, rankingBgm: rankingBgmPlaying, shopBgm: shopBgmPlaying, preview: !!songPreviewAudio && !songPreviewAudio.paused };
+    bgAudioState = { titleBgm: titleBgmPlaying, rankingBgm: rankingBgmPlaying, shopBgm: shopBgmPlaying, achievementBgm: achievementBgmPlaying, preview: !!songPreviewAudio && !songPreviewAudio.paused };
     if (titleBgmPlaying) titleBgm.pause();
     if (rankingBgmPlaying) rankingBgm.pause();
     if (shopBgmPlaying) shopBgm.pause();
+    if (achievementBgmPlaying) achievementBgm.pause();
     if (songPreviewAudio && !songPreviewAudio.paused) songPreviewAudio.pause();
     // 인게임 오디오
     if (state === 'playing') {
@@ -7372,6 +7386,7 @@ document.addEventListener('visibilitychange', () => {
     if (bgAudioState.titleBgm && state !== 'playing') { titleBgm.play().catch(()=>{}); }
     if (bgAudioState.rankingBgm && state === 'ranking') { rankingBgm.play().catch(()=>{}); }
     if (bgAudioState.shopBgm && state === 'shop') { shopBgm.play().catch(()=>{}); }
+    if (bgAudioState.achievementBgm && state === 'achievement') { achievementBgm.play().catch(()=>{}); }
     if (bgAudioState.preview && state === 'select' && songPreviewAudio) { songPreviewAudio.play().catch(()=>{}); }
     bgAudioState = null;
   }
