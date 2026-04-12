@@ -329,13 +329,26 @@ function startPreview(idx) {
   previewActive = true;
   previewLoading = true;
   const song = songs[idx];
-  songPreviewAudio = new Audio(assetUrl(song.file));
-  songPreviewAudio.volume = 0;
-  songPreviewAudio.addEventListener('canplaythrough', () => {
+  const audio = new Audio(assetUrl(song.file));
+  songPreviewAudio = audio;
+  audio.volume = 0;
+  // 로딩 완료 처리 — 여러 이벤트로 커버 (canplaythrough는 간헐적으로 안 뜸)
+  const markReady = () => {
+    if (songPreviewAudio !== audio || !previewLoading) return;
     previewLoading = false;
     previewCycleStart = performance.now();
-  }, { once: true });
-  songPreviewAudio.play().catch(()=>{});
+  };
+  audio.addEventListener('canplay', markReady, { once: true });
+  audio.addEventListener('loadeddata', markReady, { once: true });
+  audio.addEventListener('playing', markReady, { once: true });
+  audio.play().then(markReady).catch(()=>{});
+  // 타임아웃 폴백: 3초 내에 준비 못 하면 강제로 진행
+  setTimeout(() => {
+    if (songPreviewAudio === audio && previewLoading) {
+      markReady();
+      audio.play().catch(()=>{});
+    }
+  }, 3000);
 }
 function stopPreview() {
   previewActive = false;
