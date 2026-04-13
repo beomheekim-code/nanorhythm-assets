@@ -6833,26 +6833,28 @@ function renderSelect() {
     ctx.restore();
   }
 
-  // Left/right arrows (카드 위에 그리기)
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(28)}px sans-serif`;
-  const arrowOffX = cardW/2 + sz(32);
-  const _curScrollPos = Math.round(selectScrollX / step);
-  if (_curScrollPos > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
-    ctx.fillText('◀', centerX - arrowOffX, songRowY + cardH/2 + 4);
-    ctx.shadowBlur = 0;
-  }
-  if (_curScrollPos < _dLen() - 1) {
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
-    ctx.fillText('▶', centerX + arrowOffX, songRowY + cardH/2 + 4);
-    ctx.shadowBlur = 0;
+  // Left/right arrows (카드 위에 그리기) — 모바일 가로에서는 숨김
+  const _mlSub = isMobile && !isPortrait;
+  if (!_mlSub) {
+    ctx.textAlign = 'center'; ctx.font = `bold ${sz(28)}px sans-serif`;
+    const arrowOffX = cardW/2 + sz(32);
+    const _curScrollPos = Math.round(selectScrollX / step);
+    if (_curScrollPos > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
+      ctx.fillText('◀', centerX - arrowOffX, songRowY + cardH/2 + 4);
+      ctx.shadowBlur = 0;
+    }
+    if (_curScrollPos < _dLen() - 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
+      ctx.fillText('▶', centerX + arrowOffX, songRowY + cardH/2 + 4);
+      ctx.shadowBlur = 0;
+    }
   }
 
   // Achievement + Ranking buttons (below song cards, for selected song only)
   // 프리스타일 모드: 랭킹/업적 숨김
-  const _mlSub = isMobile && !isPortrait;
   // 모바일 가로: 레벨 배지 바로 밑으로 끌어올림
   const subBtnY = _mlSub ? (songRowY + cardH + cdTextH + 4) : (songRowY + cardH + cdTextH + subBtnGap);
   // 모바일 가로: 버튼 크기 적당히 확대
@@ -6927,8 +6929,8 @@ function renderSelect() {
   // 값 표시 (중앙) — 입력 모드 분기
   if (speedInputActive) {
     ctx.fillStyle = '#ffd70030'; rrFill(spdValX, optY2, spdMidW, optH, 8);
-    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
-    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = _mlSub ? '#ffd700aa' : '#ffd700'; ctx.lineWidth = _mlSub ? 1 : 2;
+    if (!_mlSub) { ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12; }
     rrStroke(spdValX, optY2, spdMidW, optH, 8); ctx.shadowBlur = 0;
     ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.fillStyle = '#fff';
@@ -6941,8 +6943,8 @@ function renderSelect() {
     ctx.fillText(SPEED_MIN+'~'+SPEED_MAX+' 입력 후 Enter', spdValX + spdMidW/2, optY2 + optH + 12);
   } else {
     ctx.fillStyle = '#ffd70018'; rrFill(spdValX, optY2, spdMidW, optH, 8);
-    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
-    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8;
+    ctx.strokeStyle = _mlSub ? '#ffd700aa' : '#ffd700'; ctx.lineWidth = _mlSub ? 1 : 2;
+    if (!_mlSub) { ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8; }
     rrStroke(spdValX, optY2, spdMidW, optH, 8); ctx.shadowBlur = 0;
     ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.fillStyle = '#ffd700';
