@@ -2546,7 +2546,7 @@ function handleSelectClick(mx, my) {
   const cx = (W - lay.optW) / 2;
 
   // 즐겨찾기 토글 버튼
-  const _titleY = lay.songRowY - lay.searchBarH - sz(50);
+  const _titleY = lay.titleY;
   const _cxBase = (W - lay.optW) / 2;
   const _favBtnW = sz(80);
   const _favBtnX = _cxBase + lay.optW - _favBtnW;
@@ -2682,7 +2682,7 @@ function handleSelectClick(mx, my) {
     }
   }
   // Search bar click
-  const searchBarH = 32, searchBarY = lay.songRowY - searchBarH - 10;
+  const searchBarH = lay.searchBarH || 32, searchBarY = lay.searchBarY;
   if (hitTest(mx, my, cx, searchBarY, lay.optW, searchBarH)) {
     playScrollTick();
     if (searchActive && mx > cx + lay.optW - 30) { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
@@ -3038,15 +3038,34 @@ addEventListener('mouseup', () => {
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
 });
 addEventListener('wheel', e => {
+  const dy = e.deltaY || 0;
   if (settingsOpen) {
-    settingsScrollY = Math.max(0, settingsScrollY + (e.deltaY || 0) * 0.5);
+    settingsScrollY = Math.max(0, settingsScrollY + dy * 0.5);
     e.preventDefault();
     return;
   }
   if (state === 'select') {
+    // 마우스가 차트 패널 위에 있으면 차트 스크롤
+    const cb = window._chartBounds;
+    if (cb && e.clientX >= cb.x && e.clientX <= cb.x + cb.w && gameY(e.clientY) >= cb.y && gameY(e.clientY) <= cb.y + cb.h) {
+      chartScroll += dy > 0 ? 1 : -1;
+      e.preventDefault();
+      return;
+    }
     selectTargetScrollX = null;
-    selectScrollVel = Math.max(-8, Math.min(8, selectScrollVel + (e.deltaY || e.deltaX) * 0.03));
+    selectScrollVel = Math.max(-8, Math.min(8, selectScrollVel + (dy || e.deltaX) * 0.03));
     e.preventDefault();
+    return;
+  }
+  if (state === 'ranking') {
+    rankingScroll = Math.max(0, rankingScroll + (dy > 0 ? 1 : -1));
+    e.preventDefault();
+    return;
+  }
+  if (state === 'achievement') {
+    achievementScroll = Math.max(0, achievementScroll + (dy > 0 ? 1 : -1));
+    e.preventDefault();
+    return;
   }
 }, { passive: false });
 
@@ -3070,6 +3089,27 @@ addEventListener('touchstart', e => {
       _settingsTouchStartY = gameY(t0.clientY);
       _settingsTouchStartScroll = settingsScrollY;
       _settingsTouching = true;
+    }
+  }
+  // 리스트 스크롤 드래그 시작 (랭킹/업적/차트)
+  _listTouchMode = '';
+  if (!settingsOpen) {
+    const t0 = e.changedTouches[0];
+    if (t0) {
+      const tmx = t0.clientX, tmy = gameY(t0.clientY);
+      if (state === 'ranking') {
+        _listTouchMode = 'rank';
+        _listTouchStartY = tmy; _listTouchStartScroll = rankingScroll;
+      } else if (state === 'achievement') {
+        _listTouchMode = 'ach';
+        _listTouchStartY = tmy; _listTouchStartScroll = achievementScroll;
+      } else if (state === 'select') {
+        const cb = window._chartBounds;
+        if (cb && tmx >= cb.x && tmx <= cb.x + cb.w && tmy >= cb.y && tmy <= cb.y + cb.h) {
+          _listTouchMode = 'chart';
+          _listTouchStartY = tmy; _listTouchStartScroll = chartScroll;
+        }
+      }
     }
   }
   // 닉네임 오버레이
@@ -3199,6 +3239,7 @@ addEventListener('touchstart', e => {
   }
 }, { passive: false });
 let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching = false;
+let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'
 addEventListener('touchmove', e => {
   e.preventDefault();
   // 설정창 열려있으면 스크롤 드래그
@@ -3207,6 +3248,19 @@ addEventListener('touchmove', e => {
     if (t) {
       const dy = _settingsTouchStartY - gameY(t.clientY);
       settingsScrollY = Math.max(0, _settingsTouchStartScroll + dy);
+    }
+    return;
+  }
+  // 리스트 스크롤 드래그 (랭킹/업적/차트)
+  if (_listTouchMode) {
+    const t = e.touches[0];
+    if (t) {
+      const dy = _listTouchStartY - gameY(t.clientY);
+      const itemH = 32; // approx — 세밀 조정은 스크롤 상한 클램프에서
+      const delta = Math.round(dy / itemH);
+      if (_listTouchMode === 'rank') rankingScroll = Math.max(0, _listTouchStartScroll + delta);
+      else if (_listTouchMode === 'ach') achievementScroll = Math.max(0, _listTouchStartScroll + delta);
+      else if (_listTouchMode === 'chart') chartScroll = Math.max(0, _listTouchStartScroll + delta);
     }
     return;
   }
@@ -3271,6 +3325,7 @@ addEventListener('touchmove', e => {
 addEventListener('touchend', e => {
   e.preventDefault();
   if (_settingsTouching) _settingsTouching = false;
+  _listTouchMode = '';
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
   // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락은 유지)
   for (const touch of e.changedTouches) {
@@ -6381,7 +6436,7 @@ function getSelectLayout() {
   // 가로 마진 고려: optW가 화면을 넘지 않도록 제한
   const optW = Math.min(sz(420), W - sz(16));
   // CD 크기: 화면 너비 기반 + 높이 여유 고려
-  const cdSize = Math.min(sz(200), visH * 0.28, W * 0.4);
+  const cdSize = Math.min(sz(200), visH * 0.26, W * 0.4);
   const cardW = cdSize, cardH = cdSize, gap = 20;
   const songTotalW = songs.length * (cardW + gap) - gap;
   const optH = Math.min(42, visH * 0.055);
@@ -6391,17 +6446,27 @@ function getSelectLayout() {
   const subBtnGap = Math.max(10, visH * 0.014);
   const searchBarH = 30;
   const titleH = 24;
-  const titleGap = Math.max(4, visH * 0.006);
-  const searchGap = Math.max(4, visH * 0.006);
+  const titleToSearchGap = 10;
+  const searchToSongGap = 14;
   const btnH = Math.min(44, visH * 0.058);
   const cdTextH = sz(44);
   const labelH = 16;
-  const totalH = titleH + titleGap + searchBarH + searchGap + cardH + cdTextH + subBtnGap + subBtnH
-    + sectionGap + labelH + optH + optGap + labelH + optH + sectionGap + btnH + 20;
+  // 실제 렌더 순서에 맞춘 정확한 total
+  const totalH =
+      titleH + titleToSearchGap
+    + searchBarH + searchToSongGap
+    + cardH + cdTextH
+    + subBtnGap + subBtnH
+    + sectionGap + labelH + optH
+    + optGap + labelH + optH
+    + sectionGap + btnH
+    + 8; // bottom margin
   // 전체 가시 영역 중앙에 맞춰 topY 계산 (안전 영역 포함)
   const topY = -safeTop + Math.max(4, (visH - totalH) / 2);
-  const songRowY = topY + titleH + titleGap + searchBarH + searchGap;
-  return { cardW, cardH, gap, songRowY, optW, optH, optGap, sectionGap, songTotalW, subBtnH, subBtnGap, searchBarH, btnH, cdTextH };
+  const titleY = topY + titleH;
+  const searchBarY = titleY + titleToSearchGap;
+  const songRowY = searchBarY + searchBarH + searchToSongGap;
+  return { cardW, cardH, gap, topY, titleY, searchBarY, songRowY, optW, optH, optGap, sectionGap, songTotalW, subBtnH, subBtnGap, searchBarH, btnH, cdTextH };
 }
 let snapAnimStart = 0, snapAnimFrom = 0, snapAnimTo = 0, snapAnimDur = 0;
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
@@ -6506,7 +6571,7 @@ function renderSelect() {
   const cxBase = (W - optW) / 2;
 
   // Title + 즐겨찾기 버튼
-  const titleY = songRowY - searchBarH - sz(50);
+  const titleY = lay.titleY;
   ctx.font=`bold ${sz(22)}px sans-serif`;
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
   ctx.fillText(favFilterActive ? '즐겨찾기' : '곡 선택', cxBase + sz(4), titleY);
@@ -6523,7 +6588,7 @@ function renderSelect() {
   ctx.textBaseline='alphabetic';
 
   // Search bar
-  const searchBarY = songRowY - searchBarH - sz(16);
+  const searchBarY = lay.searchBarY;
   ctx.fillStyle = searchActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)';
   rrFill(cxBase, searchBarY, optW, searchBarH, 8);
   ctx.strokeStyle = searchActive ? '#ffd700' : 'rgba(255,255,255,0.12)';
@@ -6887,6 +6952,8 @@ function renderSelect() {
     const cpX = isMobileChart ? 6 : 8;
     const cpY = isMobileChart ? H - Math.min(H * 0.35, 200) - sz(30) : 50;
     const cpH = isMobileChart ? Math.min(H * 0.35, 200) : H - cpY - 30;
+    // 스크롤 입력용 bounds 저장
+    window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
     // 패널 배경
     ctx.fillStyle = isMobileChart ? 'rgba(10,8,25,0.92)' : 'rgba(10,8,25,0.75)';
     rrFill(cpX, cpY, chartPanelW, cpH, 10);
