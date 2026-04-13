@@ -3622,10 +3622,10 @@ function detectOnsets(audioBuffer) {
   const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격
 
   // === Pre-scan: 지속적 음악 시작 지점 찾기 ===
-  // click/artifact 무시하고 실제 음 시작 위치 탐색
-  // 기준: 윈도우 energy > 0.005이 3회 연속 유지되는 첫 지점
-  const MUSIC_START_THRESH = 0.005;
-  const SUSTAIN_WINS = 3;
+  // click/artifact/noise floor 무시하고 실제 음 시작 위치 탐색
+  // 기준: 윈도우 energy > 0.015이 4회 연속 유지되는 첫 지점 (사람이 명확히 듣는 수준)
+  const MUSIC_START_THRESH = 0.015;
+  const SUSTAIN_WINS = 4;
   let musicStartIdx = 0;
   let sustainCnt = 0;
   for (let i = 0; i < data.length; i += winSamples) {
@@ -3766,6 +3766,18 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   allOnsets.sort((a, b) => a.time - b.time);
+
+  // 고립된 첫 onset 제거: phantom (실제 음악 시작 전 노이즈에 찍힌 것)
+  // 다음 onset과 0.3s 이상 떨어진 첫 onset은 제거. 반복.
+  while (allOnsets.length >= 2) {
+    const first = allOnsets[0];
+    const second = allOnsets[1];
+    if (second.time - first.time > 0.3) {
+      allOnsets.shift();
+    } else {
+      break;
+    }
+  }
 
   // BPM 그리드 퀀타이즈 제거: detectOnsets의 raw 시간 그대로 사용
   // (16분음표 snap은 최대 ±sixteenth/2 오차 → 체감 drift 원인)
