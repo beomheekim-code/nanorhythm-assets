@@ -3783,13 +3783,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // ===== Stem dormant 구간 필터 =====
-  // 각 스템의 RMS가 자기 전체 max의 30% 미만인 버킷은 그 스템 onset 제외
-  // 황덕구 0~16s drums dormant → drums onset 자동 스킵
-  // 모든 곡에 공통 적용 (dormant 스템의 false onset 차단)
+  // 스템 RMS가 절대 0.003 미만인 버킷 = 진짜 무음 상태. 그 스템 onset 제외.
+  // 황덕구 0~16s drums ≈ 0 → dormant → drums onset 자동 스킵
+  // instrum/piano 같은 연주 중인 스템은 그대로 (절대값 기준이라 안 걸림)
   if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
     const DORM_BUCKET_SEC = 0.5;
-    const DORM_RATIO = 0.30;
-    const stemIsDormant = {}; // stem → Array<bool> per bucket
+    const DORM_ABS = 0.003; // 사람이 듣는 최소 레벨
+    const stemIsDormant = {};
     for (const siStr in stemAudioBuffers) {
       const si = Number(siStr);
       if (ALWAYS_AUDIBLE_STEMS.includes(si)) continue;
@@ -3799,17 +3799,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       const sr_ = buf.sampleRate;
       const bs = Math.floor(sr_ * DORM_BUCKET_SEC);
       const nb = Math.ceil(d.length / bs);
-      const rmsArr = new Float32Array(nb);
-      let maxRms = 0;
+      const dormArr = new Array(nb);
       for (let b = 0; b < nb; b++) {
         let s0 = b * bs, s1 = Math.min(s0 + bs, d.length), sum = 0, c = 0;
         for (let k = s0; k < s1; k += 32) { sum += d[k] * d[k]; c++; }
-        rmsArr[b] = c > 0 ? Math.sqrt(sum / c) : 0;
-        if (rmsArr[b] > maxRms) maxRms = rmsArr[b];
+        const rms = c > 0 ? Math.sqrt(sum / c) : 0;
+        dormArr[b] = rms < DORM_ABS;
       }
-      const dormThresh = maxRms * DORM_RATIO;
-      const dormArr = new Array(nb);
-      for (let b = 0; b < nb; b++) dormArr[b] = rmsArr[b] < dormThresh;
       stemIsDormant[si] = dormArr;
     }
     const beforeDorm = allOnsets.length;
