@@ -7493,7 +7493,13 @@ function renderAchievement() {
     ctx.textAlign='center';
     ctx.font=`bold ${_achLand ? sz(10) : sz(12)}px sans-serif`;
     ctx.fillStyle = sel ? '#ffd700' : 'rgba(255,255,255,0.4)';
-    ctx.fillText(tab.icon+' '+tab.label, bx+tabBtnW/2, tabY+tabH_*0.65);
+    if (_achLand) {
+      ctx.textBaseline='middle';
+      ctx.fillText(tab.icon+' '+tab.label, bx+tabBtnW/2, tabY+tabH_/2);
+      ctx.textBaseline='alphabetic';
+    } else {
+      ctx.fillText(tab.icon+' '+tab.label, bx+tabBtnW/2, tabY+tabH_*0.65);
+    }
   });
 
   // Filter and progress
@@ -7649,7 +7655,13 @@ function renderRanking() {
     ctx.textAlign='center';
     ctx.font=`bold ${_rkLand ? sz(10) : sz(12)}px sans-serif`;
     ctx.fillStyle = sel ? d.color : 'rgba(255,255,255,0.4)';
-    ctx.fillText(d.name, bx + tabBtnW/2, tabY + tabH_r*0.65);
+    if (_rkLand) {
+      ctx.textBaseline='middle';
+      ctx.fillText(d.name, bx + tabBtnW/2, tabY + tabH_r/2);
+      ctx.textBaseline='alphabetic';
+    } else {
+      ctx.fillText(d.name, bx + tabBtnW/2, tabY + tabH_r*0.65);
+    }
   });
 
   // Key count sub-tabs (4K~8K)
@@ -7668,7 +7680,13 @@ function renderRanking() {
     ctx.textAlign='center';
     ctx.font=`bold ${_rkLand ? sz(9) : sz(11)}px sans-serif`;
     ctx.fillStyle = sel ? '#fff' : 'rgba(255,255,255,0.4)';
-    ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + keyTabH*0.7);
+    if (_rkLand) {
+      ctx.textBaseline='middle';
+      ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + keyTabH/2);
+      ctx.textBaseline='alphabetic';
+    } else {
+      ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + keyTabH*0.7);
+    }
   }
 
   // Rankings list
