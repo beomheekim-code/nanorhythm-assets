@@ -2887,23 +2887,27 @@ addEventListener('mousedown', e => {
     selectTargetScrollX = null; selectVelHistory = []; selectLastDragTime = performance.now();
     return;
   }
-  if (state === 'playing' && gamePaused) { resumeGame(); return; }
+  if (state === 'playing' && gamePaused) {
+    // 일시정지 오버레이: 나가기 버튼 확인
+    if (window._pausedExitBtn) {
+      const eb = window._pausedExitBtn;
+      if (hitTest(e.clientX, gameY(e.clientY), eb.x, eb.y, eb.w, eb.h)) {
+        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
+      }
+    }
+    resumeGame(); return;
+  }
   if (state === 'playing') {
-    // Pause button (하단 우측, 반응형)
-    const _pbW = sz(36), _pbH = sz(26), _pbGap = sz(6);
-    const _pbX = W - _pbW * 2 - _pbGap - sz(8), _pbY = H - _pbH - sz(8);
+    // Pause button — 기존 Exit 버튼 자리(우하단 코너)
+    const _pbW = sz(36), _pbH = sz(26);
+    const _pbX = W - _pbW - sz(8), _pbY = H - _pbH - sz(8);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
-    }
-    // Exit button (하단 우측, 반응형)
-    const _exW = sz(36), _exH = sz(26), _exX = W - _exW - sz(8), _exY = H - _exH - sz(8);
-    if (hitTest(e.clientX, gameY(e.clientY), _exX, _exY, _exW, _exH)) {
-      stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _ivW = sz(44), _ivH = sz(26);
-      const _ivX = W - _pbW * 2 - _pbGap * 2 - _ivW - sz(8), _ivY = H - _ivH - sz(8);
+      const _ivX = _pbX - sz(6) - _ivW, _ivY = H - _ivH - sz(8);
       if (hitTest(e.clientX, gameY(e.clientY), _ivX, _ivY, _ivW, _ivH)) {
         devInvincible = !devInvincible; return;
       }
@@ -3094,24 +3098,28 @@ addEventListener('touchstart', e => {
     selectTargetScrollX = null; selectVelHistory = []; selectLastDragTime = performance.now();
     return;
   }
-  if (state === 'playing' && gamePaused) { resumeGame(); return; }
+  if (state === 'playing' && gamePaused) {
+    const t0 = e.changedTouches[0];
+    if (window._pausedExitBtn) {
+      const eb = window._pausedExitBtn;
+      if (hitTest(t0.clientX, gameY(t0.clientY), eb.x, eb.y, eb.w, eb.h)) {
+        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
+      }
+    }
+    resumeGame(); return;
+  }
   if (state === 'playing') {
     const t0 = e.changedTouches[0];
-    // Pause button (하단 우측, 반응형)
-    const _tpbW = sz(36), _tpbH = sz(26), _tpbGap = sz(6);
-    const _tpbX = W - _tpbW * 2 - _tpbGap - sz(8), _tpbY = H - _tpbH - sz(8);
+    // Pause button — 기존 Exit 버튼 자리(우하단 코너)
+    const _tpbW = sz(36), _tpbH = sz(26);
+    const _tpbX = W - _tpbW - sz(8), _tpbY = H - _tpbH - sz(8);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
       pauseGame(); return;
-    }
-    // Exit button (하단 우측, 반응형)
-    const _texW = sz(36), _texH = sz(26), _texX = W - _texW - sz(8), _texY = H - _texH - sz(8);
-    if (hitTest(t0.clientX, gameY(t0.clientY), _texX, _texY, _texW, _texH)) {
-      stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _tivW = sz(44), _tivH = sz(26);
-      const _tivX = W - _tpbW * 2 - _tpbGap * 2 - _tivW - sz(8), _tivY = H - _tivH - sz(8);
+      const _tivX = _tpbX - sz(6) - _tivW, _tivY = H - _tivH - sz(8);
       if (hitTest(t0.clientX, gameY(t0.clientY), _tivX, _tivY, _tivW, _tivH)) {
         devInvincible = !devInvincible; return;
       }
@@ -5094,9 +5102,9 @@ function renderUI() {
   ctx.font = `${sz(8)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillText('[ ]', spCx, spContY + spContH + sz(8));
 
-  // Pause button (하단 우측, 반응형)
-  const pbW = sz(36), pbH = sz(26), pbGap = sz(6);
-  const pbX = W - pbW * 2 - pbGap - sz(8), pbY = H - pbH - sz(8);
+  // Pause button (기존 Exit 위치 = 우하단 코너)
+  const pbW = sz(36), pbH = sz(26);
+  const pbX = W - pbW - sz(8), pbY = H - pbH - sz(8);
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
@@ -5106,21 +5114,10 @@ function renderUI() {
   ctx.fillText('⏸', pbX + pbW/2, pbY + pbH/2);
   ctx.textBaseline = 'alphabetic';
 
-  // Exit button (하단 우측, 반응형)
-  const exBtnW = sz(36), exBtnH = sz(26), exX = W - exBtnW - sz(8), exY = H - exBtnH - sz(8);
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  rrFill(exX, exY, exBtnW, exBtnH, sz(6));
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
-  rrStroke(exX, exY, exBtnW, exBtnH, sz(6));
-  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.fillText('✕', exX + exBtnW/2, exY + exBtnH/2);
-  ctx.textBaseline = 'alphabetic';
-
-  // [DEV] HP 무적 토글 (로컬호스트 전용)
+  // [DEV] HP 무적 토글 (로컬호스트 전용) — Pause 버튼 왼쪽
   if (isLocalhost) {
     const ivW = sz(44), ivH = sz(26);
-    const ivX = W - pbW * 2 - pbGap * 2 - ivW - sz(8), ivY = H - ivH - sz(8);
+    const ivX = pbX - sz(6) - ivW, ivY = H - ivH - sz(8);
     ctx.fillStyle = devInvincible ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.06)';
     rrFill(ivX, ivY, ivW, ivH, sz(6));
     ctx.strokeStyle = devInvincible ? '#ffd700' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
@@ -7660,16 +7657,26 @@ function loop(time) {
     ctx.textAlign = 'center';
     ctx.font = `bold ${sz(36)}px sans-serif`;
     ctx.fillStyle = '#fff';
-    ctx.fillText('PAUSED', W/2, H/2 - sz(30));
+    ctx.fillText('PAUSED', W/2, H/2 - sz(60));
     // 재개 버튼
     const rbW = sz(160), rbH = sz(40);
-    const rbX = (W-rbW)/2, rbY = H/2;
+    const rbX = (W-rbW)/2, rbY = H/2 - sz(10);
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrFill(rbX, rbY, rbW, rbH, sz(10));
     ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
     rrStroke(rbX, rbY, rbW, rbH, sz(10));
     ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillText('▶ 계속하기', W/2, rbY + rbH*0.6);
+    ctx.fillText('▶ 계속하기', W/2, rbY + rbH*0.65);
+    // 나가기 버튼 (재개 아래)
+    const exBW = sz(160), exBH = sz(40);
+    const exBX = (W-exBW)/2, exBY = rbY + rbH + sz(14);
+    ctx.fillStyle = 'rgba(255,50,50,0.08)'; rrFill(exBX, exBY, exBW, exBH, sz(10));
+    ctx.strokeStyle = 'rgba(255,80,80,0.5)'; ctx.lineWidth = 2;
+    rrStroke(exBX, exBY, exBW, exBH, sz(10));
+    ctx.font = `bold ${sz(16)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,120,120,0.9)';
+    ctx.fillText('◀ 나가기', W/2, exBY + exBH*0.65);
+    window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
   }
   renderAd();
   renderFade();
