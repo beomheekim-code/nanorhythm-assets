@@ -2765,19 +2765,23 @@ function handleSelectClick(mx, my) {
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal' && hitTest(mx, my, subBtnX, subBtnY, subBtnW, subBtnH_)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
   if (playMode === 'normal' && hitTest(mx, my, subBtnX+subBtnW+subBtnGapX, subBtnY, subBtnW, subBtnH_)) { playScrollTick(); rankingScroll=0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); return; }
-  // Difficulty buttons
-  const optY1 = subBtnY + lay.subBtnH + lay.sectionGap + 18;
+  // Difficulty buttons (모바일 가로 레이아웃 동기화)
+  const _labelHC = _mlSubC ? 12 : 18;
+  const optY1 = _mlSubC ? (subBtnY + subBtnH_ + 2 + _labelHC)
+                        : (subBtnY + lay.subBtnH + lay.sectionGap + _labelHC);
   const diffBtnW = (lay.optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
   for (let i = 0; i < DIFFICULTIES.length; i++) {
     const bx = cx + i * (diffBtnW + 8);
     if (hitTest(mx, my, bx, optY1, diffBtnW, lay.optH)) { playScrollTick(); selectedDiff=i; saveDiffSpeed(); selectFocus=1; return; }
   }
   // Speed −/+ buttons
-  const optY2 = optY1 + lay.optH + lay.optGap + 18 + sz(14);
-  const spdCtrlW = lay.optW;
-  const spdBtnW = Math.min(40, spdCtrlW * 0.15);
-  const spdMinusX = cx, spdPlusX = cx + spdCtrlW - spdBtnW;
-  const spdValX = cx + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
+  const optY2 = _mlSubC ? (optY1 + lay.optH + 2 + _labelHC)
+                        : (optY1 + lay.optH + lay.optGap + 18 + sz(14));
+  const spdCtrlW = _mlSubC ? Math.min(220, lay.optW * 0.55) : lay.optW;
+  const spdCtrlX = _mlSubC ? ((W - spdCtrlW) / 2) : cx;
+  const spdBtnW = _mlSubC ? sz(26) : Math.min(40, spdCtrlW * 0.15);
+  const spdMinusX = spdCtrlX, spdPlusX = spdCtrlX + spdCtrlW - spdBtnW;
+  const spdValX = spdCtrlX + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
   if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); selectFocus=2; return; }
   if (hitTest(mx, my, spdPlusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedUp(); selectFocus=2; return; }
   // 중앙 값 박스 클릭 → 직접 입력 모드
@@ -6867,11 +6871,13 @@ function renderSelect() {
   }
 
   // Difficulty selector
-  const labelH = 18; // 라벨 텍스트 공간
-  const optY1 = subBtnY + subBtnH + sectionGap + labelH;
+  const labelH = _mlSub ? 12 : 18; // 라벨 텍스트 공간
+  // 모바일 가로: 업적/랭킹 버튼(subBtnHR)과 밀착 + 레이블 간격 축소
+  const optY1 = _mlSub ? (subBtnY + subBtnHR + 2 + labelH)
+                       : (subBtnY + subBtnH + sectionGap + labelH);
   const cx = (W - optW) / 2;
-  ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('난이도', W/2, optY1-6);
+  ctx.textAlign='center'; ctx.font=`bold ${_mlSub ? sz(10) : sz(14)}px sans-serif`;
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('난이도', W/2, optY1 - (_mlSub ? 3 : 6));
 
   const diffBtnW = (optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
   DIFFICULTIES.forEach((d, i) => {
@@ -6892,14 +6898,17 @@ function renderSelect() {
   });
 
   // Speed selector
-  const optY2 = optY1 + optH + optGap + labelH + sz(14); // 배속 영역 추가 여백
-  ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2-6);
+  const optY2 = _mlSub ? (optY1 + optH + 2 + labelH)
+                       : (optY1 + optH + optGap + labelH + sz(14));
+  ctx.textAlign='center'; ctx.font=`bold ${_mlSub ? sz(10) : sz(14)}px sans-serif`;
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2 - (_mlSub ? 3 : 6));
 
-  // − [slider] + 배속 UI
-  const spdBtnW = Math.min(40, optW * 0.15);
-  const spdMidW = optW - spdBtnW * 2 - 12;
-  const spdMinusX = cx, spdValX = cx + spdBtnW + 6, spdPlusX = cx + optW - spdBtnW;
+  // − [slider] + 배속 UI — 모바일 가로는 중앙 집중 배치로 좌우 "짝대기" 방지
+  const spdRowW = _mlSub ? Math.min(220, optW * 0.55) : optW;
+  const spdRowX = _mlSub ? ((W - spdRowW) / 2) : cx;
+  const spdBtnW = _mlSub ? sz(26) : Math.min(40, optW * 0.15);
+  const spdMidW = spdRowW - spdBtnW * 2 - 12;
+  const spdMinusX = spdRowX, spdValX = spdRowX + spdBtnW + 6, spdPlusX = spdRowX + spdRowW - spdBtnW;
   const isFocusSpd = selectFocus === 2;
   // − 버튼
   ctx.fillStyle = selectedSpeed > SPEED_MIN ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.02)';
