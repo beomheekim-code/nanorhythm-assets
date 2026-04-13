@@ -2609,11 +2609,11 @@ function handleSelectClick(mx, my) {
           selectedSong = newChart[0].idx; loadSongDiffSpeed(selectedSong);
           if (favFilterActive && !isFavorite(selectedSong)) {
             favFilterActive = false; _favCache = null;
-            const _sl = getSelectLayout();
-            selectScrollX = selectedSong * (_sl.cardW + _sl.gap);
-            selectTargetScrollX = null; selectScrollVel = 0;
-            snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
-          } else { scrollToSong(selectedSong); }
+          }
+          const _sl = getSelectLayout();
+          selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
+          selectTargetScrollX = null; selectScrollVel = 0;
+          snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
         }
         return;
       }
@@ -2628,12 +2628,13 @@ function handleSelectClick(mx, my) {
         selectedSong = chartCache[ci].idx; loadSongDiffSpeed(selectedSong);
         if (favFilterActive && !isFavorite(selectedSong)) {
           favFilterActive = false; _favCache = null;
-          const _sl = getSelectLayout();
-          selectScrollX = selectedSong * (_sl.cardW + _sl.gap);
-          selectTargetScrollX = null; selectScrollVel = 0;
-          snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
-        } else { scrollToSong(selectedSong); }
-               return;
+        }
+        // 즉시 점프 (스크롤 애니메이션 없음)
+        const _sl = getSelectLayout();
+        selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
+        selectTargetScrollX = null; selectScrollVel = 0;
+        snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
+        return;
       }
     }
   }
