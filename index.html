@@ -5322,10 +5322,10 @@ function renderSettingsOverlay() {
 
   // 닫기 버튼 (우상단)
   const bbW = sz(30), bbH = sz(24), bbX = popX + popW - bbW - sz(6), bbY = popY + sz(6);
-  ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, sz(6));
-  ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, sz(6));
+  ctx.fillStyle='#2a2040'; rrFill(bbX, bbY, bbW, bbH, sz(6));
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, sz(6));
   ctx.textAlign='center'; ctx.font=`bold ${sz(12)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.7)';
+  ctx.fillStyle='#fff';
   ctx.textBaseline='middle';
   ctx.fillText('✕', bbX+bbW/2, bbY+bbH/2);
 
@@ -5666,10 +5666,6 @@ function renderSettingsOverlay() {
     ctx.fillText('\uD655\uC778', goX + gbW / 2, gbY + gbH / 2);
   }
 
-  // 하단 안내
-  ctx.textAlign='center'; ctx.font=`${sz(9)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.25)';
-  ctx.fillText('\uD0A4 \uBC84\uD2BC\uC744 \uD074\uB9AD \uD6C4 \uC6D0\uD558\uB294 \uD0A4\uB97C \uB204\uB974\uC138\uC694  \xB7  ESC \uB2EB\uAE30',W/2,popY+popH-sz(10));
 }
 
 function handleSettingsClick(mx, my) {
