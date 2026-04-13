@@ -6485,8 +6485,8 @@ function getSelectLayout() {
   // 모바일 가로: 검색창 높이 절반, 타이틀과 간격 최소화
   const _mobileLandscape = isMobile && !isPortrait;
   const searchBarH = _mobileLandscape ? 16 : 30;
-  const titleH = _mobileLandscape ? 18 : 26;
-  const titleToSearchGap = _mobileLandscape ? 1 : 12;
+  const titleH = _mobileLandscape ? 16 : 26;
+  const titleToSearchGap = _mobileLandscape ? 0 : 12;
   const searchToSongGap = 14;
   const btnH = Math.min(44, visH * 0.058);
   const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
