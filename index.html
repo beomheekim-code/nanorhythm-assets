@@ -7508,9 +7508,9 @@ function renderResult() {
     rGrad.addColorStop(0.5,'#ffdd44'); rGrad.addColorStop(0.75,'#44ff88');
     rGrad.addColorStop(1,'#ff44ff');
     ctx.strokeStyle=rGrad; ctx.lineWidth=4; ctx.stroke();
-    ctx.font=`bold ${sz(60)}px sans-serif`;
+    ctx.font=`bold ${sz(32)}px sans-serif`;
     ctx.fillStyle='#ff44ff'; ctx.shadowColor='#ff44ff'; ctx.shadowBlur=40;
-    ctx.textBaseline='middle'; ctx.fillText('P',W/2,H*0.33);
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PERFECT',W/2,H*0.33);
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   } else {
     ctx.beginPath(); ctx.arc(W/2,H*0.33,gradeR,0,Math.PI*2);
