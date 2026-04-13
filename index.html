@@ -7441,12 +7441,19 @@ function renderAchievement() {
   const bbY = _mpBack ? (H + safeBottom - sz(4) - bbH) : (H - bbH - 10);
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`bold ${_mpBack ? sz(16) : sz(13)}px sans-serif`;
+  ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.7)';
-  // ← 글리프가 textBaseline='middle' 기준으로도 위쪽에 뜸 → 수동 보정
-  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2 + sz(3));
-  ctx.textBaseline='alphabetic';
+  if (_mpBack) {
+    // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
+    ctx.textBaseline='middle';
+    ctx.font=`bold ${sz(16)}px sans-serif`;
+    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(3));
+    ctx.textBaseline='alphabetic';
+  } else {
+    // PC/가로: 기존 렌더 유지
+    ctx.font=`bold ${sz(13)}px sans-serif`;
+    ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
+  }
 
   // Title + coin
   ctx.font=`bold ${sz(24)}px sans-serif`;
@@ -7582,12 +7589,19 @@ function renderRanking() {
   const bbY = _mpBack ? (H + safeBottom - sz(4) - bbH) : (H - bbH - 10);
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`bold ${_mpBack ? sz(16) : sz(13)}px sans-serif`;
+  ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.7)';
-  // ← 글리프가 textBaseline='middle' 기준으로도 위쪽에 뜸 → 수동 보정
-  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2 + sz(3));
-  ctx.textBaseline='alphabetic';
+  if (_mpBack) {
+    // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
+    ctx.textBaseline='middle';
+    ctx.font=`bold ${sz(16)}px sans-serif`;
+    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(3));
+    ctx.textBaseline='alphabetic';
+  } else {
+    // PC/가로: 기존 렌더 유지
+    ctx.font=`bold ${sz(13)}px sans-serif`;
+    ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
+  }
 
   ctx.font=`bold ${sz(26)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
