@@ -3706,15 +3706,16 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       stemBucketRms[si] = arr;
       stemMaxRms[si] = mx;
     }
-    // 버킷별 음악성 판정: 어느 한 MUSICAL_STEMS이라도 자기 max의 15% 이상이면 musical
-    const ACTIVE_RATIO = 0.15;
+    // 버킷별 음악성 판정: MUSICAL_STEMS 중 하나라도 절대 RMS > 0.003 이면 musical
+    // (ratio 기반은 dynamic range 큰 곡에서 intro 오판 → 절대 floor로 대체)
+    // Cherry Blossom 새소리 구간: music_max < 0.002 → 자동 제외
+    // 황덕구 인트로: music_max > 0.02 → 유지
+    const ABS_FLOOR = 0.003;
     for (let b = 0; b < maxBuckets; b++) {
       let musical = false;
       for (const si of MUSICAL_STEMS) {
-        if (stemMaxRms[si] > 0.001) {
-          const v = stemBucketRms[si][b] || 0;
-          if (v > stemMaxRms[si] * ACTIVE_RATIO) { musical = true; break; }
-        }
+        const v = stemBucketRms[si] ? (stemBucketRms[si][b] || 0) : 0;
+        if (v > ABS_FLOOR) { musical = true; break; }
       }
       isMusical.push(musical);
     }
