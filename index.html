@@ -3816,14 +3816,18 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevLane = -1;
   let lastHoldLane = -1;
   let lastHoldEndTime = -1;
+  // 홀드 배치: 다음 노트까지 간격(gap)이 충분히 긴 지점에만 배치
+  // + holdEvery 간격 유지. 즉, "음이 길게 늘어지는 곳"에만 홀드.
+  const HOLD_MIN_GAP = eighthDur * 2; // 4분음표 이상 간격이면 홀드 가능
+  let holdCooldown = 0; // 홀드 배치 직후 cooldown
 
-  for (const o of filtered) {
+  for (let fi = 0; fi < filtered.length; fi++) {
+    const o = filtered[fi];
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
 
     // 결정론적 lane 배정: stem base + stem 내 인덱스 순환
-    // (RNG 제거 — 음악 구조에만 의존)
     let lane = (base + ci) % lc;
 
     // 이전 노트와 같은 레인이면 한 칸 이동
@@ -3844,12 +3848,23 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       hit: false, missed: false, holding: false, holdComplete: false,
       endTime: 0, _ho1: null, _ho2: null, _hg: null
     };
-    if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
-      nd.type = 'hold';
-      nd.endTime = nd.time + 3 * eighthDur; // 고정 길이 (RNG 제거)
-      lastHoldLane = lane;
-      lastHoldEndTime = nd.endTime;
+
+    // 홀드 조건: (1) holdEvery cooldown 만족 (2) 다음 노트까지 충분한 gap
+    if (holdEvery > 0 && noteIdx > 0 && holdCooldown <= 0) {
+      const nextTime = (fi + 1 < filtered.length) ? filtered[fi + 1].time : Infinity;
+      const gap = nextTime - o.time;
+      if (gap >= HOLD_MIN_GAP) {
+        nd.type = 'hold';
+        // 홀드 길이: 다음 노트 직전까지 (최소 2 eighthDur, 최대 gap - 0.05s)
+        const maxLen = Math.max(2 * eighthDur, gap - 0.05);
+        nd.endTime = nd.time + Math.min(3 * eighthDur, maxLen);
+        lastHoldLane = lane;
+        lastHoldEndTime = nd.endTime;
+        holdCooldown = holdEvery; // 다음 홀드까지 최소 이만큼 노트
+      }
     }
+    if (holdCooldown > 0) holdCooldown--;
+
     nodes.push(nd);
     noteIdx++;
   }
