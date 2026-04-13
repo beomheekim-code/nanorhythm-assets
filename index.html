@@ -86,14 +86,13 @@ function resize() {
   H = fullH - safeTop - safeBottom;
   // ctx: DPR 스케일 + safeTop 오프셋
   ctx.setTransform(dpr, 0, 0, dpr, 0, safeTop * dpr);
-  // UI 스케일: 기준 해상도 대비 비율 (최소 0.7, 최대 1.35)
+  // UI 스케일: 가로(PC)는 기존 공식 유지, 세로(모바일)만 범위 확장
   if (isPortrait) {
     UI = Math.max(0.7, Math.min(1.35, W / 390));
+    if (W < 340) UI = Math.max(0.6, W / 380);
   } else {
-    UI = Math.max(0.7, Math.min(1.35, Math.min(W / 640, H / 400)));
+    UI = Math.min(1, Math.min(W / 520, H / 400));
   }
-  // 작은 기기 보호: 작은 폭에선 하한만 낮춤
-  if (W < 340) UI = Math.max(0.6, W / 380);
   try { if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); } catch(e) {}
   try { if (typeof stars !== 'undefined' && stars && stars.length > 0) genStars(); } catch(e) {}
 }
@@ -1248,19 +1247,15 @@ let resumeSyncCounter = 0; // 재개 후 강제 동기화 프레임 수
 
 // ===== LAYOUT =====
 function getLaneW() {
-  // 화면 너비 비율 기반 + 키 수에 따라 균등 분배. 가로 모드에선 더 넓게 허용.
-  const widthRatio = isPortrait ? 0.92 : 0.85;
-  const maxTotal = W * widthRatio;
+  // 화면 너비의 90%를 레인 영역으로, laneCount에 따라 균등 분배
+  const maxTotal = W * 0.9;
   const perLane = maxTotal / laneCount;
-  // 상한: 세로 모드 85px, 가로 모드 100px (UI 스케일 반영)
-  const maxLane = (isPortrait ? 85 : 100) * UI;
-  return Math.min(perLane, maxLane);
+  return Math.min(perLane, 75 * UI);
 }
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() { return (W - getTotalLaneW()) / 2; }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
-// 판정선 Y: 세로는 78%, 가로 모드에서는 화면이 짧아서 더 낮게 조정
-function getHitY() { return H * (isPortrait ? 0.78 : 0.72); }
+function getHitY() { return H * 0.78; }
 function getBtnY() { return getHitY() + sz(24); }
 function getBtnH() { return H - getBtnY() - sz(6); }
 
