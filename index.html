@@ -5320,14 +5320,19 @@ function renderSettingsOverlay() {
   ctx.fillStyle = 'rgba(15,12,30,0.95)'; rrFill(popX, popY, popW, popH, sz(14));
   ctx.strokeStyle = 'rgba(160,130,255,0.3)'; ctx.lineWidth = 1; rrStroke(popX, popY, popW, popH, sz(14));
 
-  // 닫기 버튼 (우상단)
+  // 닫기 버튼 (우상단) — 완전 불투명
   const bbW = sz(30), bbH = sz(24), bbX = popX + popW - bbW - sz(6), bbY = popY + sz(6);
-  ctx.fillStyle='#2a2040'; rrFill(bbX, bbY, bbW, bbH, sz(6));
-  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, sz(6));
-  ctx.textAlign='center'; ctx.font=`bold ${sz(12)}px sans-serif`;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  // 어두운 배경을 먼저 깔아서 아래 레이어 완전 차단
+  ctx.fillStyle='#000'; rrFill(bbX, bbY, bbW, bbH, sz(6));
+  ctx.fillStyle='#3a2d5c'; rrFill(bbX, bbY, bbW, bbH, sz(6));
+  ctx.strokeStyle='#a88cff'; ctx.lineWidth=1.5; rrStroke(bbX, bbY, bbW, bbH, sz(6));
+  ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
   ctx.fillStyle='#fff';
   ctx.textBaseline='middle';
   ctx.fillText('✕', bbX+bbW/2, bbY+bbH/2);
+  ctx.restore();
 
   // 스크롤 컨텍스트 저장: 팝업 내부 영역 클립 + translate
   // 닫기 버튼은 이미 그려진 후이므로 클립이 전체 팝업을 덮어도 무방
