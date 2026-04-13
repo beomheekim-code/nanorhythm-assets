@@ -6072,10 +6072,10 @@ function renderTitle() {
 
   ctx.restore();
 
-  // 버전 표시 (Kplay 캐시 확인용) — 안전 영역 끝까지 내림
-  ctx.font = `${sz(9)}px sans-serif`; ctx.textAlign = 'right';
+  // 버전 표시 (Kplay 캐시 확인용) — 설정 버튼과 안 겹치게 좌측 하단
+  ctx.font = `${sz(9)}px sans-serif`; ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillText('v15.8', W - 6, H + safeBottom - 4);
+  ctx.fillText('v15.8', 6, H + safeBottom - 4);
 
   if (!currentUser) {
     // ===== 비로그인: 소셜 로그인 버튼 =====
