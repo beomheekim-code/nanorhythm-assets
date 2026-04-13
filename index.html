@@ -2064,9 +2064,14 @@ function getMergedPlayData(songIdx) {
 
 function getChartData(type) {
   const now = Date.now();
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  const hourAgo = now - 60*60*1000;
+  // KST 기준 오늘 0시 / 이번 주 월요일 0시 (UTC timestamp로 환산)
+  const KST_OFFSET = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(now + KST_OFFSET);
+  const kstY = kstNow.getUTCFullYear(), kstM = kstNow.getUTCMonth(), kstD = kstNow.getUTCDate();
+  const kstDow = kstNow.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const todayStartMs = Date.UTC(kstY, kstM, kstD) - KST_OFFSET; // KST 오늘 00:00 → UTC ms
+  const daysFromMon = (kstDow + 6) % 7; // Mon=0, Sun=6
+  const weekStartMs = todayStartMs - daysFromMon * 24 * 60 * 60 * 1000; // KST 이번 주 월요일 00:00
 
   const list = [];
   for (let i = 0; i < songs.length; i++) {
@@ -2075,8 +2080,8 @@ function getChartData(type) {
     const logs = Array.isArray(entry.logs) ? entry.logs : (entry.logs ? Object.values(entry.logs) : []);
     let count = 0;
     if (type === 'top') count = total;
-    else if (type === 'daily') count = logs.filter(t => t >= todayStart.getTime()).length;
-    else if (type === 'weekly') count = logs.filter(t => t >= weekStart.getTime()).length;
+    else if (type === 'daily') count = logs.filter(t => t >= todayStartMs).length;
+    else if (type === 'weekly') count = logs.filter(t => t >= weekStartMs).length;
     list.push({ idx: i, count });
   }
   // count=0인 곡 제외 (DAILY/WEEKLY에서 기록 없는 곡 숨김), TOP은 전부 표시
@@ -2614,6 +2619,7 @@ function handleSelectClick(mx, my) {
           selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
           selectTargetScrollX = null; selectScrollVel = 0;
           snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
+          lastScrollSong = selectedSong;
         }
         return;
       }
@@ -2624,16 +2630,16 @@ function handleSelectClick(mx, my) {
     if (mx >= cpX && mx <= cpX + chartPanelWC && my >= listY) {
       const ci = Math.floor((my - listY) / itemH) + chartScroll;
       if (ci >= 0 && ci < chartCache.length) {
-        playScrollTick();
         selectedSong = chartCache[ci].idx; loadSongDiffSpeed(selectedSong);
         if (favFilterActive && !isFavorite(selectedSong)) {
           favFilterActive = false; _favCache = null;
         }
-        // 즉시 점프 (스크롤 애니메이션 없음)
+        // 즉시 점프 (스크롤 애니메이션 + 사운드 없음)
         const _sl = getSelectLayout();
         selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
         selectTargetScrollX = null; selectScrollVel = 0;
         snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
+        lastScrollSong = selectedSong; // 스크롤 사운드 억제
         return;
       }
     }
