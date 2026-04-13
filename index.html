@@ -2777,9 +2777,9 @@ function handleSelectClick(mx, my) {
   // Speed −/+ buttons
   const optY2 = _mlSubC ? (optY1 + lay.optH + 2 + _labelHC)
                         : (optY1 + lay.optH + lay.optGap + 18 + sz(14));
-  const spdCtrlW = _mlSubC ? Math.min(220, lay.optW * 0.55) : lay.optW;
+  const spdCtrlW = _mlSubC ? Math.min(140, lay.optW * 0.35) : lay.optW;
   const spdCtrlX = _mlSubC ? ((W - spdCtrlW) / 2) : cx;
-  const spdBtnW = _mlSubC ? sz(26) : Math.min(40, spdCtrlW * 0.15);
+  const spdBtnW = _mlSubC ? sz(22) : Math.min(40, spdCtrlW * 0.15);
   const spdMinusX = spdCtrlX, spdPlusX = spdCtrlX + spdCtrlW - spdBtnW;
   const spdValX = spdCtrlX + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
   if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); selectFocus=2; return; }
@@ -6903,10 +6903,10 @@ function renderSelect() {
   ctx.textAlign='center'; ctx.font=`bold ${_mlSub ? sz(10) : sz(14)}px sans-serif`;
   ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2 - (_mlSub ? 3 : 6));
 
-  // − [slider] + 배속 UI — 모바일 가로는 중앙 집중 배치로 좌우 "짝대기" 방지
-  const spdRowW = _mlSub ? Math.min(220, optW * 0.55) : optW;
+  // − [slider] + 배속 UI — 모바일 가로는 시작 버튼보다 좁게 중앙 배치
+  const spdRowW = _mlSub ? Math.min(140, optW * 0.35) : optW;
   const spdRowX = _mlSub ? ((W - spdRowW) / 2) : cx;
-  const spdBtnW = _mlSub ? sz(26) : Math.min(40, optW * 0.15);
+  const spdBtnW = _mlSub ? sz(22) : Math.min(40, optW * 0.15);
   const spdMidW = spdRowW - spdBtnW * 2 - 12;
   const spdMinusX = spdRowX, spdValX = spdRowX + spdBtnW + 6, spdPlusX = spdRowX + spdRowW - spdBtnW;
   const isFocusSpd = selectFocus === 2;
