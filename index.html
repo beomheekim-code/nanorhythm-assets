@@ -632,7 +632,7 @@ function getLaneStems() { return LANE_STEMS[laneCount] || LANE_STEMS[4]; }
 
 const songs = [
   {
-    name: 'Cherry Blossom', sub: 'ENERGETIC', bpm: 152, color: '#ff69b4',
+    name: 'Cherry Blossom', sub: 'ENERGETIC', bpm: 150, color: '#ff69b4',
     bg1: '#1a0010', bg2: '#300025', bars: 56, cover: 'Music/Cherry Blossom/cherry blossom.png',
     file: 'Music/Cherry_Blossom_Sprint.ogg',
     stemDir: 'Music/Cherry Blossom/',
@@ -827,6 +827,7 @@ const songs = [
     stemPrefix: '기억의_사물함',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
+    excludeStems: [0, 1, 5, 6], // drums/bass/guitar/other 제외 → instrum + piano만
   },
   {
     name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
@@ -897,8 +898,7 @@ const songs = [
     stemPrefix: '황덕구의_모험',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-    // instrum이 메인 트랙 → drums/bass/piano/guitar/other 제외 (instrum만 사용)
-    excludeStems: [0, 1, 4, 5, 6],
+    excludeStems: [0, 1, 4, 5, 6], // instrum만 사용 (메인 트랙)
   },
 ];
 
@@ -3621,58 +3621,16 @@ function detectOnsets(audioBuffer) {
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
   const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격
-
-  // === Pre-scan: 지속적 음악 시작 지점 찾기 ===
-  // click/artifact/noise floor 무시하고 실제 음 시작 위치 탐색
-  // 기준: 윈도우 energy > 0.015이 4회 연속 유지되는 첫 지점 (사람이 명확히 듣는 수준)
-  const MUSIC_START_THRESH = 0.015;
-  const SUSTAIN_WINS = 4;
-  let musicStartIdx = 0;
-  let sustainCnt = 0;
+  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
+  const onsets = [];
+  let smoothed = 0;
+  let lastOnset = -minGapSamples * 2;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    if (energy > MUSIC_START_THRESH) {
-      sustainCnt++;
-      if (sustainCnt >= SUSTAIN_WINS) {
-        musicStartIdx = i - (SUSTAIN_WINS - 1) * winSamples; // 첫 유지 윈도우로 되돌림
-        break;
-      }
-    } else {
-      sustainCnt = 0;
-    }
-  }
-
-  // === 첫 attack peak 탐색: musicStartIdx 이후 200ms 내에서 local max 찾기 ===
-  // 이유: ramp-up 구간에서 threshold 넘자마자 fire하면 실제 peak보다 이르게
-  // 찍혀서 "무음에 노트" 체감. peak(실제 들리는 위치)에 첫 onset 맞춤.
-  const PEAK_SEARCH_SAMPLES = Math.floor(sr * 0.2);
-  let firstPeakIdx = musicStartIdx;
-  let firstPeakEnergy = 0;
-  for (let i = musicStartIdx; i < Math.min(musicStartIdx + PEAK_SEARCH_SAMPLES, data.length); i += winSamples) {
-    let sum = 0, cnt = 0;
-    const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
-    const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    if (energy > firstPeakEnergy) {
-      firstPeakEnergy = energy;
-      firstPeakIdx = i;
-    }
-  }
-
-  // === Main detection: firstPeakIdx부터 ===
-  // smoothed를 peak의 60%로 초기화 → 첫 onset은 peak에서 정확히 fire
-  let smoothed = firstPeakEnergy * 0.6;
-  const onsets = [];
-  let lastOnset = -minGapSamples * 2;
-  for (let i = firstPeakIdx; i < data.length; i += winSamples) {
-    let sum = 0, cnt = 0;
-    const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
-    const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
+    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
     if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
@@ -3722,90 +3680,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       return true;
     });
   }
-
-  // ===== 자동 ambient/새소리 필터 =====
-  // "other/vocals 제외한 스템 중 하나라도 활성인 버킷"만 음악으로 간주
-  // Cherry Blossom 끝 새소리 → other만 울림 → 자동 제외
-  // 황덕구 인트로 → instrum 활성 → 유지
-  if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
-    const AMBIENT_STEMS = [2, 6]; // vocals, other
-    const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
-    const BUCKET_SEC = 0.5;
-    const isMusical = []; // bucket idx → bool
-    // 각 MUSICAL_STEMS의 버킷 RMS 계산 후 stem별 최대값 대비 임계로 판정
-    const stemBucketRms = {};
-    const stemMaxRms = {};
-    let maxBuckets = 0;
-    for (const si of MUSICAL_STEMS) {
-      const buf = stemAudioBuffers[si];
-      if (!buf) continue;
-      const data = buf.getChannelData(0);
-      const sr = buf.sampleRate;
-      const bucketSamples = Math.floor(sr * BUCKET_SEC);
-      const nB = Math.ceil(data.length / bucketSamples);
-      maxBuckets = Math.max(maxBuckets, nB);
-      const arr = new Float32Array(nB);
-      let mx = 0;
-      for (let b = 0; b < nB; b++) {
-        let sum = 0, cnt = 0;
-        const s0 = b * bucketSamples, s1 = Math.min(s0 + bucketSamples, data.length);
-        for (let k = s0; k < s1; k += 32) { sum += data[k] * data[k]; cnt++; }
-        arr[b] = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-        if (arr[b] > mx) mx = arr[b];
-      }
-      stemBucketRms[si] = arr;
-      stemMaxRms[si] = mx;
-    }
-    // 버킷별 음악성 판정: MUSICAL_STEMS 중 하나라도 절대 RMS > 0.003 이면 musical
-    // (ratio 기반은 dynamic range 큰 곡에서 intro 오판 → 절대 floor로 대체)
-    // Cherry Blossom 새소리 구간: music_max < 0.002 → 자동 제외
-    // 황덕구 인트로: music_max > 0.02 → 유지
-    const ABS_FLOOR = 0.003;
-    for (let b = 0; b < maxBuckets; b++) {
-      let musical = false;
-      for (const si of MUSICAL_STEMS) {
-        const v = stemBucketRms[si] ? (stemBucketRms[si][b] || 0) : 0;
-        if (v > ABS_FLOOR) { musical = true; break; }
-      }
-      isMusical.push(musical);
-    }
-    // 연속 비음악 버킷을 더 관대하게: 앞뒤 1버킷 padding (갑작스런 끊김 방지)
-    const paddedMusical = isMusical.slice();
-    for (let b = 0; b < isMusical.length; b++) {
-      if (isMusical[b]) {
-        if (b > 0) paddedMusical[b - 1] = true;
-        if (b < isMusical.length - 1) paddedMusical[b + 1] = true;
-      }
-    }
-    // onset 필터링
-    const before = allOnsets.length;
-    allOnsets = allOnsets.filter(o => {
-      const relT = o.time - bgmDelay;
-      const bIdx = Math.floor(relT / BUCKET_SEC);
-      if (bIdx < 0 || bIdx >= paddedMusical.length) return true;
-      return paddedMusical[bIdx];
-    });
-    if (before !== allOnsets.length) {
-      console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
-    }
-  }
-
   allOnsets.sort((a, b) => a.time - b.time);
 
-  // 고립된 첫 onset 제거: phantom (실제 음악 시작 전 노이즈에 찍힌 것)
-  // 다음 onset과 0.3s 이상 떨어진 첫 onset은 제거. 반복.
-  while (allOnsets.length >= 2) {
-    const first = allOnsets[0];
-    const second = allOnsets[1];
-    if (second.time - first.time > 0.3) {
-      allOnsets.shift();
-    } else {
-      break;
-    }
+  // BPM 그리드에 퀀타이즈 (16분음표)
+  for (const o of allOnsets) {
+    const rel = o.time - bgmDelay;
+    o.time = Math.round(rel / sixteenth) * sixteenth + bgmDelay;
   }
-
-  // BPM 그리드 퀀타이즈 제거: detectOnsets의 raw 시간 그대로 사용
-  // (16분음표 snap은 최대 ±sixteenth/2 오차 → 체감 drift 원인)
 
   // 에너지 부여
   if (energyMap && energyMap.length > 0) {
@@ -3834,12 +3715,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 난이도 필터링 (균등 분배 + 최소 간격)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  // BPM 독립적 절대값: 곡 BPM이 틀려도 노트 밀도가 일정하게 유지됨
-  // (BPM은 sixteenth 계산에만 쓰여서 틀리면 slot이 진짜 비트와 어긋남)
-  const minGap = density <= 0.5 ? 0.50    // 쉬움: 2/sec
-               : density <= 0.8 ? 0.30    // 보통: 3.3/sec
-               : density <= 1.2 ? 0.20    // 어려움: 5/sec
-               : 0.15;                    // 지옥: 6.7/sec
+  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
+               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
+               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
+               : sixteenth;                        // 지옥: 16분음표
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -3876,36 +3755,21 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const stemCnt = {};
   let noteIdx = 0;
   let prevLane = -1;
-  let prevTime = -1;
-  let lastHoldLane = -1;
-  let lastHoldEndTime = -1;
-  const POST_HOLD_GRACE = 0.5; // 홀드 종료 후 같은 레인 금지 window (초)
-  const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초)
 
   for (const o of filtered) {
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
 
-    // 결정론적 lane: stem base + stem 내 인덱스 순환
-    let lane = (base + ci) % lc;
+    // stem 기반 + 시드 RNG 랜덤 오프셋 (계단 패턴 방지, 결정적)
+    let lane = (base + Math.floor(rng() * lc)) % lc;
 
-    // 이전 노트와 같은 레인 + 시간 간격 < 0.3s면 시프트 (시각 overlap 방지)
-    // 0.3s 이상 떨어졌으면 같은 레인 허용 (드럼 연타 패턴)
-    if (lane === prevLane && lc > 1 && (o.time - prevTime) < SAME_LANE_MIN_GAP) {
+    // 이전 노트와 같은 레인이면 한 칸 이동 (단, 50번째마다 연타 허용)
+    if (lane === prevLane && lc > 1 && ci % 50 !== 49) {
       lane = (lane + 1) % lc;
-    }
-
-    // 홀드 종료 직후 grace window 내 같은 레인 금지
-    if (lc > 1 && lastHoldLane >= 0 &&
-        o.time >= lastHoldEndTime && o.time - lastHoldEndTime < POST_HOLD_GRACE &&
-        lane === lastHoldLane) {
-      lane = (lane + 1) % lc;
-      if (lane === prevLane && lc > 2) lane = (lane + 1) % lc;
     }
 
     prevLane = lane;
-    prevTime = o.time;
     const nd = {
       time: o.time, lane, freq: 440, type: 'note', stem: o.stem,
       hit: false, missed: false, holding: false, holdComplete: false,
@@ -3914,8 +3778,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
       nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
-      lastHoldLane = lane;
-      lastHoldEndTime = nd.endTime;
     }
     nodes.push(nd);
     noteIdx++;
@@ -3940,20 +3802,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     for (let b = nodes.length - 1; b > a; b--) {
       if (nodes[b].lane === nodes[a].lane && nodes[b].time > nodes[a].time && nodes[b].time < nodes[a].endTime) {
         nodes.splice(b, 1);
-      }
-    }
-  }
-  // 홀드 종료 후 POST_HOLD_GRACE 내 같은 레인 노트 재배치 (방어선)
-  const POST_HOLD_GRACE2 = 0.5;
-  for (let a = 0; a < nodes.length; a++) {
-    if (nodes[a].type !== 'hold') continue;
-    const hLane = nodes[a].lane;
-    const hEnd = nodes[a].endTime;
-    for (let b = a + 1; b < nodes.length; b++) {
-      if (nodes[b].time > hEnd + POST_HOLD_GRACE2) break;
-      if (nodes[b].time < hEnd) continue;
-      if (nodes[b].lane === hLane && lc > 1) {
-        nodes[b].lane = (hLane + 1) % lc;
       }
     }
   }
