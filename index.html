@@ -3661,49 +3661,21 @@ function detectOnsets(audioBuffer) {
     }
   }
 
-  // === 스템 전체 max energy (delta 임계 스케일링) ===
-  let stemMaxE = firstPeakEnergy;
-  for (let i = 0; i < data.length; i += winSamples * 4) {
-    let sum = 0, cnt = 0;
-    const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
-    const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    if (e > stemMaxE) stemMaxE = e;
-  }
-  // 스템별 adaptive 임계: 조용한 스템도 커버
-  const DELTA_THRESH = Math.max(0.0005, stemMaxE * 0.03);
-  const ENERGY_FLOOR = Math.max(0.0003, stemMaxE * 0.02);
-
-  // === Main detection: delta 기반 local peak ===
-  const DELAY_WINS = 5; // 75ms
-  const delayBuf = new Float32Array(DELAY_WINS);
-  let delayIdx = 0;
-  let prevDelta = 0;
-  let prevPrevDelta = 0;
+  // === Main detection: firstPeakIdx부터 ===
+  // smoothed를 peak의 60%로 초기화 → 첫 onset은 peak에서 정확히 fire
+  let smoothed = firstPeakEnergy * 0.6;
   const onsets = [];
   let lastOnset = -minGapSamples * 2;
-  for (let w = 0; w < DELAY_WINS; w++) delayBuf[w] = firstPeakEnergy * 0.5;
   for (let i = firstPeakIdx; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
     for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    const delayedE = delayBuf[delayIdx];
-    const delta = energy - delayedE;
-    // delta가 임계 이상 + 이전 2개 기록보다 크면 local peak
-    // (이전 delta보다 크다 = 상승 가속, 3-window 엄격 상승 완화)
-    const isPeak = delta > DELTA_THRESH &&
-                   delta >= prevDelta &&
-                   energy > ENERGY_FLOOR &&
-                   i - lastOnset > minGapSamples;
-    if (isPeak) {
-      onsets.push((i - winSamples) / sr);
+    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
+      onsets.push(i / sr);
       lastOnset = i;
     }
-    delayBuf[delayIdx] = energy;
-    delayIdx = (delayIdx + 1) % DELAY_WINS;
-    prevPrevDelta = prevDelta;
-    prevDelta = delta;
+    smoothed = energy * 0.2 + smoothed * 0.8;
   }
   return onsets;
 }
