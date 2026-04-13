@@ -1789,7 +1789,8 @@ function getRankings(songIdx, diffIdx, lc) {
   for (const user in merged) list.push({ name: user, score: merged[user].score, ts: merged[user].ts });
   // 점수 내림차순 → 동률 시 먼저 등록(ts 작은 순)이 상위
   list.sort((a, b) => b.score - a.score || (a.ts || 0) - (b.ts || 0));
-  return list;
+  // 상위 100명만
+  return list.slice(0, 100);
 }
 let loginInput = '';
 let loginCursor = 0;
@@ -6888,24 +6889,31 @@ function renderSelect() {
       ctx.fillText(CHART_TABS[ti].label, tx + tabW/2, ty + tabH/2);
     }
 
-    // 차트 리스트
+    // 차트 리스트 (최대 100위)
     const listY = cpY + sz(5) + tabH + sz(6);
     const listH = cpH - tabH - sz(16);
     const itemH = sz(32);
     const maxVisible = Math.floor(listH / itemH);
+    const CHART_MAX = 100;
+    const chartList = chartCache.slice(0, CHART_MAX);
+    // chartScroll 범위 클램프
+    const _maxChartScroll = Math.max(0, chartList.length - maxVisible);
+    if (chartScroll > _maxChartScroll) chartScroll = _maxChartScroll;
+    if (chartScroll < 0) chartScroll = 0;
     ctx.save();
     ctx.beginPath();
     ctx.rect(cpX, listY, chartPanelW, listH);
     ctx.clip();
 
-    if (chartCache.length === 0) {
+    if (chartList.length === 0) {
       ctx.font = `${sz(11)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.fillText(fbPlaysLoaded ? '정보가 없습니다' : '로딩 중...', cpX + chartPanelW/2, listY + 30);
     }
-    for (let ci = 0; ci < Math.min(chartCache.length, maxVisible); ci++) {
-      const item = chartCache[ci];
-      const iy = listY + ci * itemH - chartScroll * itemH;
+    const _chartEnd = Math.min(chartList.length, chartScroll + maxVisible);
+    for (let ci = chartScroll; ci < _chartEnd; ci++) {
+      const item = chartList[ci];
+      const iy = listY + (ci - chartScroll) * itemH;
       if (iy + itemH < listY || iy > listY + listH) continue;
       const s = songs[item.idx];
       const isSel = item.idx === selectedSong;
