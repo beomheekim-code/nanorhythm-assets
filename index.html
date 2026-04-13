@@ -632,7 +632,7 @@ function getLaneStems() { return LANE_STEMS[laneCount] || LANE_STEMS[4]; }
 
 const songs = [
   {
-    name: 'Cherry Blossom', sub: 'ENERGETIC', bpm: 150, color: '#ff69b4',
+    name: 'Cherry Blossom', sub: 'ENERGETIC', bpm: 152, color: '#ff69b4',
     bg1: '#1a0010', bg2: '#300025', bars: 56, cover: 'Music/Cherry Blossom/cherry blossom.png',
     file: 'Music/Cherry_Blossom_Sprint.ogg',
     stemDir: 'Music/Cherry Blossom/',
@@ -3775,10 +3775,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 난이도 필터링 (균등 분배 + 최소 간격)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
-               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
-               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
-               : sixteenth;                        // 지옥: 16분음표
+  const minGap = density <= 0.5 ? sixteenth * 6    // 쉬움: 점4분음표
+               : density <= 0.8 ? sixteenth * 3    // 보통: 점8분음표
+               : density <= 1.2 ? sixteenth * 2    // 어려움: 8분음표
+               : sixteenth * 1.5;                  // 지옥: 점16분음표
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
