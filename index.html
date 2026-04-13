@@ -4449,8 +4449,8 @@ function render() {
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (guestWarningOpen && !currentUser) renderGuestWarningPopup(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
   if (state==='select') { renderSelect(); if (unlockPopupOpen) renderUnlockPopup(); if (settingsOpen) renderSettingsOverlay(); ctx.restore(); return; }
   if (state==='shop') { renderShop(); ctx.restore(); return; }
-  if (state==='ranking') { renderRanking(); ctx.restore(); return; }
-  if (state==='achievement') { renderAchievement(); ctx.restore(); return; }
+  if (state==='ranking') { renderRanking(); if (settingsOpen) renderSettingsOverlay(); ctx.restore(); return; }
+  if (state==='achievement') { renderAchievement(); if (settingsOpen) renderSettingsOverlay(); ctx.restore(); return; }
   if (state==='result') { renderResult(); ctx.restore(); return; }
 
   // 로딩 화면
