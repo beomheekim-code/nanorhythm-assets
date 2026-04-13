@@ -5350,10 +5350,13 @@ function renderSettingsOverlay() {
   ctx.shadowColor='#fff'; ctx.shadowBlur=8;
   ctx.fillText('\uC124\uC815',W/2,popY+sz(30)); ctx.shadowBlur=0;
 
-  // PC 전용 안내
-  ctx.font=`${sz(10)}px sans-serif`;
-  ctx.fillStyle='rgba(255,180,0,0.7)';
-  ctx.fillText('⌨ PC 전용 — 키보드 조작키 설정',W/2,popY+sz(48));
+  const _mobileSettings = isMobile;
+  if (!_mobileSettings) {
+    // PC 전용 안내
+    ctx.font=`${sz(10)}px sans-serif`;
+    ctx.fillStyle='rgba(255,180,0,0.7)';
+    ctx.fillText('⌨ PC 전용 — 키보드 조작키 설정',W/2,popY+sz(48));
+  }
 
   // 4~8키 모드 토글
   const panelW = Math.min(popW - sz(20), sz(300));
@@ -5383,7 +5386,7 @@ function renderSettingsOverlay() {
   const startY = modeY + modeBtnH + sz(12);
   const laneNames = Array.from({length: laneCount}, (_, i) => '레인 ' + (i+1));
 
-  for (let i = 0; i < laneCount; i++) {
+  if (!_mobileSettings) for (let i = 0; i < laneCount; i++) {
     const ry = startY + i * rowH;
     const isBinding = settingsBindingLane === i;
 
@@ -5431,15 +5434,17 @@ function renderSettingsOverlay() {
   const resetY = startY + laneCount * rowH + sz(10);
   const resetW = Math.min(sz(120), panelW * 0.4), resetH = sz(30);
   const resetX = (W - resetW) / 2;
-  ctx.fillStyle = 'rgba(255,100,100,0.08)'; rrFill(resetX, resetY, resetW, resetH, sz(6));
-  ctx.strokeStyle = 'rgba(255,100,100,0.4)'; ctx.lineWidth = 1; rrStroke(resetX, resetY, resetW, resetH, sz(6));
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(12)}px sans-serif`;
-  ctx.fillStyle = 'rgba(255,100,100,0.8)';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('기본값 복원', W/2, resetY + resetH/2);
+  if (!_mobileSettings) {
+    ctx.fillStyle = 'rgba(255,100,100,0.08)'; rrFill(resetX, resetY, resetW, resetH, sz(6));
+    ctx.strokeStyle = 'rgba(255,100,100,0.4)'; ctx.lineWidth = 1; rrStroke(resetX, resetY, resetW, resetH, sz(6));
+    ctx.textAlign = 'center'; ctx.font = `bold ${sz(12)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,100,100,0.8)';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('기본값 복원', W/2, resetY + resetH/2);
+  }
 
   // ===== 볼륨 설정 =====
-  const volY = resetY + resetH + sz(14);
+  const volY = _mobileSettings ? (modeY + modeBtnH + sz(14)) : (resetY + resetH + sz(14));
   const sliderW = Math.min(panelW - sz(16), sz(240));
   const sliderX = (W - sliderW) / 2;
   const sliderH = sz(5), knobR = sz(8), volRowH = sz(38);
@@ -5743,8 +5748,9 @@ function handleSettingsClick(mx, my) {
   const rowH = sz(laneCount >= 7 ? 32 : laneCount >= 6 ? 36 : 42);
   const startY = modeY + modeBtnH + sz(12);
 
-  // 키 버튼 클릭
-  for (let i = 0; i < laneCount; i++) {
+  const _mobileSettingsC = isMobile;
+  // 키 버튼 클릭 (모바일에서는 숨김)
+  if (!_mobileSettingsC) for (let i = 0; i < laneCount; i++) {
     const ry = startY + i * rowH;
     const kbW = Math.min(sz(90), panelW * 0.3), kbH = sz(28);
     const kbX = panelX + panelW - kbW - sz(8), kbY = ry + (rowH - sz(4) - kbH) / 2;
@@ -5758,14 +5764,14 @@ function handleSettingsClick(mx, my) {
   const resetY = startY + laneCount * rowH + sz(10);
   const resetW = Math.min(sz(120), panelW * 0.4), resetH = sz(30);
   const resetX = (W - resetW) / 2;
-  if (hitTest(mx, mys, resetX, resetY, resetW, resetH)) {
+  if (!_mobileSettingsC && hitTest(mx, mys, resetX, resetY, resetW, resetH)) {
     resetKeymap(); settingsBindingLane = -1; return;
   }
 
   // 볼륨 슬라이더
   const sliderW = Math.min(panelW - sz(16), sz(240));
   const sliderX = (W - sliderW) / 2;
-  const volY = resetY + resetH + sz(14);
+  const volY = _mobileSettingsC ? (modeY + modeBtnH + sz(14)) : (resetY + resetH + sz(14));
   const volRowH = sz(38), sliderHitH = sz(26);
   const bgmTrackY = volY + sz(20);
   const sfxTrackY = volY + volRowH + sz(20);
