@@ -3883,11 +3883,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     };
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
-      // 다음 노트까지 간격 기반 가변 길이 (결정론)
-      // 최소 2 eighthDur, 최대 4 eighthDur, 다음 노트 침범 금지
-      const nextTime = (fi + 1 < filtered.length) ? filtered[fi + 1].time : nd.time + 10;
-      const gap = nextTime - nd.time - 0.05; // 다음 노트 전 50ms 버퍼
-      nd.endTime = nd.time + Math.max(2 * eighthDur, Math.min(4 * eighthDur, gap));
+      // 다음 노트까지 gap에서 80% 사용 (BPM 무관 절대값)
+      // 최소 0.20s, 최대 0.80s
+      const nextTime = (fi + 1 < filtered.length) ? filtered[fi + 1].time : nd.time + 1.0;
+      const gap = nextTime - nd.time;
+      const holdLen = Math.max(0.20, Math.min(0.80, gap * 0.8));
+      nd.endTime = nd.time + holdLen;
     }
     nodes.push(nd);
     noteIdx++;
