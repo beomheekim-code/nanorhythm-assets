@@ -6976,11 +6976,19 @@ function renderSelect() {
     ctx.fillStyle = '#ffd700';
     ctx.fillText('🔒 해금하고 플레이', W/2, btnY + btnH/2);
     ctx.textBaseline = 'alphabetic';
+  } else if (_mlSub) {
+    // 모바일 가로: 뭉툭한 네모 (stroke/shadow 없음 — 양끝 잔상 방지)
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = sc + '55'; rrFill(btnX, btnY, btnW, btnH, 8);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${sz(18)}px sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText('▶ 시작', W/2, btnY + btnH/2);
+    ctx.textBaseline = 'alphabetic';
   } else {
     ctx.fillStyle = sc + '33'; rrFill(btnX, btnY, btnW, btnH, 14);
     ctx.strokeStyle = sc; ctx.lineWidth = 2;
-    // 모바일 가로: shadow 제거 (양끝 번짐 현상 방지)
-    if (!_mlSub) { ctx.shadowColor = sc; ctx.shadowBlur = 14; }
+    ctx.shadowColor = sc; ctx.shadowBlur = 14;
     rrStroke(btnX, btnY, btnW, btnH, 14); ctx.shadowBlur = 0;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${sz(20)}px sans-serif`;
