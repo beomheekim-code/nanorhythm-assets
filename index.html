@@ -2630,11 +2630,12 @@ function handleSelectClick(mx, my) {
     if (mx >= cpX && mx <= cpX + chartPanelWC && my >= listY) {
       const ci = Math.floor((my - listY) / itemH) + chartScroll;
       if (ci >= 0 && ci < chartCache.length) {
+        playScrollTick(); // 클릭 피드백음
         selectedSong = chartCache[ci].idx; loadSongDiffSpeed(selectedSong);
         if (favFilterActive && !isFavorite(selectedSong)) {
           favFilterActive = false; _favCache = null;
         }
-        // 즉시 점프 (스크롤 애니메이션 + 사운드 없음)
+        // 즉시 점프 (스크롤 애니메이션 없음, scroll 사운드 억제)
         const _sl = getSelectLayout();
         selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
         selectTargetScrollX = null; selectScrollVel = 0;
