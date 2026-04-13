@@ -3702,19 +3702,18 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
                : sixteenth;                        // 지옥: 16분음표
 
   // ===== 구간별 dominant stem 계산 (2초 버킷) =====
-  // 각 버킷마다 가장 loud한 스템을 찾고, 해당 버킷의 slot은 그 스템 onset 우선
+  // 구체적 악기만 후보: drums(0), bass(1), piano(4), guitar(5)
+  // instrum(3)은 전체 믹스, other(6)는 residual이라 dominant에서 제외
   const BUCKET_SEC = 2.0;
-  const dominantStem = []; // bucket idx → stem idx
+  const DOM_POOL = [0, 1, 4, 5]; // drums, bass, piano, guitar
+  const INSTRUM_STEM = 3;
+  const dominantStem = []; // bucket idx → stem idx (-1이면 dominant 없음)
   if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
-    // 각 스템의 버킷별 RMS 계산
-    const stemKeys = [];
     const stemRmsPerBucket = {};
     let maxBuckets = 0;
-    for (const siStr in stemAudioBuffers) {
-      const si = Number(siStr);
-      if (ALWAYS_AUDIBLE_STEMS.includes(si)) continue;
+    for (const si of DOM_POOL) {
       const buf = stemAudioBuffers[si];
-      if (!buf) continue;
+      if (!buf) { stemRmsPerBucket[si] = null; continue; }
       const data = buf.getChannelData(0);
       const sr = buf.sampleRate;
       const bucketSamples = Math.floor(sr * BUCKET_SEC);
@@ -3728,29 +3727,29 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         for (let k = s0; k < s1; k += 32) { sum += data[k] * data[k]; cnt++; }
         arr[b] = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
       }
-      stemKeys.push(si);
       stemRmsPerBucket[si] = arr;
     }
-    // 각 스템의 전체 RMS로 정규화 (loud stem 항상 이기는 것 방지)
-    for (const si of stemKeys) {
-      const arr = stemRmsPerBucket[si];
-      let sum = 0;
-      for (let b = 0; b < arr.length; b++) sum += arr[b];
-      const avg = arr.length > 0 ? sum / arr.length : 0;
-      if (avg > 0) for (let b = 0; b < arr.length; b++) arr[b] /= avg;
-    }
-    // 버킷마다 dominant stem 선택
+    // 빈 스템(전체 0)은 제외 (rms<0.001)
+    const validStems = DOM_POOL.filter(si => {
+      const a = stemRmsPerBucket[si];
+      if (!a) return false;
+      let maxv = 0;
+      for (let i = 0; i < a.length; i++) if (a[i] > maxv) maxv = a[i];
+      return maxv > 0.001;
+    });
+    // 버킷마다 dominant stem 선택 (raw RMS 최대값 기준)
     for (let b = 0; b < maxBuckets; b++) {
-      let bestStem = -1, bestVal = -1;
-      for (const si of stemKeys) {
+      let bestStem = -1, bestVal = 0.001;
+      for (const si of validStems) {
         const v = stemRmsPerBucket[si][b] || 0;
         if (v > bestVal) { bestVal = v; bestStem = si; }
       }
       dominantStem.push(bestStem);
     }
   }
-  // 백업 스템 우선순위 (dominant 일치 없을 때): drums > piano > bass > instrum > guitar > other
-  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 3: 3, 5: 4, 6: 5};
+  // Fallback 우선순위 (dominant가 -1이거나 dominant 매치 없을 때):
+  // drums > piano > bass > guitar > instrum > other
+  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 5: 3, 3: 4, 6: 5};
 
   const filtered = [];
   if (nonSilent.length > 0) {
