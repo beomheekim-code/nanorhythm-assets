@@ -5331,7 +5331,7 @@ function renderSettingsOverlay() {
   const gameModeY = sfxY + volRowH + sz(8);
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('게임 모드', sliderX, gameModeY);
+  ctx.fillText('조작 모드', sliderX, gameModeY);
   const gmBtnW = (sliderW - sz(8)) / 2, gmBtnH = sz(28);
   const gmBtnY = gameModeY + sz(14);
   // 리듬모드 버튼
@@ -6138,7 +6138,7 @@ function renderTitle() {
     const pmStartX = (W - pmTotalW) / 2, pmY = H*0.58;
     loginModeBtnAreas = [];
     const modes = [
-      { key: 'normal', label: '일반 모드', desc: '일반적인 싱글모드입니다', color: '#00d4ff' },
+      { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
     ];
     let selectedModeDesc = '', selectedModeColor = '';
