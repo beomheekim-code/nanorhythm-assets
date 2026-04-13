@@ -2843,7 +2843,7 @@ function handleAchievementClick(mx, my) {
   // Type tabs
   const tabW = sz(300);
   const tabBtnW = tabW / ACH_TABS.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.12;
+  const tabX = (W - tabW) / 2, tabY = H*0.17;
   for (let i = 0; i < ACH_TABS.length; i++) {
     if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) {
       achievementTab = i; achievementScroll = 0; return;
@@ -7470,7 +7470,7 @@ function renderAchievement() {
   // Type tabs
   const tabW = sz(300);
   const tabBtnW = tabW / ACH_TABS.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.12;
+  const tabX = (W - tabW) / 2, tabY = H*0.17;
   ACH_TABS.forEach((tab, i) => {
     const bx = tabX + i * tabBtnW, sel = i === achievementTab;
     ctx.fillStyle = sel ? '#ffd70033' : 'rgba(255,255,255,0.03)';
