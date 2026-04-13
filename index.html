@@ -2782,9 +2782,9 @@ function handleSelectClick(mx, my) {
     speedInputActive=true; speedInputText=''; selectFocus=2;    speedInputElHidden.value=''; speedInputElHidden.focus();
     return;
   }
-  // Start button
+  // Start button — 화면 최하단 고정 (렌더와 동일 좌표)
   const btnW = Math.min(220, lay.optW*0.55), btnH = lay.btnH || Math.min(50, H*0.07);
-  const btnX = (W-btnW)/2, btnY = optY2 + lay.optH + lay.sectionGap + 4;
+  const btnX = (W-btnW)/2, btnY = H + safeBottom - btnH - sz(40);
   if (hitTest(mx, my, btnX, btnY, btnW, btnH)) {
     if (isSongLocked(selectedSong)) { playScrollTick(); showUnlockPopup(selectedSong); return; }
     if (selectedSong >= FREE_SONG_COUNT && !hasActivePass()) useSongFreePlay(selectedSong);
