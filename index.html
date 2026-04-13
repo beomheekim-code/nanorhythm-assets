@@ -3634,35 +3634,40 @@ function detectOnsets(audioBuffer) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
-  // 스템 전체 RMS 계산 (stem-relative adaptive threshold)
-  let stemSumSq = 0, stemCnt = 0;
-  for (let k = 0; k < data.length; k += 64) { stemSumSq += data[k] * data[k]; stemCnt++; }
-  const stemRms = stemCnt > 0 ? Math.sqrt(stemSumSq / stemCnt) : 0;
-  // 빈 스템 스킵 (소스 분리 실패로 비어있는 경우)
-  if (stemRms < 0.0005) return [];
+  // 빈 스템 스킵
+  let peak = 0;
+  for (let k = 0; k < data.length; k += 128) { const v = Math.abs(data[k]); if (v > peak) peak = v; }
+  if (peak < 0.003) return [];
   const winSamples = Math.floor(sr * 0.015);
-  const minGapSamples = Math.floor(sr * 0.04); // 40ms (more conservative)
-  const absThresh = Math.max(0.0008, stemRms * 0.15);   // adaptive abs
-  const fluxThresh = stemRms * 0.12;                    // temporal flux floor
+  const minGapSamples = Math.floor(sr * 0.04);
+  // Delayed energy buffer: 현재 에너지를 7 윈도우(~105ms) 전 에너지와 비교
+  // → 실제 attack(지속 상승)만 감지, reverb tail/sustain 무시
+  const DELAY_LEN = 7;
+  const delayBuf = new Float32Array(DELAY_LEN);
+  let delayIdx = 0;
+  const NOISE_FLOOR = 0.0005;
   const onsets = [];
-  let longEMA = 0;
-  let prevEnergy = 0;
   let lastOnset = -minGapSamples * 2;
+  // warm-up: 처음 DELAY_LEN windows는 감지 스킵 (buffer 채움)
+  let warmup = 0;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
     for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    const flux = energy - prevEnergy; // temporal spectral flux 근사
-    if (energy > absThresh &&
-        flux > fluxThresh &&
-        energy > longEMA * 1.10 &&
+    const delayedEnergy = delayBuf[delayIdx];
+    const delta = energy - delayedEnergy;
+    if (warmup >= DELAY_LEN &&
+        energy > NOISE_FLOOR &&
+        delta > NOISE_FLOOR * 0.5 &&     // must be rising
+        energy > delayedEnergy * 1.5 &&  // 50% higher than 105ms ago
         i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
-    longEMA = energy * 0.08 + longEMA * 0.92;
-    prevEnergy = energy;
+    delayBuf[delayIdx] = energy;
+    delayIdx = (delayIdx + 1) % DELAY_LEN;
+    if (warmup < DELAY_LEN) warmup++;
   }
   return onsets;
 }
