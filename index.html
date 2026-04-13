@@ -6749,8 +6749,8 @@ function renderSelect() {
   const labelH = 18; // 라벨 텍스트 공간
   const optY1 = subBtnY + subBtnH + sectionGap + labelH;
   const cx = (W - optW) / 2;
-  ctx.textAlign='left'; ctx.font=`bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('난이도',cx+4,optY1-6);
+  ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('난이도', W/2, optY1-6);
 
   const diffBtnW = (optW - (DIFFICULTIES.length-1)*8) / DIFFICULTIES.length;
   DIFFICULTIES.forEach((d, i) => {
@@ -6771,8 +6771,8 @@ function renderSelect() {
 
   // Speed selector
   const optY2 = optY1 + optH + optGap + labelH;
-  ctx.textAlign='left'; ctx.font=`bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속',cx+4,optY2-6);
+  ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2-6);
 
   // − [slider] + 배속 UI
   const spdBtnW = Math.min(40, optW * 0.15);
