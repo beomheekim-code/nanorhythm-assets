@@ -2638,7 +2638,7 @@ function handleSelectClick(mx, my) {
     const togW = _mlT ? sz(44) : sz(60);
     const togH = _mlT ? sz(16) : sz(22);
     const togX = 6;
-    const togY = _mlT ? lay.searchBarY : (H + safeBottom - togH - 4);
+    const togY = _mlT ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
     if (hitTest(mx, my, togX, togY, togW, togH)) {
       mobileChartCollapsed = !mobileChartCollapsed; chartScroll = 0; playScrollTick(); return;
     }
@@ -6979,8 +6979,8 @@ function renderSelect() {
     const togW = _mlToggle ? sz(44) : sz(60);
     const togH = _mlToggle ? sz(16) : sz(22);
     const togX = 6;
-    // 모바일 가로: 검색창 위치로 이동
-    const togY = _mlToggle ? lay.searchBarY : (H + safeBottom - togH - 4);
+    // 모바일 가로: 검색창 하단 라인 바로 밑으로 이동
+    const togY = _mlToggle ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
     ctx.fillStyle = 'rgba(120,80,220,0.45)';
     rrFill(togX, togY, togW, togH, sz(4));
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
@@ -6993,8 +6993,8 @@ function renderSelect() {
   if (chartPanelW > 60 && (!isMobileChart || !mobileChartCollapsed)) {
     const _mobileLandChart = isMobile && !isPortrait && !isMobileChart;
     const cpX = isMobileChart ? 6 : 8;
-    // 모바일 가로: 차트 탭이 검색창 Y와 일치하도록 (탭은 cpY + sz(5))
-    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? (lay.searchBarY - sz(5)) : 50);
+    // 모바일 가로 사이드 패널: 검색창 하단 라인 바로 밑으로 이동
+    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? (lay.searchBarY + lay.searchBarH + 2) : 50);
     const cpH = isMobileChart ? Math.min(H * 0.35, 200) : (_mobileLandChart ? (H + safeBottom - cpY - 10) : (H - cpY - 30));
     // 스크롤 입력용 bounds 저장
     window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
