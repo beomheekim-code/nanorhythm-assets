@@ -1126,6 +1126,8 @@ function setLaneMode(n) {
 // ===== SETTINGS (키 커스터마이징) =====
 let settingsOpen = false; // 팝업 오버레이
 let settingsBindingLane = -1;
+let settingsDupWarnLane = -1; // 중복키 경고 표시 레인
+let settingsDupWarnTime = 0;  // 경고 표시 시작 시각
 let settingsDragging = ''; // 'bgm' | 'sfx' | ''
 let lastScrollSong = -1; // 스크롤 사운드용
 
@@ -2466,9 +2468,18 @@ addEventListener('keydown', e => {
   // 설정 화면 키 바인딩
   if (settingsOpen) {
     if (settingsBindingLane >= 0) {
+      if (e.code === 'Escape') { settingsBindingLane = -1; e.preventDefault(); return; }
+      // 중복 키 차단 (다른 레인에 이미 등록된 키인지 확인)
+      const _dupIdx = LANE_CODES.findIndex((c, idx) => idx !== settingsBindingLane && idx < laneCount && c === e.code);
+      if (_dupIdx >= 0) {
+        settingsDupWarnLane = settingsBindingLane;
+        settingsDupWarnTime = performance.now();
+        e.preventDefault(); return;
+      }
       LANE_CODES[settingsBindingLane] = e.code;
       saveKeymap();
       settingsBindingLane = -1;
+      settingsDupWarnLane = -1;
       e.preventDefault(); return;
     }
     if (e.code === 'Escape') { settingsOpen = false; e.preventDefault(); return; }
@@ -5408,6 +5419,14 @@ function renderSettingsOverlay() {
     ctx.fillStyle = isBinding ? '#fff' : 'rgba(255,255,255,0.7)';
     ctx.textBaseline = 'middle';
     ctx.fillText(laneNames[i], panelX + sz(16), ry + (rowH - sz(4))/2);
+
+    // 중복키 경고 (2초 유지)
+    if (settingsDupWarnLane === i && (performance.now() - settingsDupWarnTime) < 2000) {
+      const _laneW = ctx.measureText(laneNames[i]).width;
+      ctx.font = `bold ${sz(11)}px sans-serif`;
+      ctx.fillStyle = '#ff6666';
+      ctx.fillText('중복키입니다', panelX + sz(16) + _laneW + sz(8), ry + (rowH - sz(4))/2);
+    }
 
     // 키 버튼
     const kbW = Math.min(sz(90), panelW * 0.3), kbH = sz(28);
