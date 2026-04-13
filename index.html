@@ -3872,11 +3872,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
 
-    // stem 기반 + 시드 RNG 랜덤 오프셋 (계단 패턴 방지, 결정적)
-    let lane = (base + Math.floor(rng() * lc)) % lc;
+    // 결정론적 lane: stem base + stem 내 인덱스 순환
+    let lane = (base + ci) % lc;
 
-    // 이전 노트와 같은 레인이면 한 칸 이동 (단, 50번째마다 연타 허용)
-    if (lane === prevLane && lc > 1 && ci % 50 !== 49) {
+    // 이전 노트와 같은 레인이면 한 칸 이동 (예외 없음)
+    if (lane === prevLane && lc > 1) {
       lane = (lane + 1) % lc;
     }
 
