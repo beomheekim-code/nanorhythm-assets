@@ -3678,9 +3678,13 @@ function detectOnsets(audioBuffer) {
       const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
       if (e > peakE) { peakE = e; peakIdx = i; }
     }
-    // ramp 시작과 peak 사이 중간점 (60% peak 쪽 가중)
-    const aligned = Math.floor(rampStart * 0.4 + peakIdx * 0.6);
+    // ramp 시작 쪽으로 가중 (peak는 attack 후라 인지적으로 너무 늦음)
+    const aligned = Math.floor(rampStart * 0.7 + peakIdx * 0.3);
     onsets[oi] = aligned / sr;
+  }
+  // 글로벌 시각 보정: 인지 시점이 ~30ms 늦게 느껴지는 경향 보상
+  for (let oi = 0; oi < onsets.length; oi++) {
+    onsets[oi] = Math.max(0, onsets[oi] - 0.03);
   }
   return onsets;
 }
