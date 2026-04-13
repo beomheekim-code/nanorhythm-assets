@@ -3619,17 +3619,20 @@ function detectOnsets(audioBuffer) {
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
   const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
+  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격
+  // 시작부 150ms warmup: 디지털 무음/디코딩 artifact false positive 방지
+  const warmupSamples = Math.floor(sr * 0.15);
   const onsets = [];
   let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
-    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
+    // warmup 기간은 smoothed 업데이트만 하고 onset은 푸시 안 함
+    if (i >= warmupSamples &&
+        energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
