@@ -6445,12 +6445,12 @@ function getSelectLayout() {
   const subBtnH = Math.min(34, visH * 0.042);
   const subBtnGap = Math.max(10, visH * 0.014);
   const searchBarH = 30;
-  const titleH = 24;
-  const titleToSearchGap = 10;
+  const titleH = 26;
+  const titleToSearchGap = 12;
   const searchToSongGap = 14;
   const btnH = Math.min(44, visH * 0.058);
-  const cdTextH = sz(44);
-  const labelH = 16;
+  const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
+  const labelH = 18;
   // 실제 렌더 순서에 맞춘 정확한 total
   const totalH =
       titleH + titleToSearchGap
@@ -6460,11 +6460,11 @@ function getSelectLayout() {
     + sectionGap + labelH + optH
     + optGap + labelH + optH
     + sectionGap + btnH
-    + 8; // bottom margin
+    + 12; // bottom margin (my best 점수 표시 공간 포함)
   // 전체 가시 영역 중앙에 맞춰 topY 계산 (안전 영역 포함)
   const topY = -safeTop + Math.max(4, (visH - totalH) / 2);
-  const titleY = topY + titleH;
-  const searchBarY = titleY + titleToSearchGap;
+  const titleY = topY + titleH / 2; // textBaseline='middle' 기준
+  const searchBarY = topY + titleH + titleToSearchGap; // search bar 상단
   const songRowY = searchBarY + searchBarH + searchToSongGap;
   return { cardW, cardH, gap, topY, titleY, searchBarY, songRowY, optW, optH, optGap, sectionGap, songTotalW, subBtnH, subBtnGap, searchBarH, btnH, cdTextH };
 }
@@ -6825,13 +6825,14 @@ function renderSelect() {
     ctx.strokeStyle = sel ? d.color : 'rgba(255,255,255,0.08)'; ctx.lineWidth = sel ? 2 : 1;
     if (sel) { ctx.shadowColor = d.color; ctx.shadowBlur = 8; }
     rrStroke(bx, optY1, diffBtnW, optH, 8); ctx.shadowBlur = 0;
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${sz(15)}px sans-serif`;
     ctx.fillStyle = sel ? d.color : 'rgba(255,255,255,0.4)';
-    ctx.fillText(d.name, bx + diffBtnW/2, optY1 + optH*0.43);
+    ctx.fillText(d.name, bx + diffBtnW/2, optY1 + optH*0.38);
     ctx.font = `${sz(10)}px sans-serif`;
     ctx.fillStyle = sel ? d.color+'aa' : 'rgba(255,255,255,0.2)';
-    ctx.fillText(d.sub, bx + diffBtnW/2, optY1 + optH*0.76);
+    ctx.fillText(d.sub, bx + diffBtnW/2, optY1 + optH*0.72);
+    ctx.textBaseline = 'alphabetic';
   });
 
   // Speed selector
@@ -6849,9 +6850,9 @@ function renderSelect() {
   rrFill(spdMinusX, optY2, spdBtnW, optH, 8);
   ctx.strokeStyle = isFocusSpd ? '#ffd70066' : 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
   rrStroke(spdMinusX, optY2, spdBtnW, optH, 8);
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(20)}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${sz(20)}px sans-serif`;
   ctx.fillStyle = selectedSpeed > SPEED_MIN ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)';
-  ctx.fillText('−', spdMinusX + spdBtnW/2, optY2 + optH*0.6);
+  ctx.fillText('−', spdMinusX + spdBtnW/2, optY2 + optH/2);
   // 값 표시 (중앙) — 입력 모드 분기
   if (speedInputActive) {
     ctx.fillStyle = '#ffd70030'; rrFill(spdValX, optY2, spdMidW, optH, 8);
@@ -6862,7 +6863,7 @@ function renderSelect() {
     ctx.fillStyle = '#fff';
     const cursor = Math.floor(Date.now()/500)%2===0 ? '|' : '';
     const dispText = speedInputText.length > 0 ? speedInputText + cursor : cursor;
-    ctx.fillText(dispText, spdValX + spdMidW/2, optY2 + optH*0.58);
+    ctx.fillText(dispText, spdValX + spdMidW/2, optY2 + optH/2);
     // 힌트
     ctx.font = `${sz(9)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -6874,7 +6875,7 @@ function renderSelect() {
     rrStroke(spdValX, optY2, spdMidW, optH, 8); ctx.shadowBlur = 0;
     ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.fillStyle = '#ffd700';
-    ctx.fillText(selectedSpeed.toFixed(1)+'x', spdValX + spdMidW/2, optY2 + optH*0.58);
+    ctx.fillText(selectedSpeed.toFixed(1)+'x', spdValX + spdMidW/2, optY2 + optH/2);
   }
   // + 버튼
   ctx.fillStyle = selectedSpeed < SPEED_MAX ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.02)';
@@ -6883,7 +6884,8 @@ function renderSelect() {
   rrStroke(spdPlusX, optY2, spdBtnW, optH, 8);
   ctx.font = `bold ${sz(20)}px sans-serif`;
   ctx.fillStyle = selectedSpeed < SPEED_MAX ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)';
-  ctx.fillText('+', spdPlusX + spdBtnW/2, optY2 + optH*0.6);
+  ctx.fillText('+', spdPlusX + spdBtnW/2, optY2 + optH/2);
+  ctx.textBaseline = 'alphabetic';
 
   // Start button
   const btnW = Math.min(220, optW*0.55);
@@ -6895,19 +6897,21 @@ function renderSelect() {
     ctx.fillStyle = 'rgba(255,215,0,0.12)'; rrFill(btnX, btnY, btnW, btnH, 14);
     ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
     rrStroke(btnX, btnY, btnW, btnH, 14);
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${sz(16)}px sans-serif`;
     ctx.fillStyle = '#ffd700';
-    ctx.fillText('🔒 해금하고 플레이', W/2, btnY + btnH*0.6);
+    ctx.fillText('🔒 해금하고 플레이', W/2, btnY + btnH/2);
+    ctx.textBaseline = 'alphabetic';
   } else {
     ctx.fillStyle = sc + '33'; rrFill(btnX, btnY, btnW, btnH, 14);
     ctx.strokeStyle = sc; ctx.lineWidth = 2;
     ctx.shadowColor = sc; ctx.shadowBlur = 14;
     rrStroke(btnX, btnY, btnW, btnH, 14); ctx.shadowBlur = 0;
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${sz(20)}px sans-serif`;
     ctx.fillStyle = '#fff';
-    ctx.fillText('▶ 시작', W/2, btnY + btnH*0.6);
+    ctx.fillText('▶ 시작', W/2, btnY + btnH/2);
+    ctx.textBaseline = 'alphabetic';
   }
 
   // My best score for selected song+diff
