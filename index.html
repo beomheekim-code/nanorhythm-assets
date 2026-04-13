@@ -3868,9 +3868,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const stemCnt = {};
   let noteIdx = 0;
   let prevLane = -1;
+  let prevTime = -1;
   let lastHoldLane = -1;
   let lastHoldEndTime = -1;
   const POST_HOLD_GRACE = 0.5; // 홀드 종료 후 같은 레인 금지 window (초)
+  const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초)
 
   for (const o of filtered) {
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
@@ -3880,8 +3882,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     // 결정론적 lane: stem base + stem 내 인덱스 순환
     let lane = (base + ci) % lc;
 
-    // 이전 노트와 같은 레인이면 한 칸 이동
-    if (lane === prevLane && lc > 1) {
+    // 이전 노트와 같은 레인 + 시간 간격 < 0.3s면 시프트 (시각 overlap 방지)
+    // 0.3s 이상 떨어졌으면 같은 레인 허용 (드럼 연타 패턴)
+    if (lane === prevLane && lc > 1 && (o.time - prevTime) < SAME_LANE_MIN_GAP) {
       lane = (lane + 1) % lc;
     }
 
@@ -3894,6 +3897,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
 
     prevLane = lane;
+    prevTime = o.time;
     const nd = {
       time: o.time, lane, freq: 440, type: 'note', stem: o.stem,
       hit: false, missed: false, holding: false, holdComplete: false,
