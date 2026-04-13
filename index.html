@@ -2079,14 +2079,27 @@ function getChartData(type) {
     const total = entry.total || 0;
     const logs = Array.isArray(entry.logs) ? entry.logs : (entry.logs ? Object.values(entry.logs) : []);
     let count = 0;
-    if (type === 'top') count = total;
-    else if (type === 'daily') count = logs.filter(t => t >= todayStartMs).length;
-    else if (type === 'weekly') count = logs.filter(t => t >= weekStartMs).length;
-    list.push({ idx: i, count });
+    let firstTs = Infinity; // 해당 기간 내 가장 이른 플레이 시각
+    if (type === 'top') {
+      count = total;
+      for (const t of logs) if (t < firstTs) firstTs = t;
+    }
+    else if (type === 'daily') {
+      for (const t of logs) {
+        if (t >= todayStartMs) { count++; if (t < firstTs) firstTs = t; }
+      }
+    }
+    else if (type === 'weekly') {
+      for (const t of logs) {
+        if (t >= weekStartMs) { count++; if (t < firstTs) firstTs = t; }
+      }
+    }
+    list.push({ idx: i, count, firstTs });
   }
   // count=0인 곡 제외 (DAILY/WEEKLY에서 기록 없는 곡 숨김), TOP은 전부 표시
   const filtered = type === 'top' ? list : list.filter(item => item.count > 0);
-  filtered.sort((a, b) => b.count - a.count || a.idx - b.idx);
+  // 정렬: count 내림차순 → 동률 시 먼저 플레이된 곡(firstTs 오름차순) → 그래도 동률이면 songIdx
+  filtered.sort((a, b) => b.count - a.count || (a.firstTs - b.firstTs) || (a.idx - b.idx));
   return filtered;
 }
 
