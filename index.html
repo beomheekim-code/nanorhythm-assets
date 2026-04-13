@@ -3741,8 +3741,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const stemCnt = {};
   let noteIdx = 0;
   let prevLane = -1;
+  let prevTime = -1;
+  const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
 
-  for (const o of filtered) {
+  for (let fi = 0; fi < filtered.length; fi++) {
+    const o = filtered[fi];
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
@@ -3750,12 +3753,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     // 결정론적 lane: stem base + stem 내 인덱스 순환 (RNG 없음)
     let lane = (base + ci) % lc;
 
-    // 이전 노트와 같은 레인이면 한 칸 이동 (예외 없음)
-    if (lane === prevLane && lc > 1) {
+    // 같은 레인 + 0.3s 미만 = 시각적 overlap → 시프트
+    if (lane === prevLane && lc > 1 && (o.time - prevTime) < SAME_LANE_MIN_GAP) {
       lane = (lane + 1) % lc;
     }
 
     prevLane = lane;
+    prevTime = o.time;
     const nd = {
       time: o.time, lane, freq: 440, type: 'note', stem: o.stem,
       hit: false, missed: false, holding: false, holdComplete: false,
@@ -3763,7 +3767,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     };
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
-      nd.endTime = nd.time + 3 * eighthDur; // 고정 길이 (RNG 제거)
+      // 다음 노트까지 간격 기반 가변 길이 (결정론)
+      // 최소 2 eighthDur, 최대 4 eighthDur, 다음 노트 침범 금지
+      const nextTime = (fi + 1 < filtered.length) ? filtered[fi + 1].time : nd.time + 10;
+      const gap = nextTime - nd.time - 0.05; // 다음 노트 전 50ms 버퍼
+      nd.endTime = nd.time + Math.max(2 * eighthDur, Math.min(4 * eighthDur, gap));
     }
     nodes.push(nd);
     noteIdx++;
