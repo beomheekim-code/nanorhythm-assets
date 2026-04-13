@@ -7057,25 +7057,31 @@ function renderSelect() {
         rrFill(cpX + 4, iy + 1, chartPanelW - 8, itemH - 2, 6);
       }
 
-      // 순위 번호 — 모바일 가로에선 작게
+      // 순위 번호 — 모바일에선 작게 + 3자리 수 대비
       const _mlRank = isMobile && !isPortrait;
+      const _mRank = isMobile;
+      const rankFontSize = _mlRank ? (ci < 3 ? 10 : 8) : (_mRank ? (ci < 3 ? 12 : 10) : (ci < 3 ? 14 : 12));
+      // 순위 오른쪽 끝 X (3자리까지 수용): 모바일 28, PC 24
+      const rankRightX = cpX + (_mRank ? 28 : 24);
+      // 곡 이름 시작 X (순위 오른쪽 + 여백)
+      const nameStartX = rankRightX + (_mRank ? sz(6) : sz(10));
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.font = `bold ${_mlRank ? (ci < 3 ? 10 : 9) : (ci < 3 ? 14 : 12)}px sans-serif`;
+      ctx.font = `bold ${rankFontSize}px sans-serif`;
       ctx.fillStyle = ci === 0 ? '#ffd700' : ci === 1 ? '#c0c0c0' : ci === 2 ? '#cd7f32' : 'rgba(255,255,255,0.4)';
-      ctx.fillText(ci + 1, cpX + (_mlRank ? 18 : 24), iy + itemH/2);
+      ctx.fillText(ci + 1, rankRightX, iy + itemH/2);
 
       // 곡 이름
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.font = `${Math.min(sz(11), chartPanelW * 0.06)}px sans-serif`;
       ctx.fillStyle = isSel ? '#fff' : 'rgba(255,255,255,0.65)';
-      const nameMaxW = chartPanelW - sz(70);
-      const nameText = s.name.length > 14 ? s.name.slice(0, 13) + '..' : s.name;
-      ctx.fillText(nameText, cpX + sz(42), iy + itemH/2 - sz(6));
+      const nameMaxChars = _mRank ? 10 : 14;
+      const nameText = s.name.length > nameMaxChars ? s.name.slice(0, nameMaxChars - 1) + '..' : s.name;
+      ctx.fillText(nameText, nameStartX, iy + itemH/2 - sz(6));
 
       // 플레이 수
       ctx.font = `${Math.min(sz(9), chartPanelW * 0.045)}px sans-serif`;
       ctx.fillStyle = s.color + (isSel ? 'cc' : '77');
-      ctx.fillText(item.count + ' plays', cpX + sz(42), iy + itemH/2 + sz(8));
+      ctx.fillText(item.count + ' plays', nameStartX, iy + itemH/2 + sz(8));
 
     }
     ctx.restore();
