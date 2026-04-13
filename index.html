@@ -5566,7 +5566,7 @@ function handleSettingsClick(mx, my) {
     if (hitTest(mx, mys, tb.x, tb.y, tb.w, tb.h)) {
       settingsOpen = false; settingsBindingLane = -1;
       stopSongAudio(); stopPreview(); stopRankingBgm(); stopShopBgm(); stopAchievementBgm();
-      transitionTo('title');
+      transitionTo('title', () => { startTitleBgm(); });
       return;
     }
   }
