@@ -111,7 +111,7 @@ if (window.visualViewport) {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@a7dfd5b/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@4caeb75/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -809,8 +809,8 @@ const songs = [
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1],
   },
   {
-    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 117, color: '#ff6699',
-    bg1: '#0e0408', bg2: '#1c0810', bars: 53,
+    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 100, color: '#ff6699',
+    bg1: '#0e0408', bg2: '#1c0810', bars: 45,
     cover: 'Music/Heart_On_The_Line/Heart_On_The_Line.png',
     file: 'Music/Heart_On_The_Line.ogg',
     stemDir: 'Music/Heart_On_The_Line/',
@@ -819,84 +819,14 @@ const songs = [
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1],
   },
   {
-    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 136, color: '#9999dd',
-    bg1: '#060610', bg2: '#0c0c1c', bars: 62,
+    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 80, color: '#9999dd',
+    bg1: '#060610', bg2: '#0c0c1c', bars: 37,
     cover: 'Music/기억의_사물함/기억의_사물함.png',
     file: 'Music/기억의_사물함.ogg',
     stemDir: 'Music/기억의_사물함/',
     stemPrefix: '기억의_사물함',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
-  },
-  {
-    name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
-    bg1: '#0a0015', bg2: '#180025', bars: 81,
-    cover: 'Music/Black_Out/Black_Out.png',
-    file: 'Music/Black_Out.ogg',
-    stemDir: 'Music/Black_Out/',
-    stemPrefix: 'Black_Out',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-  },
-  {
-    name: 'Burn It All Down', sub: 'HARD ROCK', bpm: 152, color: '#ff4400',
-    bg1: '#180400', bg2: '#300a00', bars: 75,
-    cover: 'Music/Burn_It_All_Down/Burn_It_All_Down.png',
-    file: 'Music/Burn_It_All_Down.ogg',
-    stemDir: 'Music/Burn_It_All_Down/',
-    stemPrefix: 'Burn_It_All_Down',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
-  },
-  {
-    name: 'No More Scripts', sub: 'TRAP/HIPHOP', bpm: 129, color: '#ffcc00',
-    bg1: '#120e00', bg2: '#241c00', bars: 64,
-    cover: 'Music/No_More_Scripts/No_More_Scripts.png',
-    file: 'Music/No_More_Scripts.ogg',
-    stemDir: 'Music/No_More_Scripts/',
-    stemPrefix: 'No_More_Scripts',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,1],
-  },
-  {
-    name: 'Polaroid In Bloom', sub: 'DREAM POP', bpm: 108, color: '#ffb3e0',
-    bg1: '#160812', bg2: '#281425', bars: 66,
-    cover: 'Music/Polaroid_In_Bloom/Polaroid_In_Bloom.png',
-    file: 'Music/Polaroid_In_Bloom.ogg',
-    stemDir: 'Music/Polaroid_In_Bloom/',
-    stemPrefix: 'Polaroid_In_Bloom',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1],
-  },
-  {
-    name: 'RED TAPE', sub: 'INDUSTRIAL', bpm: 89, color: '#ff1a33',
-    bg1: '#180003', bg2: '#30000a', bars: 59,
-    cover: 'Music/RED_TAPE/RED_TAPE.png',
-    file: 'Music/RED_TAPE.ogg',
-    stemDir: 'Music/RED_TAPE/',
-    stemPrefix: 'RED_TAPE',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,1,0,1,0,1, 1,1,0,1,0,1,1,0],
-  },
-  {
-    name: '加速する鼓動', sub: 'J-ROCK/SPEED', bpm: 172, color: '#ff3377',
-    bg1: '#150008', bg2: '#2a0010', bars: 83,
-    cover: 'Music/加速する鼓動/加速する鼓動.png',
-    file: 'Music/加速する鼓動.ogg',
-    stemDir: 'Music/加速する鼓動/',
-    stemPrefix: '加速する鼓動',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0],
-  },
-  {
-    name: '황덕구의 모험', sub: 'K-FUNK/FUN', bpm: 117, color: '#ffdd33',
-    bg1: '#141000', bg2: '#281e00', bars: 71,
-    cover: 'Music/황덕구의_모험/황덕구의_모험.png',
-    file: 'Music/황덕구의_모험.ogg',
-    stemDir: 'Music/황덕구의_모험/',
-    stemPrefix: '황덕구의_모험',
-    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
   },
 ];
 
@@ -2461,22 +2391,6 @@ function generateNodes(song, diff, energyMap) {
       }
     }
   }
-  // 홀드 종료 직후 같은 레인 노트 재배치 (grace window 내)
-  {
-    const graceWindow = eighthDur;
-    for (let a = 0; a < nodes.length; a++) {
-      if (nodes[a].type !== 'hold') continue;
-      const hLane = nodes[a].lane;
-      const hEnd = nodes[a].endTime;
-      for (let b = a + 1; b < nodes.length; b++) {
-        if (nodes[b].time > hEnd + graceWindow) break;
-        if (nodes[b].time < hEnd) continue;
-        if (nodes[b].lane === hLane && laneCount > 1) {
-          nodes[b].lane = (hLane + 1) % laneCount;
-        }
-      }
-    }
-  }
   totalNodes = nodes.filter(n => n.type !== 'trap').length;
 
   // Traps based on difficulty (7키: 트랩 빈도 증가)
@@ -3634,189 +3548,168 @@ function detectOnsets(audioBuffer) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
-  // 빈 스템 스킵
-  let peak = 0;
-  for (let k = 0; k < data.length; k += 128) { const v = Math.abs(data[k]); if (v > peak) peak = v; }
-  if (peak < 0.003) return [];
-  const winSamples = Math.floor(sr * 0.015);
-  const minGapSamples = Math.floor(sr * 0.04);
-  // Delayed energy buffer: 현재 에너지를 7 윈도우(~105ms) 전 에너지와 비교
-  // → 실제 attack(지속 상승)만 감지, reverb tail/sustain 무시
-  const DELAY_LEN = 7;
-  const delayBuf = new Float32Array(DELAY_LEN);
-  let delayIdx = 0;
-  const NOISE_FLOOR = 0.0005;
+  const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
+  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
   const onsets = [];
+  let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
-  // warm-up: 처음 DELAY_LEN windows는 감지 스킵 (buffer 채움)
-  let warmup = 0;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    const delayedEnergy = delayBuf[delayIdx];
-    const delta = energy - delayedEnergy;
-    if (warmup >= DELAY_LEN &&
-        energy > NOISE_FLOOR &&
-        delta > NOISE_FLOOR * 0.5 &&     // must be rising
-        energy > delayedEnergy * 1.5 &&  // 50% higher than 105ms ago
-        i - lastOnset > minGapSamples) {
+    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
+    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
-    delayBuf[delayIdx] = energy;
-    delayIdx = (delayIdx + 1) % DELAY_LEN;
-    if (warmup < DELAY_LEN) warmup++;
+    smoothed = energy * 0.2 + smoothed * 0.8;
   }
   return onsets;
 }
 
 function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
-  // ============================================================
-  // BPM 그리드 + 에너지 게이팅 방식
-  // - 타이밍은 BPM 기반 16분음표 그리드로 고정 (drift 없음)
-  // - 각 그리드 포인트에서 stem 로컬 에너지가 임계 이상일 때만 노트 배치
-  // - stem 우선순위: drums > bass > piano > guitar (instrum은 fallback)
-  // - other/vocals 완전 제외 → ambient/새소리 false positive 차단
-  // ============================================================
   nodes = [];
   nodeScanStart = 0;
   const songIdx = songs.indexOf(song);
   const diffIdx = DIFFICULTIES.indexOf(diff);
+  const seed = (songIdx + 1) * 10000 + (diffIdx + 1) * 100 + song.bpm;
+  const rng = seededRng(seed);
   const bgmDelay = 3.5;
   song._startDelay = bgmDelay;
   song._onsetMode = true;
   const sixteenth = 15 / song.bpm;
-  const eighthDur = sixteenth * 2;
+
+  // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
+  let allOnsets = [];
+  for (const si in onsetsByStem) {
+    if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
+    for (const t of onsetsByStem[si]) {
+      allOnsets.push({ time: t + bgmDelay, stem: Number(si) });
+    }
+  }
+  allOnsets.sort((a, b) => a.time - b.time);
+
+  // BPM 그리드에 퀀타이즈 (16분음표)
+  for (const o of allOnsets) {
+    const rel = o.time - bgmDelay;
+    o.time = Math.round(rel / sixteenth) * sixteenth + bgmDelay;
+  }
+
+  // 에너지 부여
+  if (energyMap && energyMap.length > 0) {
+    for (const o of allOnsets) {
+      const eIdx = Math.min(Math.floor((o.time - bgmDelay) / 0.5), energyMap.length - 1);
+      o.energy = eIdx >= 0 ? energyMap[eIdx] : 1;
+    }
+  } else {
+    for (const o of allOnsets) o.energy = 1;
+  }
+
+  // 너무 가까운 onset 병합 (동시노트 후보)
+  const merged = [];
+  for (const o of allOnsets) {
+    if (merged.length > 0 && Math.abs(o.time - merged[merged.length - 1].time) < 0.03) {
+      if (!merged[merged.length - 1].extra) merged[merged.length - 1].extra = [];
+      merged[merged.length - 1].extra.push(o);
+      continue;
+    }
+    merged.push(o);
+  }
+
+  // 무음 제거 (0.02 이하 = 거의 들리지 않는 구간 제거)
+  const nonSilent = merged.filter(o => o.energy >= 0.02);
+
+  // 난이도 필터링 (균등 분배 + 최소 간격)
+  // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
+  // 조용한 구간(energy < 0.2)은 밀도를 에너지 비례로 축소
+  const density = diff.noteDensity;
+  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
+               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
+               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
+               : sixteenth;                        // 지옥: 16분음표
+  const QUIET_THRESH = 0.2;  // 이 아래면 "조용한 구간"
+  const filtered = [];
+  if (nonSilent.length > 0) {
+    const songStart = nonSilent[0].time;
+    const songEnd = nonSilent[nonSilent.length - 1].time;
+    let slotStart = songStart;
+    let nsIdx = 0;
+    while (slotStart < songEnd + minGap) {
+      const slotEnd = slotStart + minGap;
+      let best = null, bestEnergy = -1;
+      while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
+        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
+          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+        }
+        nsIdx++;
+      }
+      if (best) {
+        // 조용한 구간: 에너지 비례 확률로 스킵 (결정적 - 시드 RNG)
+        if (bestEnergy < QUIET_THRESH) {
+          const keepProb = bestEnergy / QUIET_THRESH;
+          if (rng() < keepProb) filtered.push(best);
+        } else {
+          filtered.push(best);
+        }
+      }
+      slotStart = slotEnd;
+    }
+  }
+
+  // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
   const holdEvery = diff.holdEvery || 999;
+  const eighthDur = sixteenth * 2;
 
-  // 곡 길이
-  let maxDur = 0;
-  for (const si in stemAudioBuffers) {
-    if (stemAudioBuffers[si]) maxDur = Math.max(maxDur, stemAudioBuffers[si].duration);
-  }
-  if (maxDur <= 0) { songDuration = 30; return; }
+  // stem → 레인 매핑 (전 레인에 고르게 분산)
+  const stemList = [...new Set(filtered.map(x => x.stem))].sort((a, b) => a - b);
+  const stemBase = {};
+  const songOff = songIdx % lc; // 곡마다 시작 레인 다르게
+  stemList.forEach((s, i) => { stemBase[s] = (Math.floor(i * lc / Math.max(stemList.length, 1)) + songOff) % lc; });
 
-  // 난이도별 그리드 간격 (연속 노트 최소 간격)
-  const density = diff.noteDensity;
-  const gridStep = density <= 0.5 ? sixteenth * 8   // 쉬움: 2분음표
-                 : density <= 0.8 ? sixteenth * 4   // 보통: 4분음표
-                 : density <= 1.2 ? sixteenth * 3   // 어려움: 점4분음표
-                 : sixteenth * 2;                   // 지옥: 8분음표
-
-  // 스템: primary = 구체적 악기, fallback = instrum, 완전 제외 = vocals/other
-  const PRIMARY_STEMS = [0, 1, 4, 5]; // drums, bass, piano, guitar
-  const INSTRUM_STEM = 3;
-
-  // ===== 각 스템의 로컬 에너지 맵 빌드 (0.1초 해상도) =====
-  const CELL_SEC = 0.1;
-  const stemEnergy = {}; // stem → Float32Array (cell당 RMS)
-  const stemMaxRms = {};
-  const allStemsForEnergy = [...PRIMARY_STEMS, INSTRUM_STEM];
-  let maxCells = 0;
-  for (const si of allStemsForEnergy) {
-    const buf = stemAudioBuffers[si];
-    if (!buf) continue;
-    const data = buf.getChannelData(0);
-    const sr = buf.sampleRate;
-    const cellSamples = Math.floor(sr * CELL_SEC);
-    const nCells = Math.ceil(data.length / cellSamples);
-    maxCells = Math.max(maxCells, nCells);
-    const arr = new Float32Array(nCells);
-    let maxV = 0;
-    for (let c = 0; c < nCells; c++) {
-      let sum = 0, cnt = 0;
-      const s0 = c * cellSamples;
-      const s1 = Math.min(s0 + cellSamples, data.length);
-      for (let k = s0; k < s1; k += 16) { sum += data[k] * data[k]; cnt++; }
-      arr[c] = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-      if (arr[c] > maxV) maxV = arr[c];
-    }
-    stemEnergy[si] = arr;
-    stemMaxRms[si] = maxV;
-  }
-
-  // ===== 그리드 포인트별 노트 배치 =====
-  // 각 그리드에서 stem의 로컬 에너지를 전체 최대치와 비교
-  // 에너지 > stemMaxRms * 0.25 이면 해당 stem이 "활성" 상태
-  const ACTIVE_RATIO = 0.25;
-
-  function stemActiveAt(si, t) {
-    const arr = stemEnergy[si];
-    if (!arr) return 0;
-    const c = Math.min(arr.length - 1, Math.floor(t / CELL_SEC));
-    if (c < 0) return 0;
-    // 앞뒤 cell 포함 — 그리드 포인트 주변 0.3초 (3 cells) 윈도우 평균
-    let sum = 0, cnt = 0;
-    for (let k = Math.max(0, c - 1); k <= Math.min(arr.length - 1, c + 1); k++) {
-      sum += arr[k]; cnt++;
-    }
-    const localE = cnt > 0 ? sum / cnt : 0;
-    const maxE = stemMaxRms[si] || 1;
-    return localE / maxE; // 0~1 normalized
-  }
-
-  // stem별 노트 카운터 (lane 결정용)
-  const stemLaneCnt = {};
-  function assignLane(stemIdx) {
-    if (!stemLaneCnt[stemIdx]) stemLaneCnt[stemIdx] = 0;
-    const ci = stemLaneCnt[stemIdx]++;
-    // stem 간 base 분산: stem 순서 × (lc/4) + songIdx 오프셋
-    const stemOrder = PRIMARY_STEMS.indexOf(stemIdx);
-    const base = ((stemOrder >= 0 ? stemOrder : 4) * Math.max(1, Math.floor(lc / 4)) + songIdx) % lc;
-    return (base + ci) % lc;
-  }
-
-  let lastHoldLane = -1;
-  let lastHoldEndTime = -1;
-  let holdCooldown = 0;
+  // stem별 내부 카운터 (같은 stem 내에서 레인 순환)
+  const stemCnt = {};
   let noteIdx = 0;
+  let prevLane = -1;
 
-  // 그리드 순회: 0부터 곡 끝까지 gridStep 단위
-  const songEnd = maxDur - 0.5;
-  for (let t = 0; t < songEnd; t += gridStep) {
-    // 이 그리드 포인트에서 어떤 스템이 가장 활성인지 판별
-    let bestStem = -1, bestActive = ACTIVE_RATIO;
-    for (const si of PRIMARY_STEMS) {
-      const a = stemActiveAt(si, t);
-      if (a > bestActive) { bestActive = a; bestStem = si; }
-    }
-    // primary 전부 비활성이면 instrum fallback
-    if (bestStem < 0) {
-      const a = stemActiveAt(INSTRUM_STEM, t);
-      if (a > ACTIVE_RATIO) bestStem = INSTRUM_STEM;
-    }
-    if (bestStem < 0) continue; // 완전 조용한 구간 → 노트 없음
+  for (const o of filtered) {
+    if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
+    const ci = stemCnt[o.stem]++;
+    const base = stemBase[o.stem] || 0;
 
-    const noteTime = t + bgmDelay;
-    let lane = assignLane(bestStem);
+    // stem 기반 + 시드 RNG 랜덤 오프셋 (계단 패턴 방지, 결정적)
+    let lane = (base + Math.floor(rng() * lc)) % lc;
 
-    // 홀드 직후 grace window 내 같은 레인 회피
-    if (lc > 1 && lastHoldLane >= 0 && lane === lastHoldLane &&
-        noteTime >= lastHoldEndTime && noteTime - lastHoldEndTime < eighthDur) {
+    // 이전 노트와 같은 레인이면 한 칸 이동 (단, 50번째마다 연타 허용)
+    if (lane === prevLane && lc > 1 && ci % 50 !== 49) {
       lane = (lane + 1) % lc;
     }
 
+    prevLane = lane;
     const nd = {
-      time: noteTime, lane, freq: 440, type: 'note', stem: bestStem,
+      time: o.time, lane, freq: 440, type: 'note', stem: o.stem,
       hit: false, missed: false, holding: false, holdComplete: false,
       endTime: 0, _ho1: null, _ho2: null, _hg: null
     };
-
-    // 홀드 배치: holdEvery cooldown 만족 시
-    if (holdEvery > 0 && noteIdx > 0 && holdCooldown <= 0) {
+    if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
-      nd.endTime = nd.time + 3 * eighthDur;
-      lastHoldLane = lane;
-      lastHoldEndTime = nd.endTime;
-      holdCooldown = holdEvery;
+      nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
     }
-    if (holdCooldown > 0) holdCooldown--;
-
     nodes.push(nd);
     noteIdx++;
+  }
+
+  // 트랩 추가
+  const trapInt = diff.trapInterval || 0;
+  if (trapInt > 0 && nodes.length > 0) {
+    const songEnd = nodes[nodes.length - 1].time;
+    for (let t = bgmDelay + 5; t < songEnd - 2; t += (trapInt * 2 + rng() * trapInt * 2) * sixteenth) {
+      const tLane = Math.floor(rng() * laneCount);
+      let conflict = false;
+      for (const n of nodes) { if (Math.abs(n.time - t) < sixteenth * 2) { conflict = true; break; } }
+      if (!conflict) nodes.push({ time: t, lane: tLane, freq: 0, type: 'trap', hit: false, missed: false });
+    }
   }
 
   nodes.sort((a, b) => a.time - b.time);
@@ -3829,21 +3722,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       }
     }
   }
-  // 홀드 종료 직후 같은 레인 노트는 다른 레인으로 재배치 (grace window 내)
-  const graceWindow = eighthDur;
-  for (let a = 0; a < nodes.length; a++) {
-    if (nodes[a].type !== 'hold') continue;
-    const hLane = nodes[a].lane;
-    const hEnd = nodes[a].endTime;
-    for (let b = a + 1; b < nodes.length; b++) {
-      if (nodes[b].time > hEnd + graceWindow) break;
-      if (nodes[b].time < hEnd) continue;
-      if (nodes[b].lane === hLane && lc > 1) {
-        nodes[b].lane = (hLane + 1) % lc;
-      }
-    }
-  }
   totalNodes = nodes.filter(n => n.type !== 'trap').length;
+  // songDuration from actual audio, not notes
+  let maxDur = 0;
+  for (const si in stemAudioBuffers) { if (stemAudioBuffers[si]) maxDur = Math.max(maxDur, stemAudioBuffers[si].duration); }
   songDuration = maxDur > 0 ? maxDur + bgmDelay + 2 : (nodes.length > 0 ? nodes[nodes.length - 1].time + 5 : 30);
 }
 
@@ -3864,7 +3746,6 @@ function startSong(idx) {
   stemFirstSoundTime = {};
   stemAudioBuffers = {};
   stemOnsetCache = {};
-  songEnergyMap = null; // 매 플레이마다 새로 빌드 (재사용 시 += 누적 중복 방지)
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
@@ -3996,11 +3877,10 @@ function startSong(idx) {
           if (!ALWAYS_AUDIBLE_STEMS.includes(_si)) {
             const winSize = Math.floor(sr * 0.5);
             const mapLen = Math.ceil(data.length / winSize);
-            // 첫 스템이 mapLen 확정 → 이후 스템은 재할당 금지 (비결정 방지)
-            if (!songEnergyMap) songEnergyMap = new Float32Array(mapLen);
-            const mapLim = songEnergyMap.length;
-            const wEnd = Math.min(mapLen, mapLim);
-            for (let w = 0; w < wEnd; w++) {
+            if (!songEnergyMap || songEnergyMap.length < mapLen) {
+              songEnergyMap = new Float32Array(mapLen);
+            }
+            for (let w = 0; w < mapLen; w++) {
               let sum = 0;
               const s0 = w * winSize, s1 = Math.min(s0 + winSize, data.length);
               for (let k = s0; k < s1; k += 8) sum += data[k] * data[k];
@@ -4057,11 +3937,8 @@ function startSong(idx) {
               }
               const winSize = Math.floor(sr * 0.5);
               const mapLen = Math.ceil(data.length / winSize);
-              // 첫 스템이 mapLen 확정 → 이후 스템은 재할당 금지 (비결정 방지)
-              if (!songEnergyMap) songEnergyMap = new Float32Array(mapLen);
-              const mapLim = songEnergyMap.length;
-              const wEnd = Math.min(mapLen, mapLim);
-              for (let w = 0; w < wEnd; w++) {
+              if (!songEnergyMap || songEnergyMap.length < mapLen) songEnergyMap = new Float32Array(mapLen);
+              for (let w = 0; w < mapLen; w++) {
                 let sum = 0;
                 const s0 = w * winSize, s1 = Math.min(s0 + winSize, data.length);
                 for (let k = s0; k < s1; k += 8) sum += data[k] * data[k];
@@ -4946,7 +4823,7 @@ function renderNotes() {
 
       if (barTop < barBot + 10) {
         // Bar body
-        const bw = _laneW - 14;
+        const bw = _laneW - 8;
         if (n.holding) {
           // Active hold - bright bar with glow (shadowBlur 제거 → 경량 글로우)
           ctx.fillStyle = col + '40';
@@ -4989,7 +4866,7 @@ function renderNotes() {
       if (!n.hit && !n.missed) {
         const sy = headY;
         if (sy > -30 && sy < hitY + 60) {
-          const hw = (_laneW - 14) / 2, hh = 10;
+          const hw = (_laneW - 8) / 2, hh = 10;
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
           ctx.fillStyle = col;
@@ -5020,7 +4897,7 @@ function renderNotes() {
       ctx.beginPath(); ctx.moveTo(sx+_tc,sy-_tc); ctx.lineTo(sx-_tc,sy+_tc); ctx.stroke();
     } else {
       const col = LANE_COLORS[n.lane];
-      const nw = (_laneW - 14) / 2, nh = 10;
+      const nw = (_laneW - 8) / 2, nh = 10;
       if (fever) {
         // 피버: 불타는 이펙트 (flicker 프레임 단위 + 노트별 오프셋)
         const flicker = _feverFlickerBase + Math.sin(n.time * 50) * 0.1;
