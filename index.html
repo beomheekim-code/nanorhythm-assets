@@ -3826,10 +3826,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 난이도 필터링 (균등 분배 + 최소 간격)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? sixteenth * 6    // 쉬움: 점4분음표
-               : density <= 0.8 ? sixteenth * 3    // 보통: 점8분음표
-               : density <= 1.2 ? sixteenth * 2    // 어려움: 8분음표
-               : sixteenth * 1.5;                  // 지옥: 점16분음표
+  // BPM 독립적 절대값: 곡 BPM이 틀려도 노트 밀도가 일정하게 유지됨
+  // (BPM은 sixteenth 계산에만 쓰여서 틀리면 slot이 진짜 비트와 어긋남)
+  const minGap = density <= 0.5 ? 0.50    // 쉬움: 2/sec
+               : density <= 0.8 ? 0.30    // 보통: 3.3/sec
+               : density <= 1.2 ? 0.20    // 어려움: 5/sec
+               : 0.15;                    // 지옥: 6.7/sec
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
