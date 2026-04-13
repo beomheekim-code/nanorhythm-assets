@@ -6479,11 +6479,11 @@ function getSelectLayout() {
   const sectionGap = Math.max(10, visH * 0.016);
   const subBtnH = Math.min(34, visH * 0.042);
   const subBtnGap = Math.max(10, visH * 0.014);
-  // 모바일 가로: 검색창 높이 절반, 타이틀과 간격 축소
+  // 모바일 가로: 검색창 높이 절반, 타이틀과 간격 최소화
   const _mobileLandscape = isMobile && !isPortrait;
   const searchBarH = _mobileLandscape ? 16 : 30;
-  const titleH = _mobileLandscape ? 20 : 26;
-  const titleToSearchGap = _mobileLandscape ? 2 : 12;
+  const titleH = _mobileLandscape ? 18 : 26;
+  const titleToSearchGap = _mobileLandscape ? 1 : 12;
   const searchToSongGap = 14;
   const btnH = Math.min(44, visH * 0.058);
   const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
@@ -6613,13 +6613,13 @@ function renderSelect() {
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
   ctx.fillText(favFilterActive ? '즐겨찾기' : '곡 선택', cxBase + sz(4), titleY);
   // 즐겨찾기 토글 버튼 (우측)
-  const favBtnW = sz(80), favBtnH = sz(26);
+  const favBtnW = _mlTitle ? sz(56) : sz(80), favBtnH = _mlTitle ? sz(16) : sz(26);
   const favBtnX = cxBase + optW - favBtnW, favBtnY = titleY - favBtnH/2;
   ctx.fillStyle = favFilterActive ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)';
-  rrFill(favBtnX, favBtnY, favBtnW, favBtnH, sz(6));
+  rrFill(favBtnX, favBtnY, favBtnW, favBtnH, sz(4));
   ctx.strokeStyle = favFilterActive ? '#ffd70066' : 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1; rrStroke(favBtnX, favBtnY, favBtnW, favBtnH, sz(6));
-  ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 1; rrStroke(favBtnX, favBtnY, favBtnW, favBtnH, sz(4));
+  ctx.font = `bold ${_mlTitle ? sz(8) : sz(11)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = favFilterActive ? '#ffd700' : 'rgba(255,255,255,0.4)';
   ctx.fillText(favFilterActive ? '★ 전체보기' : '★ 즐겨찾기', favBtnX + favBtnW/2, favBtnY + favBtnH/2);
   ctx.textBaseline='alphabetic';
@@ -6986,8 +6986,8 @@ function renderSelect() {
   if (chartPanelW > 60 && (!isMobileChart || !mobileChartCollapsed)) {
     const _mobileLandChart = isMobile && !isPortrait && !isMobileChart;
     const cpX = isMobileChart ? 6 : 8;
-    // 모바일 가로: 사이드 차트 패널의 상단 여백 축소
-    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? -safeTop + 10 : 50);
+    // 모바일 가로: 차트 탭이 검색창 Y와 일치하도록 (탭은 cpY + sz(5))
+    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? (lay.searchBarY - sz(5)) : 50);
     const cpH = isMobileChart ? Math.min(H * 0.35, 200) : (_mobileLandChart ? (H + safeBottom - cpY - 10) : (H - cpY - 30));
     // 스크롤 입력용 bounds 저장
     window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
