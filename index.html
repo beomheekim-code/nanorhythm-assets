@@ -6924,17 +6924,6 @@ function renderSelect() {
     ctx.fillText('MY BEST: ' + myBest.toLocaleString(), W/2, btnY + btnH + 20);
   }
 
-  // Coin display (햄버거 버튼 좌측, 우하단)
-  ctx.textAlign='right'; ctx.font=`bold ${sz(11)}px sans-serif`;
-  ctx.fillStyle='#ffd700aa';
-  ctx.textAlign='right'; ctx.textBaseline='middle';
-  ctx.font=`bold ${sz(10)}px sans-serif`; ctx.fillStyle='#ffd700aa';
-  ctx.fillText('♪ ' + getCoins().toLocaleString(), W - sz(52), H - sz(22));
-
-  // User name + help
-  ctx.textAlign='center'; ctx.font=`${sz(11)}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.3)';
-  ctx.fillText(currentUser + '  |  ←→ 곡 선택  ·  ↑↓ 항목 이동  ·  Enter 시작',W/2,H-sz(16));
-
   // ===== CHART PANEL (좌측) =====
   updateChartCache();
   const spaceLeft = cxBase - 10;
