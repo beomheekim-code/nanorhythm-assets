@@ -1355,21 +1355,23 @@ const DRAG_THRESHOLD = 8;
 let searchText = '', searchActive = false;
 let searchFiltered = []; // array of original song indices matching search
 let searchHighlight = 0; // highlighted index within searchFiltered
+let searchScroll = 0; // 드롭다운 스크롤 (항목 단위)
 function updateSearchFilter() {
-  if (!searchText) { searchFiltered = []; searchHighlight = 0; return; }
+  if (!searchText) { searchFiltered = []; searchHighlight = 0; searchScroll = 0; return; }
   const lower = searchText.toLowerCase();
   searchFiltered = [];
   songs.forEach((s, i) => {
     if (s.name.toLowerCase().includes(lower) || s.sub.toLowerCase().includes(lower)) searchFiltered.push(i);
   });
   searchHighlight = Math.min(searchHighlight, Math.max(0, searchFiltered.length - 1));
+  searchScroll = 0;
 }
 function confirmSearchSelection() {
   if (searchFiltered.length > 0) {
     selectedSong = searchFiltered[searchHighlight];
     scrollToSong(selectedSong);
   }
-  searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
+  searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
 }
 const searchInputEl = document.getElementById('searchInput');
 searchInputEl.addEventListener('input', () => {
@@ -1379,7 +1381,7 @@ searchInputEl.addEventListener('input', () => {
   updateSearchFilter();
 });
 searchInputEl.addEventListener('keydown', e => {
-  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); e.preventDefault(); }
+  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); e.preventDefault(); }
   else if (e.code === 'Enter') { confirmSearchSelection(); e.preventDefault(); }
   else if (e.code === 'ArrowDown') { searchHighlight = Math.min(searchHighlight + 1, searchFiltered.length - 1); e.preventDefault(); }
   else if (e.code === 'ArrowUp') { searchHighlight = Math.max(searchHighlight - 1, 0); e.preventDefault(); }
@@ -2698,20 +2700,19 @@ function handleSelectClick(mx, my) {
   }
   // Filter dropdown item click
   if (searchActive && searchText && searchFiltered.length > 0) {
-    const filterItemH = 38;
-    const dropY = searchBarY + searchBarH + 4;
-    const dropH = searchFiltered.length * filterItemH + 8;
-    if (hitTest(mx, my, cx, dropY, lay.optW, dropH)) {
-      const fi = Math.floor((my - dropY - 4) / filterItemH);
+    const sb = window._searchDropBounds;
+    if (sb && hitTest(mx, my, sb.x, sb.y, sb.w, sb.h)) {
+      const relY = my - sb.y - 4;
+      const fi = Math.floor(relY / sb.itemH) + (searchScroll || 0);
       if (fi >= 0 && fi < searchFiltered.length) {
         selectedSong = searchFiltered[fi]; loadSongDiffSpeed(selectedSong);
         scrollToSong(selectedSong);
-        searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
+        searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
       }
       return;
     }
   }
-  if (searchActive) { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+  if (searchActive) { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
   // Arrow buttons (◀ ▶)
   const centerX = W / 2;
   const step = lay.cardW + lay.gap;
@@ -3052,6 +3053,13 @@ addEventListener('wheel', e => {
     return;
   }
   if (state === 'select') {
+    // 검색 드롭다운이 열려 있고 마우스가 그 위라면 드롭다운 스크롤
+    const sb = window._searchDropBounds;
+    if (searchActive && searchText && sb && e.clientX >= sb.x && e.clientX <= sb.x + sb.w && gameY(e.clientY) >= sb.y && gameY(e.clientY) <= sb.y + sb.h) {
+      searchScroll = Math.max(0, Math.min(sb.maxScroll, searchScroll + (dy > 0 ? 1 : -1)));
+      e.preventDefault();
+      return;
+    }
     // 마우스가 차트 패널 위에 있으면 차트 스크롤
     const cb = window._chartBounds;
     if (cb && e.clientX >= cb.x && e.clientX <= cb.x + cb.w && gameY(e.clientY) >= cb.y && gameY(e.clientY) <= cb.y + cb.h) {
@@ -3111,10 +3119,16 @@ addEventListener('touchstart', e => {
         _listTouchMode = 'ach';
         _listTouchStartY = tmy; _listTouchStartScroll = achievementScroll;
       } else if (state === 'select') {
-        const cb = window._chartBounds;
-        if (cb && tmx >= cb.x && tmx <= cb.x + cb.w && tmy >= cb.y && tmy <= cb.y + cb.h) {
-          _listTouchMode = 'chart';
-          _listTouchStartY = tmy; _listTouchStartScroll = chartScroll;
+        const sb = window._searchDropBounds;
+        if (searchActive && searchText && sb && tmx >= sb.x && tmx <= sb.x + sb.w && tmy >= sb.y && tmy <= sb.y + sb.h) {
+          _listTouchMode = 'searchDrop';
+          _listTouchStartY = tmy; _listTouchStartScroll = searchScroll;
+        } else {
+          const cb = window._chartBounds;
+          if (cb && tmx >= cb.x && tmx <= cb.x + cb.w && tmy >= cb.y && tmy <= cb.y + cb.h) {
+            _listTouchMode = 'chart';
+            _listTouchStartY = tmy; _listTouchStartScroll = chartScroll;
+          }
         }
       }
     }
@@ -3268,6 +3282,7 @@ addEventListener('touchmove', e => {
       if (_listTouchMode === 'rank') rankingScroll = Math.max(0, _listTouchStartScroll + delta);
       else if (_listTouchMode === 'ach') achievementScroll = Math.max(0, _listTouchStartScroll + delta);
       else if (_listTouchMode === 'chart') chartScroll = Math.max(0, _listTouchStartScroll + delta);
+      else if (_listTouchMode === 'searchDrop') searchScroll = Math.max(0, _listTouchStartScroll + delta);
     }
     return;
   }
@@ -4025,8 +4040,8 @@ function update(dt) {
   if (state === 'select') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
-      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
-      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         if (inp==='right') { const p = _dPos(selectedSong); selectedSong = _dSong(p < _dLen() - 1 ? p + 1 : 0); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
@@ -7065,13 +7080,27 @@ function renderSelect() {
     const filterItemH = 38;
     const dropY = searchBarY + searchBarH + 4;
     if (searchFiltered.length > 0) {
-      const filterDropdownH = searchFiltered.length * filterItemH + 8;
+      // 최대 높이 제한 (시작 버튼 위까지)
+      const maxDropH = Math.min(searchFiltered.length * filterItemH + 8, H*0.5);
+      const visibleCount = Math.floor((maxDropH - 8) / filterItemH);
+      const maxScroll = Math.max(0, searchFiltered.length - visibleCount);
+      if (searchScroll > maxScroll) searchScroll = maxScroll;
+      if (searchScroll < 0) searchScroll = 0;
+      const filterDropdownH = maxDropH;
       ctx.fillStyle = 'rgba(10,10,20,0.97)';
       rrFill(cxBase, dropY, optW, filterDropdownH, 8);
       ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1;
       rrStroke(cxBase, dropY, optW, filterDropdownH, 8);
-      searchFiltered.forEach((songIdx, fi) => {
-        const iy = dropY + 4 + fi * filterItemH;
+      // 스크롤 bounds 저장
+      window._searchDropBounds = { x: cxBase, y: dropY, w: optW, h: filterDropdownH, itemH: filterItemH, maxScroll };
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cxBase, dropY, optW, filterDropdownH);
+      ctx.clip();
+      const endIdx = Math.min(searchFiltered.length, searchScroll + visibleCount + 1);
+      for (let fi = searchScroll; fi < endIdx; fi++) {
+        const songIdx = searchFiltered[fi];
+        const iy = dropY + 4 + (fi - searchScroll) * filterItemH;
         const isHl = fi === searchHighlight;
         if (isHl) {
           ctx.fillStyle = songs[songIdx].color + '33';
@@ -7084,7 +7113,18 @@ function renderSelect() {
         ctx.font = `${sz(11)}px sans-serif`;
         ctx.fillStyle = songs[songIdx].color + (isHl ? 'cc' : '77');
         ctx.fillText(songs[songIdx].sub + '  ·  ' + songs[songIdx].bpm + ' BPM', cxBase + 14, iy + filterItemH * 0.78);
-      });
+      }
+      ctx.restore();
+      // 스크롤바
+      if (maxScroll > 0) {
+        const sbX = cxBase + optW - 6, sbY = dropY + 4, sbH = filterDropdownH - 8;
+        const thumbH = Math.max(20, sbH * visibleCount / searchFiltered.length);
+        const thumbY = sbY + (sbH - thumbH) * (searchScroll / maxScroll);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        rrFill(sbX, sbY, 3, sbH, 2);
+        ctx.fillStyle = 'rgba(255,215,0,0.5)';
+        rrFill(sbX, thumbY, 3, thumbH, 2);
+      }
     } else {
       const filterDropdownH = 36;
       ctx.fillStyle = 'rgba(10,10,20,0.97)';
