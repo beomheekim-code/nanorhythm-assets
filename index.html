@@ -3666,20 +3666,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   if (exStems.length > 0) {
     allOnsets = allOnsets.filter(o => !exStems.includes(o.stem));
   }
-  // 곡별 수동 블랙리스트 적용 (excludeRanges: [{start, end, stems?}])
-  // start/end는 BGM 시작 기준 상대 시간(초), stems 생략 시 모든 스템 제외
-  const exRanges = song.excludeRanges || [];
-  if (exRanges.length > 0) {
-    allOnsets = allOnsets.filter(o => {
-      const relT = o.time - bgmDelay;
-      for (const r of exRanges) {
-        if (relT >= r.start && relT <= r.end) {
-          if (!r.stems || r.stems.includes(o.stem)) return false;
-        }
-      }
-      return true;
-    });
-  }
   allOnsets.sort((a, b) => a.time - b.time);
 
   // BPM 그리드에 퀀타이즈 (16분음표)
