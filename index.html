@@ -1970,15 +1970,15 @@ for (let _si = 0; _si < songs.length; _si++) {
     fbConnected = true; fbPlaysLoaded = true; chartLastUpdate = 0;
   }, () => { fbConnected = false; });
 }
-// logs는 선곡 화면 진입 시 lazy 로드 (DAILY/WEEKLY 차트용)
+// logs는 선곡 화면 진입 시 lazy 로드 (DAILY/WEEKLY 차트용, 실시간 구독)
 let _fbLogsLoaded = false;
 function loadFbLogsLazy() {
   if (_fbLogsLoaded || !fbDb) return;
   _fbLogsLoaded = true;
   for (let _si = 0; _si < songs.length; _si++) {
     const _key = 'song_' + _si;
-    // 최근 300개만 once (실시간 필요 없음)
-    fbDb.ref('plays/' + _key + '/logs').limitToLast(300).once('value', snap => {
+    // 최근 300개 실시간 구독 — 다른 유저 플레이도 즉시 반영
+    fbDb.ref('plays/' + _key + '/logs').limitToLast(300).on('value', snap => {
       if (!fbPlayData[_key]) fbPlayData[_key] = { total: 0, logs: {} };
       fbPlayData[_key].logs = snap.val() || {};
       chartLastUpdate = 0;
@@ -2137,8 +2137,18 @@ function updateFade(dt) {
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
       _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
-      // 차트 강제 갱신 — 플레이 후 복귀 시 최신 카운트 반영
+      // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch
       chartLastUpdate = 0;
+      if (fbDb) {
+        for (let _si = 0; _si < songs.length; _si++) {
+          const _k = 'song_' + _si;
+          fbDb.ref('plays/' + _k + '/total').once('value', snap => {
+            if (!fbPlayData[_k]) fbPlayData[_k] = { total: 0, logs: {} };
+            fbPlayData[_k].total = snap.val() || 0;
+            chartLastUpdate = 0;
+          }).catch(()=>{});
+        }
+      }
     }
     if (fadePendingState) { state = fadePendingState; fadePendingState = null; }
     if (fadePendingCallback) { fadePendingCallback(); fadePendingCallback = null; }
