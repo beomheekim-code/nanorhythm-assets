@@ -3799,14 +3799,38 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // BPM 그리드 퀀타이즈 제거: detectOnsets의 raw 시간 그대로 사용
   // (16분음표 snap은 최대 ±sixteenth/2 오차 → 체감 drift 원인)
 
-  // 에너지 부여
-  if (energyMap && energyMap.length > 0) {
-    for (const o of allOnsets) {
-      const eIdx = Math.min(Math.floor((o.time - bgmDelay) / 0.5), energyMap.length - 1);
-      o.energy = eIdx >= 0 ? energyMap[eIdx] : 1;
+  // 에너지 부여: 해당 stem의 로컬 RMS 기준 (글로벌 에너지맵 대신)
+  // 슬롯 선택 시 "그 순간 가장 큰 소리 내는 스템"의 onset이 승리
+  // → 황덕구처럼 instrum 우세 곡은 instrum onset이 주가 됨
+  const STEM_RMS_BUCKET_SEC = 0.5;
+  const stemRmsMap = {}; // stem → Float32Array (bucket별 RMS)
+  if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
+    for (const siStr in stemAudioBuffers) {
+      const si = Number(siStr);
+      if (ALWAYS_AUDIBLE_STEMS.includes(si)) continue;
+      const buf = stemAudioBuffers[si];
+      if (!buf) continue;
+      const d = buf.getChannelData(0);
+      const sr_ = buf.sampleRate;
+      const bs = Math.floor(sr_ * STEM_RMS_BUCKET_SEC);
+      const nb = Math.ceil(d.length / bs);
+      const arr = new Float32Array(nb);
+      for (let b = 0; b < nb; b++) {
+        let s0 = b * bs, s1 = Math.min(s0 + bs, d.length), sum = 0, c = 0;
+        for (let k = s0; k < s1; k += 32) { sum += d[k] * d[k]; c++; }
+        arr[b] = c > 0 ? Math.sqrt(sum / c) : 0;
+      }
+      stemRmsMap[si] = arr;
     }
-  } else {
-    for (const o of allOnsets) o.energy = 1;
+  }
+  for (const o of allOnsets) {
+    const arr = stemRmsMap[o.stem];
+    if (arr && arr.length > 0) {
+      const bi = Math.min(arr.length - 1, Math.floor((o.time - bgmDelay) / STEM_RMS_BUCKET_SEC));
+      o.energy = arr[Math.max(0, bi)] || 0;
+    } else {
+      o.energy = 0;
+    }
   }
 
   // 너무 가까운 onset 병합 (동시노트 후보)
