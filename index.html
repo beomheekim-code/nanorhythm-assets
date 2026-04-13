@@ -2030,6 +2030,7 @@ function cleanupOldLogs() {
 function recordPlay(songIdx) {
   const key = 'song_' + songIdx;
   const now = Date.now();
+  console.log('[recordPlay] songIdx=' + songIdx + ' key=' + key + ' song=' + (songs[songIdx] ? songs[songIdx].name : 'UNKNOWN'));
   if (fbConnected) {
     // Firebase에 직접 기록 (글로벌 공유)
     try {
