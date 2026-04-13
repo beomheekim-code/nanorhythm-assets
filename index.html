@@ -3621,21 +3621,37 @@ function detectOnsets(audioBuffer) {
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
   const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
+  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격
   const onsets = [];
   let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
     if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
     smoothed = energy * 0.2 + smoothed * 0.8;
+  }
+  // === 첫 onset peak 보정 ===
+  // 기존 로직은 attack ramp-up의 threshold 넘는 순간 fire (실제 peak보다 ~40ms 이름)
+  // → "첫 노트 무음" 체감. 첫 onset 위치를 직후 200ms 내 energy peak로 이동.
+  if (onsets.length > 0) {
+    const firstOnsetSample = Math.floor(onsets[0] * sr);
+    const searchEnd = Math.min(firstOnsetSample + Math.floor(sr * 0.2), data.length);
+    let peakE = 0;
+    let peakIdx = firstOnsetSample;
+    for (let i = firstOnsetSample; i < searchEnd; i += winSamples) {
+      let sum = 0, cnt = 0;
+      const end = Math.min(i + winSamples, data.length);
+      for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
+      const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
+      if (e > peakE) { peakE = e; peakIdx = i; }
+    }
+    onsets[0] = peakIdx / sr;
   }
   return onsets;
 }
