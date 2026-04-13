@@ -2191,7 +2191,8 @@ function renderFade() {
   if (fadeAlpha <= 0) return;
   ctx.globalAlpha = fadeAlpha;
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
+  // 안전 영역(safeTop/safeBottom)까지 포함하여 전체 가시 영역 덮기
+  ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
   ctx.globalAlpha = 1;
 }
 
