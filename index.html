@@ -2653,6 +2653,7 @@ function handleSelectClick(mx, my) {
     const cpX = isMobileC ? 6 : 8;
     const cpY = isMobileC ? (H + safeBottom - Math.min(H * 0.35, 200) - sz(30))
               : (_mobileLandC ? (lay.searchBarY + lay.searchBarH + 2) : 50);
+    const cpH = isMobileC ? Math.min(H * 0.35, 200) : (_mobileLandC ? (H + safeBottom - cpY - sz(34)) : (H - cpY - 30));
     const tabH = sz(20), tabGap = sz(2);
     const tabW = (chartPanelWC - sz(10) - tabGap * (CHART_TABS.length - 1)) / CHART_TABS.length;
     // 탭 클릭
@@ -2679,7 +2680,7 @@ function handleSelectClick(mx, my) {
     // 곡 리스트 클릭
     const listY = cpY + sz(5) + tabH + sz(6);
     const itemH = sz(32);
-    if (mx >= cpX && mx <= cpX + chartPanelWC && my >= listY) {
+    if (mx >= cpX && mx <= cpX + chartPanelWC && my >= listY && my <= cpY + cpH) {
       const ci = Math.floor((my - listY) / itemH) + chartScroll;
       if (ci >= 0 && ci < chartCache.length) {
         playScrollTick(); // 클릭 피드백음
@@ -7025,7 +7026,7 @@ function renderSelect() {
     const cpX = isMobileChart ? 6 : 8;
     // 모바일 가로 사이드 패널: 검색창 하단 라인 바로 밑으로 이동
     const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? (lay.searchBarY + lay.searchBarH + 2) : 50);
-    const cpH = isMobileChart ? Math.min(H * 0.35, 200) : (_mobileLandChart ? (H + safeBottom - cpY - 10) : (H - cpY - 30));
+    const cpH = isMobileChart ? Math.min(H * 0.35, 200) : (_mobileLandChart ? (H + safeBottom - cpY - sz(34)) : (H - cpY - 30));
     // 스크롤 입력용 bounds 저장
     window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
     // 패널 배경
