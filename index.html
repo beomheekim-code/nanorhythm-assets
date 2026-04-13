@@ -4312,13 +4312,14 @@ function render() {
   ctx.translate(shakeX, shakeY);
   const song = curSong || songs[0];
 
-  // BG
-  const grad = ctx.createLinearGradient(0,0,0,H);
+  // BG — 안전 영역까지 확장 (Kplay iframe 위/아래 빈 공간 제거)
+  const totalH = H + safeTop + safeBottom;
+  const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
   grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
-  ctx.fillStyle = grad; ctx.fillRect(-20,-20,W+40,H+40);
+  ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
 
   if (state==='login') { renderLogin(); ctx.restore(); return; }
-  if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0,0,W,H); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (guestWarningOpen && !currentUser) renderGuestWarningPopup(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
+  if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (guestWarningOpen && !currentUser) renderGuestWarningPopup(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
   if (state==='select') { renderSelect(); if (unlockPopupOpen) renderUnlockPopup(); if (settingsOpen) renderSettingsOverlay(); ctx.restore(); return; }
   if (state==='shop') { renderShop(); ctx.restore(); return; }
   if (state==='ranking') { renderRanking(); ctx.restore(); return; }
@@ -5954,17 +5955,18 @@ function renderBottomBar() {
 }
 
 function renderTitle() {
-  // 우주 성운 글로우 배경
+  // 우주 성운 글로우 배경 (안전 영역 포함)
   const t0 = Date.now();
+  const _totalH = H + safeTop + safeBottom;
   const nebulaAlpha = 0.06 + Math.sin(t0 * 0.0005) * 0.02;
   const nebGrad1 = ctx.createRadialGradient(W * 0.3, H * 0.25, 0, W * 0.3, H * 0.25, W * 0.5);
   nebGrad1.addColorStop(0, `rgba(80,40,160,${nebulaAlpha})`);
   nebGrad1.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = nebGrad1; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = nebGrad1; ctx.fillRect(0, -safeTop, W, _totalH);
   const nebGrad2 = ctx.createRadialGradient(W * 0.75, H * 0.65, 0, W * 0.75, H * 0.65, W * 0.4);
   nebGrad2.addColorStop(0, `rgba(30,60,140,${nebulaAlpha * 0.8})`);
   nebGrad2.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = nebGrad2; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = nebGrad2; ctx.fillRect(0, -safeTop, W, _totalH);
 
   // 별 (반짝임 + 일부 컬러)
   for (const s of stars) {
