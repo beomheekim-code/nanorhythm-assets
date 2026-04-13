@@ -346,7 +346,10 @@ function startPreview(idx) {
   previewActive = true;
   previewLoading = true;
   const song = songs[idx];
-  const audio = new Audio(assetUrl(song.file));
+  // metadata만 먼저 로드 — 스크롤 끊김 최소화
+  const audio = new Audio();
+  audio.preload = 'metadata';
+  audio.src = assetUrl(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
   // 로딩 완료 처리 — 여러 이벤트로 커버 (canplaythrough는 간헐적으로 안 뜸)
@@ -3967,14 +3970,14 @@ function update(dt) {
       previewSongIdx = selectedSong;
       _previewDebounce = setTimeout(function _tryPreview() {
         if (selectedSong !== _target) return;
-        if (Math.abs(selectScrollVel) > 0.5) {
-          // 아직 스크롤 중 → 200ms 후 재시도
-          _previewDebounce = setTimeout(_tryPreview, 200);
+        if (Math.abs(selectScrollVel) > 0.15 || selectTargetScrollX !== null) {
+          // 아직 스크롤/스냅 중 → 300ms 후 재시도
+          _previewDebounce = setTimeout(_tryPreview, 300);
           return;
         }
         startPreview(_target);
         _previewDebounce = null;
-      }, 400);
+      }, 750);
     }
     schedulePreview();
   } else if (previewActive) {
