@@ -3745,30 +3745,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
     }
 
-    // ===== 드럼 우선 필터 =====
-    // 드럼 활성 버킷에서는 드럼 onset만 사용 (다른 스템 transient 노이즈 제거)
-    // → 박자가 명확한 곡에서 노트가 드럼 박자에 정확히 정렬
-    const DRUM_ACTIVE_FLOOR = 0.02;
-    const drumArr = stemBucketRms[0]; // drums
-    if (drumArr) {
-      const drumActiveBucket = [];
-      for (let b = 0; b < drumArr.length; b++) {
-        drumActiveBucket.push((drumArr[b] || 0) > DRUM_ACTIVE_FLOOR);
-      }
-      const before2 = allOnsets.length;
-      allOnsets = allOnsets.filter(o => {
-        const relT = o.time - bgmDelay;
-        const bi = Math.floor(relT / BUCKET_SEC);
-        if (bi < 0 || bi >= drumActiveBucket.length) return true;
-        // 드럼 활성 버킷: 드럼 stem(0) onset만 유지
-        // 드럼 비활성 버킷: 모든 stem onset 유지
-        if (drumActiveBucket[bi]) return o.stem === 0;
-        return true;
-      });
-      if (before2 !== allOnsets.length) {
-        console.log('drum-priority filter: ' + (before2 - allOnsets.length) + ' onsets dropped');
-      }
-    }
   }
 
   allOnsets.sort((a, b) => a.time - b.time);
@@ -3818,14 +3794,24 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     let nsIdx = 0;
     while (slotStart < songEnd + minGap) {
       const slotEnd = slotStart + minGap;
-      let best = null, bestEnergy = -1;
+      // 1차: 슬롯 내 drum stem onset 찾기 (있으면 무조건 우선)
+      let drumPick = null;
+      // 2차: 다른 stem 중 에너지 최대
+      let otherBest = null, otherBestEnergy = -1;
+      const startIdx = nsIdx;
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
-          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+        if (nonSilent[nsIdx].time >= slotStart) {
+          if (nonSilent[nsIdx].stem === 0) {
+            // drum onset: 첫 번째 발견되면 즉시 선택
+            if (drumPick === null) drumPick = nonSilent[nsIdx];
+          } else if (nonSilent[nsIdx].energy > otherBestEnergy) {
+            otherBest = nonSilent[nsIdx];
+            otherBestEnergy = nonSilent[nsIdx].energy;
+          }
         }
         nsIdx++;
       }
-      // 확률 드랍 제거: 선택된 slot best는 무조건 유지
+      const best = drumPick || otherBest;
       if (best) filtered.push(best);
       slotStart = slotEnd;
     }
