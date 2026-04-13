@@ -2908,7 +2908,7 @@ addEventListener('mousedown', e => {
       return;
     }
     // 로그인 완료 상태: 설정 버튼 + 모드 선택 + TAP TO START
-    if (hitTest(mx, my, W - sz(38) - sz(8), H - sz(28) - sz(8), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
+    if (hitTest(mx, my, W - sz(38) - sz(8), H + safeBottom - sz(28) - sz(4), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
     // 모드 선택 버튼 처리 (탭하면 선택만 변경, 화면 전환 X)
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
@@ -6072,10 +6072,10 @@ function renderTitle() {
 
   ctx.restore();
 
-  // 버전 표시 (Kplay 캐시 확인용)
+  // 버전 표시 (Kplay 캐시 확인용) — 안전 영역 끝까지 내림
   ctx.font = `${sz(9)}px sans-serif`; ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillText('v15.8', W - 6, H - 4);
+  ctx.fillText('v15.8', W - 6, H + safeBottom - 4);
 
   if (!currentUser) {
     // ===== 비로그인: 소셜 로그인 버튼 =====
@@ -6184,7 +6184,7 @@ function renderTitle() {
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
   if (currentUser) {
-    const stBtnW = sz(38), stBtnH = sz(28), stBtnX = W - stBtnW - sz(8), stBtnY = H - stBtnH - sz(8);
+    const stBtnW = sz(38), stBtnH = sz(28), stBtnX = W - stBtnW - sz(8), stBtnY = H + safeBottom - stBtnH - sz(4);
 
     ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; rrStroke(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
