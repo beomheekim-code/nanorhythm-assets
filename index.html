@@ -2634,8 +2634,11 @@ function handleSelectClick(mx, my) {
   const chartPanelWC = isMobileC ? Math.min(W * 0.55, 220) : Math.min(200, spaceLeftC);
   // 모바일 차트 토글 버튼 클릭
   if (isMobileC) {
-    const togW = sz(60), togH = sz(22);
-    const togX = 6, togY = H + safeBottom - togH - 4;
+    const _mlT = isMobile && !isPortrait;
+    const togW = _mlT ? sz(44) : sz(60);
+    const togH = _mlT ? sz(16) : sz(22);
+    const togX = 6;
+    const togY = _mlT ? lay.searchBarY : (H + safeBottom - togH - 4);
     if (hitTest(mx, my, togX, togY, togW, togH)) {
       mobileChartCollapsed = !mobileChartCollapsed; chartScroll = 0; playScrollTick(); return;
     }
@@ -6972,14 +6975,18 @@ function renderSelect() {
   const chartPanelW = isMobileChart ? Math.min(W * 0.55, 220) : Math.min(200, spaceLeft);
   // 모바일: 토글 버튼 항상 표시 (화면 최하단)
   if (isMobileChart) {
-    const togW = sz(60), togH = sz(22);
-    const togX = 6, togY = H + safeBottom - togH - 4;
+    const _mlToggle = isMobile && !isPortrait;
+    const togW = _mlToggle ? sz(44) : sz(60);
+    const togH = _mlToggle ? sz(16) : sz(22);
+    const togX = 6;
+    // 모바일 가로: 검색창 위치로 이동
+    const togY = _mlToggle ? lay.searchBarY : (H + safeBottom - togH - 4);
     ctx.fillStyle = 'rgba(120,80,220,0.45)';
-    rrFill(togX, togY, togW, togH, sz(6));
+    rrFill(togX, togY, togW, togH, sz(4));
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
-    rrStroke(togX, togY, togW, togH, sz(6));
+    rrStroke(togX, togY, togW, togH, sz(4));
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${sz(9)}px sans-serif`;
+    ctx.font = `bold ${_mlToggle ? sz(8) : sz(9)}px sans-serif`;
     ctx.fillStyle = '#fff';
     ctx.fillText(mobileChartCollapsed ? 'CHART ▲' : 'CHART ▼', togX + togW/2, togY + togH/2);
   }
