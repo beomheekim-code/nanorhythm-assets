@@ -6479,9 +6479,11 @@ function getSelectLayout() {
   const sectionGap = Math.max(10, visH * 0.016);
   const subBtnH = Math.min(34, visH * 0.042);
   const subBtnGap = Math.max(10, visH * 0.014);
-  const searchBarH = 30;
-  const titleH = 26;
-  const titleToSearchGap = 12;
+  // 모바일 가로: 검색창 높이 절반, 타이틀과 간격 축소
+  const _mobileLandscape = isMobile && !isPortrait;
+  const searchBarH = _mobileLandscape ? 16 : 30;
+  const titleH = _mobileLandscape ? 20 : 26;
+  const titleToSearchGap = _mobileLandscape ? 2 : 12;
   const searchToSongGap = 14;
   const btnH = Math.min(44, visH * 0.058);
   const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
@@ -6606,7 +6608,8 @@ function renderSelect() {
 
   // Title + 즐겨찾기 버튼
   const titleY = lay.titleY;
-  ctx.font=`bold ${sz(22)}px sans-serif`;
+  const _mlTitle = isMobile && !isPortrait;
+  ctx.font=`bold ${_mlTitle ? sz(14) : sz(22)}px sans-serif`;
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
   ctx.fillText(favFilterActive ? '즐겨찾기' : '곡 선택', cxBase + sz(4), titleY);
   // 즐겨찾기 토글 버튼 (우측)
@@ -6623,27 +6626,31 @@ function renderSelect() {
 
   // Search bar
   const searchBarY = lay.searchBarY;
+  const _mlSB = isMobile && !isPortrait; // 모바일 가로
   ctx.fillStyle = searchActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)';
-  rrFill(cxBase, searchBarY, optW, searchBarH, 8);
+  rrFill(cxBase, searchBarY, optW, searchBarH, _mlSB ? 4 : 8);
   ctx.strokeStyle = searchActive ? '#ffd700' : 'rgba(255,255,255,0.12)';
   ctx.lineWidth = searchActive ? 1.5 : 1;
-  rrStroke(cxBase, searchBarY, optW, searchBarH, 8);
-  ctx.textAlign = 'left'; ctx.font = `${sz(13)}px sans-serif`;
+  rrStroke(cxBase, searchBarY, optW, searchBarH, _mlSB ? 4 : 8);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const _sbFont = _mlSB ? sz(10) : sz(13);
+  ctx.font = `${_sbFont}px sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.fillText('🔍', cxBase + sz(10), searchBarY + searchBarH/2 + sz(5));
+  ctx.fillText('🔍', cxBase + sz(8), searchBarY + searchBarH/2);
   if (searchText) {
-    ctx.fillStyle = '#fff'; ctx.font = `${sz(13)}px sans-serif`;
-    ctx.fillText(searchText + (searchActive ? '|' : ''), cxBase + sz(30), searchBarY + searchBarH/2 + sz(5));
+    ctx.fillStyle = '#fff'; ctx.font = `${_sbFont}px sans-serif`;
+    ctx.fillText(searchText + (searchActive ? '|' : ''), cxBase + sz(24), searchBarY + searchBarH/2);
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = `${sz(12)}px sans-serif`;
-    ctx.fillText(searchActive ? '검색어 입력...' : 'F키로 검색', cxBase + sz(30), searchBarY + searchBarH/2 + sz(4));
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = `${_mlSB ? sz(9) : sz(12)}px sans-serif`;
+    ctx.fillText(searchActive ? '검색어 입력...' : 'F키로 검색', cxBase + sz(24), searchBarY + searchBarH/2);
   }
   // Search close button
   if (searchActive) {
-    ctx.textAlign = 'center'; ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.font = `bold ${_mlSB ? sz(10) : sz(14)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('✕', cxBase + optW - sz(16), searchBarY + searchBarH/2 + sz(5));
+    ctx.fillText('✕', cxBase + optW - sz(14), searchBarY + searchBarH/2);
   }
+  ctx.textBaseline = 'alphabetic';
 
   // Song cards (horizontal scroll)
   const centerX = W / 2;
@@ -6977,9 +6984,11 @@ function renderSelect() {
     ctx.fillText(mobileChartCollapsed ? 'CHART ▲' : 'CHART ▼', togX + togW/2, togY + togH/2);
   }
   if (chartPanelW > 60 && (!isMobileChart || !mobileChartCollapsed)) {
+    const _mobileLandChart = isMobile && !isPortrait && !isMobileChart;
     const cpX = isMobileChart ? 6 : 8;
-    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : 50;
-    const cpH = isMobileChart ? Math.min(H * 0.35, 200) : H - cpY - 30;
+    // 모바일 가로: 사이드 차트 패널의 상단 여백 축소
+    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : (_mobileLandChart ? -safeTop + 10 : 50);
+    const cpH = isMobileChart ? Math.min(H * 0.35, 200) : (_mobileLandChart ? (H + safeBottom - cpY - 10) : (H - cpY - 30));
     // 스크롤 입력용 bounds 저장
     window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
     // 패널 배경
