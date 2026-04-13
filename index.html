@@ -1369,7 +1369,13 @@ function updateSearchFilter() {
 function confirmSearchSelection() {
   if (searchFiltered.length > 0) {
     selectedSong = searchFiltered[searchHighlight];
-    scrollToSong(selectedSong);
+    loadSongDiffSpeed(selectedSong);
+    // 즉시 점프 (애니메이션 + 사운드 없음)
+    const _sl = getSelectLayout();
+    selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
+    selectTargetScrollX = null; selectScrollVel = 0;
+    snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
+    lastScrollSong = selectedSong;
   }
   searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
 }
@@ -2706,7 +2712,12 @@ function handleSelectClick(mx, my) {
       const fi = Math.floor(relY / sb.itemH) + (searchScroll || 0);
       if (fi >= 0 && fi < searchFiltered.length) {
         selectedSong = searchFiltered[fi]; loadSongDiffSpeed(selectedSong);
-        scrollToSong(selectedSong);
+        // 즉시 점프 (애니메이션 + 사운드 없음)
+        const _sl = getSelectLayout();
+        selectScrollX = _dPos(selectedSong) * (_sl.cardW + _sl.gap);
+        selectTargetScrollX = null; selectScrollVel = 0;
+        snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
+        lastScrollSong = selectedSong;
         searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
       }
       return;
