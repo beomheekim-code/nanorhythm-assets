@@ -7057,10 +7057,10 @@ function renderSelect() {
         rrFill(cpX + 4, iy + 1, chartPanelW - 8, itemH - 2, 6);
       }
 
-      // 순위 번호 — 모바일에선 작게 + 3자리 수 대비
+      // 순위 번호 — 모바일에선 작게 + 3자리 수 대비 (모든 순위 동일 크기로 정렬 맞춤)
       const _mlRank = isMobile && !isPortrait;
       const _mRank = isMobile;
-      const rankFontSize = _mlRank ? (ci < 3 ? 10 : 8) : (_mRank ? (ci < 3 ? 12 : 10) : (ci < 3 ? 14 : 12));
+      const rankFontSize = _mlRank ? 9 : (_mRank ? 11 : (ci < 3 ? 14 : 12));
       // 순위 오른쪽 끝 X (3자리까지 수용): 모바일 28, PC 24
       const rankRightX = cpX + (_mRank ? 28 : 24);
       // 곡 이름 시작 X (순위 오른쪽 + 여백)
