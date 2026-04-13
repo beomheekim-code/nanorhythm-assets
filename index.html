@@ -659,7 +659,7 @@ const songs = [
     pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0],
   },
   {
-    name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 95, color: '#ffb7d5',
+    name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 89, color: '#ffb7d5',
     bg1: '#0f0808', bg2: '#1e1215', bars: 32, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
     file: 'Music/어깨_위에_내려앉은_봄.ogg',
     stemDir: 'Music/어깨_위에_내려앉은_봄/',
@@ -722,7 +722,7 @@ const songs = [
     pattern: [1,0,0,1,0,1,0,1, 0,0,1,0,1,0,0,1],
   },
   {
-    name: '멈춘 시계', sub: 'K-AMBIENT', bpm: 110, color: '#8ba4b8',
+    name: '멈춘 시계', sub: 'K-AMBIENT', bpm: 123, color: '#8ba4b8',
     bg1: '#060a10', bg2: '#0e1520', bars: 62, cover: 'Music/멈춘_시계/멈춘_시계.png',
     file: 'Music/멈춘_시계.ogg',
     stemDir: 'Music/멈춘_시계/',
@@ -731,7 +731,7 @@ const songs = [
     pattern: [1,0,1,0,1,0,1,0, 0,1,0,1,0,1,0,1],
   },
   {
-    name: 'SIDEWALK RUNWAY', sub: 'POP/HIPHOP', bpm: 125, color: '#e040fb',
+    name: 'SIDEWALK RUNWAY', sub: 'POP/HIPHOP', bpm: 117, color: '#e040fb',
     bg1: '#12041a', bg2: '#220a30', bars: 52, cover: 'Music/SIDEWALK_RUNWAY/SIDEWALK_RUNWAY.png',
     file: 'Music/Sidewalk_Runway.ogg',
     stemDir: 'Music/SIDEWALK_RUNWAY/',
@@ -759,7 +759,7 @@ const songs = [
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0],
   },
   {
-    name: 'Midnight Boulevard', sub: 'CHILL/LOFI', bpm: 90, color: '#5566cc',
+    name: 'Midnight Boulevard', sub: 'CHILL/LOFI', bpm: 96, color: '#5566cc',
     bg1: '#05051a', bg2: '#0a0a30', bars: 36,
     cover: 'Music/Midnight_Boulevard/Midnight_Boulevard.png',
     file: 'Music/Midnight_Boulevard.ogg',
@@ -809,7 +809,7 @@ const songs = [
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1],
   },
   {
-    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 100, color: '#ff6699',
+    name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 117, color: '#ff6699',
     bg1: '#0e0408', bg2: '#1c0810', bars: 45,
     cover: 'Music/Heart_On_The_Line/Heart_On_The_Line.png',
     file: 'Music/Heart_On_The_Line.ogg',
@@ -3778,13 +3778,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
   const nonSilent = merged;
 
-  // 난이도 필터링 (균등 분배 + 최소 간격)
+  // 난이도 필터링 (BPM 독립적 절대값)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
-               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
-               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
-               : sixteenth;                        // 지옥: 16분음표
+  const minGap = density <= 0.5 ? 0.50    // 쉬움: 2/sec
+               : density <= 0.8 ? 0.30    // 보통: 3.3/sec
+               : density <= 1.2 ? 0.22    // 어려움: 4.5/sec
+               : 0.16;                    // 지옥: 6.25/sec
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
