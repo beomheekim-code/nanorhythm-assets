@@ -3744,6 +3744,31 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     if (before !== allOnsets.length) {
       console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
     }
+
+    // ===== 드럼 우선 필터 =====
+    // 드럼 활성 버킷에서는 드럼 onset만 사용 (다른 스템 transient 노이즈 제거)
+    // → 박자가 명확한 곡에서 노트가 드럼 박자에 정확히 정렬
+    const DRUM_ACTIVE_FLOOR = 0.02;
+    const drumArr = stemBucketRms[0]; // drums
+    if (drumArr) {
+      const drumActiveBucket = [];
+      for (let b = 0; b < drumArr.length; b++) {
+        drumActiveBucket.push((drumArr[b] || 0) > DRUM_ACTIVE_FLOOR);
+      }
+      const before2 = allOnsets.length;
+      allOnsets = allOnsets.filter(o => {
+        const relT = o.time - bgmDelay;
+        const bi = Math.floor(relT / BUCKET_SEC);
+        if (bi < 0 || bi >= drumActiveBucket.length) return true;
+        // 드럼 활성 버킷: 드럼 stem(0) onset만 유지
+        // 드럼 비활성 버킷: 모든 stem onset 유지
+        if (drumActiveBucket[bi]) return o.stem === 0;
+        return true;
+      });
+      if (before2 !== allOnsets.length) {
+        console.log('drum-priority filter: ' + (before2 - allOnsets.length) + ' onsets dropped');
+      }
+    }
   }
 
   allOnsets.sort((a, b) => a.time - b.time);
