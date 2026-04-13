@@ -2834,8 +2834,10 @@ function handleAchievementClick(mx, my) {
   if (handleHamburgerClick(mx, my)) return;
   // Back button
   {
-    const _mpB = isMobile && isPortrait;
-    const _bbW = _mpB ? sz(36) : 70, _bbH = _mpB ? sz(28) : 38;
+    const _mpB = isMobile;
+    const _mpL = isMobile && !isPortrait;
+    const _bbW = _mpB ? (_mpL ? sz(46) : sz(36)) : 70;
+    const _bbH = _mpB ? (_mpL ? sz(34) : sz(28)) : 38;
     const _bbX = _mpB ? sz(8) : 12;
     const _bbY = _mpB ? (H + safeBottom - sz(4) - _bbH) : (H - 48);
     if (hitTest(mx, my, _bbX, _bbY, _bbW, _bbH)) { stopAchievementBgm(); transitionTo('select'); return; }
@@ -2873,8 +2875,10 @@ function handleRankingClick(mx, my) {
   if (handleHamburgerClick(mx, my)) return;
   // Back button
   {
-    const _mpB = isMobile && isPortrait;
-    const _bbW = _mpB ? sz(36) : 70, _bbH = _mpB ? sz(28) : 38;
+    const _mpB = isMobile;
+    const _mpL = isMobile && !isPortrait;
+    const _bbW = _mpB ? (_mpL ? sz(46) : sz(36)) : 70;
+    const _bbH = _mpB ? (_mpL ? sz(34) : sz(28)) : 38;
     const _bbX = _mpB ? sz(8) : 12;
     const _bbY = _mpB ? (H + safeBottom - sz(4) - _bbH) : (H - 48);
     if (hitTest(mx, my, _bbX, _bbY, _bbW, _bbH)) { stopRankingBgm(); transitionTo('select'); return; }
@@ -7433,10 +7437,11 @@ function renderAchievement() {
   for (const s of stars) { ctx.globalAlpha=s.b*0.2; ctx.fillStyle='#fff'; ctx.fillRect(s.x,s.y,s.s,s.s); }
   ctx.globalAlpha=1;
 
-  // Back button — 모바일 세로: 좌측 최하단, 햄버거와 동일 크기
-  const _mpBack = isMobile && isPortrait;
-  const bbW = _mpBack ? sz(36) : 70;
-  const bbH = _mpBack ? sz(28) : 38;
+  // Back button — 모바일: 좌측 최하단, 햄버거와 동일 크기
+  const _mpBack = isMobile;
+  const _mpLand = isMobile && !isPortrait;
+  const bbW = _mpBack ? (_mpLand ? sz(46) : sz(36)) : 70;
+  const bbH = _mpBack ? (_mpLand ? sz(34) : sz(28)) : 38;
   const bbX = _mpBack ? sz(8) : 12;
   const bbY = _mpBack ? (H + safeBottom - sz(4) - bbH) : (H - bbH - 10);
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
@@ -7444,13 +7449,13 @@ function renderAchievement() {
   ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.7)';
   if (_mpBack) {
-    // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
+    // 모바일: ← 단일 글리프 중앙 정렬 (수동 보정)
     ctx.textBaseline='middle';
-    ctx.font=`bold ${sz(16)}px sans-serif`;
+    ctx.font=`bold ${_mpLand ? sz(18) : sz(16)}px sans-serif`;
     ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(1));
     ctx.textBaseline='alphabetic';
   } else {
-    // PC/가로: 기존 렌더 유지
+    // PC: 기존 렌더 유지
     ctx.font=`bold ${sz(13)}px sans-serif`;
     ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
   }
@@ -7586,10 +7591,11 @@ function renderRanking() {
   ctx.globalAlpha=1;
   const song = songs[selectedSong];
 
-  // Back button — 모바일 세로: 좌측 최하단, 햄버거와 동일 크기
-  const _mpBack = isMobile && isPortrait;
-  const bbW = _mpBack ? sz(36) : 70;
-  const bbH = _mpBack ? sz(28) : 38;
+  // Back button — 모바일: 좌측 최하단, 햄버거와 동일 크기
+  const _mpBack = isMobile;
+  const _mpLand = isMobile && !isPortrait;
+  const bbW = _mpBack ? (_mpLand ? sz(46) : sz(36)) : 70;
+  const bbH = _mpBack ? (_mpLand ? sz(34) : sz(28)) : 38;
   const bbX = _mpBack ? sz(8) : 12;
   const bbY = _mpBack ? (H + safeBottom - sz(4) - bbH) : (H - bbH - 10);
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
@@ -7597,13 +7603,13 @@ function renderRanking() {
   ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.7)';
   if (_mpBack) {
-    // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
+    // 모바일: ← 단일 글리프 중앙 정렬 (수동 보정)
     ctx.textBaseline='middle';
-    ctx.font=`bold ${sz(16)}px sans-serif`;
+    ctx.font=`bold ${_mpLand ? sz(18) : sz(16)}px sans-serif`;
     ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(1));
     ctx.textBaseline='alphabetic';
   } else {
-    // PC/가로: 기존 렌더 유지
+    // PC: 기존 렌더 유지
     ctx.font=`bold ${sz(13)}px sans-serif`;
     ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
   }
