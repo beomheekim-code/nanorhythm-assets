@@ -2636,17 +2636,17 @@ function handleSelectClick(mx, my) {
   const isMobileC = spaceLeftC < 100;
   const chartPanelWC = isMobileC ? Math.min(W * 0.55, 220) : Math.min(200, spaceLeftC);
   // 모바일 차트 토글 버튼 클릭
-  if (isMobileC) {
-    const _mlT = isMobile && !isPortrait;
-    const togW = _mlT ? sz(44) : sz(60);
-    const togH = _mlT ? sz(16) : sz(22);
+  const _mlTC = isMobile && !isPortrait;
+  if (isMobileC || _mlTC) {
+    const togW = _mlTC ? sz(44) : sz(60);
+    const togH = _mlTC ? sz(16) : sz(22);
     const togX = 6;
-    const togY = _mlT ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
+    const togY = _mlTC ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
     if (hitTest(mx, my, togX, togY, togW, togH)) {
       mobileChartCollapsed = !mobileChartCollapsed; chartScroll = 0; playScrollTick(); return;
     }
   }
-  if (chartPanelWC > 60 && (!isMobileC || !mobileChartCollapsed)) {
+  if (chartPanelWC > 60 && (!(isMobileC || _mlTC) || !mobileChartCollapsed)) {
     const _mobileLandC = isMobile && !isPortrait && !isMobileC;
     const cpX = isMobileC ? 6 : 8;
     const cpY = isMobileC ? (H + safeBottom - Math.min(H * 0.35, 200) - sz(30))
@@ -7011,24 +7011,24 @@ function renderSelect() {
   const spaceLeft = cxBase - 10;
   const isMobileChart = spaceLeft < 100;
   const chartPanelW = isMobileChart ? Math.min(W * 0.55, 220) : Math.min(200, spaceLeft);
-  // 모바일: 토글 버튼 항상 표시 (화면 최하단)
-  if (isMobileChart) {
-    const _mlToggle = isMobile && !isPortrait;
-    const togW = _mlToggle ? sz(44) : sz(60);
-    const togH = _mlToggle ? sz(16) : sz(22);
+  const _mlChartToggle = isMobile && !isPortrait;
+  // 모바일(세로 좁은 화면) + 모바일 가로: 토글 버튼 표시
+  if (isMobileChart || _mlChartToggle) {
+    const togW = _mlChartToggle ? sz(44) : sz(60);
+    const togH = _mlChartToggle ? sz(16) : sz(22);
     const togX = 6;
     // 모바일 가로: 검색창 하단 라인 바로 밑으로 이동
-    const togY = _mlToggle ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
+    const togY = _mlChartToggle ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
     ctx.fillStyle = 'rgba(120,80,220,0.45)';
     rrFill(togX, togY, togW, togH, sz(4));
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
     rrStroke(togX, togY, togW, togH, sz(4));
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${_mlToggle ? sz(8) : sz(9)}px sans-serif`;
+    ctx.font = `bold ${_mlChartToggle ? sz(8) : sz(9)}px sans-serif`;
     ctx.fillStyle = '#fff';
     ctx.fillText(mobileChartCollapsed ? 'CHART ▲' : 'CHART ▼', togX + togW/2, togY + togH/2);
   }
-  if (chartPanelW > 60 && (!isMobileChart || !mobileChartCollapsed)) {
+  if (chartPanelW > 60 && (!(isMobileChart || _mlChartToggle) || !mobileChartCollapsed)) {
     const _mobileLandChart = isMobile && !isPortrait && !isMobileChart;
     const cpX = isMobileChart ? 6 : 8;
     // 모바일 가로 사이드 패널: 검색창 하단 라인 바로 밑으로 이동
