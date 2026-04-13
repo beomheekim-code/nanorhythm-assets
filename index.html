@@ -4554,11 +4554,11 @@ function renderLanes() {
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, 0); ctx.lineTo(lsx + lw*laneCount, hitY+10); ctx.stroke();
 
-  // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 레일이 움직이는 느낌)
+  // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 일시정지 시 gameTime과 함께 멈춤)
   if (state === 'playing' && noteSpeed > 0) {
     const railGap = noteSpeed * (60 / (curSong ? curSong.bpm : 120)); // 1박 간격
     const tw = lw * laneCount;
-    const offset = (performance.now() * 0.001 * noteSpeed) % railGap; // 별도 타이머 (카운트다운 중에도 흐름)
+    const offset = (gameTime * noteSpeed) % railGap; // gameTime 기반 (일시정지 시 정지)
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
     for (let y = -railGap + offset; y < hitY + railGap; y += railGap) {
@@ -7682,7 +7682,7 @@ function loop(time) {
     rrStroke(exBX, exBY, exBW, exBH, sz(10));
     ctx.font = `bold ${sz(16)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,120,120,0.9)';
-    ctx.fillText('◀ 나가기', W/2, exBY + exBH*0.65);
+    ctx.fillText('나가기', W/2, exBY + exBH*0.65);
     window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
   }
   renderAd();
