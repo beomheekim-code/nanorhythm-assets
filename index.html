@@ -7447,7 +7447,7 @@ function renderAchievement() {
     // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
     ctx.textBaseline='middle';
     ctx.font=`bold ${sz(16)}px sans-serif`;
-    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(3));
+    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(1));
     ctx.textBaseline='alphabetic';
   } else {
     // PC/가로: 기존 렌더 유지
@@ -7595,7 +7595,7 @@ function renderRanking() {
     // 모바일 세로: ← 단일 글리프 중앙 정렬 (수동 보정)
     ctx.textBaseline='middle';
     ctx.font=`bold ${sz(16)}px sans-serif`;
-    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(3));
+    ctx.fillText('←', bbX+bbW/2, bbY+bbH/2 + sz(1));
     ctx.textBaseline='alphabetic';
   } else {
     // PC/가로: 기존 렌더 유지
