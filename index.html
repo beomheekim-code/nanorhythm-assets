@@ -3644,12 +3644,29 @@ function detectOnsets(audioBuffer) {
     }
   }
 
-  // === Main detection: 음악 시작 지점부터 ===
-  // smoothed를 음악 시작 직전 평균으로 초기화 → 첫 스파이크 잘못 감지 방지
-  let smoothed = MUSIC_START_THRESH;
+  // === 첫 attack peak 탐색: musicStartIdx 이후 200ms 내에서 local max 찾기 ===
+  // 이유: ramp-up 구간에서 threshold 넘자마자 fire하면 실제 peak보다 이르게
+  // 찍혀서 "무음에 노트" 체감. peak(실제 들리는 위치)에 첫 onset 맞춤.
+  const PEAK_SEARCH_SAMPLES = Math.floor(sr * 0.2);
+  let firstPeakIdx = musicStartIdx;
+  let firstPeakEnergy = 0;
+  for (let i = musicStartIdx; i < Math.min(musicStartIdx + PEAK_SEARCH_SAMPLES, data.length); i += winSamples) {
+    let sum = 0, cnt = 0;
+    const end = Math.min(i + winSamples, data.length);
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
+    const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
+    if (energy > firstPeakEnergy) {
+      firstPeakEnergy = energy;
+      firstPeakIdx = i;
+    }
+  }
+
+  // === Main detection: firstPeakIdx부터 ===
+  // smoothed를 peak의 60%로 초기화 → 첫 onset은 peak에서 정확히 fire
+  let smoothed = firstPeakEnergy * 0.6;
   const onsets = [];
   let lastOnset = -minGapSamples * 2;
-  for (let i = musicStartIdx; i < data.length; i += winSamples) {
+  for (let i = firstPeakIdx; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
     for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
