@@ -3053,10 +3053,13 @@ addEventListener('wheel', e => {
     return;
   }
   if (state === 'select') {
-    // 검색 드롭다운이 열려 있고 마우스가 그 위라면 드롭다운 스크롤
-    const sb = window._searchDropBounds;
-    if (searchActive && searchText && sb && e.clientX >= sb.x && e.clientX <= sb.x + sb.w && gameY(e.clientY) >= sb.y && gameY(e.clientY) <= sb.y + sb.h) {
-      searchScroll = Math.max(0, Math.min(sb.maxScroll, searchScroll + (dy > 0 ? 1 : -1)));
+    // 검색 드롭다운이 열려 있으면 휠은 드롭다운 스크롤에 우선 적용
+    if (searchActive && searchText && searchFiltered.length > 0) {
+      const sb = window._searchDropBounds;
+      const maxS = sb ? (sb.maxScroll || 0) : 0;
+      if (maxS > 0) {
+        searchScroll = Math.max(0, Math.min(maxS, searchScroll + (dy > 0 ? 1 : -1)));
+      }
       e.preventDefault();
       return;
     }
