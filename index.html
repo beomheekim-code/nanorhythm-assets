@@ -3618,22 +3618,35 @@ function detectOnsets(audioBuffer) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
-  const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격 (피아노 등 부드러운 악기 감지 개선)
+  // 스템 전체 RMS 계산 (stem-relative adaptive threshold)
+  let stemSumSq = 0, stemCnt = 0;
+  for (let k = 0; k < data.length; k += 64) { stemSumSq += data[k] * data[k]; stemCnt++; }
+  const stemRms = stemCnt > 0 ? Math.sqrt(stemSumSq / stemCnt) : 0;
+  // 빈 스템 스킵 (소스 분리 실패로 비어있는 경우)
+  if (stemRms < 0.0005) return [];
+  const winSamples = Math.floor(sr * 0.015);
+  const minGapSamples = Math.floor(sr * 0.04); // 40ms (more conservative)
+  const absThresh = Math.max(0.0008, stemRms * 0.15);   // adaptive abs
+  const fluxThresh = stemRms * 0.12;                    // temporal flux floor
   const onsets = [];
-  let smoothed = 0;
+  let longEMA = 0;
+  let prevEnergy = 0;
   let lastOnset = -minGapSamples * 2;
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
-    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; } // k+=8로 2배 빠르게
+    for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    // 문턱 완화: 절대값 0.003, 스파이크 1.1배 — 피아노/현악기처럼 soft attack도 감지
-    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
+    const flux = energy - prevEnergy; // temporal spectral flux 근사
+    if (energy > absThresh &&
+        flux > fluxThresh &&
+        energy > longEMA * 1.10 &&
+        i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
-    smoothed = energy * 0.2 + smoothed * 0.8;
+    longEMA = energy * 0.08 + longEMA * 0.92;
+    prevEnergy = energy;
   }
   return onsets;
 }
@@ -3699,6 +3712,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
                : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
                : sixteenth;                        // 지옥: 16분음표
   const QUIET_THRESH = 0.2;  // 이 아래면 "조용한 구간"
+  // 스템 우선순위: drums > piano > bass > instrum > guitar > other (vocals 제외)
+  // 낮을수록 우선. 동일 슬롯에 여러 스템 onset이 있으면 우선순위 높은 스템 선택.
+  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 3: 3, 5: 4, 6: 5};
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -3707,10 +3723,14 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     let nsIdx = 0;
     while (slotStart < songEnd + minGap) {
       const slotEnd = slotStart + minGap;
-      let best = null, bestEnergy = -1;
+      let best = null, bestPriority = 999, bestEnergy = -1;
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
-          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+        if (nonSilent[nsIdx].time >= slotStart) {
+          const pri = STEM_PRIORITY[nonSilent[nsIdx].stem] ?? 999;
+          // 우선순위 먼저, 동률이면 에너지 높은 것
+          if (pri < bestPriority || (pri === bestPriority && nonSilent[nsIdx].energy > bestEnergy)) {
+            best = nonSilent[nsIdx]; bestPriority = pri; bestEnergy = nonSilent[nsIdx].energy;
+          }
         }
         nsIdx++;
       }
