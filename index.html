@@ -2644,8 +2644,10 @@ function handleSelectClick(mx, my) {
     }
   }
   if (chartPanelWC > 60 && (!isMobileC || !mobileChartCollapsed)) {
+    const _mobileLandC = isMobile && !isPortrait && !isMobileC;
     const cpX = isMobileC ? 6 : 8;
-    const cpY = isMobileC ? H - Math.min(H * 0.35, 200) - sz(30) : 50;
+    const cpY = isMobileC ? (H + safeBottom - Math.min(H * 0.35, 200) - sz(30))
+              : (_mobileLandC ? (lay.searchBarY + lay.searchBarH + 2) : 50);
     const tabH = sz(20), tabGap = sz(2);
     const tabW = (chartPanelWC - sz(10) - tabGap * (CHART_TABS.length - 1)) / CHART_TABS.length;
     // 탭 클릭
