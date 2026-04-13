@@ -2843,21 +2843,24 @@ function handleAchievementClick(mx, my) {
     if (hitTest(mx, my, _bbX, _bbY, _bbW, _bbH)) { stopAchievementBgm(); transitionTo('select'); return; }
   }
   // Type tabs
-  const tabW = sz(300);
+  const _achLandC = isMobile && !isPortrait;
+  const tabW = _achLandC ? sz(260) : sz(300);
   const tabBtnW = tabW / ACH_TABS.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.17;
+  const tabH_C = _achLandC ? 22 : 28;
+  const tabX = (W - tabW) / 2, tabY = _achLandC ? sz(44) : H*0.17;
   for (let i = 0; i < ACH_TABS.length; i++) {
-    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) {
+    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, tabH_C)) {
       achievementTab = i; achievementScroll = 0; return;
     }
   }
   // Claim buttons
-  const progY = tabY + 36;
-  const listY = progY + 26, rowH = 34;
-  const listW = sz(340);
+  const progY = tabY + tabH_C + (_achLandC ? 6 : 8);
+  const listY = progY + (_achLandC ? 20 : 26), rowH = _achLandC ? 28 : 34;
+  const listW = _achLandC ? sz(320) : sz(340);
   const listX = (W - listW) / 2;
   const rows = getAchRows();
-  const maxVisible = Math.floor((H - listY - 30) / rowH);
+  const _listBottomC = H + safeBottom - sz(40);
+  const maxVisible = Math.max(1, Math.floor((_listBottomC - listY) / rowH));
   const end = Math.min(rows.length, achievementScroll + maxVisible);
   for (let i = achievementScroll; i < end; i++) {
     const row = rows[i];
@@ -2884,19 +2887,22 @@ function handleRankingClick(mx, my) {
     if (hitTest(mx, my, _bbX, _bbY, _bbW, _bbH)) { stopRankingBgm(); transitionTo('select'); return; }
   }
   // Difficulty tabs
-  const tabW = sz(280);
+  const _rkLandC = isMobile && !isPortrait;
+  const tabW = _rkLandC ? sz(240) : sz(280);
   const tabBtnW = tabW / DIFFICULTIES.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.17;
+  const tabH_rC = _rkLandC ? 22 : 28;
+  const tabX = (W - tabW) / 2, tabY = _rkLandC ? sz(44) : H*0.17;
   for (let i = 0; i < DIFFICULTIES.length; i++) {
-    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, 28)) { selectedDiff=i; saveDiffSpeed(); rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
+    if (hitTest(mx, my, tabX + i*tabBtnW, tabY, tabBtnW, tabH_rC)) { selectedDiff=i; saveDiffSpeed(); rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
   }
   // Key count sub-tabs
   const keyTabCount = 5;
-  const keyTabW = sz(220);
+  const keyTabW = _rkLandC ? sz(180) : sz(220);
   const keyBtnW = keyTabW / keyTabCount;
-  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + 34;
+  const keyTabHC = _rkLandC ? 18 : 22;
+  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + tabH_rC + (_rkLandC ? 4 : 6);
   for (let k = 0; k < keyTabCount; k++) {
-    if (hitTest(mx, my, keyTabX + k*keyBtnW, keyTabY, keyBtnW, 22)) { rankingKeyCount = k + 4; rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
+    if (hitTest(mx, my, keyTabX + k*keyBtnW, keyTabY, keyBtnW, keyTabHC)) { rankingKeyCount = k + 4; rankingScroll = 0; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); return; }
   }
 }
 
@@ -7461,30 +7467,33 @@ function renderAchievement() {
   }
 
   // Title (랭킹과 동일: 큰 '업적' + 아래 곡 이름)
-  ctx.font=`bold ${sz(26)}px sans-serif`;
+  const _achLand = _mpLand;
+  ctx.font=`bold ${_achLand ? sz(18) : sz(26)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
   ctx.shadowColor='#fff'; ctx.shadowBlur=8;
-  ctx.fillText('업적', W/2, H*0.07+10); ctx.shadowBlur=0;
+  const _achTitleY = _achLand ? sz(16) : (H*0.07+10);
+  ctx.fillText('업적', W/2, _achTitleY); ctx.shadowBlur=0;
   if (achievementSongFilter >= 0) {
     const _achSong = songs[achievementSongFilter];
-    ctx.font=`${sz(15)}px sans-serif`;
+    ctx.font=`${_achLand ? sz(11) : sz(15)}px sans-serif`;
     ctx.fillStyle=_achSong.color;
-    ctx.fillText(_achSong.name, W/2, H*0.13);
+    ctx.fillText(_achSong.name, W/2, _achLand ? sz(32) : (H*0.13));
   }
 
   // Type tabs
-  const tabW = sz(300);
+  const tabW = _achLand ? sz(260) : sz(300);
   const tabBtnW = tabW / ACH_TABS.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.17;
+  const tabH_ = _achLand ? 22 : 28;
+  const tabX = (W - tabW) / 2, tabY = _achLand ? sz(44) : H*0.17;
   ACH_TABS.forEach((tab, i) => {
     const bx = tabX + i * tabBtnW, sel = i === achievementTab;
     ctx.fillStyle = sel ? '#ffd70033' : 'rgba(255,255,255,0.03)';
-    ctx.fillRect(bx, tabY, tabBtnW, 28);
-    if (sel) { ctx.fillStyle='#ffd700'; ctx.fillRect(bx, tabY+25, tabBtnW, 3); }
+    ctx.fillRect(bx, tabY, tabBtnW, tabH_);
+    if (sel) { ctx.fillStyle='#ffd700'; ctx.fillRect(bx, tabY+tabH_-3, tabBtnW, 3); }
     ctx.textAlign='center';
-    ctx.font=`bold ${sz(12)}px sans-serif`;
+    ctx.font=`bold ${_achLand ? sz(10) : sz(12)}px sans-serif`;
     ctx.fillStyle = sel ? '#ffd700' : 'rgba(255,255,255,0.4)';
-    ctx.fillText(tab.icon+' '+tab.label, bx+tabBtnW/2, tabY+18);
+    ctx.fillText(tab.icon+' '+tab.label, bx+tabBtnW/2, tabY+tabH_*0.65);
   });
 
   // Filter and progress
@@ -7495,20 +7504,22 @@ function renderAchievement() {
 
   // Progress bar
   const progW = sz(200), progH = 4;
-  const progX = (W-progW)/2, progY = tabY + 36;
+  const progX = (W-progW)/2, progY = tabY + tabH_ + (_achLand ? 6 : 8);
   ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(progX, progY, progW, progH);
   ctx.fillStyle='#ffd700'; ctx.fillRect(progX, progY, progW*(unlockedCount/Math.max(1,filtered.length)), progH);
   ctx.font=`${sz(10)}px sans-serif`; ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.4)';
-  ctx.fillText(unlockedCount+' / '+filtered.length+' 달성', W/2, progY+16);
+  ctx.fillText(unlockedCount+' / '+filtered.length+' 달성', W/2, progY+(_achLand ? 12 : 16));
 
   // Grouped rows
-  const listY = progY + 26, rowH = 34;
-  const listW = sz(340);
+  const listY = progY + (_achLand ? 20 : 26), rowH = _achLand ? 28 : 34;
+  const listW = _achLand ? sz(320) : sz(340);
   const listX = (W - listW) / 2;
   const rows = getAchRows();
 
-  const maxVisible = Math.floor((H - listY - 30) / rowH);
+  // 하단 back 버튼 영역 제외하고 최대한 확장
+  const _listBottom = H + safeBottom - sz(40);
+  const maxVisible = Math.max(1, Math.floor((_listBottom - listY) / rowH));
   const maxScroll = Math.max(0, rows.length - maxVisible);
   if (achievementScroll > maxScroll) achievementScroll = maxScroll;
   const end = Math.min(rows.length, achievementScroll + maxVisible);
@@ -7614,55 +7625,59 @@ function renderRanking() {
     ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
   }
 
-  ctx.font=`bold ${sz(26)}px sans-serif`;
+  const _rkLand = _mpLand;
+  ctx.font=`bold ${_rkLand ? sz(18) : sz(26)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
   ctx.shadowColor='#fff'; ctx.shadowBlur=8;
-  ctx.fillText('랭킹',W/2,H*0.07+10); ctx.shadowBlur=0;
+  ctx.fillText('랭킹', W/2, _rkLand ? sz(16) : (H*0.07+10)); ctx.shadowBlur=0;
 
   // Song name
-  ctx.font=`${sz(15)}px sans-serif`;
+  ctx.font=`${_rkLand ? sz(11) : sz(15)}px sans-serif`;
   ctx.fillStyle=song.color;
-  ctx.fillText(song.name,W/2,H*0.13);
+  ctx.fillText(song.name, W/2, _rkLand ? sz(32) : (H*0.13));
 
   // Difficulty tabs
-  const tabW = sz(280);
+  const tabW = _rkLand ? sz(240) : sz(280);
   const tabBtnW = tabW / DIFFICULTIES.length;
-  const tabX = (W - tabW) / 2, tabY = H*0.17;
+  const tabH_r = _rkLand ? 22 : 28;
+  const tabX = (W - tabW) / 2, tabY = _rkLand ? sz(44) : H*0.17;
   DIFFICULTIES.forEach((d, i) => {
     const bx = tabX + i * tabBtnW, sel = i === selectedDiff;
     ctx.fillStyle = sel ? d.color+'33' : 'rgba(255,255,255,0.03)';
-    ctx.fillRect(bx, tabY, tabBtnW, 28);
-    if (sel) { ctx.fillStyle = d.color; ctx.fillRect(bx, tabY+25, tabBtnW, 3); }
+    ctx.fillRect(bx, tabY, tabBtnW, tabH_r);
+    if (sel) { ctx.fillStyle = d.color; ctx.fillRect(bx, tabY+tabH_r-3, tabBtnW, 3); }
     ctx.textAlign='center';
-    ctx.font=`bold ${sz(12)}px sans-serif`;
+    ctx.font=`bold ${_rkLand ? sz(10) : sz(12)}px sans-serif`;
     ctx.fillStyle = sel ? d.color : 'rgba(255,255,255,0.4)';
-    ctx.fillText(d.name, bx + tabBtnW/2, tabY + 18);
+    ctx.fillText(d.name, bx + tabBtnW/2, tabY + tabH_r*0.65);
   });
 
   // Key count sub-tabs (4K~8K)
   const keyTabCount = 5;
-  const keyTabW = sz(220);
+  const keyTabW = _rkLand ? sz(180) : sz(220);
   const keyBtnW = keyTabW / keyTabCount;
-  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + 34;
+  const keyTabH = _rkLand ? 18 : 22;
+  const keyTabX = (W - keyTabW) / 2, keyTabY = tabY + tabH_r + (_rkLand ? 4 : 6);
   for (let k = 0; k < keyTabCount; k++) {
     const kCount = k + 4;
     const bx = keyTabX + k * keyBtnW;
     const sel = kCount === rankingKeyCount;
     ctx.fillStyle = sel ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
-    ctx.fillRect(bx, keyTabY, keyBtnW, 22);
-    if (sel) { ctx.fillStyle = '#fff'; ctx.fillRect(bx, keyTabY+20, keyBtnW, 2); }
+    ctx.fillRect(bx, keyTabY, keyBtnW, keyTabH);
+    if (sel) { ctx.fillStyle = '#fff'; ctx.fillRect(bx, keyTabY+keyTabH-2, keyBtnW, 2); }
     ctx.textAlign='center';
-    ctx.font=`bold ${sz(11)}px sans-serif`;
+    ctx.font=`bold ${_rkLand ? sz(9) : sz(11)}px sans-serif`;
     ctx.fillStyle = sel ? '#fff' : 'rgba(255,255,255,0.4)';
-    ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + 14);
+    ctx.fillText(kCount+'K', bx + keyBtnW/2, keyTabY + keyTabH*0.7);
   }
 
   // Rankings list
   const rankings = getRankings(selectedSong, selectedDiff, rankingKeyCount);
-  const listY = H*0.27 + 20, rowH = 32;
-  const listW = sz(300);
+  const listY = keyTabY + keyTabH + (_rkLand ? 8 : 14), rowH = _rkLand ? 26 : 32;
+  const listW = _rkLand ? sz(340) : sz(300);
   const listX = (W - listW) / 2;
-  const maxVisible = Math.floor((H*0.6) / rowH);
+  const _rkListBottom = H + safeBottom - sz(40);
+  const maxVisible = Math.max(1, Math.floor((_rkListBottom - listY) / rowH));
 
   if (rankings.length === 0) {
     ctx.font=`${sz(14)}px sans-serif`;
