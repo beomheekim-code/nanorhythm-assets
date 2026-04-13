@@ -3689,7 +3689,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
     const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
     const BUCKET_SEC = 0.5;
-    const ABS_FLOOR = 0.04; // 패드 수준은 차단, 비트가 확실히 들어온 구간만 통과
+    const ABS_FLOOR = 0.02; // 사람이 들리는 수준
     const stemBucketRms = {};
     let maxBuckets = 0;
     for (const si of MUSICAL_STEMS) {
