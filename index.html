@@ -3120,6 +3120,10 @@ addEventListener('touchstart', e => {
       }
       return;
     }
+    // 설정 버튼 (우하단)
+    if (hitTest(tmx, tmy, W - sz(38) - sz(8), H + safeBottom - sz(28) - sz(4), sz(38), sz(28))) {
+      settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return;
+    }
     // 모드 선택 버튼 처리
     for (const b of loginModeBtnAreas) {
       if (hitTest(tmx, tmy, b.x, b.y, b.w, b.h)) {
