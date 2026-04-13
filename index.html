@@ -71,12 +71,12 @@ function resize() {
   // Kplay iframe: 상단/하단 안전 영역
   if (inIframe && isMobile) {
     if (isIOS) {
-      // iOS Safari: 상단 Back 버튼 영역 + 하단 네비게이션 바 크기 반영
-      safeTop = isPortrait ? 90 : 50;
-      safeBottom = isPortrait ? 90 : 30;
+      // iOS Safari Kplay: Back 버튼 + Safari 하단 UI 영역만 최소 확보
+      safeTop = isPortrait ? 50 : 32;
+      safeBottom = isPortrait ? 36 : 16;
     } else {
-      safeTop = isPortrait ? 50 : 36;
-      safeBottom = isPortrait ? 16 : 8;
+      safeTop = isPortrait ? 40 : 28;
+      safeBottom = isPortrait ? 12 : 6;
     }
   } else {
     safeTop = 0; safeBottom = 0;
@@ -6185,11 +6185,6 @@ function renderTitle() {
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
   if (currentUser) {
     const stBtnW = sz(38), stBtnH = sz(28), stBtnX = W - stBtnW - sz(8), stBtnY = H - stBtnH - sz(8);
-
-    // Coin display (설정 버튼 왼쪽)
-    ctx.font=`bold ${sz(13)}px sans-serif`;
-    ctx.textAlign='right'; ctx.fillStyle='#ffd700aa';
-    ctx.fillText('♪ '+getCoins().toLocaleString()+'음표', stBtnX - 10, H - stBtnH/2 - 3);
 
     ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; rrStroke(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
