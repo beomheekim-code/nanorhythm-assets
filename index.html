@@ -3682,6 +3682,61 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   if (exStems.length > 0) {
     allOnsets = allOnsets.filter(o => !exStems.includes(o.stem));
   }
+
+  // ===== 자동 ambient/조용한 구간 필터 =====
+  // MUSICAL_STEMS 중 하나라도 절대 RMS > 0.003 인 버킷만 "음악적"으로 판정
+  // 조용한 구간(intro, outro, 새소리 등)은 onset 자동 drop
+  if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
+    const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
+    const BUCKET_SEC = 0.5;
+    const ABS_FLOOR = 0.003;
+    const stemBucketRms = {};
+    let maxBuckets = 0;
+    for (const si of MUSICAL_STEMS) {
+      const buf = stemAudioBuffers[si];
+      if (!buf) continue;
+      const d = buf.getChannelData(0);
+      const sr_ = buf.sampleRate;
+      const bs = Math.floor(sr_ * BUCKET_SEC);
+      const nb = Math.ceil(d.length / bs);
+      maxBuckets = Math.max(maxBuckets, nb);
+      const arr = new Float32Array(nb);
+      for (let b = 0; b < nb; b++) {
+        let s0 = b * bs, s1 = Math.min(s0 + bs, d.length), sum = 0, c = 0;
+        for (let k = s0; k < s1; k += 32) { sum += d[k] * d[k]; c++; }
+        arr[b] = c > 0 ? Math.sqrt(sum / c) : 0;
+      }
+      stemBucketRms[si] = arr;
+    }
+    const isMusical = [];
+    for (let b = 0; b < maxBuckets; b++) {
+      let musical = false;
+      for (const si of MUSICAL_STEMS) {
+        const arr = stemBucketRms[si];
+        if (arr && (arr[b] || 0) > ABS_FLOOR) { musical = true; break; }
+      }
+      isMusical.push(musical);
+    }
+    // 앞뒤 1버킷 padding (갑작스런 끊김 방지)
+    const paddedMusical = isMusical.slice();
+    for (let b = 0; b < isMusical.length; b++) {
+      if (isMusical[b]) {
+        if (b > 0) paddedMusical[b - 1] = true;
+        if (b < isMusical.length - 1) paddedMusical[b + 1] = true;
+      }
+    }
+    const before = allOnsets.length;
+    allOnsets = allOnsets.filter(o => {
+      const relT = o.time - bgmDelay;
+      const bi = Math.floor(relT / BUCKET_SEC);
+      if (bi < 0 || bi >= paddedMusical.length) return true;
+      return paddedMusical[bi];
+    });
+    if (before !== allOnsets.length) {
+      console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
+    }
+  }
+
   allOnsets.sort((a, b) => a.time - b.time);
 
   // BPM 그리드에 퀀타이즈 (16분음표)
