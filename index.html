@@ -2641,7 +2641,7 @@ function handleSelectClick(mx, my) {
     const togW = _mlTC ? sz(44) : sz(60);
     const togH = _mlTC ? sz(16) : sz(22);
     const togX = 6;
-    const togY = _mlTC ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
+    const togY = H + safeBottom - togH - 4;
     if (hitTest(mx, my, togX, togY, togW, togH)) {
       mobileChartCollapsed = !mobileChartCollapsed; chartScroll = 0; playScrollTick(); return;
     }
@@ -7017,8 +7017,8 @@ function renderSelect() {
     const togW = _mlChartToggle ? sz(44) : sz(60);
     const togH = _mlChartToggle ? sz(16) : sz(22);
     const togX = 6;
-    // 모바일 가로: 검색창 하단 라인 바로 밑으로 이동
-    const togY = _mlChartToggle ? (lay.searchBarY + lay.searchBarH + 2) : (H + safeBottom - togH - 4);
+    // 좌측 최하단 고정 (세로/가로 동일)
+    const togY = H + safeBottom - togH - 4;
     ctx.fillStyle = 'rgba(120,80,220,0.45)';
     rrFill(togX, togY, togW, togH, sz(4));
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
