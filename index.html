@@ -3803,13 +3803,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
   const nonSilent = merged;
 
-  // 난이도 필터링 (BPM 독립적 절대값)
+  // 난이도 필터링 (음악적 분음표 기준 + 절대값 가드)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? 0.50    // 쉬움: 2/sec
-               : density <= 0.8 ? 0.30    // 보통: 3.3/sec
-               : density <= 1.2 ? 0.22    // 어려움: 4.5/sec
-               : 0.16;                    // 지옥: 6.25/sec
+  const minGap = density <= 0.5 ? Math.max(0.40, sixteenth * 4)   // 쉬움: 4분음표
+               : density <= 0.8 ? Math.max(0.22, sixteenth * 2)   // 보통: 8분음표
+               : density <= 1.2 ? Math.max(0.16, sixteenth * 1.5) // 어려움: 점8분음표
+               : Math.max(0.10, sixteenth);                       // 지옥: 16분음표
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
