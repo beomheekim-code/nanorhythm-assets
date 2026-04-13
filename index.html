@@ -7055,11 +7055,12 @@ function renderSelect() {
         rrFill(cpX + 4, iy + 1, chartPanelW - 8, itemH - 2, 6);
       }
 
-      // 순위 번호
+      // 순위 번호 — 모바일 가로에선 작게
+      const _mlRank = isMobile && !isPortrait;
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.font = `bold ${ci < 3 ? 14 : 12}px sans-serif`;
+      ctx.font = `bold ${_mlRank ? (ci < 3 ? 10 : 9) : (ci < 3 ? 14 : 12)}px sans-serif`;
       ctx.fillStyle = ci === 0 ? '#ffd700' : ci === 1 ? '#c0c0c0' : ci === 2 ? '#cd7f32' : 'rgba(255,255,255,0.4)';
-      ctx.fillText(ci + 1, cpX + 24, iy + itemH/2);
+      ctx.fillText(ci + 1, cpX + (_mlRank ? 18 : 24), iy + itemH/2);
 
       // 곡 이름
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
