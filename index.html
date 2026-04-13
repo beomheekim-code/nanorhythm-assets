@@ -2030,7 +2030,6 @@ function cleanupOldLogs() {
 function recordPlay(songIdx) {
   const key = 'song_' + songIdx;
   const now = Date.now();
-  console.log('[recordPlay] songIdx=' + songIdx + ' key=' + key + ' song=' + (songs[songIdx] ? songs[songIdx].name : 'UNKNOWN'));
   if (fbConnected) {
     // Firebase에 직접 기록 (글로벌 공유)
     try {
@@ -2138,6 +2137,8 @@ function updateFade(dt) {
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
       _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
+      // 차트 강제 갱신 — 플레이 후 복귀 시 최신 카운트 반영
+      chartLastUpdate = 0;
     }
     if (fadePendingState) { state = fadePendingState; fadePendingState = null; }
     if (fadePendingCallback) { fadePendingCallback(); fadePendingCallback = null; }
