@@ -7442,9 +7442,10 @@ function renderAchievement() {
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`bold ${_mpBack ? sz(14) : sz(13)}px sans-serif`;
+  ctx.font=`bold ${_mpBack ? sz(16) : sz(13)}px sans-serif`;
   ctx.fillStyle='rgba(255,255,255,0.7)';
-  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2);
+  // ← 글리프가 textBaseline='middle' 기준으로도 위쪽에 뜸 → 수동 보정
+  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2 + sz(3));
   ctx.textBaseline='alphabetic';
 
   // Title + coin
@@ -7582,9 +7583,10 @@ function renderRanking() {
   ctx.fillStyle='rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1; rrStroke(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`bold ${_mpBack ? sz(14) : sz(13)}px sans-serif`;
+  ctx.font=`bold ${_mpBack ? sz(16) : sz(13)}px sans-serif`;
   ctx.fillStyle='rgba(255,255,255,0.7)';
-  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2);
+  // ← 글리프가 textBaseline='middle' 기준으로도 위쪽에 뜸 → 수동 보정
+  ctx.fillText(_mpBack ? '←' : '← 뒤로', bbX+bbW/2, bbY+bbH/2 + sz(3));
   ctx.textBaseline='alphabetic';
 
   ctx.font=`bold ${sz(26)}px sans-serif`;
