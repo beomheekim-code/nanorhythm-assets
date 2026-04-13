@@ -3810,7 +3810,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const songOff = songIdx % lc; // 곡마다 시작 레인 다르게
   stemList.forEach((s, i) => { stemBase[s] = (Math.floor(i * lc / Math.max(stemList.length, 1)) + songOff) % lc; });
 
-  // stem별 내부 카운터 (같은 stem 내에서 레인 순환)
+  // stem별 내부 카운터 (같은 stem 내에서 레인 순환 — 결정론적)
   const stemCnt = {};
   let noteIdx = 0;
   let prevLane = -1;
@@ -3822,11 +3822,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
 
-    // stem 기반 + 시드 RNG 랜덤 오프셋 (계단 패턴 방지, 결정적)
-    let lane = (base + Math.floor(rng() * lc)) % lc;
+    // 결정론적 lane 배정: stem base + stem 내 인덱스 순환
+    // (RNG 제거 — 음악 구조에만 의존)
+    let lane = (base + ci) % lc;
 
-    // 이전 노트와 같은 레인이면 한 칸 이동 (단, 50번째마다 연타 허용)
-    if (lane === prevLane && lc > 1 && ci % 50 !== 49) {
+    // 이전 노트와 같은 레인이면 한 칸 이동
+    if (lane === prevLane && lc > 1) {
       lane = (lane + 1) % lc;
     }
 
@@ -3834,7 +3835,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     if (lc > 1 && lastHoldLane >= 0 && lane === lastHoldLane &&
         o.time >= lastHoldEndTime && o.time - lastHoldEndTime < eighthDur) {
       lane = (lane + 1) % lc;
-      // 전환 후 prevLane과 겹치면 한 번 더 이동
       if (lane === prevLane && lc > 2) lane = (lane + 1) % lc;
     }
 
@@ -3846,7 +3846,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     };
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
-      nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
+      nd.endTime = nd.time + 3 * eighthDur; // 고정 길이 (RNG 제거)
       lastHoldLane = lane;
       lastHoldEndTime = nd.endTime;
     }
