@@ -3679,15 +3679,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     o.time = Math.round(rel / sixteenth) * sixteenth + bgmDelay;
   }
 
-  // 에너지 부여
-  if (energyMap && energyMap.length > 0) {
-    for (const o of allOnsets) {
-      const eIdx = Math.min(Math.floor((o.time - bgmDelay) / 0.5), energyMap.length - 1);
-      o.energy = eIdx >= 0 ? energyMap[eIdx] : 1;
-    }
-  } else {
-    for (const o of allOnsets) o.energy = 1;
-  }
+  // energy 필드 부여 (detectOnsets가 이미 stem-local adaptive threshold로 필터했으므로
+  // 이 시점의 모든 onset은 해당 스템에서 의미 있는 attack. 에너지 = 1 고정).
+  for (const o of allOnsets) o.energy = 1;
 
   // 너무 가까운 onset 병합 (동시노트 후보)
   const merged = [];
@@ -3700,18 +3694,16 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     merged.push(o);
   }
 
-  // 무음 제거 (0.02 이하 = 거의 들리지 않는 구간 제거)
-  const nonSilent = merged.filter(o => o.energy >= 0.02);
+  // 모든 onset은 detectOnsets 단계에서 이미 stem-local 필터 통과 상태
+  const nonSilent = merged;
 
   // 난이도 필터링 (균등 분배 + 최소 간격)
-  // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
-  // 조용한 구간(energy < 0.2)은 밀도를 에너지 비례로 축소
+  // 각 구간(minGap)에서 stem 우선순위가 가장 높은 onset 1개 선택
   const density = diff.noteDensity;
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
                : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
                : sixteenth;                        // 지옥: 16분음표
-  const QUIET_THRESH = 0.2;  // 이 아래면 "조용한 구간"
   // 스템 우선순위: drums > piano > bass > instrum > guitar > other (vocals 제외)
   // 낮을수록 우선. 동일 슬롯에 여러 스템 onset이 있으면 우선순위 높은 스템 선택.
   const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 3: 3, 5: 4, 6: 5};
@@ -3723,26 +3715,17 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     let nsIdx = 0;
     while (slotStart < songEnd + minGap) {
       const slotEnd = slotStart + minGap;
-      let best = null, bestPriority = 999, bestEnergy = -1;
+      let best = null, bestPriority = 999;
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
         if (nonSilent[nsIdx].time >= slotStart) {
           const pri = STEM_PRIORITY[nonSilent[nsIdx].stem] ?? 999;
-          // 우선순위 먼저, 동률이면 에너지 높은 것
-          if (pri < bestPriority || (pri === bestPriority && nonSilent[nsIdx].energy > bestEnergy)) {
-            best = nonSilent[nsIdx]; bestPriority = pri; bestEnergy = nonSilent[nsIdx].energy;
+          if (pri < bestPriority) {
+            best = nonSilent[nsIdx]; bestPriority = pri;
           }
         }
         nsIdx++;
       }
-      if (best) {
-        // 조용한 구간: 에너지 비례 확률로 스킵 (결정적 - 시드 RNG)
-        if (bestEnergy < QUIET_THRESH) {
-          const keepProb = bestEnergy / QUIET_THRESH;
-          if (rng() < keepProb) filtered.push(best);
-        } else {
-          filtered.push(best);
-        }
-      }
+      if (best) filtered.push(best);
       slotStart = slotEnd;
     }
   }
