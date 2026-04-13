@@ -3742,11 +3742,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   allOnsets.sort((a, b) => a.time - b.time);
 
-  // BPM 그리드에 퀀타이즈 (16분음표)
-  for (const o of allOnsets) {
-    const rel = o.time - bgmDelay;
-    o.time = Math.round(rel / sixteenth) * sixteenth + bgmDelay;
-  }
+  // BPM 그리드 퀀타이즈 제거: detectOnsets의 raw 시간 그대로 사용
+  // (16분음표 snap은 최대 ±sixteenth/2 오차 → 체감 drift 원인)
 
   // 에너지 부여
   if (energyMap && energyMap.length > 0) {
