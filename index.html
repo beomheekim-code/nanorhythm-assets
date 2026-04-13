@@ -2557,9 +2557,11 @@ function handleSelectClick(mx, my) {
   // 즐겨찾기 토글 버튼
   const _titleY = lay.titleY;
   const _cxBase = (W - lay.optW) / 2;
-  const _favBtnW = sz(80);
+  const _mlFav = isMobile && !isPortrait;
+  const _favBtnW = _mlFav ? sz(72) : sz(80);
+  const _favBtnH = _mlFav ? sz(22) : sz(26);
   const _favBtnX = _cxBase + lay.optW - _favBtnW;
-  if (hitTest(mx, my, _favBtnX, _titleY - sz(13), _favBtnW, sz(26))) {
+  if (hitTest(mx, my, _favBtnX, _titleY - _favBtnH/2, _favBtnW, _favBtnH)) {
     if (!favFilterActive && getFavorites().length === 0) {
       // 즐겨찾기 곡 없음 → 메시지 표시
       favEmptyMsg = performance.now();
@@ -2638,8 +2640,8 @@ function handleSelectClick(mx, my) {
   // 모바일 차트 토글 버튼 클릭
   const _mlTC = isMobile && !isPortrait;
   if (isMobileC || _mlTC) {
-    const togW = _mlTC ? sz(44) : sz(60);
-    const togH = _mlTC ? sz(16) : sz(22);
+    const togW = sz(60);
+    const togH = sz(22);
     const togX = 6;
     const togY = H + safeBottom - togH - 4;
     if (hitTest(mx, my, togX, togY, togW, togH)) {
@@ -2761,8 +2763,8 @@ function handleSelectClick(mx, my) {
   const _mlSubC = isMobile && !isPortrait;
   const subBtnY = _mlSubC ? (lay.songRowY + lay.cardH + (lay.cdTextH||45) + 4)
                           : (lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap);
-  const subBtnW = _mlSubC ? Math.min(86, lay.optW * 0.2) : Math.min(120, lay.optW * 0.28);
-  const subBtnH_ = _mlSubC ? sz(21) : lay.subBtnH;
+  const subBtnW = _mlSubC ? Math.min(104, lay.optW * 0.24) : Math.min(120, lay.optW * 0.28);
+  const subBtnH_ = _mlSubC ? sz(26) : lay.subBtnH;
   const subBtnGapX = _mlSubC ? 10 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
@@ -6032,20 +6034,25 @@ function renderShop() {
 // ===== 공통 하단 바 (코인 + 햄버거 메뉴) =====
 function renderBottomBar() {
   // 햄버거 버튼 (우하단) — 먼저 좌표 계산
+  const _bbML = isMobile && !isPortrait;
   const _bbBottom = H + safeBottom - sz(4);
-  const hbW = sz(36), hbH = sz(28), hbX = W - hbW - sz(8), hbY = _bbBottom - hbH;
+  const hbW = _bbML ? sz(46) : sz(36);
+  const hbH = _bbML ? sz(34) : sz(28);
+  const hbX = W - hbW - sz(8), hbY = _bbBottom - hbH;
   // 코인 (햄버거 버튼 세로 중앙과 정렬)
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  ctx.font = `bold ${sz(10)}px sans-serif`; ctx.fillStyle = '#ffd700aa';
+  ctx.font = `bold ${_bbML ? sz(12) : sz(10)}px sans-serif`; ctx.fillStyle = '#ffd700aa';
   ctx.fillText('♪ ' + getCoins().toLocaleString(), hbX - sz(6), hbY + hbH/2);
   // 햄버거 버튼 렌더
   ctx.fillStyle = hamburgerOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)';
   rrFill(hbX, hbY, hbW, hbH, sz(7));
   ctx.strokeStyle = hamburgerOpen ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)';
   ctx.lineWidth = 1; rrStroke(hbX, hbY, hbW, hbH, sz(7));
-  const barBW = sz(14), barBH = 2, barBX = hbX + (hbW - barBW) / 2;
+  const barBW = _bbML ? sz(18) : sz(14), barBH = 2, barBX = hbX + (hbW - barBW) / 2;
+  const barGapY = _bbML ? sz(6) : sz(5);
+  const barStartY = hbY + (hbH - (barGapY * 2 + barBH)) / 2;
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  for (let bi = 0; bi < 3; bi++) ctx.fillRect(barBX, hbY + sz(8) + bi * sz(5), barBW, barBH);
+  for (let bi = 0; bi < 3; bi++) ctx.fillRect(barBX, barStartY + bi * barGapY, barBW, barBH);
   // 메뉴 펼침
   if (hamburgerOpen) {
     const menuW = sz(120), menuItemH = sz(36);
@@ -6631,13 +6638,13 @@ function renderSelect() {
   ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
   ctx.fillText(favFilterActive ? '즐겨찾기' : '곡 선택', cxBase + sz(4), titleY);
   // 즐겨찾기 토글 버튼 (우측)
-  const favBtnW = _mlTitle ? sz(56) : sz(80), favBtnH = _mlTitle ? sz(16) : sz(26);
+  const favBtnW = _mlTitle ? sz(72) : sz(80), favBtnH = _mlTitle ? sz(22) : sz(26);
   const favBtnX = cxBase + optW - favBtnW, favBtnY = titleY - favBtnH/2;
   ctx.fillStyle = favFilterActive ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)';
   rrFill(favBtnX, favBtnY, favBtnW, favBtnH, sz(4));
   ctx.strokeStyle = favFilterActive ? '#ffd70066' : 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1; rrStroke(favBtnX, favBtnY, favBtnW, favBtnH, sz(4));
-  ctx.font = `bold ${_mlTitle ? sz(8) : sz(11)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${_mlTitle ? sz(10) : sz(11)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = favFilterActive ? '#ffd700' : 'rgba(255,255,255,0.4)';
   ctx.fillText(favFilterActive ? '★ 전체보기' : '★ 즐겨찾기', favBtnX + favBtnW/2, favBtnY + favBtnH/2);
   ctx.textBaseline='alphabetic';
@@ -6858,8 +6865,8 @@ function renderSelect() {
   // 모바일 가로: 레벨 배지 바로 밑으로 끌어올림
   const subBtnY = _mlSub ? (songRowY + cardH + cdTextH + 4) : (songRowY + cardH + cdTextH + subBtnGap);
   // 모바일 가로: 버튼 크기 적당히 확대
-  const subBtnW = _mlSub ? Math.min(86, optW * 0.2) : Math.min(120, optW * 0.28);
-  const subBtnHR = _mlSub ? sz(21) : subBtnH;
+  const subBtnW = _mlSub ? Math.min(104, optW * 0.24) : Math.min(120, optW * 0.28);
+  const subBtnHR = _mlSub ? sz(26) : subBtnH;
   const subBtnGapX = _mlSub ? 10 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
@@ -6867,12 +6874,12 @@ function renderSelect() {
     ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
     ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${_mlSub ? sz(11) : sz(13)}px sans-serif`;
+    ctx.font = `bold ${_mlSub ? sz(13) : sz(13)}px sans-serif`;
     ctx.fillStyle = '#ffd700bb';
     ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnHR/2);
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
     ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
-    ctx.font = `bold ${_mlSub ? sz(11) : sz(13)}px sans-serif`;
+    ctx.font = `bold ${_mlSub ? sz(13) : sz(13)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnHR/2);
     ctx.textBaseline = 'alphabetic';
@@ -6999,8 +7006,8 @@ function renderSelect() {
   const _mlChartToggle = isMobile && !isPortrait;
   // 모바일(세로 좁은 화면) + 모바일 가로: 토글 버튼 표시
   if (isMobileChart || _mlChartToggle) {
-    const togW = _mlChartToggle ? sz(44) : sz(60);
-    const togH = _mlChartToggle ? sz(16) : sz(22);
+    const togW = sz(60);
+    const togH = sz(22);
     const togX = 6;
     // 좌측 최하단 고정 (세로/가로 동일)
     const togY = H + safeBottom - togH - 4;
@@ -7009,7 +7016,7 @@ function renderSelect() {
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
     rrStroke(togX, togY, togW, togH, sz(4));
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${_mlChartToggle ? sz(8) : sz(9)}px sans-serif`;
+    ctx.font = `bold ${sz(10)}px sans-serif`;
     ctx.fillStyle = '#fff';
     ctx.fillText(mobileChartCollapsed ? 'CHART ▲' : 'CHART ▼', togX + togW/2, togY + togH/2);
   }
