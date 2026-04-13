@@ -2754,10 +2754,12 @@ function handleSelectClick(mx, my) {
       selectedSong = i; loadSongDiffSpeed(i); selectFocus = 0; scrollToSong(i); return;
     }
   }
-  // Achievement + Ranking sub-buttons
-  const subBtnY = lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap;
-  const subBtnW = Math.min(120, lay.optW * 0.28);
-  const subBtnGapX = 14;
+  // Achievement + Ranking sub-buttons (렌더와 동일 계산)
+  const _mlSubC = isMobile && !isPortrait;
+  const subBtnY = _mlSubC ? (lay.songRowY + lay.cardH + (lay.cdTextH||45) + 6)
+                          : (lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap);
+  const subBtnW = _mlSubC ? Math.min(60, lay.optW * 0.14) : Math.min(120, lay.optW * 0.28);
+  const subBtnGapX = _mlSubC ? 8 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal' && hitTest(mx, my, subBtnX, subBtnY, subBtnW, lay.subBtnH)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
@@ -6839,22 +6841,27 @@ function renderSelect() {
 
   // Achievement + Ranking buttons (below song cards, for selected song only)
   // 프리스타일 모드: 랭킹/업적 숨김
-  const subBtnY = songRowY + cardH + cdTextH + subBtnGap;
-  const subBtnW = Math.min(120, optW * 0.28);
-  const subBtnGapX = 14;
+  const _mlSub = isMobile && !isPortrait;
+  // 모바일 가로: 1mm(~6px) 간격 + 레벨 배지 바로 아래로 끌어올림
+  const subBtnY = _mlSub ? (songRowY + cardH + cdTextH + 6) : (songRowY + cardH + cdTextH + subBtnGap);
+  // 모바일 가로: 버튼 너비 절반
+  const subBtnW = _mlSub ? Math.min(60, optW * 0.14) : Math.min(120, optW * 0.28);
+  const subBtnGapX = _mlSub ? 8 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal') {
     ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnH, 8);
     ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnH, 8);
-    ctx.textAlign = 'center'; ctx.font = `bold ${sz(13)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${_mlSub ? sz(10) : sz(13)}px sans-serif`;
     ctx.fillStyle = '#ffd700bb';
-    ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnH/2 + 5);
+    ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnH/2);
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
     ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnH, 8);
-    ctx.font = `bold ${sz(13)}px sans-serif`;
+    ctx.font = `bold ${_mlSub ? sz(10) : sz(13)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnH/2 + 5);
+    ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnH/2);
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Difficulty selector
