@@ -2748,7 +2748,7 @@ function handleSelectClick(mx, my) {
     if (hitTest(mx, my, bx, optY1, diffBtnW, lay.optH)) { playScrollTick(); selectedDiff=i; saveDiffSpeed(); selectFocus=1; return; }
   }
   // Speed −/+ buttons
-  const optY2 = optY1 + lay.optH + lay.optGap + 18;
+  const optY2 = optY1 + lay.optH + lay.optGap + 18 + sz(14);
   const spdCtrlW = lay.optW;
   const spdBtnW = Math.min(40, spdCtrlW * 0.15);
   const spdMinusX = cx, spdPlusX = cx + spdCtrlW - spdBtnW;
@@ -6836,7 +6836,7 @@ function renderSelect() {
   });
 
   // Speed selector
-  const optY2 = optY1 + optH + optGap + labelH;
+  const optY2 = optY1 + optH + optGap + labelH + sz(14); // 배속 영역 추가 여백
   ctx.textAlign='center'; ctx.font=`bold ${sz(14)}px sans-serif`;
   ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2-6);
 
