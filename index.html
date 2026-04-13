@@ -18,7 +18,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%}
 </head>
 <body>
 <canvas id="c"></canvas>
-<input id="searchInput" style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;ime-mode:active;" type="text" autocomplete="off">
+<input id="searchInput" style="position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:200px;height:30px;font-size:16px;background:transparent;color:transparent;border:none;outline:none;caret-color:transparent;z-index:9999;ime-mode:active;" type="text" autocomplete="off">
 <input id="loginInputEl" style="position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:240px;height:40px;font-size:18px;text-align:center;background:transparent;color:transparent;border:none;outline:none;z-index:9999;ime-mode:active;caret-color:transparent;" type="text" maxlength="12" autocomplete="off">
 <input id="speedInputEl" style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;" type="text" inputmode="decimal" maxlength="4" autocomplete="off">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1369,7 +1369,7 @@ function confirmSearchSelection() {
     selectedSong = searchFiltered[searchHighlight];
     scrollToSong(selectedSong);
   }
-  searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur();
+  searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
 }
 const searchInputEl = document.getElementById('searchInput');
 searchInputEl.addEventListener('input', () => {
@@ -1379,7 +1379,7 @@ searchInputEl.addEventListener('input', () => {
   updateSearchFilter();
 });
 searchInputEl.addEventListener('keydown', e => {
-  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); e.preventDefault(); }
+  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); e.preventDefault(); }
   else if (e.code === 'Enter') { confirmSearchSelection(); e.preventDefault(); }
   else if (e.code === 'ArrowDown') { searchHighlight = Math.min(searchHighlight + 1, searchFiltered.length - 1); e.preventDefault(); }
   else if (e.code === 'ArrowUp') { searchHighlight = Math.max(searchHighlight - 1, 0); e.preventDefault(); }
@@ -2685,8 +2685,15 @@ function handleSelectClick(mx, my) {
   const searchBarH = lay.searchBarH || 32, searchBarY = lay.searchBarY;
   if (hitTest(mx, my, cx, searchBarY, lay.optW, searchBarH)) {
     playScrollTick();
-    if (searchActive && mx > cx + lay.optW - 30) { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
-    else { searchActive = true; searchInputEl.value = searchText; setTimeout(() => searchInputEl.focus(), 0); }
+    if (searchActive && mx > cx + lay.optW - 30) {
+      searchActive = false; searchText = ''; searchInputEl.value = '';
+      searchInputEl.style.top = '-100px'; searchInputEl.blur();
+    } else {
+      searchActive = true; searchInputEl.value = searchText;
+      // iOS: input을 실제 화면 안으로 잠깐 이동 후 focus (키패드 트리거)
+      searchInputEl.style.top = (searchBarY + safeTop) + 'px';
+      searchInputEl.focus();
+    }
     return;
   }
   // Filter dropdown item click
@@ -2699,12 +2706,12 @@ function handleSelectClick(mx, my) {
       if (fi >= 0 && fi < searchFiltered.length) {
         selectedSong = searchFiltered[fi]; loadSongDiffSpeed(selectedSong);
         scrollToSong(selectedSong);
-        searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur();
+        searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
       }
       return;
     }
   }
-  if (searchActive) { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
+  if (searchActive) { searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
   // Arrow buttons (◀ ▶)
   const centerX = W / 2;
   const step = lay.cardW + lay.gap;
@@ -4018,8 +4025,8 @@ function update(dt) {
   if (state === 'select') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
-      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
-      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.blur(); }
+      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         if (inp==='right') { const p = _dPos(selectedSong); selectedSong = _dSong(p < _dLen() - 1 ? p + 1 : 0); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
