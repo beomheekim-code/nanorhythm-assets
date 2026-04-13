@@ -3588,6 +3588,20 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       allOnsets.push({ time: t + bgmDelay, stem: Number(si) });
     }
   }
+  // 곡별 수동 블랙리스트 적용 (excludeRanges: [{start, end, stems?}])
+  // start/end는 BGM 시작 기준 상대 시간(초), stems 생략 시 모든 스템 제외
+  const exRanges = song.excludeRanges || [];
+  if (exRanges.length > 0) {
+    allOnsets = allOnsets.filter(o => {
+      const relT = o.time - bgmDelay;
+      for (const r of exRanges) {
+        if (relT >= r.start && relT <= r.end) {
+          if (!r.stems || r.stems.includes(o.stem)) return false;
+        }
+      }
+      return true;
+    });
+  }
   allOnsets.sort((a, b) => a.time - b.time);
 
   // BPM 그리드에 퀀타이즈 (16분음표)
@@ -3617,18 +3631,16 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     merged.push(o);
   }
 
-  // 무음 제거 (0.02 이하 = 거의 들리지 않는 구간 제거)
-  const nonSilent = merged.filter(o => o.energy >= 0.02);
+  // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
+  const nonSilent = merged;
 
   // 난이도 필터링 (균등 분배 + 최소 간격)
   // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
-  // 조용한 구간(energy < 0.2)은 밀도를 에너지 비례로 축소
   const density = diff.noteDensity;
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
                : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
                : sixteenth;                        // 지옥: 16분음표
-  const QUIET_THRESH = 0.2;  // 이 아래면 "조용한 구간"
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -3644,15 +3656,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         }
         nsIdx++;
       }
-      if (best) {
-        // 조용한 구간: 에너지 비례 확률로 스킵 (결정적 - 시드 RNG)
-        if (bestEnergy < QUIET_THRESH) {
-          const keepProb = bestEnergy / QUIET_THRESH;
-          if (rng() < keepProb) filtered.push(best);
-        } else {
-          filtered.push(best);
-        }
-      }
+      // 확률 드랍 제거: 선택된 slot best는 무조건 유지
+      if (best) filtered.push(best);
       slotStart = slotEnd;
     }
   }
