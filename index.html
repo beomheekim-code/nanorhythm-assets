@@ -2461,6 +2461,22 @@ function generateNodes(song, diff, energyMap) {
       }
     }
   }
+  // 홀드 종료 직후 같은 레인 노트 재배치 (grace window 내)
+  {
+    const graceWindow = eighthDur;
+    for (let a = 0; a < nodes.length; a++) {
+      if (nodes[a].type !== 'hold') continue;
+      const hLane = nodes[a].lane;
+      const hEnd = nodes[a].endTime;
+      for (let b = a + 1; b < nodes.length; b++) {
+        if (nodes[b].time > hEnd + graceWindow) break;
+        if (nodes[b].time < hEnd) continue;
+        if (nodes[b].lane === hLane && laneCount > 1) {
+          nodes[b].lane = (hLane + 1) % laneCount;
+        }
+      }
+    }
+  }
   totalNodes = nodes.filter(n => n.type !== 'trap').length;
 
   // Traps based on difficulty (7키: 트랩 빈도 증가)
@@ -3798,6 +3814,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const stemCnt = {};
   let noteIdx = 0;
   let prevLane = -1;
+  let lastHoldLane = -1;
+  let lastHoldEndTime = -1;
 
   for (const o of filtered) {
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
@@ -3812,6 +3830,14 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       lane = (lane + 1) % lc;
     }
 
+    // 직전 홀드노트 레인 회피: 홀드 종료 후 일정 시간 내에 같은 레인 금지
+    if (lc > 1 && lastHoldLane >= 0 && lane === lastHoldLane &&
+        o.time >= lastHoldEndTime && o.time - lastHoldEndTime < eighthDur) {
+      lane = (lane + 1) % lc;
+      // 전환 후 prevLane과 겹치면 한 번 더 이동
+      if (lane === prevLane && lc > 2) lane = (lane + 1) % lc;
+    }
+
     prevLane = lane;
     const nd = {
       time: o.time, lane, freq: 440, type: 'note', stem: o.stem,
@@ -3821,6 +3847,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
       nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
+      lastHoldLane = lane;
+      lastHoldEndTime = nd.endTime;
     }
     nodes.push(nd);
     noteIdx++;
@@ -3845,6 +3873,20 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     for (let b = nodes.length - 1; b > a; b--) {
       if (nodes[b].lane === nodes[a].lane && nodes[b].time > nodes[a].time && nodes[b].time < nodes[a].endTime) {
         nodes.splice(b, 1);
+      }
+    }
+  }
+  // 홀드 종료 직후 같은 레인 노트는 다른 레인으로 재배치 (grace window 내)
+  const graceWindow = eighthDur;
+  for (let a = 0; a < nodes.length; a++) {
+    if (nodes[a].type !== 'hold') continue;
+    const hLane = nodes[a].lane;
+    const hEnd = nodes[a].endTime;
+    for (let b = a + 1; b < nodes.length; b++) {
+      if (nodes[b].time > hEnd + graceWindow) break;
+      if (nodes[b].time < hEnd) continue;
+      if (nodes[b].lane === hLane && lc > 1) {
+        nodes[b].lane = (hLane + 1) % lc;
       }
     }
   }
