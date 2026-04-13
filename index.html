@@ -3661,24 +3661,26 @@ function detectOnsets(audioBuffer) {
   } else if (firstAudibleIdx < 0) {
     return [];
   }
-  // === 모든 onset을 ±20ms 내 local peak 위치로 미세 정렬 ===
-  // detectOnsets가 ramp-up threshold에 fire하므로 실제 attack peak보다
-  // ~10-30ms 이른 위치. 각 onset 주변 작은 윈도우에서 max energy 위치로 보정.
-  const PEAK_WIN = Math.floor(sr * 0.02); // ±20ms
+  // === 각 onset을 인지 정렬 위치로 미세 보정 ===
+  // detectOnsets는 ramp-up 시작(threshold cross)에 fire → 너무 이름
+  // peak는 attack climax → 약간 늦음
+  // → ramp 시작과 peak 사이 중간 = 인간이 "음 시작"으로 느끼는 지점
+  const PEAK_WIN = Math.floor(sr * 0.025); // 25ms 탐색
   for (let oi = 0; oi < onsets.length; oi++) {
-    const sampleIdx = Math.floor(onsets[oi] * sr);
-    const wStart = Math.max(0, sampleIdx - 1); // 거의 현재 위치부터 (앞으로만 20ms 탐색)
-    const wEnd = Math.min(data.length, sampleIdx + PEAK_WIN);
+    const rampStart = Math.floor(onsets[oi] * sr);
+    const wEnd = Math.min(data.length, rampStart + PEAK_WIN);
     let peakE = 0;
-    let peakIdx = sampleIdx;
-    for (let i = wStart; i < wEnd; i += winSamples) {
+    let peakIdx = rampStart;
+    for (let i = rampStart; i < wEnd; i += winSamples) {
       let sum = 0, cnt = 0;
       const end = Math.min(i + winSamples, data.length);
       for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
       const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
       if (e > peakE) { peakE = e; peakIdx = i; }
     }
-    onsets[oi] = peakIdx / sr;
+    // ramp 시작과 peak 사이 중간점 (60% peak 쪽 가중)
+    const aligned = Math.floor(rampStart * 0.4 + peakIdx * 0.6);
+    onsets[oi] = aligned / sr;
   }
   return onsets;
 }
