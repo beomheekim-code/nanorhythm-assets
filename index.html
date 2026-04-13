@@ -6656,7 +6656,7 @@ function renderSelect() {
     const cdCy = songRowY + cardH/2;
     const r = cardW / 2;
     if (cdCx + r < -50 || cdCx - r > W + 50) continue;
-    if (Math.abs(dp - _scrollDisplayPos) > 3) continue; // 스크롤 위치 기준 ±3
+    if (Math.abs(dp - _scrollDisplayPos) > 2) continue; // 스크롤 위치 기준 ±2 (최대 5개 표시)
     const sel = i === selectedSong;
     const dist = Math.abs(cardCenterX - centerX);
     const scale = sel ? 1.08 : Math.max(0.82, 1 - dist / (W * 1.0));
