@@ -3636,22 +3636,31 @@ function detectOnsets(audioBuffer) {
     }
     smoothed = energy * 0.2 + smoothed * 0.8;
   }
-  // === 첫 onset peak 보정 ===
-  // 기존 로직은 attack ramp-up의 threshold 넘는 순간 fire (실제 peak보다 ~40ms 이름)
-  // → "첫 노트 무음" 체감. 첫 onset 위치를 직후 200ms 내 energy peak로 이동.
-  if (onsets.length > 0) {
-    const firstOnsetSample = Math.floor(onsets[0] * sr);
-    const searchEnd = Math.min(firstOnsetSample + Math.floor(sr * 0.2), data.length);
-    let peakE = 0;
-    let peakIdx = firstOnsetSample;
-    for (let i = firstOnsetSample; i < searchEnd; i += winSamples) {
+  // === 초반 ramp-up phantom onset 제거 ===
+  // 실제 음악 시작 전 quiet ramp-up에서 찍힌 onset들 삭제.
+  // 첫 "확실히 들리는" onset(energy >= 0.02) 이후 유지, 그 전은 drop.
+  const START_AUDIBLE = 0.02;
+  let firstAudibleIdx = -1;
+  for (let oi = 0; oi < onsets.length; oi++) {
+    const sampleIdx = Math.floor(onsets[oi] * sr);
+    // 해당 onset 위치 ± 50ms 범위 max energy
+    const wStart = Math.max(0, sampleIdx - Math.floor(sr * 0.05));
+    const wEnd = Math.min(data.length, sampleIdx + Math.floor(sr * 0.05));
+    let maxE = 0;
+    for (let i = wStart; i < wEnd; i += winSamples) {
       let sum = 0, cnt = 0;
       const end = Math.min(i + winSamples, data.length);
       for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
       const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-      if (e > peakE) { peakE = e; peakIdx = i; }
+      if (e > maxE) maxE = e;
     }
-    onsets[0] = peakIdx / sr;
+    if (maxE >= START_AUDIBLE) { firstAudibleIdx = oi; break; }
+  }
+  if (firstAudibleIdx > 0) {
+    onsets.splice(0, firstAudibleIdx);
+  } else if (firstAudibleIdx < 0) {
+    // 전체 onset이 너무 조용함 → 빈 배열
+    return [];
   }
   return onsets;
 }
