@@ -95,6 +95,7 @@ function resize() {
   // 작은 기기 보호: 작은 폭에선 하한만 낮춤
   if (W < 340) UI = Math.max(0.6, W / 380);
   try { if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); } catch(e) {}
+  try { if (typeof stars !== 'undefined' && stars && stars.length > 0) genStars(); } catch(e) {}
 }
 // 터치/마우스 Y좌표를 게임 좌표로 변환 (safeTop 보정)
 function gameY(clientY) { return clientY - safeTop; }
@@ -2235,9 +2236,11 @@ function checkFeverActivate() {
 // ===== STARS =====
 function genStars() {
   stars = [];
+  // 안전 영역 포함 전체 화면에 별 분포
+  const yMin = -safeTop, yRange = H + safeTop + safeBottom;
   for (let i = 0; i < 80; i++)
     stars.push({
-      x: Math.random() * W, y: Math.random() * H,
+      x: Math.random() * W, y: yMin + Math.random() * yRange,
       s: 0.3 + Math.random() * 2.5,
       b: 0.15 + Math.random() * 0.6,
       twinkleSpeed: 0.001 + Math.random() * 0.004,
@@ -5673,11 +5676,11 @@ function handleSettingsClick(mx, my) {
 let titleParticles = [];
 function spawnTitleParticles() {
   const now = Date.now();
-  // Ambient floating particles
+  // Ambient floating particles — 안전 영역 포함 전체 화면에서 발생/이동
   if (titleParticles.length < 40) {
     const hue = 240 + Math.random() * 80; // blue-purple range
     titleParticles.push({
-      x: Math.random() * W, y: H + 10,
+      x: Math.random() * W, y: H + safeBottom + 10,
       vx: (Math.random() - 0.5) * 0.4,
       vy: -(0.3 + Math.random() * 0.8),
       size: 2 + Math.random() * 4,
@@ -5708,7 +5711,7 @@ function updateTitleParticles() {
     const p = titleParticles[i];
     p.x += p.vx; p.y += p.vy; p.life -= p.decay;
     if (p.type === 'float') { p.vx += (Math.random() - 0.5) * 0.05; }
-    if (p.life <= 0 || p.y < -20) { titleParticles.splice(i, 1); }
+    if (p.life <= 0 || p.y < -safeTop - 20) { titleParticles.splice(i, 1); }
   }
 }
 
