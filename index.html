@@ -3782,6 +3782,49 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
+  // ===== Stem dormant 구간 필터 =====
+  // 각 스템의 RMS가 자기 전체 max의 30% 미만인 버킷은 그 스템 onset 제외
+  // 황덕구 0~16s drums dormant → drums onset 자동 스킵
+  // 모든 곡에 공통 적용 (dormant 스템의 false onset 차단)
+  if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
+    const DORM_BUCKET_SEC = 0.5;
+    const DORM_RATIO = 0.30;
+    const stemIsDormant = {}; // stem → Array<bool> per bucket
+    for (const siStr in stemAudioBuffers) {
+      const si = Number(siStr);
+      if (ALWAYS_AUDIBLE_STEMS.includes(si)) continue;
+      const buf = stemAudioBuffers[si];
+      if (!buf) continue;
+      const d = buf.getChannelData(0);
+      const sr_ = buf.sampleRate;
+      const bs = Math.floor(sr_ * DORM_BUCKET_SEC);
+      const nb = Math.ceil(d.length / bs);
+      const rmsArr = new Float32Array(nb);
+      let maxRms = 0;
+      for (let b = 0; b < nb; b++) {
+        let s0 = b * bs, s1 = Math.min(s0 + bs, d.length), sum = 0, c = 0;
+        for (let k = s0; k < s1; k += 32) { sum += d[k] * d[k]; c++; }
+        rmsArr[b] = c > 0 ? Math.sqrt(sum / c) : 0;
+        if (rmsArr[b] > maxRms) maxRms = rmsArr[b];
+      }
+      const dormThresh = maxRms * DORM_RATIO;
+      const dormArr = new Array(nb);
+      for (let b = 0; b < nb; b++) dormArr[b] = rmsArr[b] < dormThresh;
+      stemIsDormant[si] = dormArr;
+    }
+    const beforeDorm = allOnsets.length;
+    allOnsets = allOnsets.filter(o => {
+      const arr = stemIsDormant[o.stem];
+      if (!arr) return true;
+      const bi = Math.floor((o.time - bgmDelay) / DORM_BUCKET_SEC);
+      if (bi < 0 || bi >= arr.length) return true;
+      return !arr[bi];
+    });
+    if (beforeDorm !== allOnsets.length) {
+      console.log('stem dormant filter: ' + (beforeDorm - allOnsets.length) + ' onsets dropped');
+    }
+  }
+
   allOnsets.sort((a, b) => a.time - b.time);
 
   // 고립된 첫 onset 제거: phantom (실제 음악 시작 전 노이즈에 찍힌 것)
