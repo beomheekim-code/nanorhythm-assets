@@ -7106,13 +7106,11 @@ function renderSelect() {
           ctx.fillStyle = songs[songIdx].color + '33';
           rrFill(cxBase + 4, iy, optW - 8, filterItemH - 2, 6);
         }
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.font = `bold ${sz(14)}px sans-serif`;
         ctx.fillStyle = isHl ? '#fff' : 'rgba(255,255,255,0.6)';
-        ctx.fillText(songs[songIdx].name, cxBase + 14, iy + filterItemH * 0.45);
-        ctx.font = `${sz(11)}px sans-serif`;
-        ctx.fillStyle = songs[songIdx].color + (isHl ? 'cc' : '77');
-        ctx.fillText(songs[songIdx].sub + '  ·  ' + songs[songIdx].bpm + ' BPM', cxBase + 14, iy + filterItemH * 0.78);
+        ctx.fillText(songs[songIdx].name, cxBase + 14, iy + filterItemH / 2);
+        ctx.textBaseline = 'alphabetic';
       }
       ctx.restore();
       // 스크롤바
