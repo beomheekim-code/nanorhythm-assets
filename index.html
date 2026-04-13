@@ -6489,9 +6489,9 @@ function getSelectLayout() {
   const searchBarH = _mobileLandscape ? 16 : 30;
   const titleH = _mobileLandscape ? 16 : 26;
   const titleToSearchGap = _mobileLandscape ? 0 : 12;
-  const searchToSongGap = 14;
+  const searchToSongGap = _mobileLandscape ? 2 : 14;
   const btnH = Math.min(44, visH * 0.058);
-  const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
+  const cdTextH = _mobileLandscape ? sz(30) : sz(52); // CD 이름 + Lv 배지 공간
   const labelH = 18;
   // 시작 버튼은 화면 최하단에 별도 고정이므로 flow에서 제외
   const totalH =
@@ -6760,9 +6760,10 @@ function renderSelect() {
 
     // === 텍스트 (CD 아래) ===
     ctx.rotate(0); // 텍스트는 회전 안 함
-    const textY = r + sz(16);
+    const _mlCD = isMobile && !isPortrait;
+    const textY = r + (_mlCD ? sz(8) : sz(16));
     ctx.textAlign = 'center';
-    ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.font = `bold ${_mlCD ? sz(10) : sz(14)}px sans-serif`;
     ctx.fillStyle = sel ? '#fff' : 'rgba(255,255,255,0.3)';
     ctx.fillText(s.name, 0, textY);
 
@@ -6770,14 +6771,14 @@ function renderSelect() {
     if (sel) {
       const lv = calcLevel(i, selectedDiff);
       const lvText = 'Lv.' + lv;
-      const lvFont = sz(11);
+      const lvFont = _mlCD ? sz(8) : sz(11);
       ctx.font = `bold ${lvFont}px sans-serif`;
       const lvColor = DIFFICULTIES[selectedDiff].color;
-      const lvW = ctx.measureText(lvText).width + 10;
-      const lvH = lvFont + 6;
-      const lvX = -lvW/2, lvY = textY + sz(8);
-      ctx.fillStyle = lvColor + '30'; rrFill(lvX, lvY, lvW, lvH, 5);
-      ctx.strokeStyle = lvColor + '88'; ctx.lineWidth = 1; rrStroke(lvX, lvY, lvW, lvH, 5);
+      const lvW = ctx.measureText(lvText).width + (_mlCD ? 6 : 10);
+      const lvH = lvFont + (_mlCD ? 3 : 6);
+      const lvX = -lvW/2, lvY = textY + (_mlCD ? sz(3) : sz(8));
+      ctx.fillStyle = lvColor + '30'; rrFill(lvX, lvY, lvW, lvH, _mlCD ? 3 : 5);
+      ctx.strokeStyle = lvColor + '88'; ctx.lineWidth = 1; rrStroke(lvX, lvY, lvW, lvH, _mlCD ? 3 : 5);
       ctx.fillStyle = lvColor;
       ctx.fillText(lvText, 0, lvY + lvH/2 + lvFont*0.35);
       // 프리뷰 로딩 표시
