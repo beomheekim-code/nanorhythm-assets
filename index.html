@@ -7455,12 +7455,17 @@ function renderAchievement() {
     ctx.fillText('← 뒤로', bbX+bbW/2, bbY+bbH*0.65);
   }
 
-  // Title + coin
-  ctx.font=`bold ${sz(24)}px sans-serif`;
+  // Title (랭킹과 동일: 큰 '업적' + 아래 곡 이름)
+  ctx.font=`bold ${sz(26)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
   ctx.shadowColor='#fff'; ctx.shadowBlur=8;
-  const achTitle = achievementSongFilter >= 0 ? songs[achievementSongFilter].name + ' 업적' : '업적';
-  ctx.fillText(achTitle,W/2,H*0.06+10); ctx.shadowBlur=0;
+  ctx.fillText('업적', W/2, H*0.07+10); ctx.shadowBlur=0;
+  if (achievementSongFilter >= 0) {
+    const _achSong = songs[achievementSongFilter];
+    ctx.font=`${sz(15)}px sans-serif`;
+    ctx.fillStyle=_achSong.color;
+    ctx.fillText(_achSong.name, W/2, H*0.13);
+  }
 
   // Type tabs
   const tabW = sz(300);
