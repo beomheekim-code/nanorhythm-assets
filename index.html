@@ -2629,9 +2629,9 @@ function handleSelectClick(mx, my) {
   // 모바일 차트 토글 버튼 클릭
   if (isMobileC) {
     const togW = sz(60), togH = sz(22);
-    const togX = 6, togY = H - togH - 6;
+    const togX = 6, togY = H + safeBottom - togH - 4;
     if (hitTest(mx, my, togX, togY, togW, togH)) {
-      mobileChartCollapsed = !mobileChartCollapsed; playScrollTick(); return;
+      mobileChartCollapsed = !mobileChartCollapsed; chartScroll = 0; playScrollTick(); return;
     }
   }
   if (chartPanelWC > 60 && (!isMobileC || !mobileChartCollapsed)) {
@@ -5982,12 +5982,13 @@ function renderShop() {
 
 // ===== 공통 하단 바 (코인 + 햄버거 메뉴) =====
 function renderBottomBar() {
-  // 코인 (우하단, 햄버거 좌측)
+  // 코인 (우하단, 햄버거 좌측) — 화면 최하단
+  const _bbBottom = H + safeBottom - sz(4);
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   ctx.font = `bold ${sz(10)}px sans-serif`; ctx.fillStyle = '#ffd700aa';
-  ctx.fillText('♪ ' + getCoins().toLocaleString(), W - sz(52), H - sz(22));
+  ctx.fillText('♪ ' + getCoins().toLocaleString(), W - sz(52), _bbBottom - sz(14));
   // 햄버거 버튼
-  const hbW = sz(36), hbH = sz(28), hbX = W - hbW - sz(8), hbY = H - hbH - sz(8);
+  const hbW = sz(36), hbH = sz(28), hbX = W - hbW - sz(8), hbY = _bbBottom - hbH;
   ctx.fillStyle = hamburgerOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)';
   rrFill(hbX, hbY, hbW, hbH, sz(7));
   ctx.strokeStyle = hamburgerOpen ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)';
@@ -6451,18 +6452,17 @@ function getSelectLayout() {
   const btnH = Math.min(44, visH * 0.058);
   const cdTextH = sz(52); // CD 이름 + Lv 배지까지 포함
   const labelH = 18;
-  // 실제 렌더 순서에 맞춘 정확한 total
+  // 시작 버튼은 화면 최하단에 별도 고정이므로 flow에서 제외
   const totalH =
       titleH + titleToSearchGap
     + searchBarH + searchToSongGap
     + cardH + cdTextH
     + subBtnGap + subBtnH
     + sectionGap + labelH + optH
-    + optGap + labelH + optH
-    + sectionGap + btnH
-    + 12; // bottom margin (my best 점수 표시 공간 포함)
-  // 전체 가시 영역 중앙에 맞춰 topY 계산 (안전 영역 포함)
-  const topY = -safeTop + Math.max(4, (visH - totalH) / 2);
+    + optGap + labelH + optH;
+  // 하단 바 영역(시작 버튼 + 차트/햄버거 등)을 제외한 상단 공간에서 flow 중앙 정렬
+  const bottomReserve = btnH + sz(50); // 시작 버튼 + 하단 바
+  const topY = -safeTop + Math.max(4, (visH - bottomReserve - totalH) / 2);
   const titleY = topY + titleH / 2; // textBaseline='middle' 기준
   const searchBarY = topY + titleH + titleToSearchGap; // search bar 상단
   const songRowY = searchBarY + searchBarH + searchToSongGap;
@@ -6887,9 +6887,10 @@ function renderSelect() {
   ctx.fillText('+', spdPlusX + spdBtnW/2, optY2 + optH/2);
   ctx.textBaseline = 'alphabetic';
 
-  // Start button
+  // Start button — 화면 최하단에 고정
   const btnW = Math.min(220, optW*0.55);
-  const btnX = (W-btnW)/2, btnY = optY2 + optH + sectionGap + 4;
+  const btnX = (W-btnW)/2;
+  const btnY = H + safeBottom - btnH - sz(40); // 하단 바 위에 배치
   const sc = songs[selectedSong].color;
   const _locked = isSongLocked(selectedSong);
   if (_locked) {
@@ -6939,10 +6940,10 @@ function renderSelect() {
   const spaceLeft = cxBase - 10;
   const isMobileChart = spaceLeft < 100;
   const chartPanelW = isMobileChart ? Math.min(W * 0.55, 220) : Math.min(200, spaceLeft);
-  // 모바일: 토글 버튼 항상 표시
+  // 모바일: 토글 버튼 항상 표시 (화면 최하단)
   if (isMobileChart) {
     const togW = sz(60), togH = sz(22);
-    const togX = 6, togY = H - togH - 6;
+    const togX = 6, togY = H + safeBottom - togH - 4;
     ctx.fillStyle = 'rgba(120,80,220,0.45)';
     rrFill(togX, togY, togW, togH, sz(6));
     ctx.strokeStyle = 'rgba(160,130,255,0.5)'; ctx.lineWidth = 1;
@@ -6954,7 +6955,7 @@ function renderSelect() {
   }
   if (chartPanelW > 60 && (!isMobileChart || !mobileChartCollapsed)) {
     const cpX = isMobileChart ? 6 : 8;
-    const cpY = isMobileChart ? H - Math.min(H * 0.35, 200) - sz(30) : 50;
+    const cpY = isMobileChart ? H + safeBottom - Math.min(H * 0.35, 200) - sz(30) : 50;
     const cpH = isMobileChart ? Math.min(H * 0.35, 200) : H - cpY - 30;
     // 스크롤 입력용 bounds 저장
     window._chartBounds = { x: cpX, y: cpY, w: chartPanelW, h: cpH };
