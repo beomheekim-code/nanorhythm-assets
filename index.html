@@ -3685,7 +3685,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const sixteenth = 15 / song.bpm;
 
   // 노트 생성용 스템: drums(0), bass(1), piano(4), guitar(5)만 사용
-  // 제외: vocals(2), instrum(3 - 전체 믹스), other(6 - ambient/new소리 등 residual)
+  // 제외: vocals(2), instrum(3 - 전체 믹스), other(6 - ambient/residual)
   const NOTE_STEMS = [0, 1, 4, 5];
   let allOnsets = [];
   for (const si in onsetsByStem) {
@@ -3694,6 +3694,14 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     for (const t of onsetsByStem[si]) {
       allOnsets.push({ time: t + bgmDelay, stem: siNum });
     }
+  }
+  // 예외: 4개 스템 모두 비어서 onset이 하나도 없으면 instrum으로 fallback
+  // (스템 분리가 완전히 실패한 곡 또는 pure instrumental intro만 있는 곡 대비)
+  if (allOnsets.length === 0 && onsetsByStem[3]) {
+    for (const t of onsetsByStem[3]) {
+      allOnsets.push({ time: t + bgmDelay, stem: 3 });
+    }
+    console.warn('generateNodesFromOnsets: NOTE_STEMS 모두 비어있음 → instrum fallback');
   }
   allOnsets.sort((a, b) => a.time - b.time);
 
@@ -3771,8 +3779,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       dominantStem.push(bestStem);
     }
   }
-  // Fallback 우선순위 (dominant 매치 없을 때): drums > piano > bass > guitar
-  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 5: 3};
+  // Fallback 우선순위 (dominant 매치 없을 때): drums > piano > bass > guitar > instrum
+  // instrum은 NOTE_STEMS 전부 빈 경우만 fallback 으로 진입
+  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 5: 3, 3: 4};
 
   const filtered = [];
   if (nonSilent.length > 0) {
