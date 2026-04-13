@@ -6016,12 +6016,17 @@ function renderTitle() {
   }
   ctx.globalAlpha = 1;
 
+  // 전체 가시 영역 기준 y 헬퍼 (안전 영역 포함)
+  const _visTop = -safeTop;
+  const _visH = H + safeTop + safeBottom;
+  const _visY = (ratio) => _visTop + _visH * ratio;
+
   // EQ bars
   const eqCount = 30, eqGap = 4;
   const eqTotalW = W * 0.75;
   const eqBarW = (eqTotalW - (eqCount-1)*eqGap) / eqCount;
   const eqX0 = (W - eqTotalW) / 2;
-  const eqCenterY = H * 0.46;
+  const eqCenterY = _visY(0.46);
   for (let i=0;i<eqCount;i++) {
     const bx = eqX0 + i * (eqBarW + eqGap);
     const bh = 20 + Math.sin(Date.now()*0.004+i*0.6)*18 + Math.sin(Date.now()*0.007+i*1.1)*10;
@@ -6032,7 +6037,7 @@ function renderTitle() {
 
   // Logo — 2줄 분리 + 글로우
   const t = Date.now();
-  ctx.save(); ctx.translate(W/2, H*0.33);
+  ctx.save(); ctx.translate(W/2, _visY(0.33));
   const p = 1 + Math.sin(t*0.002)*0.015; ctx.scale(p, p);
   ctx.textAlign='center'; ctx.textBaseline='middle';
 
@@ -6093,7 +6098,7 @@ function renderTitle() {
     ];
     const btnW = Math.min(sz(260), W * 0.78), btnH = sz(44), gap = sz(11);
     const totalBtnH = btnH * buttons.length + gap * (buttons.length - 1);
-    const btnStartY = H * 0.62 - totalBtnH / 2;
+    const btnStartY = _visY(0.62) - totalBtnH / 2;
     const btnStartX = (W - btnW) / 2;
     const iconR = sz(8), iconPad = sz(32);
 
@@ -6146,12 +6151,12 @@ function renderTitle() {
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
     ctx.font=`bold ${sz(13)}px sans-serif`;
     ctx.fillStyle='rgba(255,255,255,0.5)';
-    ctx.fillText('플레이 모드 선택', W/2, H*0.55);
+    ctx.fillText('플레이 모드 선택', W/2, _visY(0.55));
 
     // 두 모드 버튼
     const pmBtnW = Math.min(sz(150), W*0.42), pmBtnH = sz(56), pmGap = sz(14);
     const pmTotalW = pmBtnW * 2 + pmGap;
-    const pmStartX = (W - pmTotalW) / 2, pmY = H*0.58;
+    const pmStartX = (W - pmTotalW) / 2, pmY = _visY(0.58);
     loginModeBtnAreas = [];
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
