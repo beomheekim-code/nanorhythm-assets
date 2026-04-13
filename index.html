@@ -3684,12 +3684,15 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   song._onsetMode = true;
   const sixteenth = 15 / song.bpm;
 
-  // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
+  // 노트 생성용 스템: drums(0), bass(1), piano(4), guitar(5)만 사용
+  // 제외: vocals(2), instrum(3 - 전체 믹스), other(6 - ambient/new소리 등 residual)
+  const NOTE_STEMS = [0, 1, 4, 5];
   let allOnsets = [];
   for (const si in onsetsByStem) {
-    if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
+    const siNum = Number(si);
+    if (!NOTE_STEMS.includes(siNum)) continue;
     for (const t of onsetsByStem[si]) {
-      allOnsets.push({ time: t + bgmDelay, stem: Number(si) });
+      allOnsets.push({ time: t + bgmDelay, stem: siNum });
     }
   }
   allOnsets.sort((a, b) => a.time - b.time);
@@ -3768,9 +3771,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       dominantStem.push(bestStem);
     }
   }
-  // Fallback 우선순위 (dominant가 -1이거나 dominant 매치 없을 때):
-  // drums > piano > bass > guitar > instrum > other
-  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 5: 3, 3: 4, 6: 5};
+  // Fallback 우선순위 (dominant 매치 없을 때): drums > piano > bass > guitar
+  const STEM_PRIORITY = {0: 0, 4: 1, 1: 2, 5: 3};
 
   const filtered = [];
   if (nonSilent.length > 0) {
