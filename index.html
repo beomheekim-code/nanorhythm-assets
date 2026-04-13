@@ -3816,6 +3816,7 @@ function startSong(idx) {
   stemFirstSoundTime = {};
   stemAudioBuffers = {};
   stemOnsetCache = {};
+  songEnergyMap = null; // 매 플레이마다 새로 빌드 (재사용 시 += 누적 중복 방지)
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
@@ -3947,10 +3948,11 @@ function startSong(idx) {
           if (!ALWAYS_AUDIBLE_STEMS.includes(_si)) {
             const winSize = Math.floor(sr * 0.5);
             const mapLen = Math.ceil(data.length / winSize);
-            if (!songEnergyMap || songEnergyMap.length < mapLen) {
-              songEnergyMap = new Float32Array(mapLen);
-            }
-            for (let w = 0; w < mapLen; w++) {
+            // 첫 스템이 mapLen 확정 → 이후 스템은 재할당 금지 (비결정 방지)
+            if (!songEnergyMap) songEnergyMap = new Float32Array(mapLen);
+            const mapLim = songEnergyMap.length;
+            const wEnd = Math.min(mapLen, mapLim);
+            for (let w = 0; w < wEnd; w++) {
               let sum = 0;
               const s0 = w * winSize, s1 = Math.min(s0 + winSize, data.length);
               for (let k = s0; k < s1; k += 8) sum += data[k] * data[k];
@@ -4007,8 +4009,11 @@ function startSong(idx) {
               }
               const winSize = Math.floor(sr * 0.5);
               const mapLen = Math.ceil(data.length / winSize);
-              if (!songEnergyMap || songEnergyMap.length < mapLen) songEnergyMap = new Float32Array(mapLen);
-              for (let w = 0; w < mapLen; w++) {
+              // 첫 스템이 mapLen 확정 → 이후 스템은 재할당 금지 (비결정 방지)
+              if (!songEnergyMap) songEnergyMap = new Float32Array(mapLen);
+              const mapLim = songEnergyMap.length;
+              const wEnd = Math.min(mapLen, mapLim);
+              for (let w = 0; w < wEnd; w++) {
                 let sum = 0;
                 const s0 = w * winSize, s1 = Math.min(s0 + winSize, data.length);
                 for (let k = s0; k < s1; k += 8) sum += data[k] * data[k];
