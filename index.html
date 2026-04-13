@@ -3672,6 +3672,73 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       return true;
     });
   }
+
+  // ===== 자동 ambient/새소리 필터 =====
+  // "other/vocals 제외한 스템 중 하나라도 활성인 버킷"만 음악으로 간주
+  // Cherry Blossom 끝 새소리 → other만 울림 → 자동 제외
+  // 황덕구 인트로 → instrum 활성 → 유지
+  if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
+    const AMBIENT_STEMS = [2, 6]; // vocals, other
+    const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
+    const BUCKET_SEC = 0.5;
+    const isMusical = []; // bucket idx → bool
+    // 각 MUSICAL_STEMS의 버킷 RMS 계산 후 stem별 최대값 대비 임계로 판정
+    const stemBucketRms = {};
+    const stemMaxRms = {};
+    let maxBuckets = 0;
+    for (const si of MUSICAL_STEMS) {
+      const buf = stemAudioBuffers[si];
+      if (!buf) continue;
+      const data = buf.getChannelData(0);
+      const sr = buf.sampleRate;
+      const bucketSamples = Math.floor(sr * BUCKET_SEC);
+      const nB = Math.ceil(data.length / bucketSamples);
+      maxBuckets = Math.max(maxBuckets, nB);
+      const arr = new Float32Array(nB);
+      let mx = 0;
+      for (let b = 0; b < nB; b++) {
+        let sum = 0, cnt = 0;
+        const s0 = b * bucketSamples, s1 = Math.min(s0 + bucketSamples, data.length);
+        for (let k = s0; k < s1; k += 32) { sum += data[k] * data[k]; cnt++; }
+        arr[b] = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
+        if (arr[b] > mx) mx = arr[b];
+      }
+      stemBucketRms[si] = arr;
+      stemMaxRms[si] = mx;
+    }
+    // 버킷별 음악성 판정: 어느 한 MUSICAL_STEMS이라도 자기 max의 15% 이상이면 musical
+    const ACTIVE_RATIO = 0.15;
+    for (let b = 0; b < maxBuckets; b++) {
+      let musical = false;
+      for (const si of MUSICAL_STEMS) {
+        if (stemMaxRms[si] > 0.001) {
+          const v = stemBucketRms[si][b] || 0;
+          if (v > stemMaxRms[si] * ACTIVE_RATIO) { musical = true; break; }
+        }
+      }
+      isMusical.push(musical);
+    }
+    // 연속 비음악 버킷을 더 관대하게: 앞뒤 1버킷 padding (갑작스런 끊김 방지)
+    const paddedMusical = isMusical.slice();
+    for (let b = 0; b < isMusical.length; b++) {
+      if (isMusical[b]) {
+        if (b > 0) paddedMusical[b - 1] = true;
+        if (b < isMusical.length - 1) paddedMusical[b + 1] = true;
+      }
+    }
+    // onset 필터링
+    const before = allOnsets.length;
+    allOnsets = allOnsets.filter(o => {
+      const relT = o.time - bgmDelay;
+      const bIdx = Math.floor(relT / BUCKET_SEC);
+      if (bIdx < 0 || bIdx >= paddedMusical.length) return true;
+      return paddedMusical[bIdx];
+    });
+    if (before !== allOnsets.length) {
+      console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
+    }
+  }
+
   allOnsets.sort((a, b) => a.time - b.time);
 
   // BPM 그리드에 퀀타이즈 (16분음표)
