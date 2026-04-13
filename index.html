@@ -2756,11 +2756,11 @@ function handleSelectClick(mx, my) {
   }
   // Achievement + Ranking sub-buttons (렌더와 동일 계산)
   const _mlSubC = isMobile && !isPortrait;
-  const subBtnY = _mlSubC ? (lay.songRowY + lay.cardH + (lay.cdTextH||45) + 2)
+  const subBtnY = _mlSubC ? (lay.songRowY + lay.cardH + (lay.cdTextH||45) + 4)
                           : (lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap);
-  const subBtnW = _mlSubC ? Math.min(60, lay.optW * 0.14) : Math.min(120, lay.optW * 0.28);
-  const subBtnH_ = _mlSubC ? sz(16) : lay.subBtnH;
-  const subBtnGapX = _mlSubC ? 8 : 14;
+  const subBtnW = _mlSubC ? Math.min(90, lay.optW * 0.2) : Math.min(120, lay.optW * 0.28);
+  const subBtnH_ = _mlSubC ? sz(24) : lay.subBtnH;
+  const subBtnGapX = _mlSubC ? 10 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal' && hitTest(mx, my, subBtnX, subBtnY, subBtnW, subBtnH_)) { playScrollTick(); achievementScroll=0; achievementSongFilter=selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); return; }
@@ -2777,9 +2777,9 @@ function handleSelectClick(mx, my) {
   // Speed −/+ buttons
   const optY2 = _mlSubC ? (optY1 + lay.optH + 2 + _labelHC)
                         : (optY1 + lay.optH + lay.optGap + 18 + sz(14));
-  const spdCtrlW = _mlSubC ? Math.min(140, lay.optW * 0.35) : lay.optW;
+  const spdCtrlW = _mlSubC ? Math.min(160, lay.optW * 0.4) : lay.optW;
   const spdCtrlX = _mlSubC ? ((W - spdCtrlW) / 2) : cx;
-  const spdBtnW = _mlSubC ? sz(22) : Math.min(40, spdCtrlW * 0.15);
+  const spdBtnW = _mlSubC ? sz(32) : Math.min(40, spdCtrlW * 0.15);
   const spdMinusX = spdCtrlX, spdPlusX = spdCtrlX + spdCtrlW - spdBtnW;
   const spdValX = spdCtrlX + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
   if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); selectFocus=2; return; }
@@ -6480,25 +6480,27 @@ function updateSelectParticles() {
 function getSelectLayout() {
   // 전체 가시 영역 (안전 영역 포함)
   const visH = H + safeTop + safeBottom;
+  // 모바일 가로 플래그 (먼저 선언)
+  const _mobileLandscape = isMobile && !isPortrait;
   // 가로 마진 고려: optW가 화면을 넘지 않도록 제한
   const optW = Math.min(sz(420), W - sz(16));
-  // CD 크기: 화면 너비 기반 + 높이 여유 고려
-  const cdSize = Math.min(sz(200), visH * 0.26, W * 0.4);
+  // CD 크기: 모바일 가로는 visH 비율을 더 키움
+  const cdSize = _mobileLandscape ?
+      Math.min(sz(200), visH * 0.42, W * 0.3)
+    : Math.min(sz(200), visH * 0.26, W * 0.4);
   const cardW = cdSize, cardH = cdSize, gap = 20;
   const songTotalW = songs.length * (cardW + gap) - gap;
-  const optH = Math.min(42, visH * 0.055);
+  const optH = _mobileLandscape ? Math.min(36, visH * 0.1) : Math.min(42, visH * 0.055);
   const optGap = Math.max(10, visH * 0.018);
   const sectionGap = Math.max(10, visH * 0.016);
   const subBtnH = Math.min(34, visH * 0.042);
   const subBtnGap = Math.max(10, visH * 0.014);
-  // 모바일 가로: 검색창 높이 절반, 타이틀과 간격 최소화
-  const _mobileLandscape = isMobile && !isPortrait;
   const searchBarH = _mobileLandscape ? 16 : 30;
   const titleH = _mobileLandscape ? 16 : 26;
   const titleToSearchGap = _mobileLandscape ? 0 : 12;
   const searchToSongGap = _mobileLandscape ? 6 : 14;
   const btnH = Math.min(44, visH * 0.058);
-  const cdTextH = _mobileLandscape ? sz(30) : sz(52); // CD 이름 + Lv 배지 공간
+  const cdTextH = _mobileLandscape ? sz(32) : sz(52); // CD 이름 + Lv 배지 공간
   const labelH = 18;
   // 시작 버튼은 화면 최하단에 별도 고정이므로 flow에서 제외
   const totalH =
@@ -6847,24 +6849,24 @@ function renderSelect() {
   // Achievement + Ranking buttons (below song cards, for selected song only)
   // 프리스타일 모드: 랭킹/업적 숨김
   const _mlSub = isMobile && !isPortrait;
-  // 모바일 가로: 레벨 배지 바로 밑으로 최대한 끌어올림
-  const subBtnY = _mlSub ? (songRowY + cardH + cdTextH + 2) : (songRowY + cardH + cdTextH + subBtnGap);
-  // 모바일 가로: 버튼 너비/높이 축소
-  const subBtnW = _mlSub ? Math.min(60, optW * 0.14) : Math.min(120, optW * 0.28);
-  const subBtnHR = _mlSub ? sz(16) : subBtnH;
-  const subBtnGapX = _mlSub ? 8 : 14;
+  // 모바일 가로: 레벨 배지 바로 밑으로 끌어올림
+  const subBtnY = _mlSub ? (songRowY + cardH + cdTextH + 4) : (songRowY + cardH + cdTextH + subBtnGap);
+  // 모바일 가로: 버튼 크기 확대
+  const subBtnW = _mlSub ? Math.min(90, optW * 0.2) : Math.min(120, optW * 0.28);
+  const subBtnHR = _mlSub ? sz(24) : subBtnH;
+  const subBtnGapX = _mlSub ? 10 : 14;
   const subBtnTotalW = subBtnW * 2 + subBtnGapX;
   const subBtnX = (W - subBtnTotalW) / 2;
   if (playMode === 'normal') {
-    ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 4 : 8);
-    ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 4 : 8);
+    ctx.fillStyle = '#ffd70015'; rrFill(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 6 : 8);
+    ctx.strokeStyle = '#ffd70044'; ctx.lineWidth = 1; rrStroke(subBtnX, subBtnY, subBtnW, subBtnHR, _mlSub ? 6 : 8);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${_mlSub ? sz(9) : sz(13)}px sans-serif`;
+    ctx.font = `bold ${_mlSub ? sz(12) : sz(13)}px sans-serif`;
     ctx.fillStyle = '#ffd700bb';
     ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnHR/2);
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 4 : 8);
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 4 : 8);
-    ctx.font = `bold ${_mlSub ? sz(9) : sz(13)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 6 : 8);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 6 : 8);
+    ctx.font = `bold ${_mlSub ? sz(12) : sz(13)}px sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText('랭킹', subBtnX + subBtnW + subBtnGapX + subBtnW/2, subBtnY + subBtnHR/2);
     ctx.textBaseline = 'alphabetic';
@@ -6904,9 +6906,9 @@ function renderSelect() {
   ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText('배속', W/2, optY2 - (_mlSub ? 3 : 6));
 
   // − [slider] + 배속 UI — 모바일 가로는 시작 버튼보다 좁게 중앙 배치
-  const spdRowW = _mlSub ? Math.min(140, optW * 0.35) : optW;
+  const spdRowW = _mlSub ? Math.min(160, optW * 0.4) : optW;
   const spdRowX = _mlSub ? ((W - spdRowW) / 2) : cx;
-  const spdBtnW = _mlSub ? sz(22) : Math.min(40, optW * 0.15);
+  const spdBtnW = _mlSub ? sz(32) : Math.min(40, optW * 0.15);
   const spdMidW = spdRowW - spdBtnW * 2 - 12;
   const spdMinusX = spdRowX, spdValX = spdRowX + spdBtnW + 6, spdPlusX = spdRowX + spdRowW - spdBtnW;
   const isFocusSpd = selectFocus === 2;
@@ -6971,7 +6973,8 @@ function renderSelect() {
   } else {
     ctx.fillStyle = sc + '33'; rrFill(btnX, btnY, btnW, btnH, 14);
     ctx.strokeStyle = sc; ctx.lineWidth = 2;
-    ctx.shadowColor = sc; ctx.shadowBlur = 14;
+    // 모바일 가로: shadow 제거 (양끝 번짐 현상 방지)
+    if (!_mlSub) { ctx.shadowColor = sc; ctx.shadowBlur = 14; }
     rrStroke(btnX, btnY, btnW, btnH, 14); ctx.shadowBlur = 0;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${sz(20)}px sans-serif`;
