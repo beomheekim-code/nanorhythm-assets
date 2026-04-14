@@ -3779,6 +3779,32 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
+  // ===== "따단" 패턴 복구 =====
+  // 버려진 onset 중 선택된 노트와 50~200ms 간격 + 에너지 60%+ 인 것 다시 살림
+  // 슬롯 크기 때문에 짧은 간격 페어(double kick, grace note 등)가 1개로 합쳐지는 문제 보정
+  {
+    const PAIR_MIN = 0.05;
+    const PAIR_MAX = 0.20;
+    const ENERGY_RATIO = 0.6;
+    const filteredSet = new Set(filtered);
+    const rescued = [];
+    for (const f of filtered) {
+      // 이 선택된 노트 주변에 "따단 페어 후보" 찾기
+      for (const o of nonSilent) {
+        if (filteredSet.has(o)) continue;
+        const dt = o.time - f.time;
+        if (dt < PAIR_MIN || dt > PAIR_MAX) continue;
+        if (o.energy < f.energy * ENERGY_RATIO) continue;
+        // 이미 rescued에 있으면 skip
+        if (rescued.includes(o)) continue;
+        rescued.push(o);
+        break; // 한 노트당 페어 1개까지
+      }
+    }
+    filtered.push(...rescued);
+    filtered.sort((a, b) => a.time - b.time);
+  }
+
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
   const holdEvery = diff.holdEvery || 999;
