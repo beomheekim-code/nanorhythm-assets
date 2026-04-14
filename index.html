@@ -1764,10 +1764,19 @@ function loginWithKplay() {
   // 5초 안에 userInfo 이벤트 안 오면 해제
   setTimeout(() => { if (loginAuthPending && !currentUser) loginAuthPending = false; }, 5000);
 }
-// Kplay userInfo 이벤트: 자동 로그인 (이미 로그인 상태로 게임 로드된 경우)
+// Kplay userInfo 이벤트: 자동 로그인 또는 게스트→Kplay 연동
 if (window.kplay) {
   window.kplay.on('userInfo', (user) => {
-    if (user && user.userId && !currentUser) {
+    if (!user || !user.userId) return;
+    // 게스트 연동 대기 중이면 migrate
+    if (_kplayLinkPending) {
+      _kplayLinkPending = false;
+      loginAuthPending = false;
+      migrateGuestToKplay(user.userId, user.name);
+      return;
+    }
+    // 비로그인 상태면 자동 로그인
+    if (!currentUser) {
       handleAuthSuccess(user.userId, 'kplay');
     }
   });
@@ -1795,18 +1804,26 @@ function logoutUser() {
 }
 
 // 게스트 → Kplay 연동 (guest 상태에서 Kplay 로그인 요청)
+let _kplayLinkPending = false;
 function startKplayLink() {
   if (!window.kplay) { showLoginToast('Kplay \uC5F0\uB3D9 \uBD88\uAC00', '#ff6666'); return; }
-  settingsOpen = false;
-  loginAuthPending = true;
   // Kplay userInfo가 이미 있으면 즉시 전환
   if (window.kplay.user && window.kplay.user.userId) {
     migrateGuestToKplay(window.kplay.user.userId, window.kplay.user.name);
     return;
   }
+  // 부모 iframe에 로그인 UI 요청
+  _kplayLinkPending = true;
+  loginAuthPending = true;
   window.kplay.requestLogin();
-  // 이후 userInfo 이벤트가 오면 핸들러에서 감지 (loginWithKplay 경유)
-  setTimeout(() => { if (loginAuthPending && !currentUser) loginAuthPending = false; }, 5000);
+  showLoginToast('Kplay \uB85C\uADF8\uC778 \uB300\uAE30 \uC911...', '#9e7aff');
+  setTimeout(() => {
+    if (_kplayLinkPending) {
+      _kplayLinkPending = false;
+      loginAuthPending = false;
+      showLoginToast('Kplay \uC5F0\uB3D9 \uC2DC\uAC04 \uCD08\uACFC', '#ff6666');
+    }
+  }, 10000);
 }
 function migrateGuestToKplay(kplayUid, kplayName) {
   const guestUid = pendingAuthUid;
