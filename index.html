@@ -3636,56 +3636,6 @@ function detectOnsets(audioBuffer) {
     }
     smoothed = energy * 0.2 + smoothed * 0.8;
   }
-  // === 초반 ramp-up phantom onset 제거 ===
-  // 실제 음악 시작 전 quiet ramp-up에서 찍힌 onset들 삭제.
-  // 첫 "확실히 들리는" onset(energy >= 0.02) 이후 유지, 그 전은 drop.
-  const START_AUDIBLE = 0.02;
-  let firstAudibleIdx = -1;
-  for (let oi = 0; oi < onsets.length; oi++) {
-    const sampleIdx = Math.floor(onsets[oi] * sr);
-    // 해당 onset 위치 ± 50ms 범위 max energy
-    const wStart = Math.max(0, sampleIdx - Math.floor(sr * 0.05));
-    const wEnd = Math.min(data.length, sampleIdx + Math.floor(sr * 0.05));
-    let maxE = 0;
-    for (let i = wStart; i < wEnd; i += winSamples) {
-      let sum = 0, cnt = 0;
-      const end = Math.min(i + winSamples, data.length);
-      for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
-      const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-      if (e > maxE) maxE = e;
-    }
-    if (maxE >= START_AUDIBLE) { firstAudibleIdx = oi; break; }
-  }
-  if (firstAudibleIdx > 0) {
-    onsets.splice(0, firstAudibleIdx);
-  } else if (firstAudibleIdx < 0) {
-    return [];
-  }
-  // === 각 onset을 인지 정렬 위치로 미세 보정 ===
-  // detectOnsets는 ramp-up 시작(threshold cross)에 fire → 너무 이름
-  // peak는 attack climax → 약간 늦음
-  // → ramp 시작과 peak 사이 중간 = 인간이 "음 시작"으로 느끼는 지점
-  const PEAK_WIN = Math.floor(sr * 0.025); // 25ms 탐색
-  for (let oi = 0; oi < onsets.length; oi++) {
-    const rampStart = Math.floor(onsets[oi] * sr);
-    const wEnd = Math.min(data.length, rampStart + PEAK_WIN);
-    let peakE = 0;
-    let peakIdx = rampStart;
-    for (let i = rampStart; i < wEnd; i += winSamples) {
-      let sum = 0, cnt = 0;
-      const end = Math.min(i + winSamples, data.length);
-      for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
-      const e = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-      if (e > peakE) { peakE = e; peakIdx = i; }
-    }
-    // ramp 시작 쪽으로 가중 (peak는 attack 후라 인지적으로 너무 늦음)
-    const aligned = Math.floor(rampStart * 0.7 + peakIdx * 0.3);
-    onsets[oi] = aligned / sr;
-  }
-  // 글로벌 시각 보정: 인지 시점이 ~30ms 늦게 느껴지는 경향 보상
-  for (let oi = 0; oi < onsets.length; oi++) {
-    onsets[oi] = Math.max(0, onsets[oi] - 0.03);
-  }
   return onsets;
 }
 
@@ -3803,13 +3753,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
   const nonSilent = merged;
 
-  // 난이도 필터링 (음악적 분음표 기준 + 절대값 가드)
-  // 각 구간(minGap)에서 에너지 최대 onset 1개만 선택 → 핵심 박자 추출
+  // 난이도 필터링 (815d64e 원본: 음악 분음표 기준)
   const density = diff.noteDensity;
-  const minGap = density <= 0.5 ? Math.max(0.40, sixteenth * 4)   // 쉬움: 4분음표
-               : density <= 0.8 ? Math.max(0.22, sixteenth * 2)   // 보통: 8분음표
-               : density <= 1.2 ? Math.max(0.16, sixteenth * 1.5) // 어려움: 점8분음표
-               : Math.max(0.10, sixteenth);                       // 지옥: 16분음표
+  const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
+               : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
+               : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
+               : sixteenth;                        // 지옥: 16분음표
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -3818,24 +3767,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     let nsIdx = 0;
     while (slotStart < songEnd + minGap) {
       const slotEnd = slotStart + minGap;
-      // 1차: 슬롯 내 drum stem onset 찾기 (있으면 무조건 우선)
-      let drumPick = null;
-      // 2차: 다른 stem 중 에너지 최대
-      let otherBest = null, otherBestEnergy = -1;
-      const startIdx = nsIdx;
+      let best = null, bestEnergy = -1;
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-        if (nonSilent[nsIdx].time >= slotStart) {
-          if (nonSilent[nsIdx].stem === 0) {
-            // drum onset: 첫 번째 발견되면 즉시 선택
-            if (drumPick === null) drumPick = nonSilent[nsIdx];
-          } else if (nonSilent[nsIdx].energy > otherBestEnergy) {
-            otherBest = nonSilent[nsIdx];
-            otherBestEnergy = nonSilent[nsIdx].energy;
-          }
+        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
+          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
         }
         nsIdx++;
       }
-      const best = drumPick || otherBest;
       if (best) filtered.push(best);
       slotStart = slotEnd;
     }
@@ -3859,8 +3797,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevTime = -1;
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
 
-  for (let fi = 0; fi < filtered.length; fi++) {
-    const o = filtered[fi];
+  for (const o of filtered) {
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
@@ -3883,12 +3820,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     };
     if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
       nd.type = 'hold';
-      // 다음 노트까지 gap에서 80% 사용 (BPM 무관 절대값)
-      // 최소 0.20s, 최대 0.80s
-      const nextTime = (fi + 1 < filtered.length) ? filtered[fi + 1].time : nd.time + 1.0;
-      const gap = nextTime - nd.time;
-      const holdLen = Math.max(0.20, Math.min(0.80, gap * 0.8));
-      nd.endTime = nd.time + holdLen;
+      nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
     }
     nodes.push(nd);
     noteIdx++;
