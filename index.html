@@ -1846,18 +1846,44 @@ function deleteAccount() {
   deleteAccountPopup = false;
   logoutUser();
   setTimeout(() => {
+    // Firebase 원격 데이터 삭제
     try { if (uid) fbDb.ref('users/' + uid).remove(); } catch(e) {}
     try { fbDb.ref('nicknames/' + user).remove(); } catch(e) {}
     try { fbDb.ref('settings/' + user).remove(); } catch(e) {}
+    // 점수 데이터
     const all = getAllScores();
     if (all[user]) { delete all[user]; safeSetItem('rhythm_allScores', JSON.stringify(all)); }
+    // 유저 스코프 키 전부 삭제
+    const userScoped = [
+      'rhythm_guestNickname_' + uid,
+      'rhythm_pass_' + uid, 'rhythm_passBought_' + uid, 'rhythm_freeplays_' + uid,
+      'rhythm_coins_' + uid, 'rhythm_ach_' + uid, 'rhythm_claimed_' + uid,
+      'rhythm_coins_' + user, 'rhythm_ach_' + user, 'rhythm_claimed_' + user,
+      'rhythm_favorites_' + user, 'rhythm_songSettings_' + user,
+    ];
+    userScoped.forEach(k => safeRemoveItem(k));
     [4,5,6,7,8].forEach(n => safeRemoveItem('rhythm_keymap_' + user + '_' + n));
-    const keys = Object.keys(localStorage);
-    keys.forEach(k => {
-      if (k.startsWith('rhythm_ach_') || k.startsWith('rhythm_claimed_') || k === 'rhythm_coins_' + user) {
-        safeRemoveItem(k);
-      }
-    });
+    // prefix 기반 정리 (닉네임/uid 포함)
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (
+          k.startsWith('rhythm_ach_') || k.startsWith('rhythm_claimed_') ||
+          k.startsWith('rhythm_coins_') || k.startsWith('rhythm_favorites_') ||
+          k.startsWith('rhythm_songSettings_') || k.startsWith('rhythm_pass_') ||
+          k.startsWith('rhythm_passBought_') || k.startsWith('rhythm_freeplays_') ||
+          k.startsWith('rhythm_guestNickname_')
+        ) {
+          // 자기 자신 계정 관련만 정리
+          if (k.endsWith('_' + uid) || k.endsWith('_' + user) ||
+              k.includes('_' + uid + '_') || k.includes('_' + user + '_')) {
+            safeRemoveItem(k);
+          }
+        }
+      });
+    } catch(e) {}
+    // 기기 fingerprint도 제거 → 재로그인 시 깨끗한 게스트 상태
+    safeRemoveItem('rhythm_guestDevice');
   }, 0);
 }
 function getAllScores() {
