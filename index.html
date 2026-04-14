@@ -3782,9 +3782,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // ===== "따단" 패턴 복구 (엄격) =====
   // 버려진 onset 중 선택된 노트와 70~150ms + 에너지 90%+ 인 것만 살림
   {
-    const PAIR_MIN = 0.07;
-    const PAIR_MAX = 0.15;
-    const ENERGY_RATIO = 0.9;
+    const PAIR_MIN = 0.08;
+    const PAIR_MAX = 0.13;
+    const ENERGY_RATIO = 0.95;
     const filteredSet = new Set(filtered);
     const rescued = [];
     for (const f of filtered) {
