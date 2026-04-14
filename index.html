@@ -47,8 +47,125 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%}
 // iOS 감지 (resize() 전에 정의되어야 함 — TDZ 에러 방지)
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-// Kplay storage 연동 (kplay.storage: async, 로그인 시 서버 저장 → 기기 전환 동기화)
-// localStorage를 로컬 캐시로 사용하여 sync API 유지 + kplay.storage에도 미러링
+// ===== KPlay API (공식 docs.kplay.games 버전) =====
+class KPlayAPI {
+  constructor() {
+    this.user = { userId: null, name: null, credits: 0 };
+    this._pending = null;
+    this._onUserInfo = null;
+    this._onPurchaseResult = null;
+    this._onScoreSubmitted = null;
+    this._reqs = new Map();
+    this._reqSeq = 0;
+    this._storagePrefix = 'kplay:';
+    this.storage = {
+      getItem: (key) => this._storageGet(key),
+      setItem: (key, value) => this._storageSet(key, value),
+      removeItem: (key) => this._storageRemove(key),
+      keys: () => this._storageKeys(),
+    };
+    window.addEventListener('message', (e) => {
+      const { type, ...data } = e.data ?? {};
+      if (!type) return;
+      switch (type) {
+        case 'user-info':
+          this.user = { userId: data.userId, name: data.name, credits: data.credits ?? 0 };
+          this._onUserInfo?.(this.user);
+          if (data.userId) this._syncStorageFromServer();
+          break;
+        case 'purchase-result':
+          if (data.success) this.user.credits = data.balance;
+          this._onPurchaseResult?.(data);
+          this._pending = null;
+          break;
+        case 'score-submitted':
+          this._onScoreSubmitted?.(data);
+          break;
+        case 'storage-load-result':
+        case 'storage-set-result':
+        case 'storage-remove-result': {
+          const req = this._reqs.get(data.requestId);
+          if (!req) break;
+          this._reqs.delete(data.requestId);
+          data.success ? req.resolve(data) : req.reject(new Error(data.error || 'storage error'));
+          break;
+        }
+      }
+    });
+  }
+  _request(type, payload) {
+    const requestId = `r${++this._reqSeq}`;
+    return new Promise((resolve, reject) => {
+      this._reqs.set(requestId, { resolve, reject });
+      try { window.parent.postMessage({ type, requestId, ...payload }, '*'); } catch(e) {}
+      setTimeout(() => {
+        if (this._reqs.has(requestId)) { this._reqs.delete(requestId); reject(new Error('timeout')); }
+      }, 10000);
+    });
+  }
+  _lsKey(key) { return this._storagePrefix + key; }
+  async _storageGet(key) { try { return localStorage.getItem(this._lsKey(key)); } catch(e) { return null; } }
+  async _storageSet(key, value) {
+    try { localStorage.setItem(this._lsKey(key), String(value)); } catch(e) {}
+    if (!this.user.userId) return;
+    try { await this._request('storage-set', { key, value: String(value) }); }
+    catch (e) { console.warn('[kplay] cloud save failed, kept local:', e.message); }
+  }
+  async _storageRemove(key) {
+    try { localStorage.removeItem(this._lsKey(key)); } catch(e) {}
+    if (!this.user.userId) return;
+    try { await this._request('storage-remove', { key }); } catch {}
+  }
+  async _storageKeys() {
+    const keys = []; const prefix = this._storagePrefix;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) keys.push(k.slice(prefix.length));
+      }
+    } catch(e) {}
+    return keys;
+  }
+  async _syncStorageFromServer() {
+    try {
+      const res = await this._request('storage-load', {});
+      const data = res.data || {};
+      for (const [k, v] of Object.entries(data)) {
+        try { localStorage.setItem(this._lsKey(k), v); } catch(e) {}
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(this._storagePrefix)) continue;
+        const key = k.slice(this._storagePrefix.length);
+        if (!(key in data)) {
+          const value = localStorage.getItem(k);
+          if (value != null) this._request('storage-set', { key, value }).catch(() => {});
+        }
+      }
+    } catch (e) { console.warn('[kplay] storage sync failed:', e.message); }
+  }
+  purchase(itemId, itemName, price) {
+    if (this._pending) return;
+    if (!this.user.userId) { this.requestLogin(); return; }
+    if (this.user.credits < price) { this.openCreditShop(); return; }
+    this._pending = { itemId, itemName, price };
+    try { window.parent.postMessage({ type: 'purchase-item', itemId, itemName, price }, '*'); } catch(e) {}
+  }
+  submitScore(score) { try { window.parent.postMessage({ type: 'submit-score', score }, '*'); } catch(e) {} }
+  openCreditShop() { try { window.parent.postMessage({ type: 'credit-shop' }, '*'); } catch(e) {} }
+  showLeaderboard() { try { window.parent.postMessage({ type: 'show-leaderboard' }, '*'); } catch(e) {} }
+  log(eventType, metadata) { try { window.parent.postMessage({ type: 'analytics-event', eventType, metadata }, '*'); } catch(e) {} }
+  requestLogin() { try { window.parent.postMessage({ type: 'login-required' }, '*'); } catch(e) {} }
+  on(event, callback) {
+    if (event === 'userInfo') this._onUserInfo = callback;
+    if (event === 'purchaseResult') this._onPurchaseResult = callback;
+    if (event === 'scoreSubmitted') this._onScoreSubmitted = callback;
+    return this;
+  }
+}
+window.kplay = new KPlayAPI();
+
+// ===== Storage wrapper (localStorage sync + kplay.storage mirror) =====
 function _kpHas() { return !!(window.kplay && window.kplay.storage); }
 function safeGetItem(key) {
   try { return window.localStorage.getItem(key); } catch(e) { return null; }
@@ -1591,6 +1708,12 @@ function handleAuthSuccess(uid, method) {
   pendingAuthMethod = method;
   loginAuthPending = false;
 
+  // kplay: name이 이미 제공되므로 바로 completeLogin (닉네임 입력 생략)
+  if (method === 'kplay' && window.kplay && window.kplay.user && window.kplay.user.name) {
+    completeLogin(window.kplay.user.name, method);
+    return;
+  }
+
   // 게스트: localStorage에 저장된 닉네임이 있으면 즉시 접속
   if (method === 'guest') {
     const guestNick = safeGetItem('rhythm_guestNickname_' + uid);
@@ -1701,6 +1824,28 @@ if (fbAuth) {
 }
 
 function loginWithGoogle() { socialSignIn(googleProvider, 'google'); }
+function loginWithKplay() {
+  if (loginAuthPending) return;
+  if (!window.kplay) { showLoginToast('Kplay 연결 불가', '#ff6666'); return; }
+  // 이미 userInfo 수신됨: 즉시 로그인
+  if (window.kplay.user && window.kplay.user.userId) {
+    handleAuthSuccess(window.kplay.user.userId, 'kplay');
+    return;
+  }
+  // 아직 userInfo 미수신: 로그인 요청 (iframe 부모에서 로그인 UI 띄움)
+  loginAuthPending = true;
+  window.kplay.requestLogin();
+  // 5초 안에 userInfo 이벤트 안 오면 해제
+  setTimeout(() => { if (loginAuthPending && !currentUser) loginAuthPending = false; }, 5000);
+}
+// Kplay userInfo 이벤트: 자동 로그인 (이미 로그인 상태로 게임 로드된 경우)
+if (window.kplay) {
+  window.kplay.on('userInfo', (user) => {
+    if (user && user.userId && !currentUser) {
+      handleAuthSuccess(user.userId, 'kplay');
+    }
+  });
+}
 function loginAsGuest() {
   if (loginAuthPending) return;
   loginAuthPending = true;
@@ -3061,9 +3206,8 @@ addEventListener('mousedown', e => {
     const mx = e.clientX, my = gameY(e.clientY);
     for (const btn of loginBtnAreas) {
       if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
-        if (btn.type === 'google') loginWithGoogle();
-
-
+        if (btn.type === 'kplay') loginWithKplay();
+        else if (btn.type === 'google') loginWithGoogle();
         else if (btn.type === 'guest') { if (!guestWarningOpen) guestWarningOpen = true; }
         else if (btn.type === 'guestConfirm') { guestWarningOpen = false; loginAsGuest(); }
         else if (btn.type === 'guestCancel') { guestWarningOpen = false; }
@@ -3092,8 +3236,8 @@ addEventListener('mousedown', e => {
       // 비로그인: 로그인 버튼 처리
       for (const btn of loginBtnAreas) {
         if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
-          if (btn.type === 'google') loginWithGoogle();
-
+          if (btn.type === 'kplay') loginWithKplay();
+          else if (btn.type === 'google') loginWithGoogle();
           else if (btn.type === 'guest') guestWarningOpen = true;
           return;
         }
@@ -3332,9 +3476,8 @@ addEventListener('touchstart', e => {
     const mx = t0.clientX, my = gameY(t0.clientY);
     for (const btn of loginBtnAreas) {
       if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
-        if (btn.type === 'google') loginWithGoogle();
-
-
+        if (btn.type === 'kplay') loginWithKplay();
+        else if (btn.type === 'google') loginWithGoogle();
         else if (btn.type === 'guest') { if (!guestWarningOpen) guestWarningOpen = true; }
         else if (btn.type === 'guestConfirm') { guestWarningOpen = false; loginAsGuest(); }
         else if (btn.type === 'guestCancel') { guestWarningOpen = false; }
@@ -3361,8 +3504,8 @@ addEventListener('touchstart', e => {
       }
       for (const btn of loginBtnAreas) {
         if (hitTest(tmx, tmy, btn.x, btn.y, btn.w, btn.h)) {
-          if (btn.type === 'google') loginWithGoogle();
-
+          if (btn.type === 'kplay') loginWithKplay();
+          else if (btn.type === 'google') loginWithGoogle();
           else if (btn.type === 'guest') guestWarningOpen = true;
           return;
         }
@@ -6457,10 +6600,15 @@ function renderTitle() {
   if (!currentUser) {
     // ===== 비로그인: 소셜 로그인 버튼 =====
     loginBtnAreas = [];
-    const buttons = [
+    const buttons = [];
+    // Kplay iframe 안이면 Kplay 로그인 버튼 최상단
+    if (inIframe) {
+      buttons.push({ type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' });
+    }
+    buttons.push(
       { type: 'google', bg: '#ffffff', border: '#dadce0', text: '#3c4043', label: 'Google \uB85C\uADF8\uC778' },
       { type: 'guest', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.25)', text: '#cccccc', label: '\uAC8C\uC2A4\uD2B8 \uB85C\uADF8\uC778' }
-    ];
+    );
     const btnW = Math.min(sz(260), W * 0.78), btnH = sz(44), gap = sz(11);
     const totalBtnH = btnH * buttons.length + gap * (buttons.length - 1);
     const btnStartY = _visY(0.62) - totalBtnH / 2;
@@ -6476,6 +6624,13 @@ function renderTitle() {
 
       const iconCx = btnStartX + iconPad, iconCy = by + btnH / 2;
       if (btn.type === 'google') drawGoogleIcon(iconCx, iconCy, iconR);
+      else if (btn.type === 'kplay') {
+        // Kplay 아이콘: 간단한 'K' 텍스트 원
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#7a4dff'; ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('K', iconCx, iconCy + 1); ctx.textBaseline = 'alphabetic';
+      }
       else drawGuestIcon(iconCx, iconCy, iconR);
 
       ctx.font = `bold ${sz(14)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -7587,10 +7742,14 @@ function renderLogin() {
   const iconPad = sz(38);
 
   loginBtnAreas = [];
-  const buttons = [
+  const buttons = [];
+  if (inIframe) {
+    buttons.push({ type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' });
+  }
+  buttons.push(
     { type: 'google', bg: '#ffffff', border: '#dadce0', text: '#3c4043', label: 'Google \uB85C\uADF8\uC778' },
     { type: 'guest', bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.3)', text: '#ffffff', label: '\uAC8C\uC2A4\uD2B8 \uB85C\uADF8\uC778' }
-  ];
+  );
 
   buttons.forEach((btn, i) => {
     const by = startY + i * (btnH + gap);
@@ -7603,6 +7762,12 @@ function renderLogin() {
     // 아이콘
     const iconCx = startX + iconPad, iconCy = by + btnH / 2;
     if (btn.type === 'google') drawGoogleIcon(iconCx, iconCy, iconR);
+    else if (btn.type === 'kplay') {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#7a4dff'; ctx.font = `bold ${sz(13)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('K', iconCx, iconCy + 1); ctx.textBaseline = 'alphabetic';
+    }
     else drawGuestIcon(iconCx, iconCy, iconR);
 
     // 텍스트
