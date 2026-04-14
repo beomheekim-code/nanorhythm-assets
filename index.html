@@ -35,11 +35,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%}
     appId: "1:1050500853035:web:ed3adf1e45effd6605696e"
   });
   const fbDb = firebase.database();
-  let fbAuth = null, googleProvider = null;
-  try {
-    fbAuth = firebase.auth();
-    googleProvider = new firebase.auth.GoogleAuthProvider();
-  } catch(e) { console.warn('Firebase Auth init skipped:', e); }
+  // Firebase Auth 제거됨 (Kplay 로그인으로 대체)
 </script>
 <script>
 'use strict';
@@ -1642,8 +1638,7 @@ let loginBtnAreas = []; // {x,y,w,h,type} calculated in renderLogin
 let loginModeBtnAreas = []; // 플레이 모드 선택 버튼
 let nicknameOverlay = false; // 닉네임 입력 오버레이
 let deleteAccountPopup = false; // 계정 삭제 확인 팝업
-let googleLinkPopup = false; // Google 연동 확인 팝업
-let googleLinkExisting = ''; // 연동 대상 Google 계정의 기존 닉네임 (빈 문자열이면 신규)
+// Google 연동 팝업 제거 (Kplay로 대체)
 let nicknameInput = '';
 let nicknameError = '';
 let pendingAuthUid = '';
@@ -1755,75 +1750,6 @@ if (location.protocol === 'file:') {
     'npx http-server \uB610\uB294 Live Server\uB85C \uC2E4\uD589\uD574\uC8FC\uC138\uC694');
 }
 
-function socialSignIn(provider, method) {
-  if (loginAuthPending) return;
-  if (!fbAuth || !provider) {
-    showLoginToast(method + ' \uB85C\uADF8\uC778\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.', '#ff6666');
-    return;
-  }
-  loginAuthPending = true;
-  const useMobile = isMobile || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (useMobile) {
-    safeSetItem('rhythm_pendingAuthMethod', method);
-    fbAuth.signInWithRedirect(provider).catch(e => {
-      loginAuthPending = false;
-      showLoginToast(method + ' \uB85C\uADF8\uC778 \uC2E4\uD328', '#ff6666');
-    });
-  } else {
-    fbAuth.signInWithPopup(provider).then(r => {
-      handleAuthSuccess(r.user.uid, method);
-    }).catch(e => {
-      loginAuthPending = false;
-      if (e.code === 'auth/popup-closed-by-user') {
-        // 팝업 닫힘 → 조용히 해제
-      } else if (e.code === 'auth/unauthorized-domain') {
-        showLoginToast('\uB3C4\uBA54\uC778 \uBBF8\uB4F1\uB85D: ' + location.hostname, '#ff6666',
-          'Firebase Console \u2192 Auth \u2192 Settings \u2192 \uC2B9\uC778\uB41C \uB3C4\uBA54\uC778\uC5D0 \uCD94\uAC00');
-      } else if (e.code === 'auth/operation-not-allowed') {
-        showLoginToast(method + ' \uB85C\uADF8\uC778 \uBBF8\uD65C\uC131\uD654', '#ff6666',
-          'Firebase Console \u2192 Auth \u2192 Sign-in method\uC5D0\uC11C \uD65C\uC131\uD654');
-      } else {
-        showLoginToast(method + ' \uC2E4\uD328: ' + (e.code || ''), '#ff6666', e.message || '');
-      }
-    });
-    // 팝업 닫고 돌아오면 catch가 안 탈 수 있음 → focus로 즉시 해제
-    const onFocus = () => {
-      setTimeout(() => { if (loginAuthPending) loginAuthPending = false; }, 100);
-      window.removeEventListener('focus', onFocus);
-    };
-    window.addEventListener('focus', onFocus);
-  }
-}
-// 모바일 리다이렉트 복귀 시 결과 처리
-try {
-  if (fbAuth) {
-    fbAuth.getRedirectResult().then(r => {
-      if (r && r.user) {
-        const method = safeGetItem('rhythm_pendingAuthMethod') || 'google';
-        safeRemoveItem('rhythm_pendingAuthMethod');
-        handleAuthSuccess(r.user.uid, method);
-      }
-    }).catch(e => { console.warn('Redirect result:', e); });
-  }
-} catch(e) { console.warn('getRedirectResult skipped:', e); }
-
-// Firebase Auth 상태 변경 감지 → 로그아웃 시 게임도 로그아웃
-if (fbAuth) {
-  let authInitialized = false;
-  fbAuth.onAuthStateChanged(user => {
-    if (!authInitialized) { authInitialized = true; return; } // 초기 로드 무시
-    if (!user && currentUser && authMethod === 'google') {
-      currentUser = ''; authMethod = '';
-      safeRemoveItem('rhythm_currentUser');
-      safeRemoveItem('rhythm_authMethod');
-      loginBtnAreas = [];
-      settingsOpen = false;
-      if (state !== 'title') { stopTitleBgm(); transitionTo('title'); }
-    }
-  });
-}
-
-function loginWithGoogle() { socialSignIn(googleProvider, 'google'); }
 function loginWithKplay() {
   if (loginAuthPending) return;
   if (!window.kplay) { showLoginToast('Kplay 연결 불가', '#ff6666'); return; }
@@ -1852,24 +1778,10 @@ function loginAsGuest() {
   const fp = getDeviceFingerprint();
   safeSetItem('rhythm_guestDevice', fp);
   let resolved = false;
-  const fallback = () => { if (!resolved) { resolved = true; handleAuthSuccess('local_' + fp, 'guest'); } };
-  // 5초 타임아웃: Firebase 응답 없으면 로컬 로그인
-  const guestTimeout = setTimeout(fallback, 5000);
-  if (fbAuth) {
-    fbAuth.signInAnonymously().then(r => {
-      clearTimeout(guestTimeout);
-      if (!resolved) { resolved = true; handleAuthSuccess(r.user.uid, 'guest'); }
-    }).catch(() => {
-      clearTimeout(guestTimeout);
-      fallback();
-    });
-  } else {
-    clearTimeout(guestTimeout);
-    fallback();
-  }
+  // 로컬 fingerprint 기반 즉시 로그인 (Firebase anonymous 제거)
+  handleAuthSuccess('local_' + fp, 'guest');
 }
 function logoutUser() {
-  if (fbAuth) fbAuth.signOut().catch(() => {});
   currentUser = ''; authMethod = '';
   safeRemoveItem('rhythm_currentUser');
   safeRemoveItem('rhythm_authMethod');
@@ -1882,92 +1794,37 @@ function logoutUser() {
   }
 }
 
-// 게스트 → Google 연동
-let linkPendingGoogleUid = '';
-function startGoogleLink() {
-  if (!fbAuth || !googleProvider) { showLoginToast('Google \uC5F0\uB3D9 \uBD88\uAC00', '#ff6666'); return; }
+// 게스트 → Kplay 연동 (guest 상태에서 Kplay 로그인 요청)
+function startKplayLink() {
+  if (!window.kplay) { showLoginToast('Kplay \uC5F0\uB3D9 \uBD88\uAC00', '#ff6666'); return; }
   settingsOpen = false;
   loginAuthPending = true;
-  fbAuth.signInWithPopup(googleProvider).then(r => {
-    loginAuthPending = false;
-    linkPendingGoogleUid = r.user.uid;
-    const googleUid = r.user.uid;
-    // nicknames에서 이 Google uid로 등록된 닉네임 찾기
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) { resolved = true; settingsOpen = true; migrateGuestToGoogle(googleUid); }
-    }, 2000);
-    fbDb.ref('nicknames').once('value', snap => {
-      if (resolved) return; resolved = true; clearTimeout(timeout);
-      const all = snap.val() || {};
-      let existingNick = '';
-      for (const nick in all) {
-        if (all[nick] === googleUid) { existingNick = nick; break; }
-      }
-      if (existingNick) {
-        googleLinkExisting = existingNick;
-        googleLinkPopup = true;
-        settingsOpen = true;
-      } else {
-        settingsOpen = true;
-        migrateGuestToGoogle(googleUid);
-      }
-    }, () => {
-      if (!resolved) { resolved = true; clearTimeout(timeout); settingsOpen = true; migrateGuestToGoogle(googleUid); }
-    });
-  }).catch(() => { loginAuthPending = false; });
-  const onFocus = () => {
-    setTimeout(() => { if (loginAuthPending) loginAuthPending = false; }, 100);
-    window.removeEventListener('focus', onFocus);
-  };
-  window.addEventListener('focus', onFocus);
+  // Kplay userInfo가 이미 있으면 즉시 전환
+  if (window.kplay.user && window.kplay.user.userId) {
+    migrateGuestToKplay(window.kplay.user.userId, window.kplay.user.name);
+    return;
+  }
+  window.kplay.requestLogin();
+  // 이후 userInfo 이벤트가 오면 핸들러에서 감지 (loginWithKplay 경유)
+  setTimeout(() => { if (loginAuthPending && !currentUser) loginAuthPending = false; }, 5000);
 }
-function migrateGuestToGoogle(googleUid) {
+function migrateGuestToKplay(kplayUid, kplayName) {
   const guestUid = pendingAuthUid;
-  const nick = currentUser;
-  // Firebase에 Google uid로 닉네임 저장
-  try {
-    fbDb.ref('users/' + googleUid + '/nickname').set(nick);
-    fbDb.ref('nicknames/' + nick).set(googleUid);
-    // 게스트 설정은 닉네임 기준이므로 그대로 유지 (별도 복사 불필요)
-    // 게스트 uid 데이터 정리
-    fbDb.ref('users/' + guestUid).remove();
-  } catch(e) {}
-  // 로컬 상태 전환
-  pendingAuthUid = googleUid;
-  authMethod = 'google';
-  safeSetItem('rhythm_authMethod', 'google');
-  safeRemoveItem('rhythm_guestNickname_' + guestUid);
-  saveLocalNickname(nick, googleUid);
-  googleLinkPopup = false;
-  settingsOpen = true;
-  showLoginToast('Google \uACC4\uC815 \uC5F0\uB3D9 \uC644\uB8CC!', '#44dd66');
-}
-function confirmGoogleLinkOverwrite() {
-  // 기존 Google 계정 정보로 전환 (게스트 데이터 버림)
-  const googleUid = linkPendingGoogleUid;
-  const oldGuestUid = pendingAuthUid;
   const oldNick = currentUser;
-  // 게스트 데이터 정리
-  try {
-    fbDb.ref('users/' + oldGuestUid).remove();
-    fbDb.ref('nicknames/' + oldNick).remove();
-  } catch(e) {}
-  safeRemoveItem('rhythm_guestNickname_' + oldGuestUid);
-  // Google 계정으로 전환
-  pendingAuthUid = googleUid;
-  const nick = googleLinkExisting;
-  googleLinkPopup = false;
-  googleLinkExisting = '';
-  settingsOpen = false;
-  completeLogin(nick, 'google');
-  if (state !== 'title') { stopPreview(); transitionTo('title', () => { startTitleBgm(); }); }
+  // 게스트 데이터 정리 시도
+  try { fbDb.ref('users/' + guestUid).remove(); } catch(e) {}
+  safeRemoveItem('rhythm_guestNickname_' + guestUid);
+  // Kplay 계정으로 전환
+  pendingAuthUid = kplayUid;
+  authMethod = 'kplay';
+  safeSetItem('rhythm_authMethod', 'kplay');
+  completeLogin(kplayName || oldNick, 'kplay');
+  showLoginToast('Kplay \uACC4\uC815 \uC5F0\uB3D9 \uC644\uB8CC!', '#44dd66');
 }
 function deleteAccount() {
   if (!currentUser) return;
   const user = currentUser;
   const uid = pendingAuthUid;
-  const authUser = fbAuth ? fbAuth.currentUser : null;
   playScrollTick();
   deleteAccountPopup = false;
   logoutUser();
@@ -1984,7 +1841,6 @@ function deleteAccount() {
         safeRemoveItem(k);
       }
     });
-    if (authUser) { authUser.delete().catch(() => {}); }
   }, 0);
 }
 function getAllScores() {
@@ -3207,7 +3063,6 @@ addEventListener('mousedown', e => {
     for (const btn of loginBtnAreas) {
       if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
         if (btn.type === 'kplay') loginWithKplay();
-        else if (btn.type === 'google') loginWithGoogle();
         else if (btn.type === 'guest') { if (!guestWarningOpen) guestWarningOpen = true; }
         else if (btn.type === 'guestConfirm') { guestWarningOpen = false; loginAsGuest(); }
         else if (btn.type === 'guestCancel') { guestWarningOpen = false; }
@@ -3237,7 +3092,6 @@ addEventListener('mousedown', e => {
       for (const btn of loginBtnAreas) {
         if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
           if (btn.type === 'kplay') loginWithKplay();
-          else if (btn.type === 'google') loginWithGoogle();
           else if (btn.type === 'guest') guestWarningOpen = true;
           return;
         }
@@ -3477,7 +3331,6 @@ addEventListener('touchstart', e => {
     for (const btn of loginBtnAreas) {
       if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
         if (btn.type === 'kplay') loginWithKplay();
-        else if (btn.type === 'google') loginWithGoogle();
         else if (btn.type === 'guest') { if (!guestWarningOpen) guestWarningOpen = true; }
         else if (btn.type === 'guestConfirm') { guestWarningOpen = false; loginAsGuest(); }
         else if (btn.type === 'guestCancel') { guestWarningOpen = false; }
@@ -3505,7 +3358,6 @@ addEventListener('touchstart', e => {
       for (const btn of loginBtnAreas) {
         if (hitTest(tmx, tmy, btn.x, btn.y, btn.w, btn.h)) {
           if (btn.type === 'kplay') loginWithKplay();
-          else if (btn.type === 'google') loginWithGoogle();
           else if (btn.type === 'guest') guestWarningOpen = true;
           return;
         }
@@ -5891,8 +5743,8 @@ function renderSettingsOverlay() {
   ctx.fillText(currentUser || '', W / 2, acctY + sz(22));
   // 로그인 방식 태그
   const isGuest = authMethod === 'guest';
-  const tagLabel = isGuest ? '\uAC8C\uC2A4\uD2B8' : 'Google';
-  const tagColor = isGuest ? 'rgba(255,255,255,0.3)' : '#4285F4';
+  const tagLabel = isGuest ? '\uAC8C\uC2A4\uD2B8' : 'Kplay';
+  const tagColor = isGuest ? 'rgba(255,255,255,0.3)' : '#9e7aff';
   ctx.font = `bold ${sz(10)}px sans-serif`;
   ctx.fillStyle = tagColor;
   ctx.fillText(tagLabel, W / 2, acctY + sz(40));
@@ -5902,15 +5754,15 @@ function renderSettingsOverlay() {
   const actBtnW = Math.min(sz(110), panelW * 0.35), actBtnH = sz(30), actGap = sz(10);
 
   if (isGuest) {
-    // 게스트: Google 연동 + 계정 삭제
+    // 게스트: Kplay 연동 + 계정 삭제
     const actTotalW = actBtnW * 2 + actGap;
     const actStartX = (W - actTotalW) / 2;
-    // Google 연동
-    ctx.fillStyle = 'rgba(66,133,244,0.1)'; rrFill(actStartX, actY, actBtnW, actBtnH, sz(8));
-    ctx.strokeStyle = 'rgba(66,133,244,0.6)'; ctx.lineWidth = 1; rrStroke(actStartX, actY, actBtnW, actBtnH, sz(8));
+    // Kplay 연동
+    ctx.fillStyle = 'rgba(122,77,255,0.15)'; rrFill(actStartX, actY, actBtnW, actBtnH, sz(8));
+    ctx.strokeStyle = 'rgba(158,122,255,0.7)'; ctx.lineWidth = 1; rrStroke(actStartX, actY, actBtnW, actBtnH, sz(8));
     ctx.font = `bold ${sz(10)}px sans-serif`; ctx.textAlign = 'center';
-    ctx.fillStyle = '#4285F4';
-    ctx.fillText('Google \uC5F0\uB3D9', actStartX + actBtnW / 2, actY + actBtnH / 2);
+    ctx.fillStyle = '#b89dff';
+    ctx.fillText('Kplay \uC5F0\uB3D9', actStartX + actBtnW / 2, actY + actBtnH / 2);
     // 계정 삭제
     const delX = actStartX + actBtnW + actGap;
     ctx.fillStyle = 'rgba(255,50,50,0.08)'; rrFill(delX, actY, actBtnW, actBtnH, sz(8));
@@ -6003,57 +5855,9 @@ function renderSettingsOverlay() {
     ctx.fillText('\uC0AD\uC81C', ddX + dbW / 2, dbY + dbH * 0.62);
   }
 
-  // Google 연동 경고 팝업
-  if (googleLinkPopup) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H);
-    const gpW = Math.min(sz(310), W * 0.88), gpH = sz(200);
-    const gpX = (W - gpW) / 2, gpY = (H - gpH) / 2;
-    ctx.fillStyle = 'rgba(15,12,35,0.97)'; rrFill(gpX, gpY, gpW, gpH, sz(14));
-    ctx.strokeStyle = 'rgba(66,133,244,0.5)'; ctx.lineWidth = 2; rrStroke(gpX, gpY, gpW, gpH, sz(14));
-
-    ctx.font = `bold ${sz(15)}px sans-serif`; ctx.textAlign = 'center';
-    ctx.fillStyle = '#4285F4';
-    ctx.fillText('Google \uACC4\uC815 \uC5F0\uB3D9', W / 2, gpY + sz(32));
-
-    ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillText('\uC774 Google \uACC4\uC815\uC5D0 \uAE30\uC874 \uB370\uC774\uD130\uAC00 \uC788\uC2B5\uB2C8\uB2E4.', W / 2, gpY + sz(58));
-    ctx.fillStyle = '#ffd700'; ctx.font = `bold ${sz(12)}px sans-serif`;
-    ctx.fillText('\uB2C9\uB124\uC784: ' + googleLinkExisting, W / 2, gpY + sz(78));
-    ctx.font = `${sz(10)}px sans-serif`; ctx.fillStyle = '#ff6666';
-    ctx.fillText('\uAC8C\uC2A4\uD2B8 \uC815\uBCF4\uAC00 \uCD08\uAE30\uD654\uB418\uACE0', W / 2, gpY + sz(98));
-    ctx.fillText('\uD574\uB2F9 Google \uACC4\uC815\uC758 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC635\uB2C8\uB2E4.', W / 2, gpY + sz(113));
-
-    const gbW = sz(90), gbH = sz(34), gbGap = sz(14);
-    const gcX = W / 2 - gbW - gbGap / 2, goX = W / 2 + gbGap / 2;
-    const gbY = gpY + gpH - sz(50);
-    // 취소
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(gcX, gbY, gbW, gbH, sz(8));
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1; rrStroke(gcX, gbY, gbW, gbH, sz(8));
-    ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\uCDE8\uC18C', gcX + gbW / 2, gbY + gbH / 2);
-    // 확인
-    ctx.fillStyle = 'rgba(66,133,244,0.15)'; rrFill(goX, gbY, gbW, gbH, sz(8));
-    ctx.strokeStyle = '#4285F4'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = '#4285F4'; ctx.shadowBlur = 6;
-    rrStroke(goX, gbY, gbW, gbH, sz(8)); ctx.shadowBlur = 0;
-    ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = '#4285F4'; ctx.textBaseline = 'middle';
-    ctx.fillText('\uD655\uC778', goX + gbW / 2, gbY + gbH / 2);
-  }
-
 }
 
 function handleSettingsClick(mx, my) {
-  // Google 연동 팝업 최우선 처리
-  if (googleLinkPopup) {
-    const gpW = Math.min(sz(310), W * 0.88), gpH = sz(200);
-    const gpX = (W - gpW) / 2, gpY = (H - gpH) / 2;
-    const gbW = sz(90), gbH = sz(34), gbGap = sz(14);
-    const gcX = W / 2 - gbW - gbGap / 2, goX = W / 2 + gbGap / 2;
-    const gbY = gpY + gpH - sz(50);
-    if (hitTest(mx, my, gcX, gbY, gbW, gbH)) { googleLinkPopup = false; googleLinkExisting = ''; return; }
-    if (hitTest(mx, my, goX, gbY, gbW, gbH)) { confirmGoogleLinkOverwrite(); return; }
-    return;
-  }
   // 계정 삭제 팝업이 열려있으면 최우선 처리
   if (deleteAccountPopup) {
     const dpW = Math.min(sz(300), W * 0.85), dpH = sz(180);
@@ -6067,10 +5871,10 @@ function handleSettingsClick(mx, my) {
   }
   const popW = Math.min(sz(340), W*0.92), popH = Math.min(H*0.94, sz(620));
   const popX = (W - popW) / 2, popY = (H - popH) / 2;
-  if (!hitTest(mx, my, popX, popY, popW, popH)) { settingsOpen = false; settingsBindingLane = -1; googleLinkPopup = false; deleteAccountPopup = false; return; }
+  if (!hitTest(mx, my, popX, popY, popW, popH)) { settingsOpen = false; settingsBindingLane = -1; deleteAccountPopup = false; return; }
   // 닫기 버튼
   const bbW = sz(30), bbH = sz(24), bbX = popX + popW - bbW - sz(6), bbY = popY + sz(6);
-  if (hitTest(mx, my, bbX, bbY, bbW, bbH)) { settingsOpen = false; settingsBindingLane = -1; googleLinkPopup = false; deleteAccountPopup = false; return; }
+  if (hitTest(mx, my, bbX, bbY, bbW, bbH)) { settingsOpen = false; settingsBindingLane = -1; deleteAccountPopup = false; return; }
 
   // 스크롤 영역 내부는 my + scrollY 사용
   const mys = my + settingsScrollY;
@@ -6160,7 +5964,7 @@ function handleSettingsClick(mx, my) {
     // 게스트: Google 연동 + 계정 삭제
     const actTotalW = actBtnW * 2 + actGap;
     const actStartX = (W - actTotalW) / 2;
-    if (hitTest(mx, mys, actStartX, actY, actBtnW, actBtnH)) { startGoogleLink(); return; }
+    if (hitTest(mx, mys, actStartX, actY, actBtnW, actBtnH)) { startKplayLink(); return; }
     const delX = actStartX + actBtnW + actGap;
     if (hitTest(mx, mys, delX, actY, actBtnW, actBtnH)) { deleteAccountPopup = true; return; }
   } else {
@@ -6600,15 +6404,10 @@ function renderTitle() {
   if (!currentUser) {
     // ===== 비로그인: 소셜 로그인 버튼 =====
     loginBtnAreas = [];
-    const buttons = [];
-    // Kplay iframe 안이면 Kplay 로그인 버튼 최상단
-    if (inIframe) {
-      buttons.push({ type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' });
-    }
-    buttons.push(
-      { type: 'google', bg: '#ffffff', border: '#dadce0', text: '#3c4043', label: 'Google \uB85C\uADF8\uC778' },
+    const buttons = [
+      { type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' },
       { type: 'guest', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.25)', text: '#cccccc', label: '\uAC8C\uC2A4\uD2B8 \uB85C\uADF8\uC778' }
-    );
+    ];
     const btnW = Math.min(sz(260), W * 0.78), btnH = sz(44), gap = sz(11);
     const totalBtnH = btnH * buttons.length + gap * (buttons.length - 1);
     const btnStartY = _visY(0.62) - totalBtnH / 2;
@@ -7742,14 +7541,10 @@ function renderLogin() {
   const iconPad = sz(38);
 
   loginBtnAreas = [];
-  const buttons = [];
-  if (inIframe) {
-    buttons.push({ type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' });
-  }
-  buttons.push(
-    { type: 'google', bg: '#ffffff', border: '#dadce0', text: '#3c4043', label: 'Google \uB85C\uADF8\uC778' },
+  const buttons = [
+    { type: 'kplay', bg: '#7a4dff', border: '#9e7aff', text: '#ffffff', label: 'Kplay \uB85C\uADF8\uC778' },
     { type: 'guest', bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.3)', text: '#ffffff', label: '\uAC8C\uC2A4\uD2B8 \uB85C\uADF8\uC778' }
-  );
+  ];
 
   buttons.forEach((btn, i) => {
     const by = startY + i * (btnH + gap);
