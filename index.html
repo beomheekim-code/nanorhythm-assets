@@ -1863,12 +1863,16 @@ function saveScore(songIdx, diffIdx, newScore, lc) {
   const prevEntry = all[currentUser][key];
   const prev = _scoreValue(prevEntry);
   if (newScore > prev) {
-    // 첫 기록 또는 갱신: 새 타임스탬프
+    // 첫 기록 또는 갱신
     const entry = { score: newScore, ts: Date.now() };
     all[currentUser][key] = entry;
     safeSetItem('rhythm_allScores', JSON.stringify(all));
     if (fbDb) {
       try { fbDb.ref('scores/' + key + '/' + currentUser).set(entry); } catch(e) {}
+    }
+    // Kplay 공식 리더보드 제출 (서버 검증 + 조작 방어)
+    if (window.kplay && window.kplay.user && window.kplay.user.userId) {
+      try { window.kplay.submitScore(newScore); } catch(e) {}
     }
   }
 }
