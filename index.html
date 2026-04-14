@@ -1673,6 +1673,7 @@ function completeLogin(name, method) {
     } catch(e) {}
     saveLocalNickname(name, pendingAuthUid);
     if (method === 'guest') safeSetItem('rhythm_guestNickname_' + pendingAuthUid, name);
+    if (method === 'kplay') safeSetItem('rhythm_kplayNickname_' + pendingAuthUid, name);
     pendingAuthUid = '';
   }
   if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
@@ -1703,16 +1704,15 @@ function handleAuthSuccess(uid, method) {
   pendingAuthMethod = method;
   loginAuthPending = false;
 
-  // kplay: name이 이미 제공되므로 바로 completeLogin (닉네임 입력 생략)
-  if (method === 'kplay' && window.kplay && window.kplay.user && window.kplay.user.name) {
-    completeLogin(window.kplay.user.name, method);
-    return;
-  }
-
   // 게스트: localStorage에 저장된 닉네임이 있으면 즉시 접속
   if (method === 'guest') {
     const guestNick = safeGetItem('rhythm_guestNickname_' + uid);
     if (guestNick) { completeLogin(guestNick, method); return; }
+  }
+  // Kplay: 로컬 캐시된 닉네임 (이전 로그인 시 저장) 있으면 즉시 접속
+  if (method === 'kplay') {
+    const kplayNick = safeGetItem('rhythm_kplayNickname_' + uid);
+    if (kplayNick) { completeLogin(kplayNick, method); return; }
   }
 
   let nickResolved = false;
@@ -1855,13 +1855,24 @@ function deleteAccount() {
     if (all[user]) { delete all[user]; safeSetItem('rhythm_allScores', JSON.stringify(all)); }
     // 유저 스코프 키 전부 삭제
     const userScoped = [
-      'rhythm_guestNickname_' + uid,
+      'rhythm_guestNickname_' + uid, 'rhythm_kplayNickname_' + uid,
       'rhythm_pass_' + uid, 'rhythm_passBought_' + uid, 'rhythm_freeplays_' + uid,
       'rhythm_coins_' + uid, 'rhythm_ach_' + uid, 'rhythm_claimed_' + uid,
       'rhythm_coins_' + user, 'rhythm_ach_' + user, 'rhythm_claimed_' + user,
       'rhythm_favorites_' + user, 'rhythm_songSettings_' + user,
     ];
     userScoped.forEach(k => safeRemoveItem(k));
+    // Firebase scores/plays 에서도 해당 유저 제거 시도 (규칙이 허용하면)
+    try {
+      fbDb.ref('scores').once('value', snap => {
+        const scores = snap.val() || {};
+        for (const k in scores) {
+          if (scores[k] && scores[k][user] != null) {
+            try { fbDb.ref('scores/' + k + '/' + user).remove(); } catch(e) {}
+          }
+        }
+      });
+    } catch(e) {}
     [4,5,6,7,8].forEach(n => safeRemoveItem('rhythm_keymap_' + user + '_' + n));
     // prefix 기반 정리 (닉네임/uid 포함)
     try {
