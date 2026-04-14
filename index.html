@@ -47,10 +47,59 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%}
 // iOS 감지 (resize() 전에 정의되어야 함 — TDZ 에러 방지)
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-// Kplay iframe sandbox 안전: localStorage 차단 시 에러 방지
-function safeGetItem(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } }
-function safeSetItem(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} }
-function safeRemoveItem(key) { try { window.localStorage.removeItem(key); } catch(e) {} }
+// Kplay storage 연동 (kplay.storage: async, 로그인 시 서버 저장 → 기기 전환 동기화)
+// localStorage를 로컬 캐시로 사용하여 sync API 유지 + kplay.storage에도 미러링
+function _kpHas() { return !!(window.kplay && window.kplay.storage); }
+function safeGetItem(key) {
+  try { return window.localStorage.getItem(key); } catch(e) { return null; }
+}
+function safeSetItem(key, val) {
+  try { window.localStorage.setItem(key, val); } catch(e) {}
+  if (_kpHas()) { try { window.kplay.storage.setItem(key, val); } catch(e) {} }
+}
+function safeRemoveItem(key) {
+  try { window.localStorage.removeItem(key); } catch(e) {}
+  if (_kpHas()) { try { window.kplay.storage.removeItem(key); } catch(e) {} }
+}
+
+// 백그라운드 동기화: kplay.storage → localStorage (기기 전환 시 클라우드 데이터 복원)
+// 주요 키들을 순차 로드. 로드 후 Storage 이벤트로 알리지 않고 다음 곡/세션에 반영됨.
+async function _kpPullAll() {
+  if (!_kpHas()) return;
+  // 알려진 단일 키들 + 동적 prefix 기반
+  const staticKeys = [
+    'rhythm_volBgm', 'rhythm_volSfx',
+    'rhythm_gameMode', 'rhythm_playMode',
+    'rhythm_laneCount', 'rhythm_currentUser', 'rhythm_authMethod',
+    'rhythm_allScores', 'rhythm_localPlays', 'rhythm_playsCache',
+    'rhythm_nicknames',
+  ];
+  for (const k of staticKeys) {
+    try {
+      const v = await window.kplay.storage.getItem(k);
+      if (v != null) { try { window.localStorage.setItem(k, v); } catch(e) {} }
+    } catch(e) {}
+  }
+  // 사용자별 키 (currentUser 확보 후)
+  const u = safeGetItem('rhythm_currentUser');
+  if (u) {
+    const userKeys = [
+      'rhythm_pass_' + u, 'rhythm_passBought_' + u, 'rhythm_freeplays_' + u,
+      'rhythm_coins_' + u, 'rhythm_ach_' + u, 'rhythm_claimed_' + u,
+      'rhythm_guestNickname_' + u,
+    ];
+    for (const k of userKeys) {
+      try {
+        const v = await window.kplay.storage.getItem(k);
+        if (v != null) { try { window.localStorage.setItem(k, v); } catch(e) {} }
+      } catch(e) {}
+    }
+  }
+}
+// DOM 로드 후 비동기 실행 (게임 init 방해 X)
+if (typeof window !== 'undefined') {
+  setTimeout(() => { _kpPullAll().catch(()=>{}); }, 0);
+}
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
