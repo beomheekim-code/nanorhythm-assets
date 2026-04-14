@@ -1708,11 +1708,17 @@ function handleAuthSuccess(uid, method) {
   if (method === 'guest') {
     const guestNick = safeGetItem('rhythm_guestNickname_' + uid);
     if (guestNick) { completeLogin(guestNick, method); return; }
+    // 로컬 캐시 없으면 닉네임 입력 (Firebase 조회 안 함 — 계정 삭제 후 부활 방지)
+    showNicknameInput();
+    return;
   }
   // Kplay: 로컬 캐시된 닉네임 (이전 로그인 시 저장) 있으면 즉시 접속
   if (method === 'kplay') {
     const kplayNick = safeGetItem('rhythm_kplayNickname_' + uid);
     if (kplayNick) { completeLogin(kplayNick, method); return; }
+    // 로컬 캐시 없으면 닉네임 입력 (Firebase 조회 안 함)
+    showNicknameInput();
+    return;
   }
 
   let nickResolved = false;
