@@ -5958,10 +5958,14 @@ function handleSettingsClick(mx, my) {
     applySfxVol(); saveVolSettings(); return;
   }
 
-  // 계정 정보 박스 + 버튼
-  const sfxBaseY = volY + volRowH;
+  // 계정 정보 박스 + 버튼 (render와 동일한 Y 체인)
+  const sfxY_click = volY + volRowH;
+  const gameModeY_click = sfxY_click + volRowH + sz(8);
+  const gmBtnY_click = gameModeY_click + sz(14);
+  const gmBtnH_click = sz(28);
+  const acctY_click = gmBtnY_click + gmBtnH_click + sz(24);
   const acctBoxH = sz(50);
-  const actY = sfxBaseY + volRowH + sz(12) + acctBoxH + sz(8);
+  const actY = acctY_click + acctBoxH + sz(8);
   const actBtnW = Math.min(sz(110), panelW * 0.35), actBtnH = sz(30), actGap = sz(10);
   const isGuestClick = authMethod === 'guest';
   if (isGuestClick) {
