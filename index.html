@@ -3779,26 +3779,23 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
-  // ===== "따단" 패턴 복구 =====
-  // 버려진 onset 중 선택된 노트와 50~200ms 간격 + 에너지 60%+ 인 것 다시 살림
-  // 슬롯 크기 때문에 짧은 간격 페어(double kick, grace note 등)가 1개로 합쳐지는 문제 보정
+  // ===== "따단" 패턴 복구 (엄격) =====
+  // 버려진 onset 중 선택된 노트와 70~150ms + 에너지 90%+ 인 것만 살림
   {
-    const PAIR_MIN = 0.05;
-    const PAIR_MAX = 0.20;
-    const ENERGY_RATIO = 0.6;
+    const PAIR_MIN = 0.07;
+    const PAIR_MAX = 0.15;
+    const ENERGY_RATIO = 0.9;
     const filteredSet = new Set(filtered);
     const rescued = [];
     for (const f of filtered) {
-      // 이 선택된 노트 주변에 "따단 페어 후보" 찾기
       for (const o of nonSilent) {
         if (filteredSet.has(o)) continue;
         const dt = o.time - f.time;
         if (dt < PAIR_MIN || dt > PAIR_MAX) continue;
         if (o.energy < f.energy * ENERGY_RATIO) continue;
-        // 이미 rescued에 있으면 skip
         if (rescued.includes(o)) continue;
         rescued.push(o);
-        break; // 한 노트당 페어 1개까지
+        break;
       }
     }
     filtered.push(...rescued);
