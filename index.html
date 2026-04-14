@@ -3785,8 +3785,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   {
     const PAIR_MIN = 0.09;
     const PAIR_MAX = 0.12;
-    const ENERGY_RATIO = 1.0;
-    const MAX_RESCUE_RATIO = 0.05;
+    const ENERGY_RATIO = 1.1;
+    const MAX_RESCUE_RATIO = 0.02;
     const maxRescue = Math.floor(filtered.length * MAX_RESCUE_RATIO);
     const filteredSet = new Set(filtered);
     const rescued = [];
