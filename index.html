@@ -3785,10 +3785,10 @@ function handleSelectClick(mx, my) {
   // hold는 mousedown/touchstart에서 직접 처리됨. 여기선 화살표 hit이면 그냥 무시 (이미 처리됨)
   const centerX = W / 2;
   const step = lay.cardW + lay.gap;
-  const arrowW = 50, arrowH = 60;
+  const arrowW = sz(30), arrowH = sz(34);
   const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
   if (hitTest(mx, my, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) return;
-  if (hitTest(mx, my, centerX + lay.cardW/2 + 10, arrowY, arrowW, arrowH)) return;
+  if (hitTest(mx, my, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) return;
   // Song cards (CD hit test — 원형, 화면 내 + 좌우 2개까지만)
   const _hitList = favFilterActive ? getFavorites().sort((a,b)=>a-b) : songs.map((_,i)=>i);
   const _hitSelPos = favFilterActive ? _hitList.indexOf(selectedSong) : selectedSong;
@@ -4032,7 +4032,7 @@ addEventListener('mousedown', e => {
     {
       const lay = getSelectLayout();
       const centerX = W / 2;
-      const arrowW = 50, arrowH = 60;
+      const arrowW = sz(30), arrowH = sz(34);
       const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
       const _amx = e.clientX, _amy = gameY(e.clientY);
       if (hitTest(_amx, _amy, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) {
@@ -4042,7 +4042,7 @@ addEventListener('mousedown', e => {
         selectDragX = -1;
         return;
       }
-      if (hitTest(_amx, _amy, centerX + lay.cardW/2 + 10, arrowY, arrowW, arrowH)) {
+      if (hitTest(_amx, _amy, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) {
         const p = _dPos(selectedSong);
         if (p < _dLen() - 1) { playScrollSound(); selectedSong = _dSong(p + 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(1);
@@ -4358,7 +4358,7 @@ addEventListener('touchstart', e => {
     {
       const lay = getSelectLayout();
       const centerX = W / 2;
-      const arrowW = 50, arrowH = 60;
+      const arrowW = sz(30), arrowH = sz(34);
       const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
       const tmx = t.clientX, tmy = gameY(t.clientY);
       if (hitTest(tmx, tmy, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) {
@@ -4369,7 +4369,7 @@ addEventListener('touchstart', e => {
         selectDragX = -1;
         return;
       }
-      if (hitTest(tmx, tmy, centerX + lay.cardW/2 + 10, arrowY, arrowW, arrowH)) {
+      if (hitTest(tmx, tmy, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) {
         const p = _dPos(selectedSong);
         if (p < _dLen() - 1) { playScrollSound(); selectedSong = _dSong(p + 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(1);
