@@ -230,6 +230,8 @@ const _vpProbe = document.createElement('div');
 _vpProbe.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;visibility:hidden;';
 document.body ? document.body.appendChild(_vpProbe) : document.documentElement.appendChild(_vpProbe);
 function readViewport() {
+  // Force layout recalc — iPad 풀스크린 회전 후 position:fixed div 가 re-layout 안 되는 케이스 방지
+  void _vpProbe.offsetHeight;
   const r = _vpProbe.getBoundingClientRect();
   return { w: Math.round(r.width), h: Math.round(r.height) };
 }
