@@ -4013,7 +4013,7 @@ addEventListener('mousedown', e => {
     // (inputQueue 로 지연되면 gesture context 유실돼 iOS 에서 play() 거부됨)
     // titleBgmUnlocked 는 설정하지 않음 — update() 의 2탭 플로우(1탭=unlock 체류, 2탭=transition) 보존
     if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); }
-    if (hitTest(mx, my, W - sz(48) - sz(8), H + safeBottom - sz(36) - sz(4), sz(48), sz(36))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
+    if (hitTest(mx, my, W - sz(48) - sz(8), -safeTop + sz(2), sz(48), sz(36))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
     // 모드 선택 버튼 처리 (탭하면 선택만 변경, 화면 전환 X)
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
@@ -4335,7 +4335,7 @@ addEventListener('touchstart', e => {
     // titleBgmUnlocked 는 설정하지 않음 — update() 의 2탭 플로우 보존
     if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); }
     // 설정 버튼 (우하단)
-    if (hitTest(tmx, tmy, W - sz(48) - sz(8), H + safeBottom - sz(36) - sz(4), sz(48), sz(36))) {
+    if (hitTest(tmx, tmy, W - sz(48) - sz(8), -safeTop + sz(2), sz(48), sz(36))) {
       settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return;
     }
     // 모드 선택 버튼 처리
@@ -7795,7 +7795,7 @@ function renderBottomBar() {
   const _bbBottom = H + safeBottom - sz(4);
   const hbW = sz(48);
   const hbH = sz(36);
-  const hbX = W - hbW - sz(8), hbY = _bbBottom - hbH;
+  const hbX = W - hbW - sz(8), hbY = -safeTop + sz(2);
   // 코인 (햄버거 버튼 세로 중앙과 정렬)
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   ctx.font = `bold ${_bbML ? sz(12) : sz(10)}px sans-serif`; ctx.fillStyle = '#ffd700aa';
@@ -7820,7 +7820,7 @@ function renderBottomBar() {
       ? [{label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}]
       : [{label:'상점',icon:'🛒',key:'shop'},{label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}];
     const menuH = menuItems.length * menuItemH;
-    const menuX = hbX + hbW - menuW, menuY = hbY - menuH - sz(6);
+    const menuX = hbX + hbW - menuW, menuY = hbY + hbH + sz(6);
     ctx.fillStyle = '#1a1a2e'; rrFill(menuX, menuY, menuW, menuH, sz(8));
     ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; rrStroke(menuX, menuY, menuW, menuH, sz(8));
     for (let mi = 0; mi < menuItems.length; mi++) {
@@ -8077,7 +8077,7 @@ function renderTitle() {
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
   if (currentUser) {
-    const stBtnW = sz(48), stBtnH = sz(36), stBtnX = W - stBtnW - sz(8), stBtnY = H + safeBottom - stBtnH - sz(4);
+    const stBtnW = sz(48), stBtnH = sz(36), stBtnX = W - stBtnW - sz(8), stBtnY = -safeTop + sz(2);
 
     ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; rrStroke(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
