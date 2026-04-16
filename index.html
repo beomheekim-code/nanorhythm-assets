@@ -9747,7 +9747,14 @@ function resumeGame() {
   lastTime = 0; // dt 스파이크 방지: 다음 프레임을 첫 프레임처럼 처리
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
-  // iOS: 알림센터/컨트롤센터에서 복귀 시 AudioContext 가 suspended 됨 → 강제 resume
+  // iOS: AudioContext suspended 상태면 resume 후 오디오 재시작
+  if (actx && actx.state !== 'running') {
+    actx.resume().then(() => {
+      _restartAudioAfterContextResume();
+    }).catch(()=>{});
+    resumeAudio();
+    return; // ABS 소스는 resume 완료 후 _restartAudioAfterContextResume 에서 생성
+  }
   resumeAudio();
   // 오디오 위치를 gameTime 기준으로 재동기화
   if (countdownTime <= 0) {
