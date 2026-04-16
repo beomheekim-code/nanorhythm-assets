@@ -9747,22 +9747,19 @@ function resumeGame() {
   lastTime = 0; // dt 스파이크 방지: 다음 프레임을 첫 프레임처럼 처리
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
-  // iOS: AudioContext suspended 상태면 resume 후 오디오 재시작
-  if (actx && actx.state !== 'running') {
-    actx.resume().then(() => {
-      _restartAudioAfterContextResume();
-    }).catch(()=>{});
-    resumeAudio();
-    return; // ABS 소스는 resume 완료 후 _restartAudioAfterContextResume 에서 생성
-  }
   resumeAudio();
-  // 오디오 위치를 gameTime 기준으로 재동기화
+  // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
     if (actx) songStartTime = actx.currentTime - targetTime;
-    if (usingStemMode) {
-      // ABS 모드: 새 source 생성하여 재개
+    // actx 가 아직 suspended 면 ABS 소스 생성을 resume 완료 후로 defer
+    if (actx && actx.state !== 'running') {
+      actx.resume().then(() => {
+        _restartAudioAfterContextResume();
+      }).catch(()=>{});
+    } else if (usingStemMode) {
+      // ABS 모드: 새 source 생성하여 재개 (actx running 확인됨)
       if (window._absPausedAt != null && stemAudioBuffers && actx) {
         window._absNodes = [];
         window._absGains = window._absGains || [];
@@ -9788,7 +9785,9 @@ function resumeGame() {
           if (allStemAudios[i]) allStemAudios[i].play().catch(()=>{});
         }
       }
-      // 펄스 오디오 동기화
+    }
+    // 펄스 오디오 동기화 (actx running 이든 아니든)
+    if (usingStemMode) {
       for (let i = 0; i < pulseStemAudios.length; i++) {
         if (pulseStemAudios[i]) {
           pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD;
