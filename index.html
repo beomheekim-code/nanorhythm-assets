@@ -6076,15 +6076,16 @@ function render() {
     ctx.restore();
   }
 
-  // Low gauge danger vignette
+  // Low gauge danger vignette — 안전영역 포함 전체 화면
   if (gauge < 0.35 && playMode === 'normal') {
     const intensity = (0.35 - gauge) / 0.35;
     const pulse = 0.5 + Math.sin(_fNow * 0.006) * 0.5;
-    const vg = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
+    const _vTotalH = H + safeTop + safeBottom;
+    const vg = ctx.createRadialGradient(W/2, H/2, _vTotalH*0.2, W/2, H/2, _vTotalH*0.75);
     vg.addColorStop(0, 'transparent');
     vg.addColorStop(1, `rgba(255,0,0,${intensity * 0.25 * pulse})`);
     ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, -safeTop, W, _vTotalH);
   }
 
   // Countdown (onset 모드에서는 숨김 — 레일 선으로 대체)
