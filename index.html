@@ -1819,6 +1819,36 @@ function getSpeedValue() { return parseFloat(selectedSpeed.toFixed(1)); }
 function speedUp() { selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
 function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1))); saveDiffSpeed(); }
 
+// 배속 꾹 누르기 (hold-to-repeat)
+let _speedHoldDir = 0;    // -1: 감소, 1: 증가, 0: 미사용
+let _speedHoldStart = 0;
+let _speedHoldLastFire = 0;
+function startSpeedHold(dir) {
+  if (_speedHoldDir === dir) return;
+  _speedHoldDir = dir;
+  _speedHoldStart = performance.now();
+  _speedHoldLastFire = _speedHoldStart;
+}
+function stopSpeedHold() { _speedHoldDir = 0; }
+function updateSpeedHold() {
+  if (!_speedHoldDir) return;
+  const now = performance.now();
+  const elapsed = now - _speedHoldStart;
+  // 첫 300ms 대기 후, 120ms → 40ms 로 가속 (800ms 에 걸쳐)
+  let interval;
+  if (elapsed < 300) interval = 300;
+  else {
+    const t = Math.min(1, (elapsed - 300) / 800);
+    interval = 120 - (120 - 40) * t;
+  }
+  if (now - _speedHoldLastFire >= interval) {
+    if (_speedHoldDir > 0) speedUp();
+    else speedDown();
+    if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+    _speedHoldLastFire = now;
+  }
+}
+
 // ===== LEVEL RATING =====
 // 난이도별 레벨 범위:
 //  쉬움 1~3, 보통 4~7, 어려움 8~10, 지옥 11~15
@@ -3845,8 +3875,8 @@ function handleSelectClick(mx, my) {
   const spdBtnW = _mlSubC ? sz(38) : Math.min(40, spdCtrlW * 0.15);
   const spdMinusX = spdCtrlX, spdPlusX = spdCtrlX + spdCtrlW - spdBtnW;
   const spdValX = spdCtrlX + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
-  if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); selectFocus=2; return; }
-  if (hitTest(mx, my, spdPlusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedUp(); selectFocus=2; return; }
+  if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); startSpeedHold(-1); selectFocus=2; return; }
+  if (hitTest(mx, my, spdPlusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedUp(); startSpeedHold(1); selectFocus=2; return; }
   // 중앙 값 박스 클릭 → 직접 입력 모드
   if (hitTest(mx, my, spdValX, optY2, spdMidW, lay.optH)) {
     speedInputActive=true; speedInputText=''; selectFocus=2;    speedInputElHidden.value=''; speedInputElHidden.focus();
@@ -4114,10 +4144,10 @@ addEventListener('mousedown', e => {
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
     const _spPlusY = _spMinusY + _spBtn + _spGap + _spBtn + _spGap;
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spMinusY, _spBtn, _spBtn)) {
-      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
+      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
     }
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spPlusY, _spBtn, _spBtn)) {
-      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
+      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
     // Check button area
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
@@ -4188,8 +4218,9 @@ addEventListener('mousemove', e => {
 addEventListener('mouseup', () => {
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
   stopSelectArrowHold();
+  stopSpeedHold();
 });
-addEventListener('mouseleave', () => { stopSelectArrowHold(); });
+addEventListener('mouseleave', () => { stopSelectArrowHold(); stopSpeedHold(); });
 addEventListener('wheel', e => {
   const dy = e.deltaY || 0;
   if (mailboxOpen) {
@@ -4451,10 +4482,10 @@ addEventListener('touchstart', e => {
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
     const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
+      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
     }
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); return;
+      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     for (const touch of e.changedTouches) {
@@ -4570,6 +4601,7 @@ addEventListener('touchmove', e => {
 addEventListener('touchend', e => {
   e.preventDefault();
   stopSelectArrowHold();
+  stopSpeedHold();
   if (_settingsTouching) _settingsTouching = false;
   // shop 드래그였는지 보존 (실제 손가락 이동 거리 기준 — 스크롤이 끝에 막혀도 드래그 인식)
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
@@ -5393,6 +5425,7 @@ function update(dt) {
   updateTitleBgmFade();  // 타이틀 BGM 페이드아웃 polling (매 프레임)
   updateSelectScroll(dt);
   updateSelectArrowHold();
+  updateSpeedHold();
   // Preview: start/switch when song selection changes in select state (디바운스)
   if (state === 'select' && actx) {
     if (previewSongIdx !== selectedSong || (!previewActive && !_previewDebounce)) {
