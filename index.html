@@ -786,6 +786,8 @@ const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
+  // BGM 재생 중(카운트다운 끝난 후)에는 빈 노트 SFX 비활성 — 연타 시 오디오 소스 폭주로 지지직 소리 발생 방지
+  if (countdownTime <= 0 && !songLoading) return;
   // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
   const now = performance.now();
   if (now - _lastEmptySfxTime < 50) return;
@@ -5336,7 +5338,9 @@ function startSong(idx) {
 // ===== UPDATE =====
 function update(dt) {
   // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
-  if (state === 'playing' && !gamePaused && actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
+  // _resumeGrace: resumeGame 직후 actx.resume() 이 async 라서 몇 프레임 동안 state 가 아직 suspended 일 수 있음 → 재pause 방지
+  if (_resumeGrace > 0) _resumeGrace--;
+  else if (state === 'playing' && !gamePaused && actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
     pauseGame();
   }
   if (state === 'login' || state === 'title') updateShootingStars(dt);
@@ -9693,11 +9697,13 @@ function pauseGame() {
   if (songAudio) songAudio.pause();
 }
 
+let _resumeGrace = 0; // resumeGame 후 actx 상태 체크 유예 프레임
 function resumeGame() {
   if (!gamePaused) return;
   gamePaused = false;
   lastTime = 0; // dt 스파이크 방지: 다음 프레임을 첫 프레임처럼 처리
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
+  _resumeGrace = 60; // actx.resume() 이 async 로 완료될 때까지 약 1초간 재pause 방지
   // iOS: 알림센터/컨트롤센터에서 복귀 시 AudioContext 가 suspended 됨 → 강제 resume
   resumeAudio();
   // 오디오 위치를 gameTime 기준으로 재동기화
