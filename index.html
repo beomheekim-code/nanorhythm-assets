@@ -9774,8 +9774,6 @@ let lastTime = 0;
 // 놓치는 케이스가 있음.
 let _lastSeenW = 0, _lastSeenH = 0;
 function _dimWatcher() {
-  // [perf B] 인게임 플레이 중엔 per-frame DOM read 스킵 (resize 이벤트가 안전망)
-  if (state === 'playing') return;
   const de = document.documentElement;
   const vv = window.visualViewport;
   const cW = de ? de.clientWidth  : innerWidth;
