@@ -6375,11 +6375,13 @@ function renderButtons() {
     rrStroke(bx+3, by+3, lw-6, bh-6, 8);
     if (held) { ctx.shadowColor=LANE_COLORS[i]; ctx.shadowBlur=8; rrStroke(bx+3,by+3,lw-6,bh-6,8); ctx.shadowBlur=0; }
 
-    // Label
-    ctx.font = `bold ${sz(18)}px sans-serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle = LANE_COLORS[i] + (held ? 'ff' : '99');
-    ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh/2);
+    // Label — 모바일에선 키보드 라벨 불필요 (터치 입력)
+    if (!isMobile) {
+      ctx.font = `bold ${sz(18)}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle = LANE_COLORS[i] + (held ? 'ff' : '99');
+      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh/2);
+    }
   }
 }
 
