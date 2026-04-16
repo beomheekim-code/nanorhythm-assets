@@ -6291,16 +6291,17 @@ function renderNotes() {
           rrStroke(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
         }
 
-        // Tail end cap
+        // Tail end cap — 레인폭 비례 + sz()
         if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
-          const tw = _laneW - 6;
+          const tcW = _noteW;
+          const tcH = Math.min(_noteHH, sz(7));
           ctx.fillStyle = n.holding ? col : col + 'cc';
-          rrFill(sx-tw/2, tailY-7, tw, 14, 4);
+          rrFill(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
           ctx.strokeStyle = col; ctx.lineWidth = 2;
-          rrStroke(sx-tw/2, tailY-7, tw, 14, 4);
+          rrStroke(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
           if (n.holding) {
-            ctx.strokeStyle = col + '66'; ctx.lineWidth = 4;
-            rrStroke(sx-tw/2-2, tailY-9, tw+4, 18, 6);
+            ctx.strokeStyle = col + '66'; ctx.lineWidth = 3;
+            rrStroke(sx-tcW/2-sz(2), tailY-tcH-sz(2), tcW+sz(4), tcH*2+sz(4), sz(5));
           }
         }
       }
@@ -6684,7 +6685,7 @@ function renderUI() {
   const _scoreValueSize = isMobile ? sz(32) : sz(60);
   const _scoreX = isMobile ? sz(6) : _s12;
   ctx.font = `bold ${_scoreLabelSize}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.5)';
-  const _scoreTopY = -safeTop + (isMobile ? sz(12) : sz(8));
+  const _scoreTopY = -safeTop + sz(2);
   ctx.fillText('SCORE', _scoreX, _scoreTopY + _scoreLabelSize);
   ctx.font = `bold ${_scoreValueSize}px sans-serif`; ctx.fillStyle='#fff';
   if (!window._hudRawMax) window._hudRawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
