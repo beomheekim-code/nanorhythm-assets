@@ -268,9 +268,6 @@ function resize() {
   canvas.height = fullH * dpr;
   canvas.style.width = fullW + 'px';
   canvas.style.height = fullH + 'px';
-  // canvas.width/height 재설정 = context 완전 리셋 → 캐시된 CanvasGradient 객체 무효화
-  try { _bgGradCache = { key: null, grad: null }; } catch(e) {}
-  try { _vignetteCache = { key: null, grad: null }; } catch(e) {}
   isPortrait = fullH > fullW;
   // 모바일: 작은 화면 OR 터치 단말 (iPad/태블릿 포함)
   isMobile = fullW < 520 || ('ontouchstart' in window);
@@ -5798,13 +5795,9 @@ function render() {
   const song = curSong || songs[0];
 
   // BG — 안전 영역까지 확장 (Kplay iframe 위/아래 빈 공간 제거)
-  // [perf A] 그라데이션 캐시 — 실패 시 원래 경로로 fallback
   const totalH = H + safeTop + safeBottom;
-  let grad = _getBgGrad(song.bg1, song.bg2);
-  if (!grad) {
-    grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-    grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
-  }
+  const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+  grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
   ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
 
   if (state==='login') { renderLogin(); ctx.restore(); return; }
@@ -5822,11 +5815,8 @@ function render() {
     // 배경: 곡 그라데이션 (안전 영역 포함) — [perf A] 캐시
     const _visH = H + safeTop + safeBottom;
     const _lbg1 = _s.bg1 || '#000', _lbg2 = _s.bg2 || '#111';
-    let _bg = _getBgGrad(_lbg1, _lbg2);
-    if (!_bg) {
-      _bg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-      _bg.addColorStop(0, _lbg1); _bg.addColorStop(1, _lbg2);
-    }
+    const _bg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+    _bg.addColorStop(0, _lbg1); _bg.addColorStop(1, _lbg2);
     ctx.fillStyle = _bg; ctx.fillRect(-20, -safeTop - 20, W+40, _visH + 40);
     // 어두운 오버레이
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-20, -safeTop - 20, W+40, _visH + 40);
@@ -6094,24 +6084,15 @@ function render() {
     ctx.restore();
   }
 
-  // Low gauge danger vignette — [perf D] radial gradient shape 캐시, alpha 는 globalAlpha
+  // Low gauge danger vignette
   if (gauge < 0.35 && playMode === 'normal') {
     const intensity = (0.35 - gauge) / 0.35;
     const pulse = 0.5 + Math.sin(_fNow * 0.006) * 0.5;
-    const vg = _getVignetteGrad();
-    if (vg) {
-      ctx.fillStyle = vg;
-      ctx.globalAlpha = intensity * 0.25 * pulse;
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalAlpha = 1;
-    } else {
-      // Fallback: 원래 경로
-      const vg2 = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
-      vg2.addColorStop(0, 'transparent');
-      vg2.addColorStop(1, `rgba(255,0,0,${intensity * 0.25 * pulse})`);
-      ctx.fillStyle = vg2;
-      ctx.fillRect(0, 0, W, H);
-    }
+    const vg = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
+    vg.addColorStop(0, 'transparent');
+    vg.addColorStop(1, `rgba(255,0,0,${intensity * 0.25 * pulse})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
   }
 
   // Countdown (onset 모드에서는 숨김 — 레일 선으로 대체)
