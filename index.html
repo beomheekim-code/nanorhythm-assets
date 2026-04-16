@@ -6213,9 +6213,9 @@ function renderNotes() {
   // 프레임 단위 캐시 (sz, lane 관련 반복 호출 제거)
   const _laneW = getLaneW();
   const _sz2 = sz(2), _sz6 = sz(6), _sz8 = sz(8), _sz9 = sz(9), _sz11 = sz(11);
-  // 화면 상단 위쪽(미래 노트)은 iteration 조기 종료를 위해 기준값 계산
-  // 정렬된 노트에서 sy < -30이면 그 이후는 모두 미래, break 가능 (홀드 제외)
-  const _topCutoff = (hitY + 30) / noteSpeed + gameTime; // n.time > _topCutoff 이면 sy < -30
+  // 노트가 safeTop 위쪽(화면 최상단)부터 나타나도록 cutoff 확장
+  const _noteTopMargin = safeTop + 30;
+  const _topCutoff = (hitY + _noteTopMargin) / noteSpeed + gameTime;
 
   // 카운트다운 중에는 노드 안 그림
   if (countdownTime > 0 && !(curSong && curSong._onsetMode)) { /* skip node rendering */ }
@@ -6280,7 +6280,7 @@ function renderNotes() {
       // Head circle (skip if already hit or missed)
       if (!n.hit && !n.missed) {
         const sy = headY;
-        if (sy > -30 && sy < hitY + 60) {
+        if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
@@ -6299,7 +6299,7 @@ function renderNotes() {
 
     if (n.hit || n.missed) continue;
     const sy = hitY - (n.time - gameTime) * noteSpeed;
-    if (sy < -30 || sy > hitY + 60) continue;
+    if (sy < -_noteTopMargin || sy > hitY + 60) continue;
 
     if (n.type === 'trap') {
       ctx.save(); ctx.translate(sx, sy); ctx.rotate(Math.PI/4);
@@ -9689,6 +9689,17 @@ document.addEventListener('visibilitychange', () => {
     bgAudioState = null;
   }
 });
+
+// 오디오 디바이스 변경 (이어폰 분리/연결) — actx.state 변화와 무관하게 감지
+try {
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => {
+      if (state === 'playing' && !gamePaused) {
+        pauseGame();
+      }
+    });
+  }
+} catch(e) {}
 
 let pausedAtTime = 0; // 멈춤 시점의 gameTime
 function pauseGame() {
