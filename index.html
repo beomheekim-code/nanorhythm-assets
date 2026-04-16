@@ -4118,9 +4118,10 @@ addEventListener('mousedown', e => {
     // 배속 ± 버튼 hold (drag 설정 후 체크 — return 없이 dragX override 만)
     if (window._selectSpeedBtnAreas) {
       const _sb = window._selectSpeedBtnAreas;
-      if (_sb.minus && hitTest(_amx, _amy, _sb.minus.x, _sb.minus.y, _sb.minus.w, _sb.minus.h)) {
+      const _smx = e.clientX, _smy = gameY(e.clientY);
+      if (_sb.minus && hitTest(_smx, _smy, _sb.minus.x, _sb.minus.y, _sb.minus.w, _sb.minus.h)) {
         playScrollTick(); speedDown(); startSpeedHold(-1); selectDragX = -1;
-      } else if (_sb.plus && hitTest(_amx, _amy, _sb.plus.x, _sb.plus.y, _sb.plus.w, _sb.plus.h)) {
+      } else if (_sb.plus && hitTest(_smx, _smy, _sb.plus.x, _sb.plus.y, _sb.plus.w, _sb.plus.h)) {
         playScrollTick(); speedUp(); startSpeedHold(1); selectDragX = -1;
       }
     }
