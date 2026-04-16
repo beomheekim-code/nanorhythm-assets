@@ -6570,15 +6570,18 @@ function renderUI() {
     ctx.restore();
   }
 
-  // Score top-left (safeTop 반영)
+  // Score top-left — 모바일 해상도 대응
   ctx.textAlign='left';
-  ctx.font = `bold ${sz(24)}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.5)';
-  ctx.fillText('SCORE', _s12, sz(28));
-  ctx.font = `bold ${sz(60)}px sans-serif`; ctx.fillStyle='#fff';
+  const _scoreLabelSize = isMobile ? sz(14) : sz(24);
+  const _scoreValueSize = isMobile ? sz(32) : sz(60);
+  const _scoreX = isMobile ? sz(6) : _s12;
+  ctx.font = `bold ${_scoreLabelSize}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.fillText('SCORE', _scoreX, isMobile ? sz(18) : sz(28));
+  ctx.font = `bold ${_scoreValueSize}px sans-serif`; ctx.fillStyle='#fff';
   if (!window._hudRawMax) window._hudRawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
-  ctx.fillText(window._hudScoreStr || '0', _s12, sz(72));
+  ctx.fillText(window._hudScoreStr || '0', _scoreX, isMobile ? sz(44) : sz(72));
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
@@ -6622,15 +6625,7 @@ function renderUI() {
     ctx.restore();
   }
 
-  // Song name + progress
-  if (songDuration > 0 && gameTime > 0) {
-    const prog = Math.min(1, gameTime/songDuration);
-    const pw = sz(200), ppx = (W-pw)/2;
-    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(ppx, _s8, pw, _s3);
-    ctx.fillStyle = song.color+'aa'; ctx.fillRect(ppx, _s8, pw*prog, _s3);
-    ctx.font=`${sz(9)}px sans-serif`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.25)';
-    ctx.fillText(song.name, W/2, sz(22));
-  }
+  // 곡 정보 + 프로그레스바 제거됨 (2026-04-16)
 
 
   // Speed control (below HP bar, vertical stack)
