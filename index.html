@@ -4111,6 +4111,16 @@ addEventListener('mousedown', e => {
         return;
       }
     }
+    // 배속 버튼 hold 시작 (렌더에서 저장한 정확한 영역 사용)
+    if (window._selectSpeedBtnAreas) {
+      const _sb = window._selectSpeedBtnAreas;
+      if (_sb.minus && hitTest(_amx, _amy, _sb.minus.x, _sb.minus.y, _sb.minus.w, _sb.minus.h)) {
+        playScrollTick(); speedDown(); startSpeedHold(-1); selectDragX = -1; return;
+      }
+      if (_sb.plus && hitTest(_amx, _amy, _sb.plus.x, _sb.plus.y, _sb.plus.w, _sb.plus.h)) {
+        playScrollTick(); speedUp(); startSpeedHold(1); selectDragX = -1; return;
+      }
+    }
     // Start drag — click is handled on mouseup if drag distance is small
     selectDragX = e.clientX; selectDragStartScroll = selectScrollX; selectLastDragX = e.clientX;
     selectDragStartX = e.clientX; selectDragDist = 0;
@@ -8932,6 +8942,11 @@ function renderSelect() {
   ctx.fillStyle = selectedSpeed < SPEED_MAX ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)';
   ctx.fillText('+', spdPlusX + spdBtnW/2, optY2 + optH/2 + sz(2));
   ctx.textBaseline = 'alphabetic';
+  // mousedown hold 용 영역 저장
+  window._selectSpeedBtnAreas = {
+    minus: { x: spdMinusX, y: optY2, w: spdBtnW, h: optH },
+    plus: { x: spdPlusX, y: optY2, w: spdBtnW, h: optH }
+  };
 
   // Start button — 화면 최하단에 고정
   const btnW = Math.min(220, optW*0.55);
