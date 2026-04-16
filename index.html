@@ -5338,11 +5338,18 @@ function startSong(idx) {
 // ===== UPDATE =====
 function update(dt) {
   // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
-  // running → suspended/interrupted 전환 시에만 1회 pause (계속 suspended 면 재pause 안 함)
-  if (state === 'playing' && !gamePaused && actx) {
+  // 오디오 디바이스 변경 감지 + 복구
+  if (state === 'playing' && actx) {
     const _curActxState = actx.state;
-    if ((_curActxState === 'suspended' || _curActxState === 'interrupted') && _prevActxState === 'running') {
-      pauseGame();
+    if (!gamePaused) {
+      // running → suspended/interrupted 전환 시 1회 pause
+      if ((_curActxState === 'suspended' || _curActxState === 'interrupted') && _prevActxState === 'running') {
+        pauseGame();
+      }
+      // suspended/interrupted → running 전환 시 (이어폰 재연결 등) 오디오 재시작
+      if (_curActxState === 'running' && _prevActxState && _prevActxState !== 'running') {
+        _restartAudioAfterContextResume();
+      }
     }
     _prevActxState = _curActxState;
   }
@@ -9702,6 +9709,38 @@ function pauseGame() {
 }
 
 let _prevActxState = ''; // actx 상태 전환 감지용
+// actx 가 suspended→running 복구 시 ABS 소스 재생성 (이어폰 재연결 등)
+function _restartAudioAfterContextResume() {
+  if (!actx || actx.state !== 'running' || countdownTime > 0) return;
+  try {
+    const targetTime = gameTime - (curSong && curSong._startDelay || 0);
+    if (targetTime < 0) return;
+    if (stemAudioBuffers && Object.keys(stemAudioBuffers).length > 0) {
+      // ABS 모드: 기존 소스 정리 후 재생성
+      if (window._absNodes) {
+        for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} }
+      }
+      window._absNodes = [];
+      window._absGains = window._absGains || [];
+      window._absStartCtx = actx.currentTime - targetTime;
+      for (let i = 0; i < allStemAudios.length; i++) {
+        if (stemAudioBuffers[i]) {
+          if (!window._absGains[i]) {
+            const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
+          }
+          const src = actx.createBufferSource();
+          src.buffer = stemAudioBuffers[i];
+          src.connect(window._absGains[i]);
+          src.start(0, Math.max(0, targetTime));
+          window._absNodes.push(src);
+        } else { window._absNodes.push(null); }
+      }
+    } else if (songAudio) {
+      songAudio.currentTime = targetTime;
+      songAudio.play().catch(()=>{});
+    }
+  } catch(e) { console.warn('[audio] restart failed:', e); }
+}
 function resumeGame() {
   if (!gamePaused) return;
   gamePaused = false;
