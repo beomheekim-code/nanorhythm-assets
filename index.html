@@ -4179,16 +4179,16 @@ addEventListener('mousedown', e => {
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spPlusY, _spBtn, _spBtn)) {
       playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
-    // Check button area (레일 전체 영역)
+    // Check button area (레일 전체 영역, 가장 가까운 레인으로 스냅)
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    for (let i = 0; i < laneCount; i++) {
-      const bx = lsx + i * lw;
-      if (e.clientX >= bx && e.clientX < bx + lw && gameY(e.clientY) >= -safeTop && gameY(e.clientY) < by + bh) {
-        keyHeld[i] = true; keyFlash[i] = 0.3;
-        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
-        else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
-        return;
-      }
+    const _mx = e.clientX, _my = gameY(e.clientY);
+    const _mLaneEnd = lsx + lw * laneCount;
+    if (_mx >= lsx - lw*0.4 && _mx < _mLaneEnd + lw*0.4 && _my >= -safeTop && _my < by + bh) {
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_mx - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+      else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+      return;
     }
   }
 });
@@ -4530,19 +4530,17 @@ canvas.addEventListener('touchstart', e => {
       playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _laneEnd = lsx + lw * laneCount;
     for (const touch of e.changedTouches) {
       if (_tSpeedHandled && touch === t0) continue;
       const _tcy = gameY(touch.clientY);
-      for (let i = 0; i < laneCount; i++) {
-        const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx+lw && _tcy >= -safeTop && _tcy < by+bh) {
-          keyHeld[i] = true; keyFlash[i] = 0.3;
-          touchLaneMap.set(touch.identifier, i);
-          if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
-          else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
-          break;
-        }
-      }
+      const _tcx = touch.clientX;
+      if (_tcx < lsx - lw*0.4 || _tcx >= _laneEnd + lw*0.4 || _tcy < -safeTop || _tcy >= by+bh) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(touch.identifier, i);
+      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+      else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
     }
   }
 }, { passive: false });
@@ -4588,17 +4586,15 @@ canvas.addEventListener('touchmove', e => {
   // 인게임: 터치 슬라이드로 옆 레인 입력 (로딩 중에만 비활성, 카운트다운 중엔 허용)
   if (state === 'playing' && !gamePaused && !songLoading) {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _laneEnd = lsx + lw * laneCount;
     for (const touch of e.changedTouches) {
       const prevLane = touchLaneMap.get(touch.identifier);
       if (prevLane === undefined) continue;
-      // 현재 터치 위치의 레인 계산
-      let newLane = -1;
       const _scy = gameY(touch.clientY);
-      for (let i = 0; i < laneCount; i++) {
-        const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx + lw && _scy >= -safeTop && _scy < by + bh) {
-          newLane = i; break;
-        }
+      const _scx = touch.clientX;
+      let newLane = -1;
+      if (_scx >= lsx - lw*0.4 && _scx < _laneEnd + lw*0.4 && _scy >= -safeTop && _scy < by + bh) {
+        newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((_scx - lsx) / lw)));
       }
       if (newLane >= 0 && newLane !== prevLane) {
         // 이전 레인 해제, 새 레인 입력
