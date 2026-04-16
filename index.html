@@ -3197,6 +3197,12 @@ let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 
 let noteSpeed = 0;
 let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [];
 let nodeScanStart = 0; // 활성 노트 스캔 시작 인덱스 (hit/missed prefix 스킵)
+// ===== 인게임 sz() precompute 전역 (renderLanes/renderNotes 등에서 접근) =====
+let _s3=0,_s5=0,_s7=0,_s8=0,_s9=0,_s10=0;
+let _s12=0,_s14=0,_s15=0,_s20=0,_s30=0;
+let _s40=0,_s55=0,_s60=0,_s80=0,_s90=0;
+let _noteW=0, _noteHW=0, _noteHH=0;
+
 // ===== PERF CACHES (v15.9 재도전) =====
 // 각 옵션 try/catch + fallback + debug log. 캐시 실패 시 원래 경로로 fallback.
 // window._perfDebug = true 로 디버그 로그 활성화.
@@ -5912,13 +5918,13 @@ function render() {
   const _fTotalLW = _fLaneW * laneCount;
   const _fHitY = getHitY();
   const _fHS = getHeightScale();
-  // 인게임 sz() precompute — 루프 내 함수 호출 제거로 저사양 모바일 부하 0
-  const _s3=sz(3),_s5=sz(5),_s7=sz(7),_s8=sz(8),_s9=sz(9),_s10=sz(10);
-  const _s12=sz(12),_s14=sz(14),_s15=sz(15),_s20=sz(20),_s30=sz(30);
-  const _s40=sz(40),_s55=sz(55),_s60=sz(60),_s80=sz(80),_s90=sz(90);
-  const _noteW = _fLaneW - _s8;  // 노트 body 폭
-  const _noteHW = (_fLaneW - _s8) / 2; // 노트 half-width
-  const _noteHH = _s10;  // 노트 half-height
+  // 인게임 sz() precompute — 전역 변수에 할당 (renderLanes/renderNotes 등 별도 함수에서도 접근)
+  _s3=sz(3);_s5=sz(5);_s7=sz(7);_s8=sz(8);_s9=sz(9);_s10=sz(10);
+  _s12=sz(12);_s14=sz(14);_s15=sz(15);_s20=sz(20);_s30=sz(30);
+  _s40=sz(40);_s55=sz(55);_s60=sz(60);_s80=sz(80);_s90=sz(90);
+  _noteW = _fLaneW - _s8;
+  _noteHW = (_fLaneW - _s8) / 2;
+  _noteHH = _s10;
 
   // Stars — [perf C] twinkle 100ms 간격으로만 갱신 (time-based, frame counter 안 씀)
   try {
