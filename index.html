@@ -361,6 +361,34 @@ if (window.visualViewport) {
 // bfcache 복귀 시(모바일 탭 전환 후 복귀 등)에도 재계산
 addEventListener('pageshow', (e) => { if (e.persisted) resizeWithRetries(); });
 
+// === 회전 확정 보정 (matchMedia change) ===
+// orientationchange/resize 이벤트로 안 잡히는 케이스 대비.
+// CSS media query 가 orientation 전환을 확정하면, RAF 루프로 dims 가 안정될 때까지 resize 반복.
+// 최대 60프레임(~1초) 시도 후 포기.
+const _orientMQ = matchMedia('(orientation: portrait)');
+function _handleOrientMediaChange() {
+  let attempts = 0;
+  function _tryFixDims() {
+    resize();
+    attempts++;
+    const mqP = _orientMQ.matches;
+    const dimP = H > W;
+    if (mqP !== dimP && attempts < 60) {
+      requestAnimationFrame(_tryFixDims);
+    }
+  }
+  setTimeout(_tryFixDims, 50);
+  setTimeout(_tryFixDims, 300);
+  setTimeout(_tryFixDims, 800);
+}
+try {
+  if (_orientMQ.addEventListener) {
+    _orientMQ.addEventListener('change', _handleOrientMediaChange);
+  } else if (_orientMQ.addListener) {
+    _orientMQ.addListener(_handleOrientMediaChange);
+  }
+} catch(e) {}
+
 // ===== CDN BASE URL =====
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
