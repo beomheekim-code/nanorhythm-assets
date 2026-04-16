@@ -1845,6 +1845,7 @@ function updateSpeedHold() {
     if (_speedHoldDir > 0) speedUp();
     else speedDown();
     if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+    playScrollTick();
     _speedHoldLastFire = now;
   }
 }
@@ -3587,14 +3588,21 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR' && state === 'select' && !searchActive) inputQueue.push('ranking');
   if (e.code === 'KeyT' && state === 'select' && !searchActive) inputQueue.push('achievement');
   if (e.code === 'KeyF' && state === 'select' && !searchActive) { searchActive = true; searchText = ''; searchInputEl.value = ''; searchInputEl.focus(); e.preventDefault(); return; }
-  if (state === 'playing' && (e.code === 'BracketLeft' || e.code === 'Minus')) {
-    speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+  if ((state === 'playing' || state === 'select') && (e.code === 'BracketLeft' || e.code === 'Minus')) {
+    speedDown();
+    if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+    startSpeedHold(-1);
   }
-  if (state === 'playing' && (e.code === 'BracketRight' || e.code === 'Equal')) {
-    speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+  if ((state === 'playing' || state === 'select') && (e.code === 'BracketRight' || e.code === 'Equal')) {
+    speedUp();
+    if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
+    startSpeedHold(1);
   }
 });
-addEventListener('keyup', e => { const li = LANE_CODES.indexOf(e.code); if (li >= 0) keyHeld[li] = false; });
+addEventListener('keyup', e => {
+  const li = LANE_CODES.indexOf(e.code); if (li >= 0) keyHeld[li] = false;
+  if (e.code === 'BracketLeft' || e.code === 'Minus' || e.code === 'BracketRight' || e.code === 'Equal') stopSpeedHold();
+});
 
 function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<=by+bh; }
 
@@ -4103,6 +4111,27 @@ addEventListener('mousedown', e => {
         return;
       }
     }
+    // 배속 버튼 hold 시작 (mousedown 에서 시작해야 hold 작동)
+    {
+      const lay = getSelectLayout();
+      const _spdCx = (W - lay.optW) / 2;
+      const _mlSC = isMobile && !isPortrait && !isTablet && H < 500;
+      const _spdRowW = _mlSC ? Math.min(180, lay.optW * 0.45) : lay.optW;
+      const _spdBtnW = _mlSC ? sz(38) : Math.min(40, _spdRowW * 0.15);
+      const _spdRowX = _mlSC ? ((W - _spdRowW) / 2) : _spdCx;
+      // optY2 계산 (handleSelectClick 와 동일)
+      const _sbY = lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap;
+      const _lhC = _mlSC ? 12 : 18;
+      const _oY1 = _mlSC ? (_sbY + lay.subBtnH + 2 + _lhC) : (_sbY + lay.subBtnH + lay.sectionGap + _lhC);
+      const _oY2 = _mlSC ? (_oY1 + lay.optH + _lhC - 4) : (_oY1 + lay.optH + lay.optGap + _lhC);
+      if (hitTest(_amx, _amy, _spdRowX, _oY2, _spdBtnW, lay.optH)) {
+        playScrollTick(); speedDown(); startSpeedHold(-1); return;
+      }
+      const _spdPlusX = _spdRowX + _spdRowW - _spdBtnW;
+      if (hitTest(_amx, _amy, _spdPlusX, _oY2, _spdBtnW, lay.optH)) {
+        playScrollTick(); speedUp(); startSpeedHold(1); return;
+      }
+    }
     // Start drag — click is handled on mouseup if drag distance is small
     selectDragX = e.clientX; selectDragStartScroll = selectScrollX; selectLastDragX = e.clientX;
     selectDragStartX = e.clientX; selectDragDist = 0;
@@ -4144,10 +4173,10 @@ addEventListener('mousedown', e => {
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
     const _spPlusY = _spMinusY + _spBtn + _spGap + _spBtn + _spGap;
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spMinusY, _spBtn, _spBtn)) {
-      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
+      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
     }
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spPlusY, _spBtn, _spBtn)) {
-      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
+      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
     // Check button area
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
@@ -4482,10 +4511,10 @@ addEventListener('touchstart', e => {
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
     const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-      speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
+      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
     }
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-      speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
+      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     for (const touch of e.changedTouches) {
