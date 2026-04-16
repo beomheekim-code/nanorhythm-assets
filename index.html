@@ -244,23 +244,8 @@ function readEnvSafeArea() {
 }
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  // 치수 계산: canvas 의 CSS 100% 를 이용한 실측 기반.
-  // 1) canvas inline style 임시 제거 → CSS width:100%;height:100% 적용
-  // 2) reflow 강제 → getBoundingClientRect 로 CSS 가 계산한 정확한 크기 읽기
-  // 3) inline style 복원 (backing buffer 크기로)
-  // 기존 4-source min 방식은 iPad Safari 에서 회전 후 stale 값 리턴해서 실패.
-  // CSS 는 브라우저가 레이아웃 완료 후 항상 정확한 값을 가지므로 이 방식이 가장 신뢰.
-  canvas.style.width = '';
-  canvas.style.height = '';
-  void canvas.offsetHeight; // 강제 reflow
-  const rect = canvas.getBoundingClientRect();
-  let fullW = Math.round(rect.width);
-  let fullH = Math.round(rect.height);
-  // 0 방어 (레이아웃 미완료 등)
-  if (fullW <= 0 || fullH <= 0) {
-    fullW = innerWidth || 320;
-    fullH = innerHeight || 568;
-  }
+  const fullW = innerWidth;
+  const fullH = innerHeight;
   canvas.width = fullW * dpr;
   canvas.height = fullH * dpr;
   canvas.style.width = fullW + 'px';
@@ -9761,12 +9746,8 @@ let lastTime = 0;
 // 놓치는 케이스가 있음.
 let _lastSeenW = 0, _lastSeenH = 0;
 function _dimWatcher() {
-  // _vpProbe 의 실제 크기로 변화 감지 (canvas 와 분리돼서 feedback loop 없음)
-  const probe = readViewport();
-  const nW = probe.w || innerWidth;
-  const nH = probe.h || innerHeight;
-  if (nW !== _lastSeenW || nH !== _lastSeenH) {
-    _lastSeenW = nW; _lastSeenH = nH;
+  if (innerWidth !== _lastSeenW || innerHeight !== _lastSeenH) {
+    _lastSeenW = innerWidth; _lastSeenH = innerHeight;
     resize();
   }
 }
