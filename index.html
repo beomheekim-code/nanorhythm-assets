@@ -3883,8 +3883,8 @@ function handleSelectClick(mx, my) {
   const spdBtnW = _mlSubC ? sz(38) : Math.min(40, spdCtrlW * 0.15);
   const spdMinusX = spdCtrlX, spdPlusX = spdCtrlX + spdCtrlW - spdBtnW;
   const spdValX = spdCtrlX + spdBtnW + 6, spdMidW = spdCtrlW - spdBtnW * 2 - 12;
-  if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); startSpeedHold(-1); selectFocus=2; return; }
-  if (hitTest(mx, my, spdPlusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedUp(); startSpeedHold(1); selectFocus=2; return; }
+  if (hitTest(mx, my, spdMinusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedDown(); selectFocus=2; return; }
+  if (hitTest(mx, my, spdPlusX, optY2, spdBtnW, lay.optH)) { playScrollTick(); speedInputActive=false; speedUp(); selectFocus=2; return; }
   // 중앙 값 박스 클릭 → 직접 입력 모드
   if (hitTest(mx, my, spdValX, optY2, spdMidW, lay.optH)) {
     speedInputActive=true; speedInputText=''; selectFocus=2;    speedInputElHidden.value=''; speedInputElHidden.focus();
@@ -4109,27 +4109,6 @@ addEventListener('mousedown', e => {
         startSelectArrowHold(1);
         selectDragX = -1;
         return;
-      }
-    }
-    // 배속 버튼 hold 시작 (mousedown 에서 시작해야 hold 작동)
-    {
-      const lay = getSelectLayout();
-      const _spdCx = (W - lay.optW) / 2;
-      const _mlSC = isMobile && !isPortrait && !isTablet && H < 500;
-      const _spdRowW = _mlSC ? Math.min(180, lay.optW * 0.45) : lay.optW;
-      const _spdBtnW = _mlSC ? sz(38) : Math.min(40, _spdRowW * 0.15);
-      const _spdRowX = _mlSC ? ((W - _spdRowW) / 2) : _spdCx;
-      // optY2 계산 (handleSelectClick 와 동일)
-      const _sbY = lay.songRowY + lay.cardH + (lay.cdTextH||45) + lay.subBtnGap;
-      const _lhC = _mlSC ? 12 : 18;
-      const _oY1 = _mlSC ? (_sbY + lay.subBtnH + 2 + _lhC) : (_sbY + lay.subBtnH + lay.sectionGap + _lhC);
-      const _oY2 = _mlSC ? (_oY1 + lay.optH + _lhC - 4) : (_oY1 + lay.optH + lay.optGap + _lhC);
-      if (hitTest(_amx, _amy, _spdRowX, _oY2, _spdBtnW, lay.optH)) {
-        playScrollTick(); speedDown(); startSpeedHold(-1); return;
-      }
-      const _spdPlusX = _spdRowX + _spdRowW - _spdBtnW;
-      if (hitTest(_amx, _amy, _spdPlusX, _oY2, _spdBtnW, lay.optH)) {
-        playScrollTick(); speedUp(); startSpeedHold(1); return;
       }
     }
     // Start drag — click is handled on mouseup if drag distance is small
