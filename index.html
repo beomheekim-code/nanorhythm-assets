@@ -3785,10 +3785,13 @@ function handleSelectClick(mx, my) {
   // hold는 mousedown/touchstart에서 직접 처리됨. 여기선 화살표 hit이면 그냥 무시 (이미 처리됨)
   const centerX = W / 2;
   const step = lay.cardW + lay.gap;
-  const arrowW = sz(30), arrowH = sz(34);
-  const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
-  if (hitTest(mx, my, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) return;
-  if (hitTest(mx, my, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) return;
+  const _mlA2 = isMobile && !isPortrait && !isTablet && H < 500;
+  const _aFS2 = _mlA2 ? sz(22) : sz(28);
+  const _aOX2 = lay.cardW/2 + (_mlA2 ? sz(22) : sz(32));
+  const _aHW2 = _aFS2 + sz(8), _aHH2 = _aFS2 + sz(8);
+  const _aCY2 = lay.songRowY + lay.cardH/2;
+  if (hitTest(mx, my, centerX - _aOX2 - _aHW2/2, _aCY2 - _aHH2/2, _aHW2, _aHH2)) return;
+  if (hitTest(mx, my, centerX + _aOX2 - _aHW2/2, _aCY2 - _aHH2/2, _aHW2, _aHH2)) return;
   // Song cards (CD hit test — 원형, 화면 내 + 좌우 2개까지만)
   const _hitList = favFilterActive ? getFavorites().sort((a,b)=>a-b) : songs.map((_,i)=>i);
   const _hitSelPos = favFilterActive ? _hitList.indexOf(selectedSong) : selectedSong;
@@ -4028,21 +4031,31 @@ addEventListener('mousedown', e => {
   if (state === 'ranking') { handleRankingClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'achievement') { handleAchievementClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'select') {
-    // 화살표 hold 검사 — 화살표 위에서 mousedown이면 즉시 advance + hold 시작
+    // 화살표 hold 검사 — 글리프 중심 기준 히트 영역
     {
       const lay = getSelectLayout();
       const centerX = W / 2;
-      const arrowW = sz(30), arrowH = sz(34);
-      const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
+      const _mlA = isMobile && !isPortrait && !isTablet && H < 500;
+      const _arrowFontSz = _mlA ? sz(22) : sz(28);
+      const _arrowOffX = lay.cardW/2 + (_mlA ? sz(22) : sz(32));
+      const _arrowHitW = _arrowFontSz + sz(8); // 글리프 크기 + 여유
+      const _arrowHitH = _arrowFontSz + sz(8);
+      const _arrowCY = lay.songRowY + lay.cardH/2;
       const _amx = e.clientX, _amy = gameY(e.clientY);
-      if (hitTest(_amx, _amy, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) {
+      // 좌측 ◀
+      const _laX = centerX - _arrowOffX - _arrowHitW/2;
+      const _laY = _arrowCY - _arrowHitH/2;
+      if (hitTest(_amx, _amy, _laX, _laY, _arrowHitW, _arrowHitH)) {
         const p = _dPos(selectedSong);
         if (p > 0) { playScrollSound(); selectedSong = _dSong(p - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(-1);
         selectDragX = -1;
         return;
       }
-      if (hitTest(_amx, _amy, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) {
+      // 우측 ▶
+      const _raX = centerX + _arrowOffX - _arrowHitW/2;
+      const _raY = _arrowCY - _arrowHitH/2;
+      if (hitTest(_amx, _amy, _raX, _raY, _arrowHitW, _arrowHitH)) {
         const p = _dPos(selectedSong);
         if (p < _dLen() - 1) { playScrollSound(); selectedSong = _dSong(p + 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(1);
@@ -4354,22 +4367,29 @@ addEventListener('touchstart', e => {
   if (state === 'achievement') { const t = e.changedTouches[0]; handleAchievementClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'select') {
     const t = e.changedTouches[0];
-    // 화살표 hold 검사 — 화살표 위에서 시작했으면 즉시 hold 시작
+    // 화살표 hold 검사 — 글리프 중심 기준 히트 영역
     {
       const lay = getSelectLayout();
       const centerX = W / 2;
-      const arrowW = sz(30), arrowH = sz(34);
-      const arrowY = lay.songRowY + lay.cardH/2 - arrowH/2;
+      const _mlA = isMobile && !isPortrait && !isTablet && H < 500;
+      const _arrowFontSz = _mlA ? sz(22) : sz(28);
+      const _arrowOffX = lay.cardW/2 + (_mlA ? sz(22) : sz(32));
+      const _arrowHitW = _arrowFontSz + sz(8);
+      const _arrowHitH = _arrowFontSz + sz(8);
+      const _arrowCY = lay.songRowY + lay.cardH/2;
       const tmx = t.clientX, tmy = gameY(t.clientY);
-      if (hitTest(tmx, tmy, centerX - lay.cardW/2 - arrowW, arrowY, arrowW, arrowH)) {
+      const _laX = centerX - _arrowOffX - _arrowHitW/2;
+      const _laY = _arrowCY - _arrowHitH/2;
+      if (hitTest(tmx, tmy, _laX, _laY, _arrowHitW, _arrowHitH)) {
         const p = _dPos(selectedSong);
         if (p > 0) { playScrollSound(); selectedSong = _dSong(p - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(-1);
-        // 드래그 모드는 끄고 hold만 유지
         selectDragX = -1;
         return;
       }
-      if (hitTest(tmx, tmy, centerX + lay.cardW/2 + sz(6), arrowY, arrowW, arrowH)) {
+      const _raX = centerX + _arrowOffX - _arrowHitW/2;
+      const _raY = _arrowCY - _arrowHitH/2;
+      if (hitTest(tmx, tmy, _raX, _raY, _arrowHitW, _arrowHitH)) {
         const p = _dPos(selectedSong);
         if (p < _dLen() - 1) { playScrollSound(); selectedSong = _dSong(p + 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         startSelectArrowHold(1);
