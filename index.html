@@ -5336,6 +5336,10 @@ function startSong(idx) {
 
 // ===== UPDATE =====
 function update(dt) {
+  // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
+  if (state === 'playing' && !gamePaused && actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
+    pauseGame();
+  }
   if (state === 'login' || state === 'title') updateShootingStars(dt);
   updateTitleBgmFade();  // 타이틀 BGM 페이드아웃 polling (매 프레임)
   updateSelectScroll(dt);
