@@ -269,8 +269,8 @@ function resize() {
   canvas.style.width = fullW + 'px';
   canvas.style.height = fullH + 'px';
   // canvas.width/height 재설정 = context 완전 리셋 → 캐시된 CanvasGradient 객체 무효화
-  _bgGradCache = { key: null, grad: null };
-  _vignetteCache = { key: null, grad: null };
+  try { _bgGradCache = { key: null, grad: null }; } catch(e) {}
+  try { _vignetteCache = { key: null, grad: null }; } catch(e) {}
   isPortrait = fullH > fullW;
   // 모바일: 작은 화면 OR 터치 단말 (iPad/태블릿 포함)
   isMobile = fullW < 520 || ('ontouchstart' in window);
