@@ -261,39 +261,20 @@ function readEnvSafeArea() {
 }
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  // 치수 계산: 4개 소스 중 최솟값 사용
-  //   1) document.documentElement.clientWidth/Height (레이아웃 뷰포트)
-  //   2) visualViewport.width/height (실제 가시영역, 핀치줌/키보드 영향)
-  //   3) window.innerWidth/Height (레거시)
-  //   4) _vpProbe.getBoundingClientRect() (position:fixed 100% 엘리먼트 실측)
-  // iPad 풀스크린에서 (1)(2)(3)이 물리 화면보다 큰 값을 리턴하는 버그가 있어서 (4)로 실측.
-  // 최소값을 쓰면 어떤 소스가 잘못되어도 캔버스가 가시영역을 넘지 않음.
-  const de = document.documentElement;
-  const vv = window.visualViewport;
-  const cW = de ? de.clientWidth  : innerWidth;
-  const cH = de ? de.clientHeight : innerHeight;
-  const vW = vv ? Math.round(vv.width)  : cW;
-  const vH = vv ? Math.round(vv.height) : cH;
-  const pW = innerWidth;
-  const pH = innerHeight;
-  const probe = readViewport();
-  const candsW = [cW, vW, pW, probe.w].filter(x => x > 0);
-  const candsH = [cH, vH, pH, probe.h].filter(x => x > 0);
-  let fullW = candsW.length ? Math.min.apply(Math, candsW) : innerWidth;
-  let fullH = candsH.length ? Math.min.apply(Math, candsH) : innerHeight;
-  // 회전 stale 보정: CSS media query 와 실제 치수가 불일치하면 min() 이 stale 값을 선택한 것.
-  // 이 경우 probe(position:fixed div) 로 한 번만 override. (probe 단독 상시 사용은 dim watcher
-  // feedback loop 유발해서 안 됨 — 여기서 이벤트 기반 1회만 호출되므로 안전)
-  const _mqP = matchMedia('(orientation: portrait)').matches;
-  const _dimP = fullH > fullW;
-  if (_mqP !== _dimP && probe.w > 0 && probe.h > 0) {
-    fullW = probe.w;
-    fullH = probe.h;
-  }
+  // CSS width:100%; height:100%; position:fixed 가 canvas 표시 크기를 알아서 처리.
+  // inline style 을 제거하면 CSS 가 viewport 에 맞춰 자동 리사이즈.
+  // 회전/풀스크린에서도 CSS 가 즉시 반영 → API 값 stale 문제 회피.
+  canvas.style.removeProperty('width');
+  canvas.style.removeProperty('height');
+  // 강제 reflow 후 실제 CSS 표시 크기 읽기
+  void canvas.offsetHeight;
+  const rect = canvas.getBoundingClientRect();
+  const fullW = Math.round(rect.width);
+  const fullH = Math.round(rect.height);
+  // 0 방어
+  if (fullW <= 0 || fullH <= 0) return;
   canvas.width = fullW * dpr;
   canvas.height = fullH * dpr;
-  canvas.style.width = fullW + 'px';
-  canvas.style.height = fullH + 'px';
   isPortrait = fullH > fullW;
   // 모바일: 작은 화면 OR 터치 단말 (iPad/태블릿 포함)
   isMobile = fullW < 520 || ('ontouchstart' in window);
@@ -9893,8 +9874,7 @@ function loop(time) {
   // 해상도 디버깅: 콘솔에서 `window._dimDebug = true` 로 켜고 `false` 로 끔.
   // - 4개 dim 소스(client/vviewp/inner/probe) + canvas 테두리 + 시작버튼 Y 가이드
   // - 해상도 버그 재발/다른 디바이스 테스트 시 바로 재활용 (feedback_viewport_measurement.md 참조)
-  // 임시: 해상도 디버그 오버레이 강제 ON (iPad 회전 진단용)
-  renderDimDebug();
+  if (window._dimDebug === true) { renderDimDebug(); }
   requestAnimationFrame(loop);
 }
 function renderDimDebug() {
