@@ -4163,14 +4163,15 @@ addEventListener('mousedown', e => {
         devInvincible = !devInvincible; return;
       }
     }
-    // Speed control buttons (below HP bar, 반응형)
+    // Speed control buttons (above note buttons, 반응형)
     const _lgap = getLaneStartX() - sz(6);
     const _gw = Math.min(sz(18), Math.max(sz(8), _lgap - sz(8)));
-    const _spBtn = sz(30), _spGap = sz(5);
+    const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+    const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
     const _gcx = (isMobile && isPortrait) ? sz(2) + Math.max(_gw, _spBtn)/2 : Math.max(sz(2) + _gw/2, getLaneStartX() - sz(20) - Math.max(_gw, _spBtn)/2);
-    const _gy = -safeTop + sz(6), _gh = getHitY() - _gy - sz(60);
+    const _spBlockTop = getBtnY() - sz(6) - _spBlockH;
     const _spCx = _gcx;
-    const _spBaseY = _gy + _gh + sz(24);
+    const _spBaseY = _spBlockTop + _spPad;
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
     const _spPlusY = _spMinusY + _spBtn + _spGap + _spBtn + _spGap;
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spMinusY, _spBtn, _spBtn)) {
@@ -4183,7 +4184,8 @@ addEventListener('mousedown', e => {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     const _mx = e.clientX, _my = gameY(e.clientY);
     const _mLaneEnd = lsx + lw * laneCount;
-    if (_mx >= lsx - lw*0.4 && _mx < _mLaneEnd + lw*0.4 && _my >= -safeTop && _my < by + bh) {
+    const _mLaneMargin = isMobile ? lsx : lw*0.4;
+    if (_mx >= lsx - _mLaneMargin && _mx < _mLaneEnd + _mLaneMargin && _my >= -safeTop && _my < by + bh) {
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_mx - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
       if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
@@ -4512,15 +4514,16 @@ canvas.addEventListener('touchstart', e => {
         devInvincible = !devInvincible; return;
       }
     }
-    // Speed control buttons (below HP bar, 반응형)
+    // Speed control buttons (above note buttons, 반응형)
     let _tSpeedHandled = false;
     const _tlgap = getLaneStartX() - sz(6);
     const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
-    const _tspBtn = sz(30), _tspGap = sz(5);
+    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
+    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
     const _tgcx = (isMobile && isPortrait) ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
-    const _tgy = -safeTop + sz(6), _tgh = getHitY() - _tgy - sz(60);
+    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
     const _tspCx = _tgcx;
-    const _tspBaseY = _tgy + _tgh + sz(24);
+    const _tspBaseY = _tspBlockTop + _tspPad;
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
     const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
@@ -4535,7 +4538,8 @@ canvas.addEventListener('touchstart', e => {
       if (_tSpeedHandled && touch === t0) continue;
       const _tcy = gameY(touch.clientY);
       const _tcx = touch.clientX;
-      if (_tcx < lsx - lw*0.4 || _tcx >= _laneEnd + lw*0.4 || _tcy < -safeTop || _tcy >= by+bh) continue;
+      const _tLaneMargin = isMobile ? lsx : lw*0.4;
+      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin || _tcy < -safeTop || _tcy >= by+bh) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
       touchLaneMap.set(touch.identifier, i);
@@ -4593,7 +4597,8 @@ canvas.addEventListener('touchmove', e => {
       const _scy = gameY(touch.clientY);
       const _scx = touch.clientX;
       let newLane = -1;
-      if (_scx >= lsx - lw*0.4 && _scx < _laneEnd + lw*0.4 && _scy >= -safeTop && _scy < by + bh) {
+      const _sLaneMargin = isMobile ? lsx : lw*0.4;
+      if (_scx >= lsx - _sLaneMargin && _scx < _laneEnd + _sLaneMargin && _scy >= -safeTop && _scy < by + bh) {
         newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((_scx - lsx) / lw)));
       }
       if (newLane >= 0 && newLane !== prevLane) {
@@ -6734,13 +6739,18 @@ function renderJudgment() {
 function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
-  // HP바/속도 컨트롤: 레인 왼쪽에 배치, 최소 sz(4) 확보 (8키 세로모드 화면 밖 방지)
-  // HP바: 레인 왼쪽 남는 공간에 맞춤. 공간 부족하면 얇게.
+  // HP바/속도 컨트롤: 레인 왼쪽에 배치
   const _laneGap = getLaneStartX() - sz(6);
   const gw = Math.min(sz(18), Math.max(sz(8), _laneGap - sz(8)));
-  const _gcx = (isMobile && isPortrait) ? sz(2) + Math.max(gw, sz(30))/2 : Math.max(sz(2) + gw/2, getLaneStartX() - sz(20) - Math.max(gw, sz(30))/2);
+  const _spBtnSz = sz(30), _spGapSz = sz(5), _spPadSz = sz(4);
+  const _spTotalH = _spBtnSz*3 + _spGapSz*2;
+  const _spBlockH = _spTotalH + _spPadSz*2;
+  const _gcx = (isMobile && isPortrait) ? sz(2) + Math.max(gw, _spBtnSz)/2 : Math.max(sz(2) + gw/2, getLaneStartX() - sz(20) - Math.max(gw, _spBtnSz)/2);
   const gx = _gcx - gw/2;
-  const gy = -safeTop + sz(6), gh = getHitY() - gy - sz(60);
+  // 배속 버튼을 노트 입력 버튼 바로 위에 배치, HP바는 그 위 나머지 공간
+  const _spBlockBottom = getBtnY() - sz(6);
+  const _spBlockTop = _spBlockBottom - _spBlockH;
+  const gy = -safeTop + sz(6), gh = Math.max(sz(40), _spBlockTop - gy - sz(16));
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
     // BG
@@ -6839,16 +6849,15 @@ function renderUI() {
   // 곡 정보 + 프로그레스바 제거됨 (2026-04-16)
 
 
-  // Speed control (below HP bar, vertical stack)
-  const spBtn = sz(30);
+  // Speed control (above note buttons, vertical stack)
+  const spBtn = _spBtnSz;
   const spCx = _gcx;
-  const spGap = sz(5);
-  const spTotalH = spBtn + spGap + spBtn + spGap + spBtn;
-  const spBaseY = gy + gh + sz(24);
-  // Container
-  const spPad = sz(4);
-  const spContW = spBtn + spPad*2, spContH = spTotalH + spPad*2;
-  const spContX = spCx - spContW/2, spContY = spBaseY - spPad;
+  const spGap = _spGapSz;
+  const spPad = _spPadSz;
+  const spBaseY = _spBlockTop + spPad;
+  const spTotalH = _spTotalH;
+  const spContW = spBtn + spPad*2, spContH = _spBlockH;
+  const spContX = spCx - spContW/2, spContY = _spBlockTop;
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   rrFill(spContX, spContY, spContW, spContH, sz(7));
   ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
