@@ -793,7 +793,6 @@ function playEmptyPressSfx(lane) {
   resumeAudio(); // AudioContext resume 보장
   // BGM 종료 후: 무음
   if (songDuration > 0 && gameTime >= songDuration - 1) return;
-  const now = performance.now();
   const peakVol = countdownTime > 0 ? STEM_VOL_NORMAL * volBgm : Math.min(1.0, STEM_VOL_NORMAL * volBgm * 1.4);
   if (usingStemMode) {
     // onset 모드: 해당 레인의 다음 노트 stem + onset 시간으로 재생
