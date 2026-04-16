@@ -6459,7 +6459,7 @@ function renderButtons() {
       ctx.font = `bold ${sz(16)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = held ? '#fff' : col + '55';
-      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.35);
+      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh / 2);
     }
   }
 }
