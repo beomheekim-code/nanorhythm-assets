@@ -6366,8 +6366,8 @@ function renderButtons() {
     const bx = lsx + i * lw;
     const held = keyHeld[i];
 
-    // Button bg
-    ctx.fillStyle = held ? LANE_COLORS[i]+'44' : 'rgba(255,255,255,0.04)';
+    // Button bg — 불투명 배경으로 뒤의 별/파티클 가림
+    ctx.fillStyle = held ? LANE_COLORS[i]+'44' : 'rgba(10,8,20,0.7)';
     rrFill(bx+3, by+3, lw-6, bh-6, 8);
 
     // Border
@@ -6708,12 +6708,12 @@ function renderUI() {
   // Pause button — 우상단 (레인 영역 밖)
   const pbW = sz(48), pbH = sz(36);
   const pbX = W - pbW - sz(4), pbY = -safeTop + sz(2);
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillStyle = 'rgba(20,15,40,0.75)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
   rrStroke(pbX, pbY, pbW, pbH, sz(6));
-  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `bold ${sz(16)}px sans-serif`; ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillText('⏸', pbX + pbW/2, pbY + pbH/2);
   ctx.textBaseline = 'alphabetic';
 
@@ -7801,9 +7801,9 @@ function renderBottomBar() {
   ctx.font = `bold ${_bbML ? sz(12) : sz(10)}px sans-serif`; ctx.fillStyle = '#ffd700aa';
   ctx.fillText('♪ ' + formatCoins(getCoins()), hbX - sz(6), hbY + hbH/2);
   // 햄버거 버튼 렌더
-  ctx.fillStyle = hamburgerOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)';
+  ctx.fillStyle = hamburgerOpen ? 'rgba(20,15,40,0.9)' : 'rgba(20,15,40,0.75)';
   rrFill(hbX, hbY, hbW, hbH, sz(7));
-  ctx.strokeStyle = hamburgerOpen ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)';
+  ctx.strokeStyle = hamburgerOpen ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)';
   ctx.lineWidth = 1; rrStroke(hbX, hbY, hbW, hbH, sz(7));
   const barBW = _bbML ? sz(18) : sz(14), barBH = 2, barBX = hbX + (hbW - barBW) / 2;
   const barGapY = _bbML ? sz(6) : sz(5);
