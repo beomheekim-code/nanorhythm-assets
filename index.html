@@ -731,30 +731,28 @@ function loadScreenModeFromFb() {
   });
 }
 function _isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || window.navigator.standalone === true; }
+const _isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent);
+function _showFsGuide() {
+  if (_isStandalone()) { showLoginToast('이미 풀스크린 모드입니다', '#44dd66', null, 2); return; }
+  if (_isChromeIOS) showLoginToast('Safari에서 열어서 홈 화면에 추가하세요', '#ff9900', 'iOS 크롬은 풀스크린 미지원', 4);
+  else if (isIOS) showLoginToast('공유(↑) → 홈 화면에 추가', '#ff9900', '홈 화면에서 앱처럼 풀스크린 실행됩니다', 4);
+  else showLoginToast('브라우저 메뉴(⋮) → 홈 화면에 추가', '#ff9900', '홈 화면에서 앱처럼 풀스크린 실행됩니다', 4);
+}
 function applyScreenMode() {
   if (screenMode === 'fullscreen') {
     const el = document.documentElement;
-    const canFs = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!canFs) {
-      if (_isStandalone()) {
-        showLoginToast('이미 풀스���린 모드입니다', '#44dd66', null, 2);
-      } else if (isIOS) {
-        showLoginToast('Safari → 공유 → 홈 화면에 추가', '#ff9900', '홈 화면에서 실행하면 풀스크린됩니다', 4);
-      } else {
-        showLoginToast('브라우저 메뉴 → 홈 화면에 추가', '#ff9900', '홈 화면에서 실행하면 풀스크린됩니다', 4);
-      }
-      return;
-    }
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      const p = el.requestFullscreen ? el.requestFullscreen() : (el.webkitRequestFullscreen(), Promise.resolve());
-      if (p && p.catch) p.catch(() => {
-        if (isIOS) showLoginToast('Safari → 공유 → 홈 화면에 추가', '#ff9900', '홈 화면에서 실행하면 풀스크린됩니다', 4);
-        else showLoginToast('풀스크린 전환 실패', '#ff6666', '브라우저 메뉴 → 홈 화면에 추가를 이용하세요', 3);
-      });
-    }
+    const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (!rfs) { _showFsGuide(); return; }
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    try {
+      const p = rfs.call(el);
+      if (p && p.then) p.then(() => { setTimeout(resize, 150); }).catch(() => { _showFsGuide(); });
+    } catch(e) { _showFsGuide(); }
   } else {
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+    } catch(e) {}
   }
 }
 document.addEventListener('fullscreenchange', () => {
