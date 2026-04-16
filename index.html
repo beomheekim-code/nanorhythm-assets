@@ -1788,9 +1788,10 @@ function getLaneW() {
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() { return (W - getTotalLaneW()) / 2; }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
-function getHitY() { return H * 0.78; }
-function getBtnY() { return getHitY() + sz(12); }
-function getBtnH() { return H + safeBottom - getBtnY(); }
+// 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
+function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
+function getBtnY() { return H + safeBottom - getBtnH(); }
+function getHitY() { return getBtnY() - sz(8); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
