@@ -6107,26 +6107,27 @@ function render() {
 
 function renderLanes() {
   const lw = getLaneW(), lsx = getLaneStartX(), hitY = getHitY();
+  const laneTop = -safeTop; // 안전영역 위쪽부터 시작
 
   // Lane backgrounds
   for (let i = 0; i < laneCount; i++) {
     const x = lsx + i * lw;
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.08)';
-    ctx.fillRect(x, 0, lw, hitY + _s10);
+    ctx.fillRect(x, laneTop, lw, hitY + _s10 - laneTop);
 
     // Vertical lane dividers
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, hitY+_s10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, laneTop); ctx.lineTo(x, hitY+_s10); ctx.stroke();
 
     // Flash on press
     if (keyFlash[i] > 0) {
       ctx.fillStyle = LANE_COLORS[i] + '15';
-      ctx.fillRect(x, 0, lw, hitY+_s10);
+      ctx.fillRect(x, laneTop, lw, hitY + _s10 - laneTop);
     }
   }
   // Right border
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, 0); ctx.lineTo(lsx + lw*laneCount, hitY+_s10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, laneTop); ctx.lineTo(lsx + lw*laneCount, hitY+_s10); ctx.stroke();
 
   // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 일시정지 시 gameTime과 함께 멈춤)
   if (state === 'playing' && noteSpeed > 0) {
@@ -6135,7 +6136,7 @@ function renderLanes() {
     const offset = (gameTime * noteSpeed) % railGap; // gameTime 기반 (일시정지 시 정지)
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
-    for (let y = -railGap + offset; y < hitY + railGap; y += railGap) {
+    for (let y = laneTop - railGap + offset; y < hitY + railGap; y += railGap) {
       ctx.beginPath();
       ctx.moveTo(lsx, y);
       ctx.lineTo(lsx + tw, y);
