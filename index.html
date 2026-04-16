@@ -4166,7 +4166,7 @@ addEventListener('mousedown', e => {
     // Speed control buttons (below HP bar, 반응형)
     const _lgap = getLaneStartX() - sz(6);
     const _gw = Math.min(sz(18), Math.max(sz(8), _lgap - sz(8)));
-    const _gx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - _gw - sz(6));
+    const _gx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - _gw - sz(20));
     const _gy = -safeTop + sz(6), _gh = getHitY() - _gy - sz(60);
     const _spBtn = sz(30), _spGap = sz(5);
     const _spCx = _gx + Math.max(_gw, _spBtn)/2;
@@ -4516,7 +4516,7 @@ canvas.addEventListener('touchstart', e => {
     let _tSpeedHandled = false;
     const _tlgap = getLaneStartX() - sz(6);
     const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
-    const _tgx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - _tgw - sz(6));
+    const _tgx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - _tgw - sz(20));
     const _tgy = -safeTop + sz(6), _tgh = getHitY() - _tgy - sz(60);
     const _tspBtn = sz(30), _tspGap = sz(5);
     const _tspCx = _tgx + Math.max(_tgw, _tspBtn)/2;
@@ -6738,7 +6738,7 @@ function renderUI() {
   // HP바: 레인 왼쪽 남는 공간에 맞춤. 공간 부족하면 얇게.
   const _laneGap = getLaneStartX() - sz(6);
   const gw = Math.min(sz(18), Math.max(sz(8), _laneGap - sz(8)));
-  const gx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - gw - sz(6));
+  const gx = (isMobile && isPortrait) ? sz(2) : Math.max(sz(2), getLaneStartX() - gw - sz(20));
   const gy = -safeTop + sz(6), gh = getHitY() - gy - sz(60);
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
