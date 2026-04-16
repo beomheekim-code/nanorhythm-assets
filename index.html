@@ -1780,18 +1780,22 @@ let resumeSyncCounter = 0; // 재개 후 강제 동기화 프레임 수
 
 // ===== LAYOUT =====
 function getLaneW() {
-  // 화면 너비의 90%를 레인 영역으로, laneCount에 따라 균등 분배
-  const maxTotal = W * 0.9;
+  // HP 여백(sz(46)) 확보 후 남은 영역에서 레인 분배
+  const availW = W - sz(46);
+  const maxTotal = availW * 0.95;
   const perLane = maxTotal / laneCount;
   return Math.min(perLane, 75 * UI);
 }
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() {
   const centered = (W - getTotalLaneW()) / 2;
-  // HP바/속도 조절 영역 확보: 최소 왼쪽 여백 보장 (8키 등 레인이 많을 때 잘림 방지)
-  const minLeft = sz(38);
-  return Math.max(minLeft, centered);
+  // HP바/속도 조절 영역 확보: 최소 왼쪽 여백 보장
+  const minLeft = sz(46);
+  if (centered < minLeft) return minLeft;
+  return centered;
 }
+// 레인 폭: HP 여백 확보 후 남은 공간에 맞춤
+function _getMaxLaneArea() { return W - sz(46); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
 function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
