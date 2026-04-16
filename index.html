@@ -713,6 +713,45 @@ function stemDuckAll() {}
 let gameMode = safeGetItem('rhythm_gameMode') || 'rhythm';
 function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
+// ===== 화면 모드 (풀스크린/브라우저) =====
+let screenMode = safeGetItem('rhythm_screenMode') || 'browser';
+function saveScreenMode() {
+  safeSetItem('rhythm_screenMode', screenMode);
+  if (currentUser && fbDb) try { fbDb.ref('settings/' + currentUser + '/screenMode').set(screenMode); } catch(e) {}
+}
+function loadScreenModeFromFb() {
+  if (!currentUser || !fbDb) return;
+  fbDb.ref('settings/' + currentUser + '/screenMode').once('value', snap => {
+    const v = snap.val();
+    if (v && (v === 'fullscreen' || v === 'browser')) {
+      screenMode = v;
+      safeSetItem('rhythm_screenMode', screenMode);
+    }
+  });
+}
+function applyScreenMode() {
+  if (screenMode === 'fullscreen') {
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if (!document.webkitFullscreenElement && el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else {
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const isFull = !!document.fullscreenElement || !!document.webkitFullscreenElement;
+  screenMode = isFull ? 'fullscreen' : 'browser';
+  safeSetItem('rhythm_screenMode', screenMode);
+  setTimeout(resize, 100);
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  const isFull = !!document.fullscreenElement || !!document.webkitFullscreenElement;
+  screenMode = isFull ? 'fullscreen' : 'browser';
+  safeSetItem('rhythm_screenMode', screenMode);
+  setTimeout(resize, 100);
+});
+
 // ===== 플레이 모드 =====
 // 'normal' (일반): 기존 로직. HP/랭킹/업적 활성
 // 'freestyle' (프리스타일): HP 없음. 랭킹/업적 비활성
@@ -2302,7 +2341,7 @@ function completeLogin(name, method) {
   nicknameOverlay = false; nicknameInput = ''; nicknameError = '';
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
   // 계정 데이터 Firebase 동기화 (v16.1)
-  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();
+  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase(); loadScreenModeFromFb();
   // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
   if (pendingAuthUid) {
     _claimActiveSession(pendingAuthUid);
@@ -3227,7 +3266,7 @@ let state = 'title';
 // 이미 로그인된 경우 Firebase에서 설정 동기화
 if (currentUser) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
-  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();
+  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase(); loadScreenModeFromFb();
 }
 let curSong = null, curSongIdx = 0, curDiff = null;
 let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 0;
@@ -7298,8 +7337,38 @@ function renderSettingsOverlay() {
   window._modeBtnRhythm = { x: sliderX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
   window._modeBtnNano = { x: nBtnX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
 
+  // ===== 화면 모드 =====
+  const scY = gmBtnY + gmBtnH + sz(20);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('화면 모드', sliderX, scY);
+  const scBtnW = (sliderW - sz(8)) / 2, scBtnH = sz(28);
+  const scBtnY = scY + sz(14);
+  // 풀스크린 버튼
+  const fsSel = screenMode === 'fullscreen';
+  ctx.fillStyle = fsSel ? '#ff990022' : 'rgba(255,255,255,0.04)';
+  rrFill(sliderX, scBtnY, scBtnW, scBtnH, sz(6));
+  ctx.strokeStyle = fsSel ? '#ff9900' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = fsSel ? 2 : 1;
+  if (fsSel) { ctx.shadowColor = '#ff9900'; ctx.shadowBlur = 8; }
+  rrStroke(sliderX, scBtnY, scBtnW, scBtnH, sz(6)); ctx.shadowBlur = 0;
+  ctx.textAlign = 'center'; ctx.font = `bold ${sz(11)}px sans-serif`;
+  ctx.fillStyle = fsSel ? '#ff9900' : 'rgba(255,255,255,0.4)';
+  ctx.fillText('풀스크린', sliderX + scBtnW/2, scBtnY + scBtnH/2);
+  // 브라우저 버튼
+  const brSel = screenMode === 'browser';
+  const brBtnX = sliderX + scBtnW + sz(8);
+  ctx.fillStyle = brSel ? '#4488ff22' : 'rgba(255,255,255,0.04)';
+  rrFill(brBtnX, scBtnY, scBtnW, scBtnH, sz(6));
+  ctx.strokeStyle = brSel ? '#4488ff' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = brSel ? 2 : 1;
+  if (brSel) { ctx.shadowColor = '#4488ff'; ctx.shadowBlur = 8; }
+  rrStroke(brBtnX, scBtnY, scBtnW, scBtnH, sz(6)); ctx.shadowBlur = 0;
+  ctx.fillStyle = brSel ? '#4488ff' : 'rgba(255,255,255,0.4)';
+  ctx.fillText('브라우저', brBtnX + scBtnW/2, scBtnY + scBtnH/2);
+  window._screenModeBtnFs = { x: sliderX, y: scBtnY, w: scBtnW, h: scBtnH };
+  window._screenModeBtnBr = { x: brBtnX, y: scBtnY, w: scBtnW, h: scBtnH };
+
   // ===== 계정 정보 =====
-  const acctY = gmBtnY + gmBtnH + sz(24);
+  const acctY = scBtnY + scBtnH + sz(18);
   const acctBoxW = panelW, acctBoxH = sz(50);
   const acctBoxX = (W - acctBoxW) / 2;
   ctx.fillStyle = 'rgba(255,255,255,0.03)'; rrFill(acctBoxX, acctY, acctBoxW, acctBoxH, sz(8));
@@ -7503,12 +7572,22 @@ function handleSettingsClick(mx, my) {
     applySfxVol(); saveVolSettings(); return;
   }
 
+  // 화면 모드 토글
+  if (window._screenModeBtnFs && hitTest(mx, mys, _screenModeBtnFs.x, _screenModeBtnFs.y, _screenModeBtnFs.w, _screenModeBtnFs.h)) {
+    screenMode = 'fullscreen'; saveScreenMode(); applyScreenMode(); return;
+  }
+  if (window._screenModeBtnBr && hitTest(mx, mys, _screenModeBtnBr.x, _screenModeBtnBr.y, _screenModeBtnBr.w, _screenModeBtnBr.h)) {
+    screenMode = 'browser'; saveScreenMode(); applyScreenMode(); return;
+  }
+
   // 계정 정보 박스 + 버튼 (render와 동일한 Y 체인)
   const sfxY_click = volY + volRowH;
   const gameModeY_click = sfxY_click + volRowH + sz(8);
   const gmBtnY_click = gameModeY_click + sz(14);
   const gmBtnH_click = sz(28);
-  const acctY_click = gmBtnY_click + gmBtnH_click + sz(24);
+  const scBtnY_click = gmBtnY_click + gmBtnH_click + sz(20) + sz(14);
+  const scBtnH_click = sz(28);
+  const acctY_click = scBtnY_click + scBtnH_click + sz(18);
   const acctBoxH = sz(50);
   const actY = acctY_click + acctBoxH + sz(8);
   const actBtnW = Math.min(sz(110), panelW * 0.35), actBtnH = sz(30), actGap = sz(10);
