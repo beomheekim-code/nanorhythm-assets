@@ -251,26 +251,19 @@ function resize() {
   //   4) _vpProbe.getBoundingClientRect() (position:fixed 100% 엘리먼트 실측)
   // iPad 풀스크린에서 (1)(2)(3)이 물리 화면보다 큰 값을 리턴하는 버그가 있어서 (4)로 실측.
   // 최소값을 쓰면 어떤 소스가 잘못되어도 캔버스가 가시영역을 넘지 않음.
-  // 치수 계산: _vpProbe 실측 우선. position:fixed 100% div 는 회전/풀스크린에서
-  // 가장 안정적으로 실제 가시영역을 반환함. 다른 소스(client/vv/inner)는 회전 직후
-  // stale 값을 반환해서 min() 으로 엮으면 이전 방향 값이 선택되는 문제가 있었음.
+  const de = document.documentElement;
+  const vv = window.visualViewport;
+  const cW = de ? de.clientWidth  : innerWidth;
+  const cH = de ? de.clientHeight : innerHeight;
+  const vW = vv ? Math.round(vv.width)  : cW;
+  const vH = vv ? Math.round(vv.height) : cH;
+  const pW = innerWidth;
+  const pH = innerHeight;
   const probe = readViewport();
-  let fullW, fullH;
-  if (probe.w > 0 && probe.h > 0) {
-    // probe 유효: 이것만 사용 (가장 신뢰)
-    fullW = probe.w;
-    fullH = probe.h;
-  } else {
-    // probe 실패 (초기 로드 등): 나머지 소스 min fallback
-    const de = document.documentElement;
-    const vv = window.visualViewport;
-    const cW = de ? de.clientWidth  : innerWidth;
-    const cH = de ? de.clientHeight : innerHeight;
-    const vW = vv ? Math.round(vv.width)  : cW;
-    const vH = vv ? Math.round(vv.height) : cH;
-    fullW = Math.min(cW, vW, innerWidth) || innerWidth;
-    fullH = Math.min(cH, vH, innerHeight) || innerHeight;
-  }
+  const candsW = [cW, vW, pW, probe.w].filter(x => x > 0);
+  const candsH = [cH, vH, pH, probe.h].filter(x => x > 0);
+  const fullW = candsW.length ? Math.min.apply(Math, candsW) : innerWidth;
+  const fullH = candsH.length ? Math.min.apply(Math, candsH) : innerHeight;
   canvas.width = fullW * dpr;
   canvas.height = fullH * dpr;
   canvas.style.width = fullW + 'px';
@@ -9775,8 +9768,7 @@ let lastTime = 0;
 // 놓치는 케이스가 있음.
 let _lastSeenW = 0, _lastSeenH = 0;
 function _dimWatcher() {
-  // [perf B] 인게임 플레이 중엔 스킵 (resize 이벤트 + retry cascade 가 안전망)
-  // probe 기반 dim watcher 가 인게임에서 resize→canvas clear 무한루프 유발해서 playing skip 유지
+  // [perf B] 인게임 플레이 중엔 per-frame DOM read 스킵 (resize 이벤트가 안전망)
   if (state === 'playing') return;
   const de = document.documentElement;
   const vv = window.visualViewport;
