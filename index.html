@@ -314,12 +314,8 @@ function resize() {
   } else if (isPortrait) {
     UI = Math.max(0.7, Math.min(1.35, W / 390));
     if (W < 340) UI = Math.max(0.6, W / 380);
-  } else if (isMobile) {
-    // 폰 가로
-    UI = Math.min(1, Math.min(W / 520, H / 400));
   } else {
-    // 데스크톱 / 대형 모니터: 1080p=1.0 기준 비례 (4K=2.0, 8K=2.5 cap)
-    UI = Math.max(1.0, Math.min(2.5, Math.min(W / 1920, H / 1080)));
+    UI = Math.min(1, Math.min(W / 520, H / 400));
   }
   try { if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); } catch(e) {}
   try { if (typeof stars !== 'undefined' && stars && stars.length > 0) genStars(); } catch(e) {}
