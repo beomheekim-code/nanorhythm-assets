@@ -4467,8 +4467,8 @@ addEventListener('touchmove', e => {
     }
     return;
   }
-  // 인게임: 터치 슬라이드로 옆 레인 입력
-  if (state === 'playing' && !gamePaused && countdownTime <= 0) {
+  // 인게임: 터치 슬라이드로 옆 레인 입력 (BGM 재생 전에는 비활성)
+  if (state === 'playing' && !gamePaused && !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     for (const touch of e.changedTouches) {
       const prevLane = touchLaneMap.get(touch.identifier);
