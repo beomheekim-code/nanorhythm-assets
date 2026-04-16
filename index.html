@@ -6702,7 +6702,7 @@ function renderUI() {
   // Combo display — 노트 영역 상단
   if (combo > 0) {
     const lsx = getLaneStartX(), tw = getLaneW()*laneCount;
-    const cx = lsx + tw/2, cy = _s55;
+    const cx = lsx + tw/2, cy = getHitY() * 0.35;
     const t = Date.now();
 
     ctx.save();
