@@ -4095,7 +4095,10 @@ addEventListener('mousedown', e => {
       }
     }
     // Speed control buttons (below HP bar, 반응형)
-    const _gx = Math.max(sz(4), getLaneStartX() - sz(34)), _gy = -safeTop + sz(6), _gw = sz(18), _gh = getHitY() - _gy - sz(80);
+    const _lgap = getLaneStartX() - sz(6);
+    const _gw = Math.min(sz(18), Math.max(sz(8), _lgap - sz(8)));
+    const _gx = Math.max(sz(2), getLaneStartX() - _gw - sz(6));
+    const _gy = -safeTop + sz(6), _gh = getHitY() - _gy - sz(60);
     const _spCx = _gx + _gw/2, _spBtn = sz(30), _spGap = sz(5);
     const _spBaseY = _gy + _gh + sz(24);
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
@@ -4429,7 +4432,10 @@ addEventListener('touchstart', e => {
       }
     }
     // Speed control buttons (below HP bar, 반응형)
-    const _tgx = Math.max(sz(4), getLaneStartX() - sz(34)), _tgy = -safeTop + sz(6), _tgw = sz(18), _tgh = getHitY() - _tgy - sz(80);
+    const _tlgap = getLaneStartX() - sz(6);
+    const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
+    const _tgx = Math.max(sz(2), getLaneStartX() - _tgw - sz(6));
+    const _tgy = -safeTop + sz(6), _tgh = getHitY() - _tgy - sz(60);
     const _tspCx = _tgx + _tgw/2, _tspBtn = sz(30), _tspGap = sz(5);
     const _tspBaseY = _tgy + _tgh + sz(24);
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
@@ -6382,8 +6388,7 @@ function renderNotes() {
 
 function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-  const _t = Date.now();
-  const _pad = sz(2), _r = sz(6);
+  const _pad = sz(2), _r = sz(8);
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
@@ -6391,43 +6396,68 @@ function renderButtons() {
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
 
+    // 불투명 어두운 배경 (공통)
+    ctx.fillStyle = 'rgba(8,6,18,0.95)';
+    rrFill(x, y, w, h, _r);
+
     if (held) {
-      // 눌림: 레인 색 그라데이션 + 글로우
-      const pressGrad = ctx.createLinearGradient(x, y, x, y + h);
-      pressGrad.addColorStop(0, col + 'aa');
-      pressGrad.addColorStop(0.4, col + '55');
-      pressGrad.addColorStop(1, col + '22');
-      ctx.fillStyle = pressGrad;
+      // ===== 눌림 =====
+      // 레인 색 그라데이션 오버레이
+      const pg = ctx.createLinearGradient(x, y, x, y + h);
+      pg.addColorStop(0, col + '88');
+      pg.addColorStop(0.3, col + '44');
+      pg.addColorStop(1, col + '11');
+      ctx.fillStyle = pg;
       rrFill(x, y, w, h, _r);
-      // 상단 발광 라인
-      ctx.shadowColor = col; ctx.shadowBlur = 12;
-      ctx.strokeStyle = col + 'dd'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x + _r, y); ctx.lineTo(x + w - _r, y); ctx.stroke();
+      // 상단 발광 바
+      ctx.shadowColor = col; ctx.shadowBlur = 16;
+      ctx.fillStyle = col + 'cc';
+      ctx.fillRect(x + _r, y, w - _r*2, sz(3));
       ctx.shadowBlur = 0;
-      // 테두리
-      ctx.strokeStyle = col + 'aa'; ctx.lineWidth = 1.5;
+      // 테두리 글로우
+      ctx.strokeStyle = col + 'bb'; ctx.lineWidth = 2;
       rrStroke(x, y, w, h, _r);
     } else {
-      // 기본: 어두운 불투명 + 레인 색 은은한 상단 라인
-      const baseGrad = ctx.createLinearGradient(x, y, x, y + h);
-      baseGrad.addColorStop(0, 'rgba(25,20,45,0.9)');
-      baseGrad.addColorStop(1, 'rgba(10,8,20,0.95)');
-      ctx.fillStyle = baseGrad;
-      rrFill(x, y, w, h, _r);
-      // 상단 은은한 색상 라인
-      ctx.strokeStyle = col + '44'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x + _r, y + 0.5); ctx.lineTo(x + w - _r, y + 0.5); ctx.stroke();
+      // ===== 기본 (대기) =====
+      // 상단 하이라이트 (유리/볼록 효과)
+      const hg = ctx.createLinearGradient(x, y, x, y + h * 0.4);
+      hg.addColorStop(0, 'rgba(255,255,255,0.07)');
+      hg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = hg;
+      rrFill(x, y, w, h * 0.4, _r);
+      // 레인 색 상단 인디케이터 바
+      ctx.fillStyle = col + '55';
+      ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+      // 하단 은은한 레인 색 글로우
+      const bg = ctx.createLinearGradient(x, y + h - sz(20), x, y + h);
+      bg.addColorStop(0, 'transparent');
+      bg.addColorStop(1, col + '18');
+      ctx.fillStyle = bg;
+      rrFill(x, y + h - sz(20), w, sz(20), _r);
       // 테두리
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
       rrStroke(x, y, w, h, _r);
+      // 중앙 다이아몬드 아이콘 (터치 포인트 인지)
+      if (isMobile) {
+        const dcx = bx + lw/2, dcy = by + Math.min(bh * 0.35, sz(30));
+        const ds = sz(5);
+        ctx.fillStyle = col + '44';
+        ctx.beginPath();
+        ctx.moveTo(dcx, dcy - ds);
+        ctx.lineTo(dcx + ds, dcy);
+        ctx.lineTo(dcx, dcy + ds);
+        ctx.lineTo(dcx - ds, dcy);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     // Label — PC 만
     if (!isMobile) {
       ctx.font = `bold ${sz(16)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = held ? '#fff' : col + '66';
-      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh/2);
+      ctx.fillStyle = held ? '#fff' : col + '55';
+      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.35);
     }
   }
 }
@@ -6604,7 +6634,11 @@ function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
   // HP바/속도 컨트롤: 레인 왼쪽에 배치, 최소 sz(4) 확보 (8키 세로모드 화면 밖 방지)
-  const gx = Math.max(sz(4), getLaneStartX() - sz(34)), gy = -safeTop + sz(6), gw = sz(18), gh = getHitY() - gy - sz(80);
+  // HP바: 레인 왼쪽 남는 공간에 맞춤. 공간 부족하면 얇게.
+  const _laneGap = getLaneStartX() - sz(6);
+  const gw = Math.min(sz(18), Math.max(sz(8), _laneGap - sz(8)));
+  const gx = Math.max(sz(2), getLaneStartX() - gw - sz(6));
+  const gy = -safeTop + sz(6), gh = getHitY() - gy - sz(60);
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
     // BG
