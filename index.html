@@ -233,6 +233,21 @@ function readViewport() {
   const r = _vpProbe.getBoundingClientRect();
   return { w: Math.round(r.width), h: Math.round(r.height) };
 }
+// 콘솔에서 dimCheck() 치면 4-source + probe 값 + matchMedia 한눈에 볼 수 있음
+window.dimCheck = function() {
+  const de = document.documentElement;
+  const vv = window.visualViewport;
+  const probe = readViewport();
+  const mq = matchMedia('(orientation: portrait)').matches;
+  console.table({
+    client: { w: de?de.clientWidth:0, h: de?de.clientHeight:0 },
+    vviewp: { w: vv?Math.round(vv.width):0, h: vv?Math.round(vv.height):0 },
+    inner:  { w: innerWidth, h: innerHeight },
+    probe:  { w: probe.w, h: probe.h },
+    game:   { W, H, UI: UI.toFixed(2), isPortrait, isTablet, safeTop, safeBottom },
+    media:  { portrait: mq }
+  });
+};
 function readEnvSafeArea() {
   const cs = getComputedStyle(_saProbe);
   return {
