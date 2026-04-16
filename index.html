@@ -5338,10 +5338,13 @@ function startSong(idx) {
 // ===== UPDATE =====
 function update(dt) {
   // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
-  // _resumeGrace: resumeGame 직후 actx.resume() 이 async 라서 몇 프레임 동안 state 가 아직 suspended 일 수 있음 → 재pause 방지
-  if (_resumeGrace > 0) _resumeGrace--;
-  else if (state === 'playing' && !gamePaused && actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
-    pauseGame();
+  // running → suspended/interrupted 전환 시에만 1회 pause (계속 suspended 면 재pause 안 함)
+  if (state === 'playing' && !gamePaused && actx) {
+    const _curActxState = actx.state;
+    if ((_curActxState === 'suspended' || _curActxState === 'interrupted') && _prevActxState === 'running') {
+      pauseGame();
+    }
+    _prevActxState = _curActxState;
   }
   if (state === 'login' || state === 'title') updateShootingStars(dt);
   updateTitleBgmFade();  // 타이틀 BGM 페이드아웃 polling (매 프레임)
@@ -9697,13 +9700,13 @@ function pauseGame() {
   if (songAudio) songAudio.pause();
 }
 
-let _resumeGrace = 0; // resumeGame 후 actx 상태 체크 유예 프레임
+let _prevActxState = ''; // actx 상태 전환 감지용
 function resumeGame() {
   if (!gamePaused) return;
   gamePaused = false;
   lastTime = 0; // dt 스파이크 방지: 다음 프레임을 첫 프레임처럼 처리
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
-  _resumeGrace = 60; // actx.resume() 이 async 로 완료될 때까지 약 1초간 재pause 방지
+  _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   // iOS: 알림센터/컨트롤센터에서 복귀 시 AudioContext 가 suspended 됨 → 강제 resume
   resumeAudio();
   // 오디오 위치를 gameTime 기준으로 재동기화
