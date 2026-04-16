@@ -4180,9 +4180,10 @@ addEventListener('mousedown', e => {
     }
     // Check button area
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _mTopY = by - bh * 0.5;
     for (let i = 0; i < laneCount; i++) {
       const bx = lsx + i * lw;
-      if (e.clientX >= bx && e.clientX < bx + lw && gameY(e.clientY) >= by - 10 && gameY(e.clientY) < by + bh) {
+      if (e.clientX >= bx && e.clientX < bx + lw && gameY(e.clientY) >= _mTopY && gameY(e.clientY) < by + bh) {
         keyHeld[i] = true; keyFlash[i] = 0.3;
         if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
         else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -4512,6 +4513,7 @@ addEventListener('touchstart', e => {
       }
     }
     // Speed control buttons (below HP bar, 반응형)
+    let _tSpeedHandled = false;
     const _tlgap = getLaneStartX() - sz(6);
     const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
     const _tgx = Math.max(sz(2), getLaneStartX() - _tgw - sz(6));
@@ -4521,20 +4523,24 @@ addEventListener('touchstart', e => {
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
     const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
     if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return;
+      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); _tSpeedHandled = true;
     }
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
+    if (!_tSpeedHandled && hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
+      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _touchTopY = by - bh * 0.5;
     for (const touch of e.changedTouches) {
+      if (_tSpeedHandled && touch === t0) continue;
+      const _tcy = gameY(touch.clientY);
       for (let i = 0; i < laneCount; i++) {
         const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx+lw && gameY(touch.clientY) >= by-10 && gameY(touch.clientY) < by+bh) {
+        if (touch.clientX >= bx && touch.clientX < bx+lw && _tcy >= _touchTopY && _tcy < by+bh) {
           keyHeld[i] = true; keyFlash[i] = 0.3;
           touchLaneMap.set(touch.identifier, i);
           if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
           else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+          break;
         }
       }
     }
@@ -4582,14 +4588,16 @@ addEventListener('touchmove', e => {
   // 인게임: 터치 슬라이드로 옆 레인 입력 (로딩 중에만 비활성, 카운트다운 중엔 허용)
   if (state === 'playing' && !gamePaused && !songLoading) {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _slideTopY = by - bh * 0.5;
     for (const touch of e.changedTouches) {
       const prevLane = touchLaneMap.get(touch.identifier);
       if (prevLane === undefined) continue;
       // 현재 터치 위치의 레인 계산
       let newLane = -1;
+      const _scy = gameY(touch.clientY);
       for (let i = 0; i < laneCount; i++) {
         const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx + lw && gameY(touch.clientY) >= by - 10 && gameY(touch.clientY) < by + bh) {
+        if (touch.clientX >= bx && touch.clientX < bx + lw && _scy >= _slideTopY && _scy < by + bh) {
           newLane = i; break;
         }
       }
@@ -4678,6 +4686,21 @@ addEventListener('touchend', e => {
     }
     return;
   }
+  selectDragX = -1;
+}, { passive: false });
+addEventListener('touchcancel', e => {
+  stopSelectArrowHold();
+  stopSpeedHold();
+  if (_settingsTouching) _settingsTouching = false;
+  _listTouchMode = '';
+  for (const touch of e.changedTouches) {
+    const lane = touchLaneMap.get(touch.identifier);
+    if (lane !== undefined) {
+      keyHeld[lane] = false;
+      touchLaneMap.delete(touch.identifier);
+    }
+  }
+  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
   selectDragX = -1;
 }, { passive: false });
 
