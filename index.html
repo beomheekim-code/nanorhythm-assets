@@ -8158,7 +8158,7 @@ function renderTitle() {
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
-      { key: 'versus', label: '배틀 (PC전용)', desc: '준비 중입니다', color: '#ff6b6b' },
+      { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
     let selectedModeDesc = '', selectedModeColor = '';
     modes.forEach((m, i) => {
@@ -8174,9 +8174,9 @@ function renderTitle() {
       if (m.key === 'versus') {
         // 라벨 2줄
         ctx.font = `bold ${sz(13)}px sans-serif`;
-        ctx.fillText('배틀', bx + pmBtnW/2, pmY + pmBtnH/2 - sz(8));
+        ctx.fillText('온라인', bx + pmBtnW/2, pmY + pmBtnH/2 - sz(8));
         ctx.font = `${sz(10)}px sans-serif`;
-        ctx.fillText('(PC전용)', bx + pmBtnW/2, pmY + pmBtnH/2 + sz(8));
+        ctx.fillText('(준비 중)', bx + pmBtnW/2, pmY + pmBtnH/2 + sz(8));
       } else {
         ctx.font = `bold ${sz(13)}px sans-serif`;
         ctx.fillText(m.label, bx + pmBtnW/2, pmY + pmBtnH/2);
