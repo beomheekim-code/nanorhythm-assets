@@ -4111,16 +4111,6 @@ addEventListener('mousedown', e => {
         return;
       }
     }
-    // 배속 버튼 hold 시작 (렌더에서 저장한 정확한 영역 사용)
-    if (window._selectSpeedBtnAreas) {
-      const _sb = window._selectSpeedBtnAreas;
-      if (_sb.minus && hitTest(_amx, _amy, _sb.minus.x, _sb.minus.y, _sb.minus.w, _sb.minus.h)) {
-        playScrollTick(); speedDown(); startSpeedHold(-1); selectDragX = -1; return;
-      }
-      if (_sb.plus && hitTest(_amx, _amy, _sb.plus.x, _sb.plus.y, _sb.plus.w, _sb.plus.h)) {
-        playScrollTick(); speedUp(); startSpeedHold(1); selectDragX = -1; return;
-      }
-    }
     // Start drag — click is handled on mouseup if drag distance is small
     selectDragX = e.clientX; selectDragStartScroll = selectScrollX; selectLastDragX = e.clientX;
     selectDragStartX = e.clientX; selectDragDist = 0;
