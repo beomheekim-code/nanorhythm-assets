@@ -4308,7 +4308,68 @@ addEventListener('wheel', e => {
 
 canvas.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
-  if (state !== 'playing') resumeAudio();
+  // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
+  if (state === 'playing' && !gamePaused) {
+    const t0 = e.changedTouches[0];
+    // Pause button — 우상단
+    const _tpbW = sz(48), _tpbH = sz(36);
+    const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
+    if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
+      pauseGame(); return;
+    }
+    // [DEV] 무적 토글
+    if (isLocalhost) {
+      const _tivW = sz(44), _tivH = sz(26);
+      const _tivX = _tpbX - sz(6) - _tivW, _tivY = -safeTop + sz(2);
+      if (hitTest(t0.clientX, gameY(t0.clientY), _tivX, _tivY, _tivW, _tivH)) {
+        devInvincible = !devInvincible; return;
+      }
+    }
+    // Speed control buttons
+    let _tSpeedHandled = false;
+    const _tlgap = getLaneStartX() - sz(6);
+    const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
+    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
+    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
+    const _tgcx = (isMobile && isPortrait) ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
+    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
+    const _tspCx = _tgcx;
+    const _tspBaseY = _tspBlockTop + _tspPad;
+    const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
+    const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
+    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
+      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); _tSpeedHandled = true;
+    }
+    if (!_tSpeedHandled && hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
+      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
+    }
+    const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const _laneEnd = lsx + lw * laneCount;
+    for (const touch of e.changedTouches) {
+      if (_tSpeedHandled && touch === t0) continue;
+      const _tcy = gameY(touch.clientY);
+      const _tcx = touch.clientX;
+      const _tLaneMargin = isMobile ? lsx : lw*0.4;
+      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin || _tcy < -safeTop || _tcy >= by+bh) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(touch.identifier, i);
+      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+      else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+    }
+    return;
+  }
+  if (state === 'playing' && gamePaused) {
+    const t0 = e.changedTouches[0];
+    if (window._pausedExitBtn) {
+      const eb = window._pausedExitBtn;
+      if (hitTest(t0.clientX, gameY(t0.clientY), eb.x, eb.y, eb.w, eb.h)) {
+        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
+      }
+    }
+    resumeGame(); return;
+  }
+  resumeAudio();
   // 중복 로그인 킥 팝업 최우선 처리
   if (_kickedPopupOpen) {
     const t0 = e.changedTouches[0];
@@ -4488,65 +4549,7 @@ canvas.addEventListener('touchstart', e => {
     }
     return;
   }
-  if (state === 'playing' && gamePaused) {
-    const t0 = e.changedTouches[0];
-    if (window._pausedExitBtn) {
-      const eb = window._pausedExitBtn;
-      if (hitTest(t0.clientX, gameY(t0.clientY), eb.x, eb.y, eb.w, eb.h)) {
-        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
-      }
-    }
-    resumeGame(); return;
-  }
-  if (state === 'playing') {
-    const t0 = e.changedTouches[0];
-    // Pause button — 우상단
-    const _tpbW = sz(48), _tpbH = sz(36);
-    const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
-      pauseGame(); return;
-    }
-    // [DEV] 무적 토글
-    if (isLocalhost) {
-      const _tivW = sz(44), _tivH = sz(26);
-      const _tivX = _tpbX - sz(6) - _tivW, _tivY = -safeTop + sz(2);
-      if (hitTest(t0.clientX, gameY(t0.clientY), _tivX, _tivY, _tivW, _tivH)) {
-        devInvincible = !devInvincible; return;
-      }
-    }
-    // Speed control buttons (above note buttons, 반응형)
-    let _tSpeedHandled = false;
-    const _tlgap = getLaneStartX() - sz(6);
-    const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
-    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
-    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
-    const _tgcx = (isMobile && isPortrait) ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
-    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
-    const _tspCx = _tgcx;
-    const _tspBaseY = _tspBlockTop + _tspPad;
-    const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
-    const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); _tSpeedHandled = true;
-    }
-    if (!_tSpeedHandled && hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
-    }
-    const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    const _laneEnd = lsx + lw * laneCount;
-    for (const touch of e.changedTouches) {
-      if (_tSpeedHandled && touch === t0) continue;
-      const _tcy = gameY(touch.clientY);
-      const _tcx = touch.clientX;
-      const _tLaneMargin = isMobile ? lsx : lw*0.4;
-      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin || _tcy < -safeTop || _tcy >= by+bh) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
-      else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
-    }
-  }
+  // playing 상태는 핸들러 최상단에서 이미 처리됨
 }, { passive: false });
 let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching = false;
 let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'|'shop'
