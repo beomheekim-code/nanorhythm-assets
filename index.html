@@ -6552,7 +6552,7 @@ function renderJudgment() {
   if (judgmentTimer <= 0) return;
   const scale = Math.max(0.8, 1 + (0.5 - judgmentTimer)*0.3);
   ctx.save();
-  ctx.translate(W/2, _fHitY - _s40);
+  ctx.translate(W/2, getHitY() - _s40);
   ctx.scale(scale, scale);
   ctx.globalAlpha = Math.min(1, judgmentTimer*3);
   ctx.font = `bold ${sz(22)}px sans-serif`;
