@@ -1823,13 +1823,19 @@ function speedDown() { selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedS
 let _speedHoldDir = 0;    // -1: 감소, 1: 증가, 0: 미사용
 let _speedHoldStart = 0;
 let _speedHoldLastFire = 0;
+let _speedHoldDirty = false;  // hold 중 값 변경됨 — release 시 저장
 function startSpeedHold(dir) {
   if (_speedHoldDir === dir) return;
   _speedHoldDir = dir;
   _speedHoldStart = performance.now();
   _speedHoldLastFire = _speedHoldStart;
+  _speedHoldDirty = false;
 }
-function stopSpeedHold() { _speedHoldDir = 0; }
+function stopSpeedHold() {
+  if (_speedHoldDirty) saveDiffSpeed(); // release 시 1회만 저장
+  _speedHoldDir = 0;
+  _speedHoldDirty = false;
+}
 function updateSpeedHold() {
   if (!_speedHoldDir) return;
   const now = performance.now();
@@ -1842,8 +1848,13 @@ function updateSpeedHold() {
     interval = 120 - (120 - 40) * t;
   }
   if (now - _speedHoldLastFire >= interval) {
-    if (_speedHoldDir > 0) speedUp();
-    else speedDown();
+    // hold 중엔 저장 없이 값만 변경 (saveDiffSpeed 스킵 → localStorage/Firebase 래그 방지)
+    if (_speedHoldDir > 0) {
+      selectedSpeed = Math.min(SPEED_MAX, parseFloat((selectedSpeed + SPEED_STEP).toFixed(1)));
+    } else {
+      selectedSpeed = Math.max(SPEED_MIN, parseFloat((selectedSpeed - SPEED_STEP).toFixed(1)));
+    }
+    _speedHoldDirty = true;
     if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed);
     playScrollTick();
     _speedHoldLastFire = now;
@@ -4462,6 +4473,16 @@ addEventListener('touchstart', e => {
     selectDragX = t.clientX; selectDragStartScroll = selectScrollX; selectLastDragX = t.clientX;
     selectDragStartX = t.clientX; selectDragDist = 0;
     selectTargetScrollX = null; selectVelHistory = []; selectLastDragTime = performance.now();
+    // 배속 ± 버튼 hold
+    if (window._selectSpeedBtnAreas) {
+      const _sb = window._selectSpeedBtnAreas;
+      const _stx = t.clientX, _sty = gameY(t.clientY);
+      if (_sb.minus && hitTest(_stx, _sty, _sb.minus.x, _sb.minus.y, _sb.minus.w, _sb.minus.h)) {
+        playScrollTick(); speedDown(); startSpeedHold(-1); selectDragX = -1;
+      } else if (_sb.plus && hitTest(_stx, _sty, _sb.plus.x, _sb.plus.y, _sb.plus.w, _sb.plus.h)) {
+        playScrollTick(); speedUp(); startSpeedHold(1); selectDragX = -1;
+      }
+    }
     return;
   }
   if (state === 'playing' && gamePaused) {
