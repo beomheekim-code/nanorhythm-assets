@@ -4178,12 +4178,11 @@ addEventListener('mousedown', e => {
     if (hitTest(e.clientX, gameY(e.clientY), _spMinusX, _spPlusY, _spBtn, _spBtn)) {
       playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return;
     }
-    // Check button area
+    // Check button area (레일 전체 영역)
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    const _mTopY = by - bh * 0.5;
     for (let i = 0; i < laneCount; i++) {
       const bx = lsx + i * lw;
-      if (e.clientX >= bx && e.clientX < bx + lw && gameY(e.clientY) >= _mTopY && gameY(e.clientY) < by + bh) {
+      if (e.clientX >= bx && e.clientX < bx + lw && gameY(e.clientY) >= -safeTop && gameY(e.clientY) < by + bh) {
         keyHeld[i] = true; keyFlash[i] = 0.3;
         if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
         else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -4529,13 +4528,12 @@ addEventListener('touchstart', e => {
       playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
     }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    const _touchTopY = by - bh * 0.5;
     for (const touch of e.changedTouches) {
       if (_tSpeedHandled && touch === t0) continue;
       const _tcy = gameY(touch.clientY);
       for (let i = 0; i < laneCount; i++) {
         const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx+lw && _tcy >= _touchTopY && _tcy < by+bh) {
+        if (touch.clientX >= bx && touch.clientX < bx+lw && _tcy >= -safeTop && _tcy < by+bh) {
           keyHeld[i] = true; keyFlash[i] = 0.3;
           touchLaneMap.set(touch.identifier, i);
           if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
@@ -4588,7 +4586,6 @@ addEventListener('touchmove', e => {
   // 인게임: 터치 슬라이드로 옆 레인 입력 (로딩 중에만 비활성, 카운트다운 중엔 허용)
   if (state === 'playing' && !gamePaused && !songLoading) {
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    const _slideTopY = by - bh * 0.5;
     for (const touch of e.changedTouches) {
       const prevLane = touchLaneMap.get(touch.identifier);
       if (prevLane === undefined) continue;
@@ -4597,7 +4594,7 @@ addEventListener('touchmove', e => {
       const _scy = gameY(touch.clientY);
       for (let i = 0; i < laneCount; i++) {
         const bx = lsx + i * lw;
-        if (touch.clientX >= bx && touch.clientX < bx + lw && _scy >= _slideTopY && _scy < by + bh) {
+        if (touch.clientX >= bx && touch.clientX < bx + lw && _scy >= -safeTop && _scy < by + bh) {
           newLane = i; break;
         }
       }
