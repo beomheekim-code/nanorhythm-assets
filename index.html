@@ -4013,7 +4013,7 @@ addEventListener('mousedown', e => {
     // (inputQueue 로 지연되면 gesture context 유실돼 iOS 에서 play() 거부됨)
     // titleBgmUnlocked 는 설정하지 않음 — update() 의 2탭 플로우(1탭=unlock 체류, 2탭=transition) 보존
     if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); }
-    if (hitTest(mx, my, W - sz(38) - sz(8), H + safeBottom - sz(28) - sz(4), sz(38), sz(28))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
+    if (hitTest(mx, my, W - sz(48) - sz(8), H + safeBottom - sz(36) - sz(4), sz(48), sz(36))) { settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return; }
     // 모드 선택 버튼 처리 (탭하면 선택만 변경, 화면 전환 X)
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
@@ -4068,7 +4068,7 @@ addEventListener('mousedown', e => {
   }
   if (state === 'playing') {
     // Pause button — 우상단 (레인 영역 밖, 8키에서도 겹침 없음)
-    const _pbW = sz(36), _pbH = sz(26);
+    const _pbW = sz(48), _pbH = sz(36);
     const _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
@@ -4335,7 +4335,7 @@ addEventListener('touchstart', e => {
     // titleBgmUnlocked 는 설정하지 않음 — update() 의 2탭 플로우 보존
     if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); }
     // 설정 버튼 (우하단)
-    if (hitTest(tmx, tmy, W - sz(38) - sz(8), H + safeBottom - sz(28) - sz(4), sz(38), sz(28))) {
+    if (hitTest(tmx, tmy, W - sz(48) - sz(8), H + safeBottom - sz(36) - sz(4), sz(48), sz(36))) {
       settingsOpen=!settingsOpen; settingsBindingLane=-1; if (settingsOpen) settingsScrollY=0; return;
     }
     // 모드 선택 버튼 처리
@@ -4395,7 +4395,7 @@ addEventListener('touchstart', e => {
   if (state === 'playing') {
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
-    const _tpbW = sz(36), _tpbH = sz(26);
+    const _tpbW = sz(48), _tpbH = sz(36);
     const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
       pauseGame(); return;
@@ -6706,7 +6706,7 @@ function renderUI() {
   ctx.fillText('[ ]', spCx, spContY + spContH + sz(8));
 
   // Pause button — 우상단 (레인 영역 밖)
-  const pbW = sz(36), pbH = sz(26);
+  const pbW = sz(48), pbH = sz(36);
   const pbX = W - pbW - sz(4), pbY = -safeTop + sz(2);
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
@@ -7793,8 +7793,8 @@ function renderBottomBar() {
   // 햄버거 버튼 (우하단) — 먼저 좌표 계산
   const _bbML = isMobile && !isPortrait && !isTablet && H < 500;
   const _bbBottom = H + safeBottom - sz(4);
-  const hbW = _bbML ? sz(46) : sz(36);
-  const hbH = _bbML ? sz(34) : sz(28);
+  const hbW = sz(48);
+  const hbH = sz(36);
   const hbX = W - hbW - sz(8), hbY = _bbBottom - hbH;
   // 코인 (햄버거 버튼 세로 중앙과 정렬)
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -8077,7 +8077,7 @@ function renderTitle() {
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
   if (currentUser) {
-    const stBtnW = sz(38), stBtnH = sz(28), stBtnX = W - stBtnW - sz(8), stBtnY = H + safeBottom - stBtnH - sz(4);
+    const stBtnW = sz(48), stBtnH = sz(36), stBtnX = W - stBtnW - sz(8), stBtnY = H + safeBottom - stBtnH - sz(4);
 
     ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; rrStroke(stBtnX, stBtnY, stBtnW, stBtnH, sz(7));
