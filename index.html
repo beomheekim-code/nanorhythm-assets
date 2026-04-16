@@ -9775,11 +9775,17 @@ let lastTime = 0;
 // 놓치는 케이스가 있음.
 let _lastSeenW = 0, _lastSeenH = 0;
 function _dimWatcher() {
-  // probe 기반 dim 감지 (resize 이벤트가 누락해도 안전망)
-  // 인게임 중에도 동작 — probe 는 DOM read 1회 (getBoundingClientRect) 뿐이라 부하 미미
-  const probe = readViewport();
-  const nW = probe.w || innerWidth;
-  const nH = probe.h || innerHeight;
+  // [perf B] 인게임 플레이 중엔 스킵 (resize 이벤트 + retry cascade 가 안전망)
+  // probe 기반 dim watcher 가 인게임에서 resize→canvas clear 무한루프 유발해서 playing skip 유지
+  if (state === 'playing') return;
+  const de = document.documentElement;
+  const vv = window.visualViewport;
+  const cW = de ? de.clientWidth  : innerWidth;
+  const cH = de ? de.clientHeight : innerHeight;
+  const vW = vv ? Math.round(vv.width)  : cW;
+  const vH = vv ? Math.round(vv.height) : cH;
+  const nW = Math.min(cW, vW) || cW;
+  const nH = Math.min(cH, vH) || cH;
   if (nW !== _lastSeenW || nH !== _lastSeenH) {
     _lastSeenW = nW; _lastSeenH = nH;
     resize();
