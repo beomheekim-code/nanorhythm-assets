@@ -347,6 +347,16 @@ if (window.visualViewport) {
 }
 // bfcache 복귀 시(모바일 탭 전환 후 복귀 등)에도 재계산
 addEventListener('pageshow', (e) => { if (e.persisted) resizeWithRetries(); });
+// ResizeObserver: 레이아웃 완료 후 정확한 시점에 발화 (iOS Safari 14+)
+// 기존 resize/orientationchange 이벤트가 stale 값을 줘도 ResizeObserver 는
+// 실제 레이아웃 변경 후 발화해서 stable 값으로 resize() 호출.
+// _vpProbe(position:fixed 100% div) 를 관찰 → resize() 가 inline style 수정하는
+// canvas 와 분리돼서 feedback loop 없음.
+if (typeof ResizeObserver !== 'undefined') {
+  try {
+    new ResizeObserver(() => { resize(); }).observe(_vpProbe);
+  } catch(e) {}
+}
 
 // ===== CDN BASE URL =====
 // 로컬 개발: '' (빈 문자열 = 상대경로)
