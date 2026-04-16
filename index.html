@@ -4535,7 +4535,6 @@ canvas.addEventListener('touchstart', e => {
         const bx = lsx + i * lw;
         if (touch.clientX >= bx && touch.clientX < bx+lw && _tcy >= -safeTop && _tcy < by+bh) {
           keyHeld[i] = true; keyFlash[i] = 0.3;
-          _touchLaneTs[i] = performance.now();
           touchLaneMap.set(touch.identifier, i);
           if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
           else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -4701,32 +4700,6 @@ canvas.addEventListener('touchcancel', e => {
   if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
   selectDragX = -1;
 }, { passive: false });
-
-// Pointer Events 보완: touch 이벤트가 드롭될 때 pointerdown이 잡아줌
-const _touchLaneTs = new Float64Array(8); // 레인별 마지막 touchstart 처리 시각
-canvas.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse') return;
-  if (state !== 'playing' || gamePaused || songLoading) return;
-  const now = performance.now();
-  const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-  const mx = e.clientX, my = gameY(e.clientY);
-  if (mx < lsx || mx >= lsx + lw * laneCount) return;
-  for (let i = 0; i < laneCount; i++) {
-    const bx = lsx + i * lw;
-    if (mx >= bx && mx < bx + lw) {
-      if (now - _touchLaneTs[i] < 50) return;
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
-      else if (countdownTime > 0) playEmptyPressSfx(i);
-      break;
-    }
-  }
-}, { passive: true });
-canvas.addEventListener('pointerup', e => {
-  if (e.pointerType === 'mouse') return;
-  if (state !== 'playing') return;
-  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
-}, { passive: true });
 
 // ===== HIT DETECTION =====
 function handleLanePress(lane) {
