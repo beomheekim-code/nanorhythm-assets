@@ -783,8 +783,13 @@ function playHoldStartSfx() {
 // BGM 재생 전: 짧은 탭 폴백음
 const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 
+let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
+  // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
+  const now = performance.now();
+  if (now - _lastEmptySfxTime < 50) return;
+  _lastEmptySfxTime = now;
   resumeAudio(); // AudioContext resume 보장
   // BGM 종료 후: 무음
   if (songDuration > 0 && gameTime >= songDuration - 1) return;
@@ -6576,12 +6581,13 @@ function renderUI() {
   const _scoreValueSize = isMobile ? sz(32) : sz(60);
   const _scoreX = isMobile ? sz(6) : _s12;
   ctx.font = `bold ${_scoreLabelSize}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.5)';
-  ctx.fillText('SCORE', _scoreX, isMobile ? sz(18) : sz(28));
+  const _scoreTopY = -safeTop + (isMobile ? sz(12) : sz(8));
+  ctx.fillText('SCORE', _scoreX, _scoreTopY + _scoreLabelSize);
   ctx.font = `bold ${_scoreValueSize}px sans-serif`; ctx.fillStyle='#fff';
   if (!window._hudRawMax) window._hudRawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
-  ctx.fillText(window._hudScoreStr || '0', _scoreX, isMobile ? sz(44) : sz(72));
+  ctx.fillText(window._hudScoreStr || '0', _scoreX, _scoreTopY + _scoreLabelSize + _scoreValueSize);
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
