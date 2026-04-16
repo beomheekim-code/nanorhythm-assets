@@ -1783,8 +1783,8 @@ function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() { return (W - getTotalLaneW()) / 2; }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 function getHitY() { return H * 0.78; }
-function getBtnY() { return getHitY() + sz(24); }
-function getBtnH() { return H - getBtnY() - sz(6); }
+function getBtnY() { return getHitY() + sz(12); }
+function getBtnH() { return H + safeBottom - getBtnY(); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -4061,16 +4061,16 @@ addEventListener('mousedown', e => {
     resumeGame(); return;
   }
   if (state === 'playing') {
-    // Pause button — 기존 Exit 버튼 자리(우하단 코너)
+    // Pause button — 우하단 최하단
     const _pbW = sz(36), _pbH = sz(26);
-    const _pbX = W - _pbW - sz(8), _pbY = H - _pbH - sz(8);
+    const _pbX = W - _pbW - sz(4), _pbY = H + safeBottom - _pbH - sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _ivW = sz(44), _ivH = sz(26);
-      const _ivX = _pbX - sz(6) - _ivW, _ivY = H - _ivH - sz(8);
+      const _ivX = _pbX - sz(6) - _ivW, _ivY = H + safeBottom - _ivH - sz(2);
       if (hitTest(e.clientX, gameY(e.clientY), _ivX, _ivY, _ivW, _ivH)) {
         devInvincible = !devInvincible; return;
       }
@@ -4388,16 +4388,16 @@ addEventListener('touchstart', e => {
   }
   if (state === 'playing') {
     const t0 = e.changedTouches[0];
-    // Pause button — 기존 Exit 버튼 자리(우하단 코너)
+    // Pause button — 우하단 최하단
     const _tpbW = sz(36), _tpbH = sz(26);
-    const _tpbX = W - _tpbW - sz(8), _tpbY = H - _tpbH - sz(8);
+    const _tpbX = W - _tpbW - sz(4), _tpbY = H + safeBottom - _tpbH - sz(2);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
       pauseGame(); return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _tivW = sz(44), _tivH = sz(26);
-      const _tivX = _tpbX - sz(6) - _tivW, _tivY = H - _tivH - sz(8);
+      const _tivX = _tpbX - sz(6) - _tivW, _tivY = H + safeBottom - _tivH - sz(2);
       if (hitTest(t0.clientX, gameY(t0.clientY), _tivX, _tivY, _tivW, _tivH)) {
         devInvincible = !devInvincible; return;
       }
@@ -6682,9 +6682,9 @@ function renderUI() {
   ctx.font = `${sz(8)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillText('[ ]', spCx, spContY + spContH + sz(8));
 
-  // Pause button (기존 Exit 위치 = 우하단 코너)
+  // Pause button — 우하단 최하단
   const pbW = sz(36), pbH = sz(26);
-  const pbX = W - pbW - sz(8), pbY = H - pbH - sz(8);
+  const pbX = W - pbW - sz(4), pbY = H + safeBottom - pbH - sz(2);
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
@@ -6697,7 +6697,7 @@ function renderUI() {
   // [DEV] HP 무적 토글 (로컬호스트 전용) — Pause 버튼 왼쪽
   if (isLocalhost) {
     const ivW = sz(44), ivH = sz(26);
-    const ivX = pbX - sz(6) - ivW, ivY = H - ivH - sz(8);
+    const ivX = pbX - sz(6) - ivW, ivY = H + safeBottom - ivH - sz(2);
     ctx.fillStyle = devInvincible ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.06)';
     rrFill(ivX, ivY, ivW, ivH, sz(6));
     ctx.strokeStyle = devInvincible ? '#ffd700' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
