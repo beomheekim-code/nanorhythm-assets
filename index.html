@@ -230,26 +230,9 @@ const _vpProbe = document.createElement('div');
 _vpProbe.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;visibility:hidden;';
 document.body ? document.body.appendChild(_vpProbe) : document.documentElement.appendChild(_vpProbe);
 function readViewport() {
-  // Force layout recalc — iPad 풀스크린 회전 후 position:fixed div 가 re-layout 안 되는 케이스 방지
-  void _vpProbe.offsetHeight;
   const r = _vpProbe.getBoundingClientRect();
   return { w: Math.round(r.width), h: Math.round(r.height) };
 }
-// 콘솔에서 dimCheck() 치면 4-source + probe 값 + matchMedia 한눈에 볼 수 있음
-window.dimCheck = function() {
-  const de = document.documentElement;
-  const vv = window.visualViewport;
-  const probe = readViewport();
-  const mq = matchMedia('(orientation: portrait)').matches;
-  console.table({
-    client: { w: de?de.clientWidth:0, h: de?de.clientHeight:0 },
-    vviewp: { w: vv?Math.round(vv.width):0, h: vv?Math.round(vv.height):0 },
-    inner:  { w: innerWidth, h: innerHeight },
-    probe:  { w: probe.w, h: probe.h },
-    game:   { W, H, UI: UI.toFixed(2), isPortrait, isTablet, safeTop, safeBottom },
-    media:  { portrait: mq }
-  });
-};
 function readEnvSafeArea() {
   const cs = getComputedStyle(_saProbe);
   return {
@@ -261,20 +244,39 @@ function readEnvSafeArea() {
 }
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  // CSS width:100%; height:100%; position:fixed 가 canvas 표시 크기를 알아서 처리.
-  // inline style 을 제거하면 CSS 가 viewport 에 맞춰 자동 리사이즈.
-  // 회전/풀스크린에서도 CSS 가 즉시 반영 → API 값 stale 문제 회피.
-  canvas.style.removeProperty('width');
-  canvas.style.removeProperty('height');
-  // 강제 reflow 후 실제 CSS 표시 크기 읽기
-  void canvas.offsetHeight;
-  const rect = canvas.getBoundingClientRect();
-  const fullW = Math.round(rect.width);
-  const fullH = Math.round(rect.height);
-  // 0 방어
-  if (fullW <= 0 || fullH <= 0) return;
+  // 치수 계산: 4개 소스 중 최솟값 사용
+  //   1) document.documentElement.clientWidth/Height (레이아웃 뷰포트)
+  //   2) visualViewport.width/height (실제 가시영역, 핀치줌/키보드 영향)
+  //   3) window.innerWidth/Height (레거시)
+  //   4) _vpProbe.getBoundingClientRect() (position:fixed 100% 엘리먼트 실측)
+  // iPad 풀스크린에서 (1)(2)(3)이 물리 화면보다 큰 값을 리턴하는 버그가 있어서 (4)로 실측.
+  // 최소값을 쓰면 어떤 소스가 잘못되어도 캔버스가 가시영역을 넘지 않음.
+  const de = document.documentElement;
+  const vv = window.visualViewport;
+  const cW = de ? de.clientWidth  : innerWidth;
+  const cH = de ? de.clientHeight : innerHeight;
+  const vW = vv ? Math.round(vv.width)  : cW;
+  const vH = vv ? Math.round(vv.height) : cH;
+  const pW = innerWidth;
+  const pH = innerHeight;
+  const probe = readViewport();
+  const candsW = [cW, vW, pW, probe.w].filter(x => x > 0);
+  const candsH = [cH, vH, pH, probe.h].filter(x => x > 0);
+  let fullW = candsW.length ? Math.min.apply(Math, candsW) : innerWidth;
+  let fullH = candsH.length ? Math.min.apply(Math, candsH) : innerHeight;
+  // 회전 stale 보정: CSS media query 와 실제 치수가 불일치하면 min() 이 stale 값을 선택한 것.
+  // 이 경우 probe(position:fixed div) 로 한 번만 override. (probe 단독 상시 사용은 dim watcher
+  // feedback loop 유발해서 안 됨 — 여기서 이벤트 기반 1회만 호출되므로 안전)
+  const _mqP = matchMedia('(orientation: portrait)').matches;
+  const _dimP = fullH > fullW;
+  if (_mqP !== _dimP && probe.w > 0 && probe.h > 0) {
+    fullW = probe.w;
+    fullH = probe.h;
+  }
   canvas.width = fullW * dpr;
   canvas.height = fullH * dpr;
+  canvas.style.width = fullW + 'px';
+  canvas.style.height = fullH + 'px';
   isPortrait = fullH > fullW;
   // 모바일: 작은 화면 OR 터치 단말 (iPad/태블릿 포함)
   isMobile = fullW < 520 || ('ontouchstart' in window);
@@ -358,34 +360,6 @@ if (window.visualViewport) {
 }
 // bfcache 복귀 시(모바일 탭 전환 후 복귀 등)에도 재계산
 addEventListener('pageshow', (e) => { if (e.persisted) resizeWithRetries(); });
-
-// === 회전 확정 보정 (matchMedia change) ===
-// orientationchange/resize 이벤트로 안 잡히는 케이스 대비.
-// CSS media query 가 orientation 전환을 확정하면, RAF 루프로 dims 가 안정될 때까지 resize 반복.
-// 최대 60프레임(~1초) 시도 후 포기.
-const _orientMQ = matchMedia('(orientation: portrait)');
-function _handleOrientMediaChange() {
-  let attempts = 0;
-  function _tryFixDims() {
-    resize();
-    attempts++;
-    const mqP = _orientMQ.matches;
-    const dimP = H > W;
-    if (mqP !== dimP && attempts < 60) {
-      requestAnimationFrame(_tryFixDims);
-    }
-  }
-  setTimeout(_tryFixDims, 50);
-  setTimeout(_tryFixDims, 300);
-  setTimeout(_tryFixDims, 800);
-}
-try {
-  if (_orientMQ.addEventListener) {
-    _orientMQ.addEventListener('change', _handleOrientMediaChange);
-  } else if (_orientMQ.addListener) {
-    _orientMQ.addListener(_handleOrientMediaChange);
-  }
-} catch(e) {}
 
 // ===== CDN BASE URL =====
 // 로컬 개발: '' (빈 문자열 = 상대경로)
@@ -9894,7 +9868,6 @@ function renderDimDebug() {
     _btnY2 = H + safeBottom - _btnH2 - Math.round(40 * UI);
     _btnDbg = 'btn=' + _btnY2.toFixed(0) + '..' + (_btnY2 + _btnH2).toFixed(0);
   }
-  const mqP = matchMedia('(orientation: portrait)').matches;
   const lines = [
     'W×H=' + W + '×' + H,
     'canvas=' + canvas.width + '×' + canvas.height,
@@ -9903,7 +9876,7 @@ function renderDimDebug() {
     'inner =' + innerWidth + '×' + innerHeight,
     'probe =' + probe.w + '×' + probe.h,
     'dpr=' + dpr + ' UI=' + UI.toFixed(2),
-    'Portrait=' + isPortrait + ' mqP=' + mqP,
+    'isMobile=' + isMobile + ' Portrait=' + isPortrait,
     'isTablet=' + isTablet + ' iframe=' + inIframe,
     'safe T/B/L/R=' + safeTop + '/' + safeBottom + '/' + safeLeft + '/' + safeRight,
     'state=' + state + ' ' + _btnDbg,
