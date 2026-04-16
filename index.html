@@ -4069,20 +4069,20 @@ addEventListener('mousedown', e => {
   if (state === 'playing') {
     // Pause button — 우상단 (레인 영역 밖, 8키에서도 겹침 없음)
     const _pbW = sz(36), _pbH = sz(26);
-    const _pbX = W - _pbW - sz(4), _pbY = sz(6);
+    const _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _ivW = sz(44), _ivH = sz(26);
-      const _ivX = _pbX - sz(6) - _ivW, _ivY = sz(6);
+      const _ivX = _pbX - sz(6) - _ivW, _ivY = -safeTop + sz(2);
       if (hitTest(e.clientX, gameY(e.clientY), _ivX, _ivY, _ivW, _ivH)) {
         devInvincible = !devInvincible; return;
       }
     }
     // Speed control buttons (below HP bar, 반응형)
-    const _gx = getLaneStartX() - sz(34), _gy = sz(44), _gw = sz(18), _gh = getHitY() - sz(120);
+    const _gx = Math.max(sz(4), getLaneStartX() - sz(34)), _gy = -safeTop + sz(6), _gw = sz(18), _gh = getHitY() - _gy - sz(80);
     const _spCx = _gx + _gw/2, _spBtn = sz(30), _spGap = sz(5);
     const _spBaseY = _gy + _gh + sz(24);
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
@@ -4396,20 +4396,20 @@ addEventListener('touchstart', e => {
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
     const _tpbW = sz(36), _tpbH = sz(26);
-    const _tpbX = W - _tpbW - sz(4), _tpbY = sz(6);
+    const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
       pauseGame(); return;
     }
     // [DEV] 무적 토글
     if (isLocalhost) {
       const _tivW = sz(44), _tivH = sz(26);
-      const _tivX = _tpbX - sz(6) - _tivW, _tivY = sz(6);
+      const _tivX = _tpbX - sz(6) - _tivW, _tivY = -safeTop + sz(2);
       if (hitTest(t0.clientX, gameY(t0.clientY), _tivX, _tivY, _tivW, _tivH)) {
         devInvincible = !devInvincible; return;
       }
     }
     // Speed control buttons (below HP bar, 반응형)
-    const _tgx = getLaneStartX() - sz(34), _tgy = sz(44), _tgw = sz(18), _tgh = getHitY() - sz(120);
+    const _tgx = Math.max(sz(4), getLaneStartX() - sz(34)), _tgy = -safeTop + sz(6), _tgw = sz(18), _tgh = getHitY() - _tgy - sz(80);
     const _tspCx = _tgx + _tgw/2, _tspBtn = sz(30), _tspGap = sz(5);
     const _tspBaseY = _tgy + _tgh + sz(24);
     const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
@@ -6555,7 +6555,7 @@ function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
   // HP바/속도 컨트롤: 레인 왼쪽에 배치, 최소 sz(4) 확보 (8키 세로모드 화면 밖 방지)
-  const gx = Math.max(sz(4), getLaneStartX() - sz(34)), gy = sz(44), gw = sz(18), gh = getHitY() - sz(120);
+  const gx = Math.max(sz(4), getLaneStartX() - sz(34)), gy = -safeTop + sz(6), gw = sz(18), gh = getHitY() - gy - sz(80);
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
     // BG
@@ -6707,7 +6707,7 @@ function renderUI() {
 
   // Pause button — 우상단 (레인 영역 밖)
   const pbW = sz(36), pbH = sz(26);
-  const pbX = W - pbW - sz(4), pbY = sz(6);
+  const pbX = W - pbW - sz(4), pbY = -safeTop + sz(2);
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
@@ -6720,7 +6720,7 @@ function renderUI() {
   // [DEV] HP 무적 토글 (로컬호스트 전용) — Pause 버튼 왼쪽
   if (isLocalhost) {
     const ivW = sz(44), ivH = sz(26);
-    const ivX = pbX - sz(6) - ivW, ivY = sz(6);
+    const ivX = pbX - sz(6) - ivW, ivY = -safeTop + sz(2);
     ctx.fillStyle = devInvincible ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.06)';
     rrFill(ivX, ivY, ivW, ivH, sz(6));
     ctx.strokeStyle = devInvincible ? '#ffd700' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
