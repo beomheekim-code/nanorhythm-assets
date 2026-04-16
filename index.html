@@ -314,8 +314,12 @@ function resize() {
   } else if (isPortrait) {
     UI = Math.max(0.7, Math.min(1.35, W / 390));
     if (W < 340) UI = Math.max(0.6, W / 380);
-  } else {
+  } else if (isMobile) {
+    // 폰 가로
     UI = Math.min(1, Math.min(W / 520, H / 400));
+  } else {
+    // 데스크톱 / 대형 모니터: 1080p=1.0 기준 비례 (4K=2.0, 8K=2.5 cap)
+    UI = Math.max(1.0, Math.min(2.5, Math.min(W / 1920, H / 1080)));
   }
   try { if (state === 'playing' && curSong) noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); } catch(e) {}
   try { if (typeof stars !== 'undefined' && stars && stars.length > 0) genStars(); } catch(e) {}
@@ -5899,6 +5903,13 @@ function render() {
   const _fTotalLW = _fLaneW * laneCount;
   const _fHitY = getHitY();
   const _fHS = getHeightScale();
+  // 인게임 sz() precompute — 루프 내 함수 호출 제거로 저사양 모바일 부하 0
+  const _s3=sz(3),_s5=sz(5),_s7=sz(7),_s8=sz(8),_s9=sz(9),_s10=sz(10);
+  const _s12=sz(12),_s14=sz(14),_s15=sz(15),_s20=sz(20),_s30=sz(30);
+  const _s40=sz(40),_s55=sz(55),_s60=sz(60),_s80=sz(80),_s90=sz(90);
+  const _noteW = _fLaneW - _s8;  // 노트 body 폭
+  const _noteHW = (_fLaneW - _s8) / 2; // 노트 half-width
+  const _noteHH = _s10;  // 노트 half-height
 
   // Stars — [perf C] twinkle 100ms 간격으로만 갱신 (time-based, frame counter 안 씀)
   try {
@@ -5941,7 +5952,7 @@ function render() {
       // Side streaks - shoot up from edges
       const side = Math.random() > 0.5;
       gameParticles.push({
-        x: side ? lsx - 15 - Math.random()*30 : lsx + totalLW + 15 + Math.random()*30,
+        x: side ? lsx - _s15 - Math.random()*_s30 : lsx + totalLW + _s15 + Math.random()*_s30,
         y: H * (0.5 + Math.random()*0.5),
         vx: (side ? 0.3 : -0.3) * Math.random(), vy: -(1.5 + Math.random()*2.5),
         size: 1.5+Math.random()*2.5, life: 1, decay: 0.008+Math.random()*0.006,
@@ -5950,7 +5961,7 @@ function render() {
     } else if (type < 0.8) {
       // Floating orbs - slow drift
       gameParticles.push({
-        x: Math.random()*W, y: H+10,
+        x: Math.random()*W, y: H+_s10,
         vx: (Math.random()-0.5)*0.3, vy: -(0.15+Math.random()*0.35),
         size: 3+Math.random()*5, life: 1, decay: 0.002+Math.random()*0.002,
         color: songCol, kind: 'orb'
@@ -5970,7 +5981,7 @@ function render() {
     gp.x += gp.vx; gp.y += gp.vy; gp.life -= gp.decay;
     if (gp.kind === 'orb') gp.vx += (Math.random()-0.5)*0.02;
     if (gp.kind === 'streak') gp.vy *= 0.995;
-    if (gp.life <= 0 || gp.y < -20) { gameParticles.splice(i,1); continue; }
+    if (gp.life <= 0 || gp.y < -_s20) { gameParticles.splice(i,1); continue; }
     if (gp.kind === 'sparkle') {
       const flicker = Math.sin(_fNow*0.02+i*7)*0.5+0.5;
       ctx.globalAlpha = gp.life * flicker * 0.7;
@@ -6004,16 +6015,16 @@ function render() {
 
     // Smooth golden aura along lane edges
     ctx.globalAlpha = 0.15;
-    const leftGrd = ctx.createLinearGradient(lsx - 40, 0, lsx + 20, 0);
+    const leftGrd = ctx.createLinearGradient(lsx - _s40, 0, lsx + _s20, 0);
     leftGrd.addColorStop(0, 'transparent');
     leftGrd.addColorStop(0.5, `hsl(${(t*0.1)%360},100%,60%)`);
     leftGrd.addColorStop(1, 'transparent');
-    ctx.fillStyle = leftGrd; ctx.fillRect(lsx - 40, 0, 60, H);
-    const rightGrd = ctx.createLinearGradient(lsx + tw - 20, 0, lsx + tw + 40, 0);
+    ctx.fillStyle = leftGrd; ctx.fillRect(lsx - _s40, 0, _s60, H);
+    const rightGrd = ctx.createLinearGradient(lsx + tw - _s20, 0, lsx + tw + _s40, 0);
     rightGrd.addColorStop(0, 'transparent');
     rightGrd.addColorStop(0.5, `hsl(${(t*0.1+180)%360},100%,60%)`);
     rightGrd.addColorStop(1, 'transparent');
-    ctx.fillStyle = rightGrd; ctx.fillRect(lsx + tw - 20, 0, 60, H);
+    ctx.fillStyle = rightGrd; ctx.fillRect(lsx + tw - _s20, 0, _s60, H);
     ctx.globalAlpha = 1;
 
     // Smooth color-shifting lane tint
@@ -6029,12 +6040,12 @@ function render() {
       const sx = lsx + i * lw + lw / 2;
       const streakAlpha = Math.sin(phase * Math.PI) * 0.12;
       ctx.globalAlpha = streakAlpha;
-      const sg = ctx.createLinearGradient(0, sy - 40, 0, sy + 40);
+      const sg = ctx.createLinearGradient(0, sy - _s40, 0, sy + _s40);
       sg.addColorStop(0, 'transparent');
       sg.addColorStop(0.5, LANE_COLORS[i]);
       sg.addColorStop(1, 'transparent');
       ctx.fillStyle = sg;
-      ctx.fillRect(sx - lw * 0.3, sy - 40, lw * 0.6, 80);
+      ctx.fillRect(sx - lw * 0.3, sy - _s40, lw * 0.6, _s80);
     }
     ctx.globalAlpha = 1;
 
@@ -6050,7 +6061,7 @@ function render() {
     // FEVER text - smooth gradient, no flash
     ctx.save();
     const fs = sz(44);
-    const bop = Math.sin(t*0.004) * 3;
+    const bop = Math.sin(t*0.004) * _s3;
     const feverCY = _fHitY * 0.5;
     ctx.translate(lsx + tw/2, feverCY + bop);
     ctx.font = `bold ${fs}px sans-serif`;
@@ -6059,7 +6070,7 @@ function render() {
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4;
     ctx.strokeText('FEVER!', 0, 0);
     // Smooth shifting gradient fill
-    const txtGrd = ctx.createLinearGradient(-60, 0, 60, 0);
+    const txtGrd = ctx.createLinearGradient(-_s60, 0, _s60, 0);
     const hue = (t * 0.06) % 360;
     txtGrd.addColorStop(0, `hsl(${hue},100%,65%)`);
     txtGrd.addColorStop(0.5, `hsl(${(hue+60)%360},100%,70%)`);
@@ -6122,21 +6133,21 @@ function renderLanes() {
   for (let i = 0; i < laneCount; i++) {
     const x = lsx + i * lw;
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.08)';
-    ctx.fillRect(x, 0, lw, hitY + 10);
+    ctx.fillRect(x, 0, lw, hitY + _s10);
 
     // Vertical lane dividers
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, hitY+10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, hitY+_s10); ctx.stroke();
 
     // Flash on press
     if (keyFlash[i] > 0) {
       ctx.fillStyle = LANE_COLORS[i] + '15';
-      ctx.fillRect(x, 0, lw, hitY+10);
+      ctx.fillRect(x, 0, lw, hitY+_s10);
     }
   }
   // Right border
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, 0); ctx.lineTo(lsx + lw*laneCount, hitY+10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, 0); ctx.lineTo(lsx + lw*laneCount, hitY+_s10); ctx.stroke();
 
   // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 일시정지 시 gameTime과 함께 멈춤)
   if (state === 'playing' && noteSpeed > 0) {
@@ -6160,25 +6171,25 @@ function renderHitLine() {
   // Glow line
   ctx.shadowColor = curSong.color; ctx.shadowBlur = 6;
   ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(lsx-5, hitY); ctx.lineTo(lsx+tw+5, hitY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lsx-_s5, hitY); ctx.lineTo(lsx+tw+_s5, hitY); ctx.stroke();
   ctx.shadowBlur = 0;
   // Secondary color glow underneath
   ctx.strokeStyle = curSong.color + '44'; ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.moveTo(lsx-5, hitY); ctx.lineTo(lsx+tw+5, hitY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lsx-_s5, hitY); ctx.lineTo(lsx+tw+_s5, hitY); ctx.stroke();
 
   // Subtle gradient above hit line
-  const grad = ctx.createLinearGradient(0, hitY-60, 0, hitY);
+  const grad = ctx.createLinearGradient(0, hitY-_s60, 0, hitY);
   grad.addColorStop(0, 'transparent');
   grad.addColorStop(1, 'rgba(255,255,255,0.06)');
   ctx.fillStyle = grad;
-  ctx.fillRect(lsx, hitY-60, tw, 60);
+  ctx.fillRect(lsx, hitY-_s60, tw, _s60);
 
   // Receptors
   for (let i = 0; i < laneCount; i++) {
     const cx = lsx + i * lw + lw / 2;
     const held = keyHeld[i], flash = keyFlash[i] > 0;
 
-    const rw = lw - 8, rh = 20;
+    const rw = lw - _s8, rh = _s20;
     if (held || flash) {
       ctx.fillStyle = LANE_COLORS[i] + '66';
       ctx.shadowColor = LANE_COLORS[i]; ctx.shadowBlur = 6;
@@ -6224,13 +6235,13 @@ function renderNotes() {
 
       if (barTop < barBot + 10) {
         // Bar body
-        const bw = _laneW - 8;
+        const bw = _noteW;
         if (n.holding) {
           // Active hold - bright bar with glow (shadowBlur 제거 → 경량 글로우)
           ctx.fillStyle = col + '40';
-          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, 9);
+          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
           ctx.fillStyle = col + 'bb';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), 7);
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
           // Pulsing particles along bar (빈도 감소: 30% → 10%)
           if (Math.random() < 0.1 && particles.length < 80) {
             const py = barTop + Math.random() * (hitY - barTop);
@@ -6239,14 +6250,14 @@ function renderNotes() {
         } else if (n.holdComplete) {
           // Completed - fading
           ctx.fillStyle = col + '33';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), 7);
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
         } else if (!n.hit) {
           // Not yet hit - normal bar
           ctx.fillStyle = col + '55';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), 7);
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
           // Border
           ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
-          rrStroke(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), 7);
+          rrStroke(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
         }
 
         // Tail end cap
@@ -6267,7 +6278,7 @@ function renderNotes() {
       if (!n.hit && !n.missed) {
         const sy = headY;
         if (sy > -30 && sy < hitY + 60) {
-          const hw = (_laneW - 8) / 2, hh = 10;
+          const hw = _noteHW, hh = _noteHH;
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
           ctx.fillStyle = col;
@@ -6298,7 +6309,7 @@ function renderNotes() {
       ctx.beginPath(); ctx.moveTo(sx+_tc,sy-_tc); ctx.lineTo(sx-_tc,sy+_tc); ctx.stroke();
     } else {
       const col = LANE_COLORS[n.lane];
-      const nw = (_laneW - 8) / 2, nh = 10;
+      const nw = _noteHW, nh = _noteHH;
       if (fever) {
         // 피버: 불타는 이펙트 (flicker 프레임 단위 + 노트별 오프셋)
         const flicker = _feverFlickerBase + Math.sin(n.time * 50) * 0.1;
@@ -6333,9 +6344,9 @@ function renderNotes() {
   for (const n of nodes) {
     if (!n.missed || n.type==='trap') continue;
     const sy = hitY - (n.time - gameTime) * noteSpeed;
-    if (sy < hitY || sy > hitY + 80) continue;
+    if (sy < hitY || sy > hitY + _s80) continue;
     const sx = getLaneX(n.lane);
-    const fade = 1 - (sy - hitY) / 80;
+    const fade = 1 - (sy - hitY) / _s80;
     if (fade > 0) {
       ctx.globalAlpha = fade*0.6; ctx.fillStyle='#ff4444';
       ctx.font=`bold ${sz(12)}px sans-serif`; ctx.textAlign='center';
@@ -6474,7 +6485,7 @@ function renderHoldGlows() {
     ctx.translate(g.x, g.y);
 
     // Large fire glow expanding upward
-    const glowH = 90 * (0.4 + t * 0.6);
+    const glowH = _s90 * (0.4 + t * 0.6);
     ctx.globalAlpha = alpha * 0.7;
     const grd = ctx.createRadialGradient(0, -glowH*0.2, 0, 0, -glowH*0.3, hw * (1.2 + t));
     grd.addColorStop(0, '#ffffff');
@@ -6526,7 +6537,7 @@ function renderJudgment() {
   if (judgmentTimer <= 0) return;
   const scale = Math.max(0.8, 1 + (0.5 - judgmentTimer)*0.3);
   ctx.save();
-  ctx.translate(W/2, getHitY() - 40);
+  ctx.translate(W/2, _fHitY - _s40);
   ctx.scale(scale, scale);
   ctx.globalAlpha = Math.min(1, judgmentTimer*3);
   ctx.font = `bold ${sz(22)}px sans-serif`;
@@ -6582,17 +6593,17 @@ function renderUI() {
   // Score top-left (safeTop 반영)
   ctx.textAlign='left';
   ctx.font = `bold ${sz(24)}px sans-serif`; ctx.fillStyle='rgba(255,255,255,0.5)';
-  ctx.fillText('SCORE', 12, sz(28));
+  ctx.fillText('SCORE', _s12, sz(28));
   ctx.font = `bold ${sz(60)}px sans-serif`; ctx.fillStyle='#fff';
   if (!window._hudRawMax) window._hudRawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
-  ctx.fillText(window._hudScoreStr || '0', 12, sz(72));
+  ctx.fillText(window._hudScoreStr || '0', _s12, sz(72));
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
     const lsx = getLaneStartX(), tw = getLaneW()*laneCount;
-    const cx = lsx + tw/2, cy = 55;
+    const cx = lsx + tw/2, cy = _s55;
     const t = Date.now();
 
     ctx.save();
@@ -6635,8 +6646,8 @@ function renderUI() {
   if (songDuration > 0 && gameTime > 0) {
     const prog = Math.min(1, gameTime/songDuration);
     const pw = sz(200), ppx = (W-pw)/2;
-    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(ppx, 8, pw, 3);
-    ctx.fillStyle = song.color+'aa'; ctx.fillRect(ppx, 8, pw*prog, 3);
+    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(ppx, _s8, pw, _s3);
+    ctx.fillStyle = song.color+'aa'; ctx.fillRect(ppx, _s8, pw*prog, _s3);
     ctx.font=`${sz(9)}px sans-serif`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.25)';
     ctx.fillText(song.name, W/2, sz(22));
   }
@@ -9784,7 +9795,7 @@ function loop(time) {
   // 일시정지 오버레이
   if (gamePaused && state === 'playing') {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
     ctx.textAlign = 'center';
     ctx.font = `bold ${sz(36)}px sans-serif`;
     ctx.fillStyle = '#fff';
