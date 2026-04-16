@@ -5557,7 +5557,8 @@ function update(dt) {
   } else if (songAudio && !songAudio.paused) {
     audioRef = songAudio.currentTime;
   }
-  if (audioRef !== null) {
+  // actx 가 suspended/interrupted 면 오디오 타임이 frozen → sync 스킵 (dt 로만 진행)
+  if (audioRef !== null && (!actx || actx.state === 'running')) {
     const drift = gameTime - audioRef;
     if (Math.abs(drift) > 0.5) console.warn('DRIFT JUMP:', drift.toFixed(3), 'gameTime:', gameTime.toFixed(3), 'audioRef:', audioRef.toFixed(3), 'syncCnt:', resumeSyncCounter);
     if (resumeSyncCounter > 0) {
