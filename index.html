@@ -9891,7 +9891,8 @@ function loop(time) {
   // 해상도 디버깅: 콘솔에서 `window._dimDebug = true` 로 켜고 `false` 로 끔.
   // - 4개 dim 소스(client/vviewp/inner/probe) + canvas 테두리 + 시작버튼 Y 가이드
   // - 해상도 버그 재발/다른 디바이스 테스트 시 바로 재활용 (feedback_viewport_measurement.md 참조)
-  if (window._dimDebug === true) { renderDimDebug(); }
+  // 임시: 해상도 디버그 오버레이 강제 ON (iPad 회전 진단용)
+  renderDimDebug();
   requestAnimationFrame(loop);
 }
 function renderDimDebug() {
@@ -9911,6 +9912,7 @@ function renderDimDebug() {
     _btnY2 = H + safeBottom - _btnH2 - Math.round(40 * UI);
     _btnDbg = 'btn=' + _btnY2.toFixed(0) + '..' + (_btnY2 + _btnH2).toFixed(0);
   }
+  const mqP = matchMedia('(orientation: portrait)').matches;
   const lines = [
     'W×H=' + W + '×' + H,
     'canvas=' + canvas.width + '×' + canvas.height,
@@ -9919,7 +9921,7 @@ function renderDimDebug() {
     'inner =' + innerWidth + '×' + innerHeight,
     'probe =' + probe.w + '×' + probe.h,
     'dpr=' + dpr + ' UI=' + UI.toFixed(2),
-    'isMobile=' + isMobile + ' Portrait=' + isPortrait,
+    'Portrait=' + isPortrait + ' mqP=' + mqP,
     'isTablet=' + isTablet + ' iframe=' + inIframe,
     'safe T/B/L/R=' + safeTop + '/' + safeBottom + '/' + safeLeft + '/' + safeRight,
     'state=' + state + ' ' + _btnDbg,
