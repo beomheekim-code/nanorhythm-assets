@@ -262,17 +262,8 @@ function resize() {
   const probe = readViewport();
   const candsW = [cW, vW, pW, probe.w].filter(x => x > 0);
   const candsH = [cH, vH, pH, probe.h].filter(x => x > 0);
-  let fullW = candsW.length ? Math.min.apply(Math, candsW) : innerWidth;
-  let fullH = candsH.length ? Math.min.apply(Math, candsH) : innerHeight;
-  // 회전 stale 보정: CSS media query 와 실제 치수가 불일치하면 min() 이 stale 값을 선택한 것.
-  // 이 경우 probe(position:fixed div) 로 한 번만 override. (probe 단독 상시 사용은 dim watcher
-  // feedback loop 유발해서 안 됨 — 여기서 이벤트 기반 1회만 호출되므로 안전)
-  const _mqP = matchMedia('(orientation: portrait)').matches;
-  const _dimP = fullH > fullW;
-  if (_mqP !== _dimP && probe.w > 0 && probe.h > 0) {
-    fullW = probe.w;
-    fullH = probe.h;
-  }
+  const fullW = candsW.length ? Math.min.apply(Math, candsW) : innerWidth;
+  const fullH = candsH.length ? Math.min.apply(Math, candsH) : innerHeight;
   canvas.width = fullW * dpr;
   canvas.height = fullH * dpr;
   canvas.style.width = fullW + 'px';
