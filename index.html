@@ -4421,12 +4421,14 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
-// pointerdown/touchstart/touchmove 복구 모두 같은 제스처 dedup 사용
-// 한 제스처에서 먼저 온 이벤트가 처리 → 늦게 온 이벤트는 touchLaneMap만 갱신
-const _pointerLaneMap = new Map(); // pointerId → lane (touchend drop 대비 해제용)
-let _recentGestureHits = []; // 이미 처리된 제스처 좌표 {x,y,t}
-const _DEDUP_MS = 150; // iOS 고부하로 인한 이벤트 지연 대비
-const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표 — 별개 손가락 근접 탭 보호용 3px 여유만
+// 두 가지 dedup 메커니즘 사용:
+//  (1) _recentGestureHits: 짧은 TTL 40ms — pointerdown↔touchstart 한 쌍 페어링
+//  (2) _pointerLaneMap: pointerId→{lane,x,y} — 활성 중인 pointer 좌표 추적 (TTL 없음)
+// → 연속 탭(따닥)은 40ms TTL 로 false-match 방지. 정지 손가락 복구는 활성 pointer 로 판정.
+const _pointerLaneMap = new Map(); // pointerId → {lane, x, y}
+let _recentGestureHits = []; // 페어링용 단기 큐 {x,y,t}
+const _DEDUP_MS = 40;  // pair 페어링에만 사용. 연속 탭(25Hz+)이어도 false-match 안 되도록 짧게.
+const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표. 서브픽셀 여유만.
 let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
 function _isRecentGesture(x, y) {
   const now = performance.now();
@@ -4440,6 +4442,17 @@ function _isRecentGesture(x, y) {
 function _markGesture(x, y) {
   _recentGestureHits.push({ x, y, t: performance.now() });
   if (_recentGestureHits.length > 24) _recentGestureHits.shift();
+}
+// 활성 pointer 중에 이 좌표의 제스처가 이미 처리됐는지 — TTL 없음 (pointerup/cancel 에서 삭제)
+function _handledByActivePointer(x, y) {
+  for (const pe of _pointerLaneMap.values()) {
+    if (pe && Math.abs(pe.x - x) <= _DEDUP_PX && Math.abs(pe.y - y) <= _DEDUP_PX) return true;
+  }
+  return false;
+}
+// 통합 check — 페어링 큐 OR 활성 pointer
+function _gestureAlreadyHandled(x, y) {
+  return _isRecentGesture(x, y) >= 0 || _handledByActivePointer(x, y);
 }
 function _processPlayingTouch(t) {
   const x = t.clientX, y = t.clientY - safeTop;
@@ -4471,9 +4484,7 @@ function _processPlayingTouch(t) {
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   let lane;
-  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip.
-  // splice는 안 함 — 뒤이어 올 touchmove 2차 복구에서도 dedup 가능해야 함.
-  // (queue는 150ms TTL + 24-cap으로 자동 정리)
+  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip. (페어링 큐 40ms TTL)
   if (_isRecentGesture(e.clientX, e.clientY) >= 0) {
     const _lwP = _fLw || getLaneW(), _lsxP = _fLsx || getLaneStartX();
     lane = Math.max(0, Math.min(laneCount - 1, Math.floor((e.clientX - _lsxP) / _lwP)));
@@ -4481,7 +4492,7 @@ document.addEventListener('pointerdown', e => {
     lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
     _markGesture(e.clientX, e.clientY);
   }
-  if (lane >= 0) _pointerLaneMap.set(e.pointerId, lane);
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY });
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
@@ -4507,23 +4518,25 @@ document.addEventListener('touchstart', e => {
 document.addEventListener('pointerup', e => {
   if (e.pointerType === 'mouse') return;
   _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 바로 resume 가능
-  const lane = _pointerLaneMap.get(e.pointerId);
-  if (lane === undefined) return;
+  const pe = _pointerLaneMap.get(e.pointerId);
+  if (!pe) return;
+  const lane = pe.lane;
   _pointerLaneMap.delete(e.pointerId);
   let stillHeld = false;
   for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
-  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
   if (!stillHeld) keyHeld[lane] = false;
 });
 document.addEventListener('pointercancel', e => {
   if (e.pointerType === 'mouse') return;
   _pauseGestureAt = 0;
-  const lane = _pointerLaneMap.get(e.pointerId);
-  if (lane === undefined) return;
+  const pe = _pointerLaneMap.get(e.pointerId);
+  if (!pe) return;
+  const lane = pe.lane;
   _pointerLaneMap.delete(e.pointerId);
   let stillHeld = false;
   for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
-  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
   if (!stillHeld) keyHeld[lane] = false;
 });
 document.addEventListener('touchstart', e => {
@@ -4743,7 +4756,8 @@ document.addEventListener('touchmove', e => {
       const t = e.changedTouches[ti];
       if (touchLaneMap.has(t.identifier)) continue;
       // pointerdown이 이미 handleLanePress 호출 → 식별자만 등록 (touchend 해제 보장)
-      if (_isRecentGesture(t.clientX, t.clientY) >= 0) {
+      // 활성 pointer 체크는 TTL 없음 — 손가락이 오래 머물러도 중복 호출 방지
+      if (_gestureAlreadyHandled(t.clientX, t.clientY)) {
         const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - _lsxMv) / _lwMv)));
         touchLaneMap.set(t.identifier, i);
         continue;
@@ -4795,10 +4809,10 @@ document.addEventListener('touchmove', e => {
       const prevLane = touchLaneMap.get(touch.identifier);
       const newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((touch.clientX - lsx) / lw)));
       if (prevLane === undefined) {
-        // 누락된 touchstart 복구 — pointerdown이 이미 handleLanePress 호출했으면 재호출 금지
+        // 누락된 touchstart 복구 — pointerdown(활성 pointer)이 이미 처리했으면 재호출 금지
         keyHeld[newLane] = true; keyFlash[newLane] = 0.3;
         touchLaneMap.set(touch.identifier, newLane);
-        if (_canHit && _isRecentGesture(touch.clientX, touch.clientY) < 0) {
+        if (_canHit && !_gestureAlreadyHandled(touch.clientX, touch.clientY)) {
           handleLanePress(newLane);
           _markGesture(touch.clientX, touch.clientY);
         }
@@ -4866,7 +4880,7 @@ document.addEventListener('touchend', e => {
       // 같은 레인을 다른 손가락/pointer가 아직 잡고 있으면 유지
       let stillHeld = false;
       for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
-      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
       if (!stillHeld) keyHeld[lane] = false;
     }
   }
@@ -4908,7 +4922,7 @@ document.addEventListener('touchcancel', e => {
       touchLaneMap.delete(touch.identifier);
       let stillHeld = false;
       for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
-      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
       if (!stillHeld) keyHeld[lane] = false;
     }
   }
