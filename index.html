@@ -4449,10 +4449,16 @@ function _markGesture(x, y) {
   _recentGestureHits.push({ x, y, t: performance.now() });
   if (_recentGestureHits.length > 24) _recentGestureHits.shift();
 }
-// 활성 pointer 중에 이 좌표의 제스처가 이미 처리됐는지 — TTL 없음 (pointerup/cancel 에서 삭제)
+// 활성 pointer 중에 이 좌표의 제스처가 이미 처리됐는지.
+// ★ 500ms TTL — pointerup 이 드롭돼 _plM 에 ghost 가 남은 경우, 오래된 엔트리는 무시.
+//    ghost 가 새 터치를 조용히 먹어 빨간 flash 조차 안 뜨는 무반응 씹힘 방지.
+const _PLM_TTL = 500;
 function _handledByActivePointer(x, y) {
+  const now = performance.now();
   for (const pe of _pointerLaneMap.values()) {
-    if (pe && Math.abs(pe.x - x) <= _DEDUP_PX && Math.abs(pe.y - y) <= _DEDUP_PX) return true;
+    if (!pe) continue;
+    if (pe.t && now - pe.t > _PLM_TTL) continue; // stale ghost — skip
+    if (Math.abs(pe.x - x) <= _DEDUP_PX && Math.abs(pe.y - y) <= _DEDUP_PX) return true;
   }
   return false;
 }
@@ -4502,7 +4508,7 @@ document.addEventListener('pointerdown', e => {
     lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
     _markGesture(e.clientX, e.clientY);
   }
-  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY });
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
   _inputEventTime = 0;
 }, { capture: true });
 document.addEventListener('touchstart', e => {
@@ -4517,6 +4523,8 @@ document.addEventListener('touchstart', e => {
     if (dupeIdx >= 0) {
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
       touchLaneMap.set(t.identifier, i);
+      // pointerdown 이 드롭됐을 수도 있으니 시각 피드백은 여기서도 보장
+      keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
       _recentGestureHits.splice(dupeIdx, 1);
       continue;
     }
@@ -4524,6 +4532,7 @@ document.addEventListener('touchstart', e => {
     if (_handledByActivePointer(t.clientX, t.clientY)) {
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
       touchLaneMap.set(t.identifier, i);
+      keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
       continue;
     }
     const lane = _processPlayingTouch(t);
@@ -4779,6 +4788,7 @@ document.addEventListener('touchmove', e => {
       if (_gestureAlreadyHandled(t.clientX, t.clientY)) {
         const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - _lsxMv) / _lwMv)));
         touchLaneMap.set(t.identifier, i);
+        keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
         continue;
       }
       _processPlayingTouch(t);
