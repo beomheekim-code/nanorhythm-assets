@@ -4469,10 +4469,6 @@ document.addEventListener('pointerdown', e => {
   }
 }, { capture: true });
 document.addEventListener('touchstart', e => {
-  // pointerdown이 방금 이 제스처로 pause 실행 → bubble phase의 즉시 resume 방지
-  if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) {
-    e.stopImmediatePropagation(); e.preventDefault(); return;
-  }
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
   _dbgTouch += e.changedTouches.length;
@@ -4501,6 +4497,7 @@ document.addEventListener('touchstart', e => {
 // pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
 document.addEventListener('pointerup', e => {
   if (e.pointerType === 'mouse') return;
+  _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 바로 resume 가능
   const lane = _pointerLaneMap.get(e.pointerId);
   if (lane === undefined) return;
   _pointerLaneMap.delete(e.pointerId);
@@ -4511,6 +4508,7 @@ document.addEventListener('pointerup', e => {
 });
 document.addEventListener('pointercancel', e => {
   if (e.pointerType === 'mouse') return;
+  _pauseGestureAt = 0;
   const lane = _pointerLaneMap.get(e.pointerId);
   if (lane === undefined) return;
   _pointerLaneMap.delete(e.pointerId);
@@ -4834,6 +4832,7 @@ document.addEventListener('touchmove', e => {
 document.addEventListener('touchend', e => {
   stopSelectArrowHold();
   stopSpeedHold();
+  _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 즉시 resume 가능
   if (_settingsTouching) _settingsTouching = false;
   // shop 드래그였는지 보존 (실제 손가락 이동 거리 기준 — 스크롤이 끝에 막혀도 드래그 인식)
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
@@ -4880,6 +4879,7 @@ document.addEventListener('touchend', e => {
 document.addEventListener('touchcancel', e => {
   stopSelectArrowHold();
   stopSpeedHold();
+  _pauseGestureAt = 0;
   if (_settingsTouching) _settingsTouching = false;
   _listTouchMode = '';
   for (const touch of e.changedTouches) {
