@@ -10147,17 +10147,17 @@ function pauseGame() {
 let _prevActxState = ''; // actx 상태 전환 감지용
 let _bgmNeedsResume = false;
 // iOS 오디오 인터럽트 복구 (알람/전화 후)
-if (actx && actx.addEventListener) {
-  actx.addEventListener('statechange', () => {
-    if (!actx) return;
-    if (actx.state === 'running') {
-      // interrupted/suspended → running 복구
-      _bgmNeedsResume = true;
-    } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
-      // 알람/전화 시작: 인게임이면 퍼즈
-      if (state === 'playing' && !gamePaused) pauseGame();
-    }
-  });
+function _onActxStateChange() {
+  if (!actx) return;
+  if (actx.state === 'running') {
+    _bgmNeedsResume = true;
+  } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+    if (state === 'playing' && !gamePaused) pauseGame();
+  }
+}
+if (actx) {
+  try { actx.addEventListener('statechange', _onActxStateChange); } catch(e) {}
+  actx.onstatechange = _onActxStateChange;
 }
 // actx 가 suspended→running 복구 시 ABS 소스 재생성 (이어폰 재연결 등)
 function _restartAudioAfterContextResume() {
