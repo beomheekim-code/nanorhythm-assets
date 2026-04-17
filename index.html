@@ -3312,6 +3312,31 @@ function renderFade() {
 
 // ===== GAME STATE =====
 let state = 'title';
+// ===== CDN 에셋 프리로드 =====
+let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0;
+function preloadAssets() {
+  const urls = [];
+  for (const s of songs) {
+    if (s.cover) urls.push(assetUrl(s.cover));
+    if (s.file) urls.push(assetUrl(s.file));
+  }
+  _preloadTotal = urls.length;
+  _preloadLoaded = 0; _preloadFailed = 0;
+  if (_preloadTotal === 0) { _preloadDone = true; return; }
+  let qi = 0;
+  function next() {
+    if (qi >= urls.length) return;
+    if (state === 'playing') { setTimeout(next, 1000); return; }
+    const url = urls[qi++];
+    fetch(url, { mode: 'cors' }).then(r => { if (r.ok) return r.blob(); throw 0; })
+      .then(() => { _preloadLoaded++; })
+      .catch(() => { _preloadFailed++; })
+      .finally(() => { if (_preloadLoaded + _preloadFailed >= _preloadTotal) _preloadDone = true; else next(); });
+  }
+  const concurrency = 4;
+  for (let c = 0; c < concurrency; c++) next();
+}
+preloadAssets();
 // 이미 로그인된 경우 Firebase에서 설정 동기화
 if (currentUser) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
