@@ -4450,14 +4450,15 @@ function _markGesture(x, y) {
   if (_recentGestureHits.length > 24) _recentGestureHits.shift();
 }
 // 활성 pointer 중에 이 좌표의 제스처가 이미 처리됐는지.
-// ★ 500ms TTL — pointerup 이 드롭돼 _plM 에 ghost 가 남은 경우, 오래된 엔트리는 무시.
-//    ghost 가 새 터치를 조용히 먹어 빨간 flash 조차 안 뜨는 무반응 씹힘 방지.
-const _PLM_TTL = 500;
+// ★ 200ms TTL — pair delay 는 보통 1~30ms, 아무리 고부하여도 150ms 넘기 힘듦.
+//    200ms 초과 엔트리는 pointerup 드롭으로 생긴 ghost 로 간주, 즉시 삭제.
+const _PLM_TTL = 200;
 function _handledByActivePointer(x, y) {
   const now = performance.now();
-  for (const pe of _pointerLaneMap.values()) {
-    if (!pe) continue;
-    if (pe.t && now - pe.t > _PLM_TTL) continue; // stale ghost — skip
+  // lazy cleanup — 발견 즉시 ghost 삭제해서 다음 호출엔 더 빨라짐
+  for (const [pid, pe] of _pointerLaneMap) {
+    if (!pe) { _pointerLaneMap.delete(pid); continue; }
+    if (pe.t && now - pe.t > _PLM_TTL) { _pointerLaneMap.delete(pid); continue; }
     if (Math.abs(pe.x - x) <= _DEDUP_PX && Math.abs(pe.y - y) <= _DEDUP_PX) return true;
   }
   return false;
@@ -4515,6 +4516,16 @@ document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
   _inputEventTime = e.timeStamp || performance.now();
+  // ★ _plM 이 실제 활성 touches 수보다 크면 ghost 존재 확정 → 가장 오래된 것부터 삭제.
+  //    iOS 에서 pointerup 이 조용히 드롭되면 _plM 에 ghost 쌓임.
+  //    e.touches 는 이 이벤트 발생 후의 모든 활성 터치 — 정확한 ground truth.
+  while (_pointerLaneMap.size > e.touches.length) {
+    let oldestId = null, oldestT = Infinity;
+    for (const [pid, pe] of _pointerLaneMap) {
+      if (pe && pe.t < oldestT) { oldestT = pe.t; oldestId = pid; }
+    }
+    if (oldestId !== null) _pointerLaneMap.delete(oldestId); else break;
+  }
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
