@@ -10294,10 +10294,15 @@ function resumeGame() {
     // 1순위: ABS 재생성 (actx.currentTime 샘플 정확도 — HTML Audio seek 지연 100~500ms 회피)
     const _canAbs = actx && usingStemMode && stemAudioBuffers && Object.keys(stemAudioBuffers).length > 0;
     if (_canAbs) {
+      // ★ onset 모드의 _startDelay(3.5s) 만큼 buffer offset 빼야 함.
+      //   불변식: audioRef = (actx.currentTime - _absStartCtx) + _startDelay = gameTime
+      //   따라서 buffer_pos = targetTime - _startDelay, _absStartCtx 도 그에 맞춰.
+      const _sd = (curSong && curSong._startDelay) || 0;
+      const _bufOff = Math.max(0, targetTime - _sd);
       window._absNodes = [];
       window._absGains = [];
-      window._absStartCtx = actx.currentTime - targetTime;
-      songStartTime = actx.currentTime - targetTime;
+      window._absStartCtx = actx.currentTime - _bufOff;
+      songStartTime = actx.currentTime - _bufOff;
       const _audioDest = (gameMode === 'nano' && nanoFilter) ? nanoFilter : actx.destination;
       if (gameMode === 'nano' && nanoFilter) { try { nanoFilter.connect(actx.destination); } catch(e){} }
       for (let i = 0; i < allStemAudios.length; i++) {
@@ -10309,33 +10314,37 @@ function resumeGame() {
           const src = actx.createBufferSource();
           src.buffer = stemAudioBuffers[i];
           src.connect(gain);
-          src.start(0, Math.max(0, targetTime));
+          src.start(0, _bufOff);
           window._absNodes.push(src);
           window._absGains.push(gain);
         } else {
           window._absNodes.push(null);
           window._absGains.push(null);
         }
-        // HTML Audio 는 뮤트 상태로 position 참조용만
-        if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+        // HTML Audio 는 뮤트 상태로 position 참조용만 — HTML 은 buffer 기준이므로 동일 offset
+        if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = _bufOff; allStemAudios[i].play().catch(()=>{}); }
       }
     } else if (usingStemMode) {
-      // ABS 불가 (buffer 없음) — HTML Audio fallback
-      if (actx) songStartTime = actx.currentTime - targetTime;
+      // ABS 불가 (buffer 없음) — HTML Audio fallback. 동일하게 _startDelay 보정.
+      const _sdH = (curSong && curSong._startDelay) || 0;
+      const _bufOffH = Math.max(0, targetTime - _sdH);
+      if (actx) songStartTime = actx.currentTime - _bufOffH;
       for (let i = 0; i < allStemAudios.length; i++) {
         if (allStemAudios[i]) {
           const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
           allStemAudios[i].volume = (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
-          allStemAudios[i].currentTime = targetTime;
+          allStemAudios[i].currentTime = _bufOffH;
           allStemAudios[i].play().catch(()=>{});
         }
       }
       for (let i = 0; i < pulseStemAudios.length; i++) {
-        if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
+        if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = _bufOffH + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
       }
     } else if (songAudio) {
-      if (actx) songStartTime = actx.currentTime - targetTime;
-      songAudio.currentTime = targetTime;
+      const _sdS = (curSong && curSong._startDelay) || 0;
+      const _bufOffS = Math.max(0, targetTime - _sdS);
+      if (actx) songStartTime = actx.currentTime - _bufOffS;
+      songAudio.currentTime = _bufOffS;
       songAudio.play().catch(()=>{});
     }
   }
