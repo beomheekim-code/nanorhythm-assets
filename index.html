@@ -4639,6 +4639,25 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
+  // ★ 누락된 touchstart 복구: touchLaneMap에 없는 활성 터치를 새 입력으로 처리
+  if (state === 'playing' && !gamePaused && !songLoading) {
+    const now = performance.now();
+    const lw = getLaneW(), lsx = getLaneStartX();
+    const laneEnd = lsx + lw * laneCount;
+    const margin = isMobile ? lsx : lw * 0.4;
+    for (const touch of e.touches) {
+      if (touchLaneMap.has(touch.identifier)) continue;
+      const mx = touch.clientX;
+      if (mx < lsx - margin || mx >= laneEnd + margin) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
+      if (now - _laneInputTs[i] < 60) continue;
+      _laneInputTs[i] = now;
+      _touchMarkers.push({ x: mx, y: gameY(touch.clientY), t: now });
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(touch.identifier, i);
+      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+    }
+  }
   // 설정창 열려있으면 스크롤 드래그
   if (settingsOpen && _settingsTouching) {
     const t = e.touches[0];
