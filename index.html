@@ -4471,7 +4471,9 @@ function _processPlayingTouch(t) {
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   let lane;
-  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip, 단 _pointerLaneMap 은 등록 (touchend drop 대비)
+  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip.
+  // splice는 안 함 — 뒤이어 올 touchmove 2차 복구에서도 dedup 가능해야 함.
+  // (queue는 150ms TTL + 24-cap으로 자동 정리)
   if (_isRecentGesture(e.clientX, e.clientY) >= 0) {
     const _lwP = _fLw || getLaneW(), _lsxP = _fLsx || getLaneStartX();
     lane = Math.max(0, Math.min(laneCount - 1, Math.floor((e.clientX - _lsxP) / _lwP)));
@@ -4793,10 +4795,13 @@ document.addEventListener('touchmove', e => {
       const prevLane = touchLaneMap.get(touch.identifier);
       const newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((touch.clientX - lsx) / lw)));
       if (prevLane === undefined) {
-        // 누락된 touchstart 복구
+        // 누락된 touchstart 복구 — pointerdown이 이미 handleLanePress 호출했으면 재호출 금지
         keyHeld[newLane] = true; keyFlash[newLane] = 0.3;
         touchLaneMap.set(touch.identifier, newLane);
-        if (_canHit) handleLanePress(newLane);
+        if (_canHit && _isRecentGesture(touch.clientX, touch.clientY) < 0) {
+          handleLanePress(newLane);
+          _markGesture(touch.clientX, touch.clientY);
+        }
       } else if (newLane !== prevLane) {
         // 슬라이드: 경유한 레인도 모두 입력
         const dir = newLane > prevLane ? 1 : -1;
