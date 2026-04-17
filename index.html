@@ -5363,6 +5363,7 @@ function startSong(idx) {
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
+  _dbgTouch=0; _dbgLane=0; _dbgEmpty=0; _dbgLog=[];
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
   usingStemMode = false;
