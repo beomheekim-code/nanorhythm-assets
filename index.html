@@ -4373,10 +4373,29 @@ document.addEventListener('touchstart', e => {
     const _tpbW = sz(48), _tpbH = sz(36);
     const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) { pauseGame(); return; }
+    // Speed control buttons
+    let _tSpeedHandled = false;
+    const _tlgap = getLaneStartX() - sz(6);
+    const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
+    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
+    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
+    const _tgcx = isMobile ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
+    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
+    const _tspCx = _tgcx;
+    const _tspBaseY = _tspBlockTop + _tspPad;
+    const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
+    const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
+    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
+      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); _tSpeedHandled = true;
+    }
+    if (!_tSpeedHandled && hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
+      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
+    }
     const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
     const _laneEnd = lsx + lw * laneCount;
     const _tLaneMargin = isMobile ? lsx : lw * 0.4;
     for (const touch of e.changedTouches) {
+      if (_tSpeedHandled && touch === t0) continue;
       const _tcx = touch.clientX;
       if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
