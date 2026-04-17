@@ -6609,13 +6609,9 @@ function renderButtons() {
     } else {
       // ===== 기본 (대기) =====
       if (isMobile) {
-        ctx.fillStyle = 'rgba(255,255,255,0.04)';
-        rrFill(x, y, w, h * 0.4, _r);
         ctx.fillStyle = col + '55';
         ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-        ctx.fillStyle = col + '10';
-        rrFill(x, y + h - sz(20), w, sz(20), _r);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
         rrStroke(x, y, w, h, _r);
       } else {
         const hg = ctx.createLinearGradient(x, y, x, y + h * 0.4);
