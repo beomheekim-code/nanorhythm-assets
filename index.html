@@ -4875,8 +4875,15 @@ function handleLanePress(lane) {
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
-  if (!closest) { _dbgEmpty++; _dbgLog.push('E'+lane); if (_dbgLog.length>12) _dbgLog.shift(); playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
-  closest.hit = true; _dbgLog.push('H'+lane); if (_dbgLog.length>12) _dbgLog.shift();
+  if (!closest) {
+    _dbgEmpty++;
+    let _nearDist = 999;
+    for (const n of nodes) { if (!n.hit && !n.missed && n.lane === lane) { const d = Math.abs(n.time - gameTime) * noteSpeed; if (d < _nearDist) _nearDist = d; } }
+    _dbgLog.push('E'+lane+':'+Math.round(_nearDist));
+    if (_dbgLog.length>12) _dbgLog.shift();
+    playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return;
+  }
+  closest.hit = true; _dbgLog.push('H'+lane+':'+Math.round(closestDist)); if (_dbgLog.length>12) _dbgLog.shift();
 
   if (closest.type === 'trap') {
     nanoMiss();
@@ -7136,7 +7143,7 @@ function renderUI() {
     ctx.fillStyle = '#0f0';
     ctx.fillText(`T:${_dbgTouch} L:${_dbgLane} E:${_dbgEmpty} | ${_dbgLog.slice(-6).join(' ')}`, sz(52), -safeTop + sz(3));
     ctx.fillStyle = 'rgba(255,255,100,0.7)';
-    ctx.fillText(`map:${touchLaneMap.size} held:${keyHeld.filter(Boolean).length}`, sz(52), -safeTop + sz(14));
+    ctx.fillText(`hw:${Math.round(getHitWindow())} map:${touchLaneMap.size}`, sz(52), -safeTop + sz(14));
     ctx.restore();
   }
 }
