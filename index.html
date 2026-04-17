@@ -4419,7 +4419,7 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [];
+let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
 document.addEventListener('touchstart', e => {
   // ★ playing 상태 — 최소 코드 경로
   if (state === 'playing' && !gamePaused) {
@@ -4447,7 +4447,7 @@ document.addEventListener('touchstart', e => {
       }
       // 레인 매핑
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
+      keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
       touchLaneMap.set(t.identifier, i);
       _dbgLog.push('K'+i); if (_dbgLog.length>12) _dbgLog.shift();
       if (_canHit) handleLanePress(i);
@@ -5365,7 +5365,7 @@ function startSong(idx) {
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
-  _dbgTouch=0; _dbgLane=0; _dbgEmpty=0; _dbgLog=[];
+  _dbgTouch=0; _dbgLane=0; _dbgEmpty=0; _dbgLog=[]; _dbgFlash=0;
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
   usingStemMode = false;
@@ -7113,7 +7113,7 @@ function renderUI() {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(sz(50), -safeTop, sz(180), sz(28));
     ctx.fillStyle = '#0f0';
-    ctx.fillText(`T:${_dbgTouch} L:${_dbgLane} E:${_dbgEmpty} | ${_dbgLog.slice(-6).join(' ')}`, sz(52), -safeTop + sz(3));
+    ctx.fillText(`T:${_dbgTouch} F:${_dbgFlash} L:${_dbgLane} E:${_dbgEmpty} | ${_dbgLog.slice(-6).join(' ')}`, sz(52), -safeTop + sz(3));
     ctx.fillStyle = 'rgba(255,255,100,0.7)';
     ctx.fillText(`hw:${Math.round(getHitWindow())} map:${touchLaneMap.size}`, sz(52), -safeTop + sz(14));
     ctx.restore();
