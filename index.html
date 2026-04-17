@@ -4170,6 +4170,7 @@ addEventListener('mousedown', e => {
   if (mailboxOpen) { handleMailboxClick(e.clientX, gameY(e.clientY)); return; }
   if (settingsOpen) { handleSettingsClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'title') {
+    if (!_preloadDone) return;
     const mx = e.clientX, my = gameY(e.clientY);
     if (!currentUser) {
       // 첫 클릭 시 BGM 시작
@@ -4574,6 +4575,7 @@ document.addEventListener('touchstart', e => {
   }
   if (settingsOpen) { const t = e.changedTouches[0]; handleSettingsClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'title') {
+    if (!_preloadDone) return;
     const t = e.changedTouches[0];
     const tmx = t.clientX, tmy = gameY(t.clientY);
     if (!currentUser) {
