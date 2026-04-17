@@ -4862,7 +4862,7 @@ let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   _dbgLane++;
   const hitY = getHitY();
-  const hw = getHitWindow();
+  const hw = getHitWindow() * 1.1;
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
   const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
   let closest = null, closestDist = Infinity;
@@ -10215,20 +10215,14 @@ function resumeGame() {
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   resumeAudio();
-  // 오디오 컨텍스트 복구
-  if (actx && actx.state !== 'running') {
-    actx.resume().catch(()=>{});
-  }
   // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
-    if (actx) songStartTime = actx.currentTime - targetTime;
-    if (actx && actx.state !== 'running') {
-      actx.resume().then(() => {
-        _restartAudioAfterContextResume();
-      }).catch(()=>{});
-    } else if (usingStemMode && actx) {
+    // actx resume 보장 후 오디오 재시작
+    const _doAudioRestart = () => {
+      if (actx) songStartTime = actx.currentTime - targetTime;
+      if (usingStemMode && actx) {
       // ABS 모드: 항상 새 source + gain 생성 (iOS 인터럽트 후 기존 노드 무효화 대응)
       if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
       const _resumeAt = window._absPausedAt != null ? window._absPausedAt : targetTime;
@@ -10260,7 +10254,7 @@ function resumeGame() {
       songAudio.currentTime = targetTime;
       songAudio.play().catch(()=>{});
     }
-    // 펄스 오디오 동기화 (actx running 이든 아니든)
+    // 펄스 오디오 동기화
     if (usingStemMode) {
       for (let i = 0; i < pulseStemAudios.length; i++) {
         if (pulseStemAudios[i]) {
@@ -10271,6 +10265,13 @@ function resumeGame() {
     } else if (songAudio) {
       songAudio.currentTime = targetTime;
       songAudio.play().catch(()=>{});
+    }
+    };
+    // actx resume 보장 후 오디오 재시작
+    if (actx && actx.state !== 'running') {
+      actx.resume().then(_doAudioRestart).catch(()=>{ _doAudioRestart(); });
+    } else {
+      _doAudioRestart();
     }
   }
 }
