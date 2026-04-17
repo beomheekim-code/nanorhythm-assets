@@ -4744,6 +4744,19 @@ document.addEventListener('touchend', e => {
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
   _listTouchMode = '';
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
+  // 드롭된 touchstart 역추적: touchend에서 처음 보는 터치 = touchstart가 드롭된 터치
+  if (state === 'playing' && !gamePaused && !songLoading) {
+    const lw = getLaneW(), lsx = getLaneStartX();
+    const _leEnd = lsx + lw * laneCount;
+    for (const touch of e.changedTouches) {
+      if (touchLaneMap.has(touch.identifier)) continue;
+      const _tcx = touch.clientX;
+      if (_tcx < 0 || _tcx >= W) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
+      keyFlash[i] = 0.3;
+      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+    }
+  }
   // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락은 유지)
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
