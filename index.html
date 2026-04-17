@@ -1856,8 +1856,9 @@ function getLaneStartX() {
 function _getMaxLaneArea() { return W - _hpMargin(); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
+function _btnBottomPad() { return isMobile ? sz(18) : 0; }
 function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
-function getBtnY() { return H + safeBottom - getBtnH(); }
+function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
 function getHitY() { return getBtnY() - sz(8); }
 
 // ===== KEY COUNT SCORE BONUS =====
