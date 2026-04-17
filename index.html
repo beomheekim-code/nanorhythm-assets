@@ -4366,25 +4366,6 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-const _processedTouchIds = new Set();
-// document capture phase: touchLayer보다 먼저 실행되어 드롭된 터치를 잡음
-document.addEventListener('touchstart', e => {
-  if (state !== 'playing' || gamePaused || songLoading) return;
-  const lw = getLaneW(), lsx = getLaneStartX();
-  const laneEnd = lsx + lw * laneCount;
-  const margin = isMobile ? lsx : lw * 0.4;
-  for (const touch of e.changedTouches) {
-    if (_processedTouchIds.has(touch.identifier)) continue;
-    _processedTouchIds.add(touch.identifier);
-    const mx = touch.clientX, my = gameY(touch.clientY);
-    if (mx < lsx - margin || mx >= laneEnd + margin) continue;
-    const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-    keyHeld[i] = true; keyFlash[i] = 0.3;
-    touchLaneMap.set(touch.identifier, i);
-    if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
-    else if (countdownTime > 0) playEmptyPressSfx(i);
-  }
-}, { passive: false, capture: true });
 touchLayer.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
   // ★ playing 상태 최우선 ��리 — 다른 UI 체크 전에 즉시 레인 입력
@@ -4426,8 +4407,6 @@ touchLayer.addEventListener('touchstart', e => {
     const _laneEnd = lsx + lw * laneCount;
     for (const touch of e.changedTouches) {
       if (_tSpeedHandled && touch === t0) continue;
-      if (_processedTouchIds.has(touch.identifier)) continue;
-      _processedTouchIds.add(touch.identifier);
       const _tcy = gameY(touch.clientY);
       const _tcx = touch.clientX;
       const _tLaneMargin = isMobile ? lsx : lw*0.4;
@@ -4804,37 +4783,6 @@ touchLayer.addEventListener('touchcancel', e => {
   selectDragX = -1;
 }, { passive: false });
 
-// Pointer Events 보조: touchstart가 드롭될 때 pointerdown이 대신 처리
-const _pointerLaneMap = new Map();
-let _lastPointerDownTime = 0;
-touchLayer.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse') return;
-  if (state !== 'playing' || gamePaused || songLoading) return;
-  // touchstart가 이미 처리했으면 스킵 (같은 이벤트 루프에서 _processedTouchIds에 등록됨)
-  if (_processedTouchIds.size > 0) { return; }
-  const lw = getLaneW(), lsx = getLaneStartX();
-  const mx = e.clientX;
-  const laneEnd = lsx + lw * laneCount;
-  const margin = isMobile ? lsx : lw * 0.4;
-  if (mx < lsx - margin || mx >= laneEnd + margin) return;
-  const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-  keyHeld[i] = true; keyFlash[i] = 0.3;
-  _pointerLaneMap.set(e.pointerId, i);
-  if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
-  else if (countdownTime > 0) playEmptyPressSfx(i);
-}, { passive: true });
-touchLayer.addEventListener('pointerup', e => {
-  if (e.pointerType === 'mouse') return;
-  const lane = _pointerLaneMap.get(e.pointerId);
-  if (lane !== undefined) {
-    keyHeld[lane] = false;
-    _pointerLaneMap.delete(e.pointerId);
-  }
-}, { passive: true });
-touchLayer.addEventListener('pointercancel', e => {
-  const lane = _pointerLaneMap.get(e.pointerId);
-  if (lane !== undefined) { keyHeld[lane] = false; _pointerLaneMap.delete(e.pointerId); }
-}, { passive: true });
 
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
@@ -5600,7 +5548,6 @@ function startSong(idx) {
 
 // ===== UPDATE =====
 function update(dt) {
-  _processedTouchIds.clear();
   // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
   // 오디오 디바이스 변경 감지 + 복구
   if (state === 'playing' && actx) {
