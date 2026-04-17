@@ -4364,6 +4364,7 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+const _laneInputTs = new Float64Array(8);
 canvas.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
   // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
@@ -4411,6 +4412,7 @@ canvas.addEventListener('touchstart', e => {
       if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin || _tcy < -safeTop || _tcy >= by+bh) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
+      _laneInputTs[i] = performance.now();
       touchLaneMap.set(touch.identifier, i);
       if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
       else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -4764,6 +4766,41 @@ canvas.addEventListener('touchcancel', e => {
   if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
   selectDragX = -1;
 }, { passive: false });
+
+// Pointer Events 보조: touchstart가 드롭될 때 pointerdown이 대신 처리
+const _pointerLaneMap = new Map();
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;
+  if (state !== 'playing' || gamePaused || songLoading) return;
+  const now = performance.now();
+  const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+  const mx = e.clientX, my = gameY(e.clientY);
+  const laneEnd = lsx + lw * laneCount;
+  const margin = isMobile ? lsx : lw * 0.4;
+  if (mx < lsx - margin || mx >= laneEnd + margin) return;
+  const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
+  if (now - _laneInputTs[i] < 60) { _pointerLaneMap.set(e.pointerId, i); return; }
+  _laneInputTs[i] = now;
+  keyHeld[i] = true; keyFlash[i] = 0.3;
+  _pointerLaneMap.set(e.pointerId, i);
+  if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+  else if (countdownTime > 0) playEmptyPressSfx(i);
+}, { passive: true });
+canvas.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  const lane = _pointerLaneMap.get(e.pointerId);
+  if (lane !== undefined) {
+    keyHeld[lane] = false;
+    _pointerLaneMap.delete(e.pointerId);
+  }
+  if (_pointerLaneMap.size === 0 && touchLaneMap.size === 0) {
+    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
+  }
+}, { passive: true });
+canvas.addEventListener('pointercancel', e => {
+  const lane = _pointerLaneMap.get(e.pointerId);
+  if (lane !== undefined) { keyHeld[lane] = false; _pointerLaneMap.delete(e.pointerId); }
+}, { passive: true });
 
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
