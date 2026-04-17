@@ -5251,6 +5251,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevTime = -1;
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
 
+  let _lastChordTime = 0;
   for (const o of filtered) {
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
@@ -5278,6 +5279,24 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
     nodes.push(nd);
     noteIdx++;
+
+    // 동시 노트 (chord): chordMode 활성 + extra onset 보유 + 에너지 상위 구간
+    if (song.chordMode && o.extra && o.extra.length > 0 && nd.type === 'note') {
+      const chordGap = song.chordMinGap || 2.0;
+      if (!_lastChordTime || (o.time - _lastChordTime) >= chordGap) {
+        const avgEnergy = filtered.reduce((s, x) => s + (x.energy || 0), 0) / filtered.length;
+        if ((o.energy || 0) >= avgEnergy * 1.3) {
+          const ex = o.extra[0];
+          let cLane = (lane + 1 + Math.floor(rng() * (lc - 1))) % lc;
+          nodes.push({
+            time: o.time, lane: cLane, freq: 440, type: 'note', stem: ex.stem != null ? ex.stem : o.stem,
+            hit: false, missed: false, holding: false, holdComplete: false,
+            endTime: 0, _ho1: null, _ho2: null, _hg: null
+          });
+          _lastChordTime = o.time;
+        }
+      }
+    }
   }
 
   // 트랩 추가
