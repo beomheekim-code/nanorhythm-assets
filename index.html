@@ -8359,6 +8359,21 @@ function renderTitle() {
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
   ctx.fillText('v15.8', 6, H + safeBottom - 4);
 
+  // ===== 프리로드 프로그레스바 =====
+  if (!_preloadDone && _preloadTotal > 0) {
+    const pct = _preloadTotal > 0 ? (_preloadLoaded + _preloadFailed) / _preloadTotal : 0;
+    const barW = Math.min(sz(260), W * 0.65), barH = sz(8);
+    const barX = (W - barW) / 2, barY = _visY(0.62);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(barX, barY, barW, barH, sz(4));
+    ctx.fillStyle = '#9e7aff';
+    rrFill(barX, barY, barW * pct, barH, sz(4));
+    ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(`패치 중... ${Math.round(pct * 100)}%`, W / 2, barY - sz(8));
+    return;
+  }
+
   if (!currentUser) {
     // ===== 비로그인: Kplay 로그인 버튼 =====
     loginBtnAreas = [];
