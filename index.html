@@ -4662,6 +4662,20 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
   if (state !== 'playing') e.preventDefault();
+  // 드롭된 touchstart 복구 (changedTouches만, 이중 처리 방지)
+  if (state === 'playing' && !gamePaused && !songLoading) {
+    for (let ti = 0; ti < e.changedTouches.length; ti++) {
+      const t = e.changedTouches[ti];
+      if (touchLaneMap.has(t.identifier)) continue;
+      const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
+      touchLaneMap.set(t.identifier, i);
+      const _canHit = countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5);
+      if (_canHit) handleLanePress(i);
+      _dbgLog.push('M'+i); if (_dbgLog.length>12) _dbgLog.shift();
+    }
+  }
   // 설정창 열려있으면 스크롤 드래그
   if (settingsOpen && _settingsTouching) {
     const t = e.touches[0];
@@ -10139,12 +10153,14 @@ function pauseGame() {
 
 let _prevActxState = ''; // actx 상태 전환 감지용
 let _bgmNeedsResume = false;
+let _audioInterrupted = false;
 // iOS 오디오 인터럽트 복구 (알람/전화 후)
 function _onActxStateChange() {
   if (!actx) return;
   if (actx.state === 'running') {
     _bgmNeedsResume = true;
   } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+    _audioInterrupted = true;
     if (state === 'playing' && !gamePaused) pauseGame();
   }
 }
@@ -10196,8 +10212,21 @@ function resumeGame() {
     // actx resume 보장 후 오디오 재시작
     const _doAudioRestart = () => {
       if (actx) songStartTime = actx.currentTime - targetTime;
+      // iOS 인터럽트 후: ABS 죽으므로 HTML Audio 직행
+      if (_audioInterrupted && usingStemMode) {
+        _audioInterrupted = false;
+        if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
+        window._absNodes = null;
+        for (let i = 0; i < allStemAudios.length; i++) {
+          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+        }
+        for (let i = 0; i < pulseStemAudios.length; i++) {
+          if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
+        }
+        return;
+      }
       if (usingStemMode && actx) {
-      // ABS 모드: 항상 새 source + gain 생성 (iOS 인터럽트 후 기존 노드 무효화 대응)
+      // ABS 모드: 항상 새 source + gain 생성
       if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
       const _resumeAt = window._absPausedAt != null ? window._absPausedAt : targetTime;
       window._absNodes = [];
