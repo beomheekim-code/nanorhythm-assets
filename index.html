@@ -4661,7 +4661,7 @@ let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching =
 let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'|'shop'
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
-  e.preventDefault();
+  if (state !== 'playing') e.preventDefault();
   // 설정창 열려있으면 스크롤 드래그
   if (settingsOpen && _settingsTouching) {
     const t = e.touches[0];
