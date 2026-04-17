@@ -4766,18 +4766,19 @@ canvas.addEventListener('touchcancel', e => {
 }, { passive: false });
 
 // ===== HIT DETECTION =====
+let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   const hitY = getHitY();
+  const hw = getHitWindow() * 1.2;
   let closest = null, closestDist = Infinity;
 
   for (const n of nodes) {
     if (n.hit || n.missed) continue;
     if (n.lane !== lane) continue;
-    const sy = hitY - (n.time - gameTime) * noteSpeed;
-    const dist = Math.abs(sy - hitY);
-    if (dist < getHitWindow() && dist < closestDist) { closest = n; closestDist = dist; }
+    const dist = Math.abs(n.time - gameTime) * noteSpeed;
+    if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
-  if (!closest) { playEmptyPressSfx(lane); return; }
+  if (!closest) { playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
   closest.hit = true;
 
   if (closest.type === 'trap') {
@@ -6617,6 +6618,14 @@ function renderButtons() {
         ctx.closePath();
         ctx.fill();
       }
+    }
+
+    // 빈 입력 플래시 (노트 없이 눌렸을 때 빨간 깜박)
+    const _efAge = performance.now() - _lastEmptyFlash[i];
+    if (_efAge < 150) {
+      const _efA = 0.3 * (1 - _efAge / 150);
+      ctx.fillStyle = `rgba(255,60,60,${_efA})`;
+      rrFill(x, y, w, h, _r);
     }
 
     // Label — PC 만
