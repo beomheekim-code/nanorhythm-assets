@@ -4420,6 +4420,8 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
+// iOS 터치 제스처 가로채기 방지 — capture phase에서 preventDefault
+document.addEventListener('touchstart', e => { if (state === 'playing') e.preventDefault(); }, { passive: false, capture: true });
 document.addEventListener('touchstart', e => {
   // ★ playing 상태 — 최소 코드 경로
   if (state === 'playing' && !gamePaused) {
