@@ -19,7 +19,6 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="touchLayer" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:5;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;will-change:transform;transform:translateZ(0);-webkit-transform:translateZ(0);background:rgba(0,0,0,0.001);pointer-events:auto;-webkit-tap-highlight-color:transparent;"></div>
 <input id="searchInput" style="position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:200px;height:30px;font-size:16px;background:transparent;color:transparent;border:none;outline:none;caret-color:transparent;z-index:9999;ime-mode:active;" type="text" autocomplete="off">
 <input id="loginInputEl" style="position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:240px;height:40px;font-size:18px;text-align:center;background:transparent;color:transparent;border:none;outline:none;z-index:9999;ime-mode:active;caret-color:transparent;" type="text" maxlength="12" autocomplete="off">
 <input id="speedInputEl" style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;" type="text" inputmode="decimal" maxlength="4" autocomplete="off">
@@ -216,7 +215,6 @@ if (typeof window !== 'undefined') {
 }
 
 const canvas = document.getElementById('c');
-const touchLayer = document.getElementById('touchLayer');
 const ctx = canvas.getContext('2d');
 let W, H, UI, isPortrait, isMobile, isTablet;
 // Kplay iframe 감지: 상단/하단 안전 영역 (Kplay UI가 게임 위에 오버레이됨)
@@ -4366,9 +4364,10 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-touchLayer.addEventListener('touchstart', e => {
-  if (state !== 'login' && !nicknameOverlay) e.preventDefault();
-  // ★ playing 상태 최우선 ��리 — 다른 UI 체크 전에 즉시 레인 입력
+document.addEventListener('touchstart', e => {
+  // playing 상태에선 preventDefault 스킵 → iOS에서 터치 응답성 향상
+  if (state !== 'playing') { if (state !== 'login' || !nicknameOverlay) e.preventDefault(); }
+  // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
   if (state === 'playing' && !gamePaused) {
     const t0 = e.changedTouches[0];
     // Pause button
@@ -4584,7 +4583,7 @@ touchLayer.addEventListener('touchstart', e => {
 let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching = false;
 let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'|'shop'
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
-touchLayer.addEventListener('touchmove', e => {
+document.addEventListener('touchmove', e => {
   e.preventDefault();
   // ★ 누락된 touchstart 복구: touchLaneMap에 없는 활성 터치를 새 입력으로 처리
   if (state === 'playing' && !gamePaused && !songLoading) {
@@ -4693,7 +4692,7 @@ touchLayer.addEventListener('touchmove', e => {
     }
   }
 }, { passive: false });
-touchLayer.addEventListener('touchend', e => {
+document.addEventListener('touchend', e => {
   e.preventDefault();
   stopSelectArrowHold();
   stopSpeedHold();
@@ -4736,7 +4735,7 @@ touchLayer.addEventListener('touchend', e => {
   }
   selectDragX = -1;
 }, { passive: false });
-touchLayer.addEventListener('touchcancel', e => {
+document.addEventListener('touchcancel', e => {
   stopSelectArrowHold();
   stopSpeedHold();
   if (_settingsTouching) _settingsTouching = false;
