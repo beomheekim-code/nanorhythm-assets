@@ -4422,6 +4422,7 @@ addEventListener('wheel', e => {
 
 let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
+const _laneLastInput = new Float64Array(8);
 function _processPlayingTouch(t) {
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
@@ -4439,13 +4440,22 @@ function _processPlayingTouch(t) {
     }
   }
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+  const _now = performance.now();
+  if (_now - _laneLastInput[i] < 10) return i;
+  _laneLastInput[i] = _now;
   keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
-  touchLaneMap.set(t.identifier, i);
+  if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   _dbgLog.push('K'+i); if (_dbgLog.length>12) _dbgLog.shift();
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
   return i;
 }
+// pointerdown — touchstart보다 먼저 발생, iOS에서 터치 드롭 보완
+document.addEventListener('pointerdown', e => {
+  if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _dbgTouch++;
+  _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+}, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
