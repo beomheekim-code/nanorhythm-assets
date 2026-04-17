@@ -4445,14 +4445,11 @@ document.addEventListener('touchstart', e => {
           continue;
         }
       }
-      // 레인 매핑 (primary + 반경 내 인접 레인)
-      const primary = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-      keyHeld[primary] = true; keyFlash[primary] = 0.3;
-      touchLaneMap.set(t.identifier, primary);
-      if (_canHit) handleLanePress(primary);
-      const r = Math.min(t.radiusX || 10, lw * 0.2);
-      if (primary > 0 && (x - r) < lsx + primary * lw) { keyHeld[primary-1] = true; keyFlash[primary-1] = 0.3; if (_canHit) handleLanePress(primary-1); }
-      if (primary < laneCount-1 && (x + r) >= lsx + (primary+1) * lw) { keyHeld[primary+1] = true; keyFlash[primary+1] = 0.3; if (_canHit) handleLanePress(primary+1); }
+      // 레인 매핑
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(t.identifier, i);
+      if (_canHit) handleLanePress(i);
     }
     return;
   }
