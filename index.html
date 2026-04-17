@@ -4451,7 +4451,7 @@ document.addEventListener('touchstart', e => {
   e.preventDefault();
   _dbgTouch += e.changedTouches.length;
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
-    if (_processPlayingTouch(e.changedTouches[ti]) === -1) return;
+    if (_processPlayingTouch(e.changedTouches[ti]) === -1) { e.stopImmediatePropagation(); return; }
   }
 }, { passive: false, capture: true });
 document.addEventListener('touchstart', e => {
