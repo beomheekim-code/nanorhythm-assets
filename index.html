@@ -4842,7 +4842,7 @@ let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   _dbgLane++;
   const hitY = getHitY();
-  const hw = getHitWindow() * 1.1;
+  const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
   const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
   let closest = null, closestDist = Infinity;
