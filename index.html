@@ -4365,12 +4365,72 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+// ★ Pointer Events — iOS에서 touch보다 안정적인 입력 경로
+const _ptrHandled = new Set();
+function _processLaneInput(x, id) {
+  const lw = getLaneW(), lsx = getLaneStartX();
+  const _laneEnd = lsx + lw * laneCount;
+  if (x >= lsx && x < _laneEnd) {
+    const i = Math.floor((x - lsx) / lw);
+    keyHeld[i] = true; keyFlash[i] = 0.3;
+    if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+    else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+    return i;
+  }
+  if (x < lsx && x >= 0) {
+    keyHeld[0] = true; keyFlash[0] = 0.3;
+    if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(0);
+    return 0;
+  }
+  if (x >= _laneEnd && x < W) {
+    const last = laneCount - 1;
+    keyHeld[last] = true; keyFlash[last] = 0.3;
+    if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(last);
+    return last;
+  }
+  return -1;
+}
+document.addEventListener('pointerdown', e => {
+  if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _ptrHandled.add(e.pointerId);
+  const x = e.clientX, y = gameY(e.clientY);
+  // 배속 버튼
+  const lsx = getLaneStartX();
+  if (x < lsx) {
+    const _tgw = Math.min(sz(18), Math.max(sz(8), lsx - sz(6) - sz(8)));
+    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
+    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
+    const _tgcx = isMobile ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, lsx - sz(20) - Math.max(_tgw, _tspBtn)/2);
+    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
+    const _tspBaseY = _tspBlockTop + _tspPad;
+    const _tspMinusX = _tgcx - _tspBtn/2, _tspMinusY = _tspBaseY;
+    const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
+    if (hitTest(x, y, _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); return; }
+    if (hitTest(x, y, _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); return; }
+  }
+  // 일시정지 버튼
+  const _tpbW = sz(48), _tpbH = sz(36);
+  const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
+  if (x >= _tpbX && x < _tpbX+_tpbW && y >= _tpbY && y < _tpbY+_tpbH) { pauseGame(); return; }
+  _processLaneInput(x);
+}, { passive: true });
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  _ptrHandled.delete(e.pointerId);
+  if (state === 'playing') {
+    // pointerup은 keyHeld 해제에 사용 (touchend와 중복 가능하지만 안전)
+    const lw = getLaneW(), lsx = getLaneStartX();
+    const i = Math.max(0, Math.min(laneCount - 1, Math.floor((e.clientX - lsx) / lw)));
+    keyHeld[i] = false;
+  }
+}, { passive: true });
+
 document.addEventListener('touchstart', e => {
-  // ★ playing 상태 최우선 처리 — 레인 터치 fast path
+  // playing: pointer가 이미 처리했으면 스킵, 아니면 fallback
   if (state === 'playing' && !gamePaused) {
+    if (_ptrHandled.size > 0) { _ptrHandled.clear(); return; }
     const lw = getLaneW(), lsx = getLaneStartX();
     const _laneEnd = lsx + lw * laneCount;
-    // Fast path: 레인 영역 터치는 즉시 처리 (UI 버튼 계산 스킵)
     for (const touch of e.changedTouches) {
       const _tcx = touch.clientX;
       if (_tcx >= lsx && _tcx < _laneEnd) {
