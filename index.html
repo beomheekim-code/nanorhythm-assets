@@ -9950,14 +9950,16 @@ function renderResult() {
   for (const s of stars) { ctx.globalAlpha=s.b*0.2; ctx.fillStyle='#fff'; ctx.fillRect(s.x,s.y,s.s,s.s); }
   ctx.globalAlpha=1;
   const song=curSong;
-  ctx.font=`bold ${sz(34)}px sans-serif`;
+  const _rTop = -safeTop + sz(10);
+  const _rH = H + safeTop + safeBottom - sz(20);
+  ctx.font=`bold ${sz(28)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
-  ctx.shadowColor='#fff'; ctx.shadowBlur=8;
-  ctx.fillText('RESULT',W/2,H*0.1+12); ctx.shadowBlur=0;
-  ctx.font=`${sz(15)}px sans-serif`; ctx.fillStyle=song.color;
+  if (!isMobile) { ctx.shadowColor='#fff'; ctx.shadowBlur=8; }
+  ctx.fillText('RESULT',W/2, _rTop + _rH * 0.08); ctx.shadowBlur=0;
+  ctx.font=`${sz(13)}px sans-serif`; ctx.fillStyle=song.color;
   const diffLabel = curDiff ? curDiff.name : '';
   const spdLabel = selectedSpeed.toFixed(1)+'x';
-  ctx.fillText(song.name+'  ·  '+diffLabel+'  ·  '+spdLabel,W/2,H*0.17);
+  ctx.fillText(song.name+'  ·  '+diffLabel+'  ·  '+spdLabel,W/2, _rTop + _rH * 0.14);
 
   const pct=totalNodes>0?collected/totalNodes:0;
   const cleared = gauge > 0; // 클리어 여부 (게이지 사망 = 미클리어)
@@ -9976,61 +9978,63 @@ function renderResult() {
   }
   const gc={P:'#ff44ff',S:'#ffd700',A:'#00ff88',B:'#00d4ff',C:'#ff9500',D:'#ff3333'};
 
-  const gradeR = sz(44);
+  const _gradeY = _rTop + _rH * 0.30;
+  const gradeR = sz(38);
   if (grade === 'P') {
-    // P등급: 무지개 링 + 강한 글로우
     const t = Date.now() * 0.003;
-    ctx.beginPath(); ctx.arc(W/2,H*0.33,gradeR,0,Math.PI*2);
-    const rGrad = ctx.createConicGradient(t, W/2, H*0.33);
+    ctx.beginPath(); ctx.arc(W/2, _gradeY, gradeR, 0, Math.PI*2);
+    const rGrad = ctx.createConicGradient(t, W/2, _gradeY);
     rGrad.addColorStop(0,'#ff44ff'); rGrad.addColorStop(0.25,'#44ddff');
     rGrad.addColorStop(0.5,'#ffdd44'); rGrad.addColorStop(0.75,'#44ff88');
     rGrad.addColorStop(1,'#ff44ff');
     ctx.strokeStyle=rGrad; ctx.lineWidth=4; ctx.stroke();
-    ctx.font=`bold ${sz(32)}px sans-serif`;
-    ctx.fillStyle='#ff44ff'; ctx.shadowColor='#ff44ff'; ctx.shadowBlur=40;
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PERFECT',W/2,H*0.33);
+    ctx.font=`bold ${sz(28)}px sans-serif`;
+    ctx.fillStyle='#ff44ff';
+    if (!isMobile) { ctx.shadowColor='#ff44ff'; ctx.shadowBlur=40; }
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PERFECT',W/2, _gradeY);
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   } else {
-    ctx.beginPath(); ctx.arc(W/2,H*0.33,gradeR,0,Math.PI*2);
+    ctx.beginPath(); ctx.arc(W/2, _gradeY, gradeR, 0, Math.PI*2);
     ctx.strokeStyle=gc[grade]+'44'; ctx.lineWidth=3; ctx.stroke();
-    ctx.font=`bold ${sz(60)}px sans-serif`;
-    ctx.fillStyle=gc[grade]; ctx.shadowColor=gc[grade]; ctx.shadowBlur=20;
-    ctx.textBaseline='middle'; ctx.fillText(grade,W/2,H*0.33);
+    ctx.font=`bold ${sz(50)}px sans-serif`;
+    ctx.fillStyle=gc[grade];
+    if (!isMobile) { ctx.shadowColor=gc[grade]; ctx.shadowBlur=20; }
+    ctx.textBaseline='middle'; ctx.fillText(grade,W/2, _gradeY);
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   }
 
   const stats=[['SCORE',normalizedScore.toLocaleString()],['MAX COMBO',maxCombo+'x'],['HIT',collected+' / '+totalNodes],['MISS',''+missed],['ACCURACY',(pct*100).toFixed(1)+'%']];
-  ctx.font=`${sz(13)}px sans-serif`;
-  const sy0=H*0.48;
+  ctx.font=`${sz(12)}px sans-serif`;
+  const _statRowH = sz(22);
+  const sy0 = _rTop + _rH * 0.46;
   stats.forEach((s,i)=>{
-    const sy=sy0+i*26;
+    const sy=sy0+i*_statRowH;
     ctx.fillStyle='rgba(255,255,255,0.03)';
-    const bw=sz(250);
-    rrFill((W-bw)/2,sy-10,bw,20,5);
-    ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText(s[0],W/2-10,sy+4);
-    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.fillText(s[1],W/2+10,sy+4);
+    const bw = Math.min(sz(250), W * 0.85);
+    rrFill((W-bw)/2,sy - _statRowH*0.4, bw, _statRowH*0.8, 5);
+    ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText(s[0],W/2-sz(8),sy+2);
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.fillText(s[1],W/2+sz(8),sy+2);
   });
 
   const msgs={P:'ALL PERFECT!!',S:'EXCELLENT!',A:'GREAT!',B:'GOOD!',C:'CLEAR',D:'TRY AGAIN'};
-  ctx.font=`bold ${sz(17)}px sans-serif`;
-  ctx.textAlign='center'; ctx.fillStyle=gc[grade]; ctx.fillText(msgs[grade],W/2,H*0.76);
+  ctx.font=`bold ${sz(15)}px sans-serif`;
+  ctx.textAlign='center'; ctx.fillStyle=gc[grade]; ctx.fillText(msgs[grade],W/2, _rTop + _rH * 0.74);
 
-  // Best score / new record
   const myBest = getMyBest(curSongIdx, selectedDiff);
   if (myBest > 0) {
-    ctx.font=`bold ${sz(14)}px sans-serif`;
+    ctx.font=`bold ${sz(12)}px sans-serif`;
     if (score >= myBest) {
       ctx.fillStyle='#ffd700';
-      ctx.fillText('NEW RECORD!  ' + myBest.toLocaleString(), W/2, H*0.81);
+      ctx.fillText('NEW RECORD!  ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
     } else {
       ctx.fillStyle='rgba(255,255,255,0.4)';
-      ctx.fillText('BEST: ' + myBest.toLocaleString(), W/2, H*0.81);
+      ctx.fillText('BEST: ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
     }
   }
 
   // Newly unlocked achievements
   if (newlyUnlocked.length > 0) {
-    const achY = H*0.84;
+    const achY = _rTop + _rH * 0.83;
     const achW = sz(280);
     const achX = (W-achW)/2;
     const show = Math.min(newlyUnlocked.length, 3);
