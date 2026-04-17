@@ -4840,7 +4840,7 @@ touchLayer.addEventListener('pointercancel', e => {
 let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   const hitY = getHitY();
-  const hw = getHitWindow() * 1.5;
+  const hw = getHitWindow();
   let closest = null, closestDist = Infinity;
 
   for (const n of nodes) {
