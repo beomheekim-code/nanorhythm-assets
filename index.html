@@ -6670,7 +6670,7 @@ function renderButtons() {
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
-    const held = keyHeld[i] || keyFlash[i] > 0;
+    const held = keyHeld[i];
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
 
