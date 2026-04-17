@@ -4332,16 +4332,14 @@ document.addEventListener('touchstart', e => {
           continue;
         }
       }
-      // 레인 매핑 (터치 반경으로 걸치는 레인 전부 입력)
-      const r = Math.min(t.radiusX || 10, lw * 0.2);
-      const laneL = Math.max(0, Math.floor((x - r - lsx) / lw));
-      const laneR = Math.min(laneCount - 1, Math.floor((x + r - lsx) / lw));
+      // 레인 매핑 (primary + 반경 내 인접 레인)
       const primary = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+      keyHeld[primary] = true; keyFlash[primary] = 0.3;
       touchLaneMap.set(t.identifier, primary);
-      for (let li = laneL; li <= laneR; li++) {
-        keyHeld[li] = true; keyFlash[li] = 0.3;
-        if (_canHit) handleLanePress(li);
-      }
+      if (_canHit) handleLanePress(primary);
+      const r = Math.min(t.radiusX || 10, lw * 0.2);
+      if (primary > 0 && (x - r) < lsx + primary * lw) { keyHeld[primary-1] = true; keyFlash[primary-1] = 0.3; if (_canHit) handleLanePress(primary-1); }
+      if (primary < laneCount-1 && (x + r) >= lsx + (primary+1) * lw) { keyHeld[primary+1] = true; keyFlash[primary+1] = 0.3; if (_canHit) handleLanePress(primary+1); }
     }
     return;
   }
