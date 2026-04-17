@@ -10245,11 +10245,19 @@ function resumeGame() {
       songStartTime = actx.currentTime - targetTime;
     }
     if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } window._absNodes = null; }
+    // ABS gain 래치도 같이 해제 — updateStemVolumes가 HTML 스템을 계속 음소거하던 원인
+    window._absGains = null;
+    window._absStartCtx = null;
     window._absPausedAt = null;
     _audioInterrupted = false;
     if (usingStemMode) {
       for (let i = 0; i < allStemAudios.length; i++) {
-        if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+        if (allStemAudios[i]) {
+          const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+          allStemAudios[i].volume = (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+          allStemAudios[i].currentTime = targetTime;
+          allStemAudios[i].play().catch(()=>{});
+        }
       }
       for (let i = 0; i < pulseStemAudios.length; i++) {
         if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
