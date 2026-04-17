@@ -4423,7 +4423,7 @@ let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
 document.addEventListener('touchstart', e => {
   // ★ playing 상태 — 최소 코드 경로
   if (state === 'playing' && !gamePaused) {
-    _dbgTouch++;
+    _dbgTouch += e.changedTouches.length;
     const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
     const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
     for (let ti = 0; ti < e.changedTouches.length; ti++) {
