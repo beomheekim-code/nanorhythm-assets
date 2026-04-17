@@ -4419,9 +4419,11 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [];
 document.addEventListener('touchstart', e => {
   // ★ playing 상태 — 최소 코드 경로
   if (state === 'playing' && !gamePaused) {
+    _dbgTouch++;
     const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
     const le = _fLaneEnd || (lsx + lw * laneCount);
     const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
@@ -4858,6 +4860,7 @@ document.addEventListener('touchcancel', e => {
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
+  _dbgLane++;
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
@@ -4872,8 +4875,8 @@ function handleLanePress(lane) {
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
-  if (!closest) { playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
-  closest.hit = true;
+  if (!closest) { _dbgEmpty++; _dbgLog.push('E'+lane); if (_dbgLog.length>12) _dbgLog.shift(); playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
+  closest.hit = true; _dbgLog.push('H'+lane); if (_dbgLog.length>12) _dbgLog.shift();
 
   if (closest.type === 'trap') {
     nanoMiss();
@@ -7123,6 +7126,18 @@ function renderUI() {
     ctx.fillStyle = devInvincible ? '#ffd700' : 'rgba(255,255,255,0.6)';
     ctx.fillText(devInvincible ? '무적ON' : '무적OFF', ivX + ivW/2, ivY + ivH/2);
     ctx.textBaseline = 'alphabetic';
+  }
+  // 터치 디버그 오버레이
+  if (isMobile && state === 'playing') {
+    ctx.save();
+    ctx.font = `${sz(9)}px monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(sz(50), -safeTop, sz(180), sz(28));
+    ctx.fillStyle = '#0f0';
+    ctx.fillText(`T:${_dbgTouch} L:${_dbgLane} E:${_dbgEmpty} | ${_dbgLog.slice(-6).join(' ')}`, sz(52), -safeTop + sz(3));
+    ctx.fillStyle = 'rgba(255,255,100,0.7)';
+    ctx.fillText(`map:${touchLaneMap.size} held:${keyHeld.filter(Boolean).length}`, sz(52), -safeTop + sz(14));
+    ctx.restore();
   }
 }
 
