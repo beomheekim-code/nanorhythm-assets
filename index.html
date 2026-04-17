@@ -4365,8 +4365,6 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 document.addEventListener('touchstart', e => {
-  // playing 상태에선 preventDefault 스킵 → iOS에서 터치 응답성 향상
-  if (state !== 'playing') { if (state !== 'login' || !nicknameOverlay) e.preventDefault(); }
   // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
   if (state === 'playing' && !gamePaused) {
     const t0 = e.changedTouches[0];
@@ -4579,7 +4577,7 @@ document.addEventListener('touchstart', e => {
     return;
   }
   // playing 상태는 핸들러 최상단에서 이미 처리됨
-}, { passive: false });
+}, { passive: true });
 let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching = false;
 let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'|'shop'
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
