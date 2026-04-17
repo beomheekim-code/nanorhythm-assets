@@ -10209,91 +10209,24 @@ function resumeGame() {
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
-    // actx resume 보장 후 오디오 재시작
-    const _doAudioRestart = () => {
-      if (actx) songStartTime = actx.currentTime - targetTime;
-      // iOS 인터럽트 후: ABS 죽으므로 HTML Audio 직행
-      if (_audioInterrupted && usingStemMode) {
-        _audioInterrupted = false;
-        if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
-        window._absNodes = null;
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
-        }
-        for (let i = 0; i < pulseStemAudios.length; i++) {
-          if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
-        }
-        return;
-      }
-      if (usingStemMode && actx) {
-      // ABS 모드: 항상 새 source + gain 생성
-      if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
-      const _resumeAt = window._absPausedAt != null ? window._absPausedAt : targetTime;
-      window._absNodes = [];
-      window._absGains = [];
-      window._absStartCtx = actx.currentTime - _resumeAt;
-      let _absCreated = false;
-      if (stemAudioBuffers) {
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (stemAudioBuffers[i]) {
-            const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
-            const src = actx.createBufferSource();
-            src.buffer = stemAudioBuffers[i];
-            src.connect(g);
-            src.start(0, Math.max(0, _resumeAt));
-            window._absNodes.push(src);
-            _absCreated = true;
-          } else { window._absNodes.push(null); window._absGains[i] = null; }
-        }
-      }
-      window._absPausedAt = null;
-      // ABS 소리 확인 — 0.5초 후 actx 출력 체크, 무음이면 HTML Audio 폴백
-      if (_absCreated) {
-        setTimeout(() => {
-          if (!gamePaused && usingStemMode && actx) {
-            try {
-              const an = actx.createAnalyser(); an.fftSize = 256;
-              if (window._absGains && window._absGains[0]) window._absGains[0].connect(an);
-              const buf = new Uint8Array(an.frequencyBinCount);
-              an.getByteFrequencyData(buf);
-              const sum = buf.reduce((a,b) => a+b, 0);
-              if (sum === 0) {
-                for (let i = 0; i < allStemAudios.length; i++) {
-                  if (allStemAudios[i]) { allStemAudios[i].currentTime = gameTime; allStemAudios[i].play().catch(()=>{}); }
-                }
-              }
-              try { an.disconnect(); } catch(e){}
-            } catch(e){}
-          }
-        }, 500);
-      }
-      if (!_absCreated) {
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
-        }
-      }
-    } else if (songAudio) {
-      songAudio.currentTime = targetTime;
-      songAudio.play().catch(()=>{});
+    // 오디오 재시작 — 항상 HTML Audio 사용 (iOS 인터럽트 안전)
+    if (actx) {
+      if (actx.state !== 'running') actx.resume().catch(()=>{});
+      songStartTime = actx.currentTime - targetTime;
     }
-    // 펄스 오디오 동기화
+    if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } window._absNodes = null; }
+    window._absPausedAt = null;
+    _audioInterrupted = false;
     if (usingStemMode) {
+      for (let i = 0; i < allStemAudios.length; i++) {
+        if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+      }
       for (let i = 0; i < pulseStemAudios.length; i++) {
-        if (pulseStemAudios[i]) {
-          pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD;
-          pulseStemAudios[i].play().catch(()=>{});
-        }
+        if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
       }
     } else if (songAudio) {
       songAudio.currentTime = targetTime;
       songAudio.play().catch(()=>{});
-    }
-    };
-    // actx resume 보장 후 오디오 재시작
-    if (actx && actx.state !== 'running') {
-      actx.resume().then(_doAudioRestart).catch(()=>{ _doAudioRestart(); });
-    } else {
-      _doAudioRestart();
     }
   }
 }
