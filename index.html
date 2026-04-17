@@ -4850,6 +4850,8 @@ touchLayer.addEventListener('pointercancel', e => {
 
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
+const _inputBuffer = [];
+const INPUT_BUFFER_MS = 80;
 function handleLanePress(lane) {
   const hitY = getHitY();
   const hw = getHitWindow() * 1.5;
@@ -4861,7 +4863,10 @@ function handleLanePress(lane) {
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
-  if (!closest) { playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
+  if (!closest) {
+    _inputBuffer.push({ lane, time: performance.now(), gt: gameTime });
+    return;
+  }
   closest.hit = true;
 
   if (closest.type === 'trap') {
@@ -5613,6 +5618,26 @@ function startSong(idx) {
 // ===== UPDATE =====
 function update(dt) {
   _processedTouchIds.clear();
+  // 입력 버퍼: 버퍼된 입력 중 히트 윈도우에 들어온 노트 자동 히트
+  if (state === 'playing' && _inputBuffer.length > 0) {
+    const now = performance.now();
+    const hw = getHitWindow() * 1.5;
+    for (let bi = _inputBuffer.length - 1; bi >= 0; bi--) {
+      const buf = _inputBuffer[bi];
+      if (now - buf.time > INPUT_BUFFER_MS) { _inputBuffer.splice(bi, 1); continue; }
+      let closest = null, closestDist = Infinity;
+      for (const n of nodes) {
+        if (n.hit || n.missed) continue;
+        if (n.lane !== buf.lane) continue;
+        const dist = Math.abs(n.time - gameTime) * noteSpeed;
+        if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
+      }
+      if (closest) {
+        _inputBuffer.splice(bi, 1);
+        handleLanePress(buf.lane);
+      }
+    }
+  }
   // 오디오 디바이스 변경 감지 (이어폰 분리, 전화 수신 등) — visibilitychange 가 안 뜨는 케이스
   // 오디오 디바이스 변경 감지 + 복구
   if (state === 'playing' && actx) {
