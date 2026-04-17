@@ -4379,7 +4379,7 @@ document.addEventListener('touchstart', e => {
     const mx = touch.clientX, my = gameY(touch.clientY);
     if (mx < lsx - margin || mx >= laneEnd + margin) continue;
     const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-    if (now - _laneInputTs[i] < 60) continue;
+    if (now - _laneInputTs[i] < 10) continue;
     _laneInputTs[i] = now;
     _touchMarkers.push({ x: mx, y: my, t: now });
     keyHeld[i] = true; keyFlash[i] = 0.3;
@@ -4652,7 +4652,7 @@ touchLayer.addEventListener('touchmove', e => {
       const mx = touch.clientX;
       if (mx < lsx - margin || mx >= laneEnd + margin) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-      if (now - _laneInputTs[i] < 60) continue;
+      if (now - _laneInputTs[i] < 10) continue;
       _laneInputTs[i] = now;
       _touchMarkers.push({ x: mx, y: gameY(touch.clientY), t: now });
       keyHeld[i] = true; keyFlash[i] = 0.3;
@@ -4823,7 +4823,7 @@ touchLayer.addEventListener('pointerdown', e => {
   const margin = isMobile ? lsx : lw * 0.4;
   if (mx < lsx - margin || mx >= laneEnd + margin) return;
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-  if (now - _laneInputTs[i] < 60) { _pointerLaneMap.set(e.pointerId, i); return; }
+  if (now - _laneInputTs[i] < 10) { _pointerLaneMap.set(e.pointerId, i); return; }
   if (navigator.vibrate) navigator.vibrate(8);
   _touchMarkers.push({ x: mx, y: gameY(e.clientY), t: now });
   _laneInputTs[i] = now;
