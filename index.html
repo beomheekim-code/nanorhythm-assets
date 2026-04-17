@@ -3313,7 +3313,7 @@ function renderFade() {
 // ===== GAME STATE =====
 let state = 'title';
 // ===== CDN 에셋 프리로드 =====
-let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0;
+let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0, _preloadStartTime = performance.now();
 function preloadAssets() {
   const urls = [];
   for (const s of songs) {
@@ -8360,7 +8360,7 @@ function renderTitle() {
   ctx.fillText('v15.8', 6, H + safeBottom - 4);
 
   // ===== 프리로드 프로그레스바 =====
-  if (!_preloadDone && _preloadTotal > 0) {
+  if (_preloadTotal > 0 && (!_preloadDone || performance.now() - _preloadStartTime < 1500)) {
     const pct = _preloadTotal > 0 ? (_preloadLoaded + _preloadFailed) / _preloadTotal : 0;
     const barW = Math.min(sz(260), W * 0.65), barH = sz(8);
     const barX = (W - barW) / 2, barY = _visY(0.62);
