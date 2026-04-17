@@ -4740,7 +4740,6 @@ document.addEventListener('touchmove', e => {
   }
 }, { passive: false });
 document.addEventListener('touchend', e => {
-  e.preventDefault();
   stopSelectArrowHold();
   stopSpeedHold();
   if (_settingsTouching) _settingsTouching = false;
@@ -4838,9 +4837,9 @@ function handleLanePress(lane) {
 
   for (let ni = 0; ni < nodes.length; ni++) {
     const n = nodes[ni];
-    if (n.time < tMin) { if (n.hit || n.missed) continue; else continue; }
-    if (n.time > tMax) break;
-    if (n.hit || n.missed || n.lane !== lane) continue;
+    if (n.hit || n.missed) continue;
+    if (n.time < tMin || n.time > tMax) continue;
+    if (n.lane !== lane) continue;
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
