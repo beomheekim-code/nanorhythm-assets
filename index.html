@@ -1856,7 +1856,7 @@ function getLaneStartX() {
 function _getMaxLaneArea() { return W - _hpMargin(); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
-function _btnBottomPad() { return isMobile ? sz(18) : 0; }
+function _btnBottomPad() { return isMobile ? sz(30) : 0; }
 function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
 function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
 function getHitY() { return getBtnY() - sz(8); }
@@ -4384,6 +4384,16 @@ document.addEventListener('touchstart', e => {
       touchLaneMap.set(touch.identifier, i);
       if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
       else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+    }
+    // 이전 touchstart가 드롭된 활성 터치 복구 (멀티터치 드롭 대응)
+    for (const touch of e.touches) {
+      if (touchLaneMap.has(touch.identifier)) continue;
+      const _tcx = touch.clientX;
+      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(touch.identifier, i);
+      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
     }
     return;
   }
