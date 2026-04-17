@@ -3235,6 +3235,7 @@ let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [];
 let nodeScanStart = 0; // 활성 노트 스캔 시작 인덱스 (hit/missed prefix 스킵)
 // ===== 인게임 sz() precompute 전역 (renderLanes/renderNotes 등에서 접근) =====
 let _s3=0,_s5=0,_s7=0,_s8=0,_s9=0,_s10=0;
+let _fLw=0, _fLsx=0, _fLaneEnd=0, _fLaneMargin=0;
 let _s12=0,_s14=0,_s15=0,_s20=0,_s30=0;
 let _s40=0,_s55=0,_s60=0,_s80=0,_s90=0;
 let _noteW=0, _noteHW=0, _noteHH=0;
@@ -4306,71 +4307,23 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 document.addEventListener('touchstart', e => {
-  // ★ playing 상태 최우선 처리
+  // ★ playing 상태 — 최소 코드 경로
   if (state === 'playing' && !gamePaused) {
-    // 일시정지 버튼 (우상단)
-    const _t0 = e.changedTouches[0];
-    const _pbW = sz(48), _pbH = sz(36), _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
-    if (_t0.clientX >= _pbX && gameY(_t0.clientY) >= _pbY && gameY(_t0.clientY) < _pbY + _pbH) { pauseGame(); return; }
-    const lw = getLaneW(), lsx = getLaneStartX();
-    const _laneEnd = lsx + lw * laneCount;
-    for (const touch of e.changedTouches) {
-      const _tcx = touch.clientX;
-      if (_tcx >= lsx && _tcx < _laneEnd) {
-        const i = Math.floor((_tcx - lsx) / lw);
-        keyHeld[i] = true; keyFlash[i] = 0.3;
-        touchLaneMap.set(touch.identifier, i);
-        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
-        else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
-        continue;
-      }
-      const _t0y = gameY(touch.clientY);
-      // 왼쪽 여백: 배속 버튼 체크 → 아니면 레인 0 스냅
-      if (_tcx < lsx) {
-        const _tlgap = lsx - sz(6);
-        const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
-        const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
-        const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
-        const _tgcx = Math.max(sz(2) + _tgw/2, lsx - sz(6) - Math.max(_tgw, _tspBtn)/2);
-        const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
-        const _tspCx = _tgcx;
-        const _tspBaseY = _tspBlockTop + _tspPad;
-        const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
-        const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
-        if (hitTest(_tcx, _t0y, _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-          playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); continue;
-        }
-        if (hitTest(_tcx, _t0y, _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-          playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); continue;
-        }
-        // 배속 영역 아님 → 레인 0 스냅
-        keyHeld[0] = true; keyFlash[0] = 0.3;
-        touchLaneMap.set(touch.identifier, 0);
-        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(0);
-        continue;
-      }
-      // 오른쪽 여백 → 마지막 레인 스냅
-      if (_tcx >= _laneEnd) {
-        // 일시정지 버튼 체크
-        const _tpbW = sz(48), _tpbH = sz(36);
-        const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
-        if (_tcx >= _tpbX && _tcx < _tpbX+_tpbW && _t0y >= _tpbY && _t0y < _tpbY+_tpbH) { pauseGame(); return; }
-        const last = laneCount - 1;
-        keyHeld[last] = true; keyFlash[last] = 0.3;
-        touchLaneMap.set(touch.identifier, last);
-        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(last);
-        continue;
-      }
-    }
-    // 이전 touchstart가 드롭된 활성 터치 복구
-    for (const touch of e.touches) {
-      if (touchLaneMap.has(touch.identifier)) continue;
-      const _tcx = touch.clientX;
-      if (_tcx < lsx - (isMobile ? lsx : lw*0.4) || _tcx >= _laneEnd + (isMobile ? lsx : lw*0.4)) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
+    const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+    const le = _fLaneEnd || (lsx + lw * laneCount);
+    const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
+    // e.touches 전체 스캔 — changedTouches + 이전 누락 터치 모두 포함
+    for (let ti = 0; ti < e.touches.length; ti++) {
+      const t = e.touches[ti];
+      if (touchLaneMap.has(t.identifier)) continue;
+      const x = t.clientX, y = t.clientY - safeTop;
+      // 일시정지 (우상단, Y < sz(40))
+      if (y < sz(40) && x > W - sz(52)) { pauseGame(); return; }
+      // 레인 매핑
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+      touchLaneMap.set(t.identifier, i);
+      if (_canHit) handleLanePress(i);
     }
     return;
   }
@@ -6137,6 +6090,8 @@ function render() {
   _noteHW = (_fLaneW - _s8) / 2;
   // 노트 세로 길이: 레인 폭에 비례 (8키 세로모드에서 과하게 길어지지 않게)
   _noteHH = Math.min(_s10, Math.round(_fLaneW * 0.14));
+  _fLw = _fLaneW; _fLsx = _fLaneStartX; _fLaneEnd = _fLaneStartX + _fLaneW * laneCount;
+  _fLaneMargin = isMobile ? _fLaneStartX : _fLaneW * 0.4;
 
   // Stars — [perf C] twinkle 100ms 간격으로만 갱신 (time-based, frame counter 안 씀)
   try {
