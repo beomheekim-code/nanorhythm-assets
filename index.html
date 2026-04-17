@@ -10221,31 +10221,37 @@ function resumeGame() {
       actx.resume().then(() => {
         _restartAudioAfterContextResume();
       }).catch(()=>{});
-    } else if (usingStemMode) {
-      // ABS 모드: 새 source + gain 생성하여 재개 (iOS 인터럽트 후 기존 노드 무효화 대응)
-      if (window._absPausedAt != null && stemAudioBuffers && actx) {
-        window._absNodes = [];
-        window._absGains = [];
-        window._absStartCtx = actx.currentTime - window._absPausedAt;
+    } else if (usingStemMode && actx) {
+      // ABS 모드: 항상 새 source + gain 생성 (iOS 인터럽트 후 기존 노드 무효화 대응)
+      if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
+      const _resumeAt = window._absPausedAt != null ? window._absPausedAt : targetTime;
+      window._absNodes = [];
+      window._absGains = [];
+      window._absStartCtx = actx.currentTime - _resumeAt;
+      let _absCreated = false;
+      if (stemAudioBuffers) {
         for (let i = 0; i < allStemAudios.length; i++) {
           if (stemAudioBuffers[i]) {
             const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
-            src.connect(window._absGains[i]);
-            src.start(0, window._absPausedAt);
+            src.connect(g);
+            src.start(0, Math.max(0, _resumeAt));
             window._absNodes.push(src);
-          } else { window._absNodes.push(null); }
-        }
-        window._absPausedAt = null;
-      } else {
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; }
-        }
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) allStemAudios[i].play().catch(()=>{});
+            _absCreated = true;
+          } else { window._absNodes.push(null); window._absGains[i] = null; }
         }
       }
+      window._absPausedAt = null;
+      // ABS 실패 시 HTML Audio fallback
+      if (!_absCreated) {
+        for (let i = 0; i < allStemAudios.length; i++) {
+          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+        }
+      }
+    } else if (songAudio) {
+      songAudio.currentTime = targetTime;
+      songAudio.play().catch(()=>{});
     }
     // 펄스 오디오 동기화 (actx running 이든 아니든)
     if (usingStemMode) {
