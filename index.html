@@ -4317,8 +4317,21 @@ document.addEventListener('touchstart', e => {
       const t = e.touches[ti];
       if (touchLaneMap.has(t.identifier)) continue;
       const x = t.clientX, y = t.clientY - safeTop;
-      // 일시정지 (우상단, Y < sz(40))
+      // 일시정지 (우상단)
       if (y < sz(40) && x > W - sz(52)) { pauseGame(); return; }
+      // 배속 버튼 (왼쪽 여백)
+      if (x < lsx) {
+        const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+        const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
+        const _spTop = getBtnY() - sz(6) - _spH;
+        const _spBot = _spTop + _spH;
+        if (y >= _spTop && y < _spBot) {
+          const _spMid = _spTop + _spPad + _spBtn + _spGap;
+          if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
+          else if (y >= _spMid + _spBtn + _spGap) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); }
+          continue;
+        }
+      }
       // 레인 매핑
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
@@ -4573,26 +4586,28 @@ document.addEventListener('touchmove', e => {
     }
     return;
   }
-  // 인게임: 터치 슬라이드로 옆 레인 입력 (로딩 중에만 비활성, 카운트다운 중엔 허용)
+  // 인게임: 터치 슬라이드 + 누락 터치 복구
   if (state === 'playing' && !gamePaused && !songLoading) {
-    const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-    const _laneEnd = lsx + lw * laneCount;
-    for (const touch of e.changedTouches) {
+    const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+    const _canHit = countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5);
+    for (let ti = 0; ti < e.touches.length; ti++) {
+      const touch = e.touches[ti];
       const prevLane = touchLaneMap.get(touch.identifier);
-      if (prevLane === undefined) continue;
-      const _scy = gameY(touch.clientY);
-      const _scx = touch.clientX;
-      let newLane = -1;
-      const _sLaneMargin = isMobile ? lsx : lw*0.4;
-      if (_scx >= lsx - _sLaneMargin && _scx < _laneEnd + _sLaneMargin && _scy >= -safeTop && _scy < by + bh) {
-        newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((_scx - lsx) / lw)));
-      }
-      if (newLane >= 0 && newLane !== prevLane) {
-        // 이전 레인 해제, 새 레인 입력
-        keyHeld[prevLane] = false;
+      const newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((touch.clientX - lsx) / lw)));
+      if (prevLane === undefined) {
+        // 누락된 touchstart 복구
         keyHeld[newLane] = true; keyFlash[newLane] = 0.3;
         touchLaneMap.set(touch.identifier, newLane);
-        handleLanePress(newLane);
+        if (_canHit) handleLanePress(newLane);
+      } else if (newLane !== prevLane) {
+        // 슬라이드: 경유한 레인도 모두 입력
+        const dir = newLane > prevLane ? 1 : -1;
+        for (let li = prevLane + dir; li !== newLane + dir; li += dir) {
+          keyHeld[li] = true; keyFlash[li] = 0.3;
+          if (_canHit) handleLanePress(li);
+        }
+        keyHeld[prevLane] = false;
+        touchLaneMap.set(touch.identifier, newLane);
       }
     }
   }
