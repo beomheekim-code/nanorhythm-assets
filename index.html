@@ -4662,10 +4662,10 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
   if (state !== 'playing') e.preventDefault();
-  // 드롭된 touchstart 복구 — e.touches 전체 스캔
+  // 드롭된 touchstart 복구
   if (state === 'playing' && !gamePaused && !songLoading) {
-    for (let ti = 0; ti < e.touches.length; ti++) {
-      const t = e.touches[ti];
+    for (let ti = 0; ti < e.changedTouches.length; ti++) {
+      const t = e.changedTouches[ti];
       if (touchLaneMap.has(t.identifier)) continue;
       _processPlayingTouch(t);
     }
