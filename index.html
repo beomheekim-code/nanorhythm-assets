@@ -1834,9 +1834,9 @@ function calcNoteSpeed(bpm, speed) { return bpm * 2.8 * speed * getHeightScale()
 let resumeSyncCounter = 0; // 재개 후 강제 동기화 프레임 수
 
 // ===== LAYOUT =====
+function _hpMargin() { return (isMobile && !isPortrait) ? sz(26) : sz(46); }
 function getLaneW() {
-  // HP 여백(sz(46)) 확보 후 남은 영역에서 레인 분배
-  const availW = W - sz(46);
+  const availW = W - _hpMargin();
   const maxTotal = availW * 0.95;
   const perLane = maxTotal / laneCount;
   return Math.min(perLane, 75 * UI);
@@ -1844,13 +1844,11 @@ function getLaneW() {
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() {
   const centered = (W - getTotalLaneW()) / 2;
-  // HP바/속도 조절 영역 확보: 최소 왼쪽 여백 보장
-  const minLeft = sz(46);
+  const minLeft = _hpMargin();
   if (centered < minLeft) return minLeft;
   return centered;
 }
-// 레인 폭: HP 여백 확보 후 남은 공간에 맞춤
-function _getMaxLaneArea() { return W - sz(46); }
+function _getMaxLaneArea() { return W - _hpMargin(); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
 function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
@@ -4206,7 +4204,7 @@ addEventListener('mousedown', e => {
   if (state === 'playing') {
     // Pause button — 우상단 (레인 영역 밖, 8키에서도 겹침 없음)
     const _pbW = sz(48), _pbH = sz(36);
-    const _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
+    const _pbX = W - _pbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _pbY = -safeTop + sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
     }
@@ -4223,7 +4221,7 @@ addEventListener('mousedown', e => {
     const _gw = Math.min(sz(18), Math.max(sz(8), _lgap - sz(8)));
     const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcx = (isMobile && isPortrait) ? sz(2) + Math.max(_gw, _spBtn)/2 : Math.max(sz(2) + _gw/2, getLaneStartX() - sz(20) - Math.max(_gw, _spBtn)/2);
+    const _gcx = isMobile ? sz(2) + Math.max(_gw, _spBtn)/2 : Math.max(sz(2) + _gw/2, getLaneStartX() - sz(20) - Math.max(_gw, _spBtn)/2);
     const _spBlockTop = getBtnY() - sz(6) - _spBlockH;
     const _spCx = _gcx;
     const _spBaseY = _spBlockTop + _spPad;
@@ -4368,7 +4366,7 @@ canvas.addEventListener('touchstart', e => {
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
     const _tpbW = sz(48), _tpbH = sz(36);
-    const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
+    const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
     if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) {
       pauseGame(); return;
     }
@@ -4386,7 +4384,7 @@ canvas.addEventListener('touchstart', e => {
     const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
     const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
     const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
-    const _tgcx = (isMobile && isPortrait) ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
+    const _tgcx = isMobile ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
     const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
     const _tspCx = _tgcx;
     const _tspBaseY = _tspBlockTop + _tspPad;
@@ -6803,7 +6801,7 @@ function renderUI() {
   const _spBtnSz = sz(30), _spGapSz = sz(5), _spPadSz = sz(4);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  const _gcx = (isMobile && isPortrait) ? sz(2) + Math.max(gw, _spBtnSz)/2 : Math.max(sz(2) + gw/2, getLaneStartX() - sz(20) - Math.max(gw, _spBtnSz)/2);
+  const _gcx = isMobile ? sz(2) + Math.max(gw, _spBtnSz)/2 : Math.max(sz(2) + gw/2, getLaneStartX() - sz(20) - Math.max(gw, _spBtnSz)/2);
   const gx = _gcx - gw/2;
   // 배속 버튼을 노트 입력 버튼 바로 위에 배치, HP바는 그 위 나머지 공간
   const _spBlockBottom = getBtnY() - sz(6);
@@ -6959,7 +6957,7 @@ function renderUI() {
 
   // Pause button — 우상단 (레인 영역 밖)
   const pbW = sz(48), pbH = sz(36);
-  const pbX = W - pbW - sz(4), pbY = -safeTop + sz(2);
+  const pbX = W - pbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), pbY = -safeTop + sz(2);
   ctx.fillStyle = 'rgba(20,15,40,0.75)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
   ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
