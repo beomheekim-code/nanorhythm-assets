@@ -4369,6 +4369,10 @@ document.addEventListener('touchstart', e => {
   // playing: pointer가 이미 처리했으면 스킵, 아니면 fallback
   if (state === 'playing' && !gamePaused) {
     if (_ptrHandled.size > 0) { _ptrHandled.clear(); return; }
+    // 일시정지 버튼 (우상단) — 레인 체크 전에 먼저 확인
+    const _t0 = e.changedTouches[0];
+    const _pbW = sz(48), _pbH = sz(36), _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
+    if (_t0.clientX >= _pbX && gameY(_t0.clientY) >= _pbY && gameY(_t0.clientY) < _pbY + _pbH) { pauseGame(); return; }
     const lw = getLaneW(), lsx = getLaneStartX();
     const _laneEnd = lsx + lw * laneCount;
     for (const touch of e.changedTouches) {
@@ -4828,11 +4832,15 @@ let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   const hitY = getHitY();
   const hw = getHitWindow();
+  const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
+  const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
   let closest = null, closestDist = Infinity;
 
-  for (const n of nodes) {
-    if (n.hit || n.missed) continue;
-    if (n.lane !== lane) continue;
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const n = nodes[ni];
+    if (n.time < tMin) { if (n.hit || n.missed) continue; else continue; }
+    if (n.time > tMax) break;
+    if (n.hit || n.missed || n.lane !== lane) continue;
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
