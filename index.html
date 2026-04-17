@@ -4365,11 +4365,13 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 const _laneInputTs = new Float64Array(8);
+const _touchMarkers = [];
 canvas.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
-  // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
+  // ★ playing 상태 최우선 ��리 — 다른 UI 체크 전에 즉시 레인 입력
   if (state === 'playing' && !gamePaused) {
     if (navigator.vibrate) navigator.vibrate(8);
+    for (const _mt of e.changedTouches) _touchMarkers.push({ x: _mt.clientX, y: gameY(_mt.clientY), t: performance.now() });
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
     const _tpbW = sz(48), _tpbH = sz(36);
@@ -4782,6 +4784,7 @@ canvas.addEventListener('pointerdown', e => {
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
   if (now - _laneInputTs[i] < 60) { _pointerLaneMap.set(e.pointerId, i); return; }
   if (navigator.vibrate) navigator.vibrate(8);
+  _touchMarkers.push({ x: mx, y: gameY(e.clientY), t: now });
   _laneInputTs[i] = now;
   keyHeld[i] = true; keyFlash[i] = 0.3;
   _pointerLaneMap.set(e.pointerId, i);
@@ -6676,6 +6679,17 @@ function renderButtons() {
       ctx.fillStyle = held ? '#fff' : col + '55';
       ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh / 2);
     }
+  }
+  // 터치 마커 (입력 확인용)
+  const _mkNow = performance.now();
+  for (let _mi = _touchMarkers.length - 1; _mi >= 0; _mi--) {
+    const mk = _touchMarkers[_mi];
+    const age = _mkNow - mk.t;
+    if (age > 300) { _touchMarkers.splice(_mi, 1); continue; }
+    const a = 0.7 * (1 - age / 300);
+    const r = sz(12) + age * 0.08;
+    ctx.beginPath(); ctx.arc(mk.x, mk.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 2; ctx.stroke();
   }
 }
 
