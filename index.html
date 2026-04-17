@@ -10183,13 +10183,11 @@ function _restartAudioAfterContextResume() {
         for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} }
       }
       window._absNodes = [];
-      window._absGains = window._absGains || [];
+      window._absGains = [];
       window._absStartCtx = actx.currentTime - targetTime;
       for (let i = 0; i < allStemAudios.length; i++) {
         if (stemAudioBuffers[i]) {
-          if (!window._absGains[i]) {
-            const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
-          }
+          const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
           const src = actx.createBufferSource();
           src.buffer = stemAudioBuffers[i];
           src.connect(window._absGains[i]);
@@ -10224,16 +10222,14 @@ function resumeGame() {
         _restartAudioAfterContextResume();
       }).catch(()=>{});
     } else if (usingStemMode) {
-      // ABS 모드: 새 source 생성하여 재개 (actx running 확인됨)
+      // ABS 모드: 새 source + gain 생성하여 재개 (iOS 인터럽트 후 기존 노드 무효화 대응)
       if (window._absPausedAt != null && stemAudioBuffers && actx) {
         window._absNodes = [];
-        window._absGains = window._absGains || [];
+        window._absGains = [];
         window._absStartCtx = actx.currentTime - window._absPausedAt;
         for (let i = 0; i < allStemAudios.length; i++) {
           if (stemAudioBuffers[i]) {
-            if (!window._absGains[i]) {
-              const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
-            }
+            const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
             src.connect(window._absGains[i]);
