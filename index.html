@@ -4460,6 +4460,9 @@ function _handledByActivePointer(x, y) {
 function _gestureAlreadyHandled(x, y) {
   return _isRecentGesture(x, y) >= 0 || _handledByActivePointer(x, y);
 }
+// ★ 탭 이벤트 실제 발생 시각 (DOMHighResTimeStamp) — 이벤트 핸들러 진입 시 세팅.
+//   렌더 프레임이 느려서 이벤트 dispatch 가 지연된 경우 handleLanePress 가 이 값으로 보정.
+let _inputEventTime = 0;
 function _processPlayingTouch(t) {
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
@@ -4489,6 +4492,7 @@ function _processPlayingTouch(t) {
 // pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _inputEventTime = e.timeStamp || performance.now();
   let lane;
   // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip. (페어링 큐 40ms TTL)
   if (_isRecentGesture(e.clientX, e.clientY) >= 0) {
@@ -4499,10 +4503,12 @@ document.addEventListener('pointerdown', e => {
     _markGesture(e.clientX, e.clientY);
   }
   if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY });
+  _inputEventTime = 0;
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
+  _inputEventTime = e.timeStamp || performance.now();
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
@@ -4524,6 +4530,7 @@ document.addEventListener('touchstart', e => {
     _markGesture(t.clientX, t.clientY);
     if (lane === -1) { e.stopImmediatePropagation(); /* 루프 계속 — 동시 다른 레인 탭 씹힘 방지 */ }
   }
+  _inputEventTime = 0;
 }, { passive: false, capture: true });
 // pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
 document.addEventListener('pointerup', e => {
@@ -4760,6 +4767,7 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
   if (state !== 'playing') e.preventDefault();
+  if (state === 'playing' && !gamePaused && !songLoading) _inputEventTime = e.timeStamp || performance.now();
   // 드롭된 touchstart 복구 — pointerdown이 이미 처리한 제스처는 재처리하지 않음
   if (state === 'playing' && !gamePaused && !songLoading) {
     const _lwMv = _fLw || getLaneW(), _lsxMv = _fLsx || getLaneStartX();
@@ -4957,7 +4965,14 @@ function handleLanePress(lane) {
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
-  const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
+  // ★ 이벤트 dispatch 지연 보정 — 프레임이 느리면 e.timeStamp 기준으로 탭 실제 시각 사용.
+  //   렌더 30ms 지연 + noteSpeed 1200 → 36px 오차가 쌓이던 게 사라짐.
+  let tapTime = gameTime;
+  if (_inputEventTime > 0) {
+    const delay = performance.now() - _inputEventTime;
+    if (delay > 1 && delay < 100) tapTime = gameTime - delay / 1000;
+  }
+  const tMin = tapTime - timeWindow, tMax = tapTime + timeWindow;
   let closest = null, closestDist = Infinity;
 
   // ★ nodeScanStart 부터 스캔 (hit/missed prefix skip) + 시간순 정렬이므로 tMax 초과 시 break.
@@ -4968,7 +4983,7 @@ function handleLanePress(lane) {
     if (n.hit || n.missed) continue;
     if (n.time < tMin) continue;
     if (n.lane !== lane) continue;
-    const dist = Math.abs(n.time - gameTime) * noteSpeed;
+    const dist = Math.abs(n.time - tapTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
   if (!closest) { playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
