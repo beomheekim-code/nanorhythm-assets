@@ -4369,6 +4369,7 @@ canvas.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
   // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
   if (state === 'playing' && !gamePaused) {
+    if (navigator.vibrate) navigator.vibrate(8);
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
     const _tpbW = sz(48), _tpbH = sz(36);
@@ -4780,6 +4781,7 @@ canvas.addEventListener('pointerdown', e => {
   if (mx < lsx - margin || mx >= laneEnd + margin) return;
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
   if (now - _laneInputTs[i] < 60) { _pointerLaneMap.set(e.pointerId, i); return; }
+  if (navigator.vibrate) navigator.vibrate(8);
   _laneInputTs[i] = now;
   keyHeld[i] = true; keyFlash[i] = 0.3;
   _pointerLaneMap.set(e.pointerId, i);
@@ -4806,7 +4808,7 @@ canvas.addEventListener('pointercancel', e => {
 let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
   const hitY = getHitY();
-  const hw = getHitWindow() * 1.2;
+  const hw = getHitWindow() * 1.5;
   let closest = null, closestDist = Infinity;
 
   for (const n of nodes) {
@@ -6659,10 +6661,12 @@ function renderButtons() {
 
     // 빈 입력 플래시 (노트 없이 눌렸을 때 빨간 깜박)
     const _efAge = performance.now() - _lastEmptyFlash[i];
-    if (_efAge < 150) {
-      const _efA = 0.3 * (1 - _efAge / 150);
-      ctx.fillStyle = `rgba(255,60,60,${_efA})`;
+    if (_efAge < 200) {
+      const _efA = 0.6 * (1 - _efAge / 200);
+      ctx.fillStyle = `rgba(255,50,50,${_efA})`;
       rrFill(x, y, w, h, _r);
+      ctx.strokeStyle = `rgba(255,80,80,${_efA})`; ctx.lineWidth = 2;
+      rrStroke(x, y, w, h, _r);
     }
 
     // Label — PC 만
