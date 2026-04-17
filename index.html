@@ -4467,6 +4467,15 @@ document.addEventListener('touchstart', e => {
     resumeGame(); return;
   }
   resumeAudio();
+  // iOS 알람/전화 후 BGM 복구 (사용자 제스처 컨텍스트)
+  if (_bgmNeedsResume) {
+    _bgmNeedsResume = false;
+    if (state === 'title' && titleBgmPlaying) titleBgm.play().catch(()=>{});
+    if (state === 'select' && songPreviewAudio && previewActive) { try { songPreviewAudio.currentTime = 0; songPreviewAudio.play().catch(()=>{}); } catch(e){} }
+    if (state === 'ranking' && rankingBgmPlaying) rankingBgm.play().catch(()=>{});
+    if (state === 'shop' && shopBgmPlaying) shopBgm.play().catch(()=>{});
+    if (state === 'achievement' && achievementBgmPlaying) achievementBgm.play().catch(()=>{});
+  }
   // 중복 로그인 킥 팝업 최우선 처리
   if (_kickedPopupOpen) {
     const t0 = e.changedTouches[0];
@@ -10136,22 +10145,14 @@ function pauseGame() {
 }
 
 let _prevActxState = ''; // actx 상태 전환 감지용
+let _bgmNeedsResume = false;
 // iOS 오디오 인터럽트 복구 (알람/전화 후)
 if (actx && actx.addEventListener) {
   actx.addEventListener('statechange', () => {
     if (!actx) return;
     if (actx.state === 'running') {
       // interrupted/suspended → running 복구
-      if (state === 'playing' && gamePaused) {
-        // 인게임 퍼즈 상태: 오디오만 준비 (유저가 계속하기 누르면 resumeGame에서 재개)
-      } else {
-        // 비인게임: BGM 자동 복구
-        if (state === 'title' && titleBgmPlaying) titleBgm.play().catch(()=>{});
-        if (state === 'select' && songPreviewAudio && previewActive) songPreviewAudio.play().catch(()=>{});
-        if (state === 'ranking' && rankingBgmPlaying) rankingBgm.play().catch(()=>{});
-        if (state === 'shop' && shopBgmPlaying) shopBgm.play().catch(()=>{});
-        if (state === 'achievement' && achievementBgmPlaying) achievementBgm.play().catch(()=>{});
-      }
+      _bgmNeedsResume = true;
     } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
       // 알람/전화 시작: 인게임이면 퍼즈
       if (state === 'playing' && !gamePaused) pauseGame();
