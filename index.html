@@ -4662,18 +4662,12 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
   if (state !== 'playing') e.preventDefault();
-  // 드롭된 touchstart 복구 (changedTouches만, 이중 처리 방지)
+  // 드롭된 touchstart 복구 — e.touches 전체 스캔
   if (state === 'playing' && !gamePaused && !songLoading) {
-    for (let ti = 0; ti < e.changedTouches.length; ti++) {
-      const t = e.changedTouches[ti];
+    for (let ti = 0; ti < e.touches.length; ti++) {
+      const t = e.touches[ti];
       if (touchLaneMap.has(t.identifier)) continue;
-      const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
-      touchLaneMap.set(t.identifier, i);
-      const _canHit = countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5);
-      if (_canHit) handleLanePress(i);
-      _dbgLog.push('M'+i); if (_dbgLog.length>12) _dbgLog.shift();
+      _processPlayingTouch(t);
     }
   }
   // 설정창 열려있으면 스크롤 드래그
