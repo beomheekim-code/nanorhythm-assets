@@ -1837,12 +1837,17 @@ let resumeSyncCounter = 0; // 재개 후 강제 동기화 프레임 수
 function _hpMargin() { return (isMobile && !isPortrait) ? sz(26) : sz(46); }
 function getLaneW() {
   const availW = W - _hpMargin();
+  if (isMobile && !isPortrait) {
+    const maxTotal = availW * 0.98;
+    return maxTotal / laneCount;
+  }
   const maxTotal = availW * 0.95;
   const perLane = maxTotal / laneCount;
   return Math.min(perLane, 75 * UI);
 }
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() {
+  if (isMobile && !isPortrait) return _hpMargin();
   const centered = (W - getTotalLaneW()) / 2;
   const minLeft = _hpMargin();
   if (centered < minLeft) return minLeft;
