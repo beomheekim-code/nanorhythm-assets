@@ -4788,14 +4788,6 @@ document.addEventListener('touchend', e => {
   }
   // 활성 터치가 없으면 전체 해제 (안전장치)
   if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
-  // 드롭된 touchstart 복구 (touchend의 changedTouches에서 미등록 터치 감지)
-  if (state === 'playing' && !gamePaused && !songLoading) {
-    for (const touch of e.changedTouches) {
-      if (touchLaneMap.has(touch.identifier)) continue;
-      _processPlayingTouch(touch);
-      _dbgLog.push('R'); if (_dbgLog.length>12) _dbgLog.shift();
-    }
-  }
   // shop: 드래그 아니면 click 처리
   if (state === 'shop') {
     if (!_wasShopDrag) {
