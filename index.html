@@ -10,7 +10,6 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>NANO RHYTHM</title>
-<link rel="manifest" href="manifest.json">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:fixed;top:0;left:0;right:0;bottom:0}
@@ -714,59 +713,6 @@ function stemDuckAll() {}
 let gameMode = safeGetItem('rhythm_gameMode') || 'rhythm';
 function saveGameMode() { safeSetItem('rhythm_gameMode', gameMode); }
 
-// ===== 화면 모드 (풀스크린/브라우저) =====
-let screenMode = safeGetItem('rhythm_screenMode') || 'browser';
-function saveScreenMode() {
-  safeSetItem('rhythm_screenMode', screenMode);
-  if (currentUser && fbDb) try { fbDb.ref('settings/' + currentUser + '/screenMode').set(screenMode); } catch(e) {}
-}
-function loadScreenModeFromFb() {
-  if (!currentUser || !fbDb) return;
-  fbDb.ref('settings/' + currentUser + '/screenMode').once('value', snap => {
-    const v = snap.val();
-    if (v && (v === 'fullscreen' || v === 'browser')) {
-      screenMode = v;
-      safeSetItem('rhythm_screenMode', screenMode);
-    }
-  });
-}
-function _isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || window.navigator.standalone === true; }
-const _isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent);
-function _showFsGuide() {
-  if (_isStandalone()) { showLoginToast('이미 풀스크린 모드입니다', '#44dd66', null, 2); return; }
-  if (_isChromeIOS) showLoginToast('Safari에서 열어서 홈 화면에 추가하세요', '#ff9900', 'iOS 크롬은 풀스크린 미지원', 4);
-  else if (isIOS) showLoginToast('공유(↑) → 홈 화면에 추가', '#ff9900', '홈 화면에서 앱처럼 풀스크린 실행됩니다', 4);
-  else showLoginToast('브라우저 메뉴(⋮) → 홈 화면에 추가', '#ff9900', '홈 화면에서 앱처럼 풀스크린 실행됩니다', 4);
-}
-function applyScreenMode() {
-  if (screenMode === 'fullscreen') {
-    const el = document.documentElement;
-    const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (!rfs) { _showFsGuide(); return; }
-    if (document.fullscreenElement || document.webkitFullscreenElement) return;
-    try {
-      const p = rfs.call(el);
-      if (p && p.then) p.then(() => { setTimeout(resize, 150); }).catch(() => { _showFsGuide(); });
-    } catch(e) { _showFsGuide(); }
-  } else {
-    try {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
-    } catch(e) {}
-  }
-}
-document.addEventListener('fullscreenchange', () => {
-  const isFull = !!document.fullscreenElement || !!document.webkitFullscreenElement;
-  screenMode = isFull ? 'fullscreen' : 'browser';
-  safeSetItem('rhythm_screenMode', screenMode);
-  setTimeout(resize, 100);
-});
-document.addEventListener('webkitfullscreenchange', () => {
-  const isFull = !!document.fullscreenElement || !!document.webkitFullscreenElement;
-  screenMode = isFull ? 'fullscreen' : 'browser';
-  safeSetItem('rhythm_screenMode', screenMode);
-  setTimeout(resize, 100);
-});
 
 // ===== 플레이 모드 =====
 // 'normal' (일반): 기존 로직. HP/랭킹/업적 활성
@@ -1697,6 +1643,7 @@ const KEY_MODES = {
 };
 
 let laneCount = parseInt(safeGetItem('rhythm_laneCount')) || 4;
+if (isMobile) laneCount = 4;
 let LANE_CODES = [...KEY_MODES[laneCount].defaults];
 let LANE_COLORS = [...KEY_MODES[laneCount].colors];
 let LANE_SEQ = [...KEY_MODES[laneCount].seq];
@@ -1807,6 +1754,7 @@ function loadLaneCountFromFirebase() {
   if (!currentUser) return;
   try {
     fbDb.ref('settings/' + currentUser + '/laneCount').once('value', snap => {
+      if (isMobile) return;
       const val = snap.val();
       if (val && [4,5,6,7,8].includes(val)) {
         setLaneMode(val);
@@ -1834,26 +1782,20 @@ function calcNoteSpeed(bpm, speed) { return bpm * 2.8 * speed * getHeightScale()
 let resumeSyncCounter = 0; // 재개 후 강제 동기화 프레임 수
 
 // ===== LAYOUT =====
-function _hpMargin() { return (isMobile && !isPortrait) ? sz(26) : sz(46); }
 function getLaneW() {
-  const availW = W - _hpMargin();
-  if (isMobile && !isPortrait) {
-    const maxTotal = availW * 0.98;
-    return maxTotal / laneCount;
-  }
+  const availW = W - sz(46);
   const maxTotal = availW * 0.95;
   const perLane = maxTotal / laneCount;
   return Math.min(perLane, 75 * UI);
 }
 function getTotalLaneW() { return getLaneW() * laneCount; }
 function getLaneStartX() {
-  if (isMobile && !isPortrait) return _hpMargin();
   const centered = (W - getTotalLaneW()) / 2;
-  const minLeft = _hpMargin();
+  const minLeft = sz(46);
   if (centered < minLeft) return minLeft;
   return centered;
 }
-function _getMaxLaneArea() { return W - _hpMargin(); }
+function _getMaxLaneArea() { return W - sz(46); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
 function _btnBottomPad() { return isMobile ? (isIOS ? sz(36) : sz(24)) : 0; }
@@ -2361,8 +2303,7 @@ function completeLogin(name, method) {
   nicknameOverlay = false; nicknameInput = ''; nicknameError = '';
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
   // 계정 데이터 Firebase 동기화 (v16.1)
-  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase(); loadScreenModeFromFb();
-  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
+  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
   if (pendingAuthUid) {
     _claimActiveSession(pendingAuthUid);
   } else if (window.kplay && window.kplay.user && window.kplay.user.userId) {
@@ -3286,8 +3227,7 @@ let state = 'title';
 // 이미 로그인된 경우 Firebase에서 설정 동기화
 if (currentUser) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
-  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase(); loadScreenModeFromFb();
-}
+  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();}
 let curSong = null, curSongIdx = 0, curDiff = null;
 let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 0;
 let noteSpeed = 0;
@@ -4210,7 +4150,7 @@ addEventListener('mousedown', e => {
   if (state === 'playing') {
     // Pause button — 우상단 (레인 영역 밖, 8키에서도 겹침 없음)
     const _pbW = sz(48), _pbH = sz(36);
-    const _pbX = W - _pbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _pbY = -safeTop + sz(2);
+    const _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
       pauseGame(); return;
     }
@@ -4410,7 +4350,7 @@ document.addEventListener('pointerdown', e => {
   }
   // 일시정지 버튼
   const _tpbW = sz(48), _tpbH = sz(36);
-  const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
+  const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
   if (x >= _tpbX && x < _tpbX+_tpbW && y >= _tpbY && y < _tpbY+_tpbH) { pauseGame(); return; }
   _processLaneInput(x);
 }, { passive: true });
@@ -4470,7 +4410,7 @@ document.addEventListener('touchstart', e => {
       if (_tcx >= _laneEnd) {
         // 일시정지 버튼 체크
         const _tpbW = sz(48), _tpbH = sz(36);
-        const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
+        const _tpbX = W - _tpbW - sz(4), _tpbY = -safeTop + sz(2);
         if (_tcx >= _tpbX && _tcx < _tpbX+_tpbW && _t0y >= _tpbY && _t0y < _tpbY+_tpbH) { pauseGame(); return; }
         const last = laneCount - 1;
         keyHeld[last] = true; keyFlash[last] = 0.3;
@@ -6231,7 +6171,7 @@ function render() {
   _noteW = _fLaneW - _s8;
   _noteHW = (_fLaneW - _s8) / 2;
   // 노트 세로 길이: 레인 폭에 비례 (8키 세로모드에서 과하게 길어지지 않게)
-  _noteHH = (isMobile && !isPortrait) ? Math.min(_s20, Math.round(_fLaneW * 0.28)) : Math.min(_s10, Math.round(_fLaneW * 0.14));
+  _noteHH = Math.min(_s10, Math.round(_fLaneW * 0.14));
 
   // Stars — [perf C] twinkle 100ms 간격으로만 갱신 (time-based, frame counter 안 씀)
   try {
@@ -7104,7 +7044,7 @@ function renderUI() {
 
   // Pause button — 우상단 (레인 영역 밖)
   const pbW = sz(48), pbH = sz(36);
-  const pbX = W - pbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), pbY = -safeTop + sz(2);
+  const pbX = W - pbW - sz(4), pbY = -safeTop + sz(2);
   ctx.fillStyle = 'rgba(20,15,40,0.75)';
   rrFill(pbX, pbY, pbW, pbH, sz(6));
   ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
@@ -7333,28 +7273,30 @@ function renderSettingsOverlay() {
     ctx.fillText('⌨ PC 전용 — 키보드 조작키 설정',W/2,popY+sz(48));
   }
 
-  // 4~8키 모드 토글
+  // 4~8키 모드 토글 (PC만)
   const panelW = Math.min(popW - sz(20), sz(300));
   const panelX = (W - panelW) / 2;
   const modeY = popY + sz(58);
-  const modeKeys = [4, 5, 6, 7, 8];
-  const modeBtnW = sz(40), modeBtnH = sz(26), modeGap = sz(6);
-  const modeTotalW = modeBtnW * modeKeys.length + modeGap * (modeKeys.length - 1);
-  const modeX = (W - modeTotalW) / 2;
-  modeKeys.forEach((m, mi) => {
-    const bx = modeX + mi * (modeBtnW + modeGap);
-    const sel = laneCount === m;
-    ctx.fillStyle = sel ? '#cc44ff22' : 'rgba(255,255,255,0.03)';
-    rrFill(bx, modeY, modeBtnW, modeBtnH, sz(6));
-    ctx.strokeStyle = sel ? '#cc44ff' : 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = sel ? 2 : 1;
-    if (sel) { ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 8; }
-    rrStroke(bx, modeY, modeBtnW, modeBtnH, sz(6)); ctx.shadowBlur = 0;
-    ctx.textAlign = 'center'; ctx.font = `bold ${sz(12)}px sans-serif`;
-    ctx.fillStyle = sel ? '#cc44ff' : 'rgba(255,255,255,0.4)';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(m + 'K', bx + modeBtnW/2, modeY + modeBtnH/2);
-  });
+  if (!isMobile) {
+    const modeKeys = [4, 5, 6, 7, 8];
+    const modeBtnW = sz(40), modeBtnH = sz(26), modeGap = sz(6);
+    const modeTotalW = modeBtnW * modeKeys.length + modeGap * (modeKeys.length - 1);
+    const modeX = (W - modeTotalW) / 2;
+    modeKeys.forEach((m, mi) => {
+      const bx = modeX + mi * (modeBtnW + modeGap);
+      const sel = laneCount === m;
+      ctx.fillStyle = sel ? '#cc44ff22' : 'rgba(255,255,255,0.03)';
+      rrFill(bx, modeY, modeBtnW, modeBtnH, sz(6));
+      ctx.strokeStyle = sel ? '#cc44ff' : 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = sel ? 2 : 1;
+      if (sel) { ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 8; }
+      rrStroke(bx, modeY, modeBtnW, modeBtnH, sz(6)); ctx.shadowBlur = 0;
+      ctx.textAlign = 'center'; ctx.font = `bold ${sz(12)}px sans-serif`;
+      ctx.fillStyle = sel ? '#cc44ff' : 'rgba(255,255,255,0.4)';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(m + 'K', bx + modeBtnW/2, modeY + modeBtnH/2);
+    });
+  }
 
   // 키 바인딩 UI (반응형 행 높이)
   const rowH = sz(laneCount >= 7 ? 32 : laneCount >= 6 ? 36 : 42);
@@ -7498,38 +7440,8 @@ function renderSettingsOverlay() {
   window._modeBtnRhythm = { x: sliderX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
   window._modeBtnNano = { x: nBtnX, y: gmBtnY, w: gmBtnW, h: gmBtnH };
 
-  // ===== 화면 모드 =====
-  const scY = gmBtnY + gmBtnH + sz(20);
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('화면 모드', sliderX, scY);
-  const scBtnW = (sliderW - sz(8)) / 2, scBtnH = sz(28);
-  const scBtnY = scY + sz(14);
-  // 풀스크린 버튼
-  const fsSel = screenMode === 'fullscreen';
-  ctx.fillStyle = fsSel ? '#ff990022' : 'rgba(255,255,255,0.04)';
-  rrFill(sliderX, scBtnY, scBtnW, scBtnH, sz(6));
-  ctx.strokeStyle = fsSel ? '#ff9900' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = fsSel ? 2 : 1;
-  if (fsSel) { ctx.shadowColor = '#ff9900'; ctx.shadowBlur = 8; }
-  rrStroke(sliderX, scBtnY, scBtnW, scBtnH, sz(6)); ctx.shadowBlur = 0;
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(11)}px sans-serif`;
-  ctx.fillStyle = fsSel ? '#ff9900' : 'rgba(255,255,255,0.4)';
-  ctx.fillText('풀스크린', sliderX + scBtnW/2, scBtnY + scBtnH/2);
-  // 브라우저 버튼
-  const brSel = screenMode === 'browser';
-  const brBtnX = sliderX + scBtnW + sz(8);
-  ctx.fillStyle = brSel ? '#4488ff22' : 'rgba(255,255,255,0.04)';
-  rrFill(brBtnX, scBtnY, scBtnW, scBtnH, sz(6));
-  ctx.strokeStyle = brSel ? '#4488ff' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = brSel ? 2 : 1;
-  if (brSel) { ctx.shadowColor = '#4488ff'; ctx.shadowBlur = 8; }
-  rrStroke(brBtnX, scBtnY, scBtnW, scBtnH, sz(6)); ctx.shadowBlur = 0;
-  ctx.fillStyle = brSel ? '#4488ff' : 'rgba(255,255,255,0.4)';
-  ctx.fillText('브라우저', brBtnX + scBtnW/2, scBtnY + scBtnH/2);
-  window._screenModeBtnFs = { x: sliderX, y: scBtnY, w: scBtnW, h: scBtnH };
-  window._screenModeBtnBr = { x: brBtnX, y: scBtnY, w: scBtnW, h: scBtnH };
-
   // ===== 계정 정보 =====
-  const acctY = scBtnY + scBtnH + sz(18);
+  const acctY = gmBtnY + gmBtnH + sz(24);
   const acctBoxW = panelW, acctBoxH = sz(50);
   const acctBoxX = (W - acctBoxW) / 2;
   ctx.fillStyle = 'rgba(255,255,255,0.03)'; rrFill(acctBoxX, acctY, acctBoxW, acctBoxH, sz(8));
@@ -7677,16 +7589,18 @@ function handleSettingsClick(mx, my) {
     gameMode = 'nano'; saveGameMode(); return;
   }
 
-  // 4~8키 모드 토글
+  // 4~8키 모드 토글 (PC만)
   const modeY = popY + sz(58);
-  const modeKeys = [4, 5, 6, 7, 8];
-  const modeBtnW = sz(40), modeBtnH = sz(26), modeGap = sz(6);
-  const modeTotalW = modeBtnW * modeKeys.length + modeGap * (modeKeys.length - 1);
-  const modeX = (W - modeTotalW) / 2;
-  for (let mi = 0; mi < modeKeys.length; mi++) {
-    const bx = modeX + mi * (modeBtnW + modeGap);
-    if (hitTest(mx, mys, bx, modeY, modeBtnW, modeBtnH) && laneCount !== modeKeys[mi]) {
-      setLaneMode(modeKeys[mi]); settingsBindingLane = -1; return;
+  if (!isMobile) {
+    const modeKeys = [4, 5, 6, 7, 8];
+    const modeBtnW = sz(40), modeBtnH = sz(26), modeGap = sz(6);
+    const modeTotalW = modeBtnW * modeKeys.length + modeGap * (modeKeys.length - 1);
+    const modeX = (W - modeTotalW) / 2;
+    for (let mi = 0; mi < modeKeys.length; mi++) {
+      const bx = modeX + mi * (modeBtnW + modeGap);
+      if (hitTest(mx, mys, bx, modeY, modeBtnW, modeBtnH) && laneCount !== modeKeys[mi]) {
+        setLaneMode(modeKeys[mi]); settingsBindingLane = -1; return;
+      }
     }
   }
 
@@ -7733,22 +7647,12 @@ function handleSettingsClick(mx, my) {
     applySfxVol(); saveVolSettings(); return;
   }
 
-  // 화면 모드 토글
-  if (window._screenModeBtnFs && hitTest(mx, mys, _screenModeBtnFs.x, _screenModeBtnFs.y, _screenModeBtnFs.w, _screenModeBtnFs.h)) {
-    screenMode = 'fullscreen'; saveScreenMode(); applyScreenMode(); return;
-  }
-  if (window._screenModeBtnBr && hitTest(mx, mys, _screenModeBtnBr.x, _screenModeBtnBr.y, _screenModeBtnBr.w, _screenModeBtnBr.h)) {
-    screenMode = 'browser'; saveScreenMode(); applyScreenMode(); return;
-  }
-
   // 계정 정보 박스 + 버튼 (render와 동일한 Y 체인)
   const sfxY_click = volY + volRowH;
   const gameModeY_click = sfxY_click + volRowH + sz(8);
   const gmBtnY_click = gameModeY_click + sz(14);
   const gmBtnH_click = sz(28);
-  const scBtnY_click = gmBtnY_click + gmBtnH_click + sz(20) + sz(14);
-  const scBtnH_click = sz(28);
-  const acctY_click = scBtnY_click + scBtnH_click + sz(18);
+  const acctY_click = gmBtnY_click + gmBtnH_click + sz(24);
   const acctBoxH = sz(50);
   const actY = acctY_click + acctBoxH + sz(8);
   const actBtnW = Math.min(sz(110), panelW * 0.35), actBtnH = sz(30), actGap = sz(10);
