@@ -4421,12 +4421,26 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
-// pointerdown과 touchstart는 한 제스처에서 둘 다 발화 → 좌표+시간으로 dedup
-// (레인 단위 게이트는 빠른 연타를 먹어버리므로 사용 금지)
+// pointerdown/touchstart/touchmove 복구 모두 같은 제스처 dedup 사용
+// 한 제스처에서 먼저 온 이벤트가 처리 → 늦게 온 이벤트는 touchLaneMap만 갱신
 const _pointerLaneMap = new Map(); // pointerId → lane (touchend drop 대비 해제용)
-let _recentPointerHits = []; // pointerdown 직후 좌표 캐시 — touchstart 중복 판정
-const _DEDUP_MS = 150, _DEDUP_PX = 8; // 150ms: iOS 고부하로 인한 touchstart 지연 대비 (splice 기반이라 연타 영향 없음)
+let _recentGestureHits = []; // 이미 처리된 제스처 좌표 {x,y,t}
+const _DEDUP_MS = 150; // iOS 고부하로 인한 이벤트 지연 대비
+const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표 — 별개 손가락 근접 탭 보호용 3px 여유만
 let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
+function _isRecentGesture(x, y) {
+  const now = performance.now();
+  while (_recentGestureHits.length && now - _recentGestureHits[0].t > _DEDUP_MS) _recentGestureHits.shift();
+  for (let h = 0; h < _recentGestureHits.length; h++) {
+    const g = _recentGestureHits[h];
+    if (Math.abs(g.x - x) <= _DEDUP_PX && Math.abs(g.y - y) <= _DEDUP_PX) return h;
+  }
+  return -1;
+}
+function _markGesture(x, y) {
+  _recentGestureHits.push({ x, y, t: performance.now() });
+  if (_recentGestureHits.length > 24) _recentGestureHits.shift();
+}
 function _processPlayingTouch(t) {
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
@@ -4453,39 +4467,38 @@ function _processPlayingTouch(t) {
   if (_canHit) handleLanePress(i);
   return i;
 }
-// pointerdown — touchstart보다 먼저 발생, iOS에서 터치 드롭 보완
+// pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
-  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
-  if (lane >= 0) {
-    _pointerLaneMap.set(e.pointerId, lane);
-    _recentPointerHits.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-    if (_recentPointerHits.length > 16) _recentPointerHits.shift();
+  let lane;
+  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip, 단 _pointerLaneMap 은 등록 (touchend drop 대비)
+  if (_isRecentGesture(e.clientX, e.clientY) >= 0) {
+    const _lwP = _fLw || getLaneW(), _lsxP = _fLsx || getLaneStartX();
+    lane = Math.max(0, Math.min(laneCount - 1, Math.floor((e.clientX - _lsxP) / _lwP)));
+  } else {
+    lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+    _markGesture(e.clientX, e.clientY);
   }
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, lane);
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
-  const _now = performance.now();
-  // 만료된 pointerdown 캐시 정리
-  while (_recentPointerHits.length && _now - _recentPointerHits[0].t > _DEDUP_MS) _recentPointerHits.shift();
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
-    // 같은 제스처의 pointerdown이 이미 hit 처리했는지 좌표+시간으로 판정
-    let dupeIdx = -1;
-    for (let h = 0; h < _recentPointerHits.length; h++) {
-      const ph = _recentPointerHits[h];
-      if (Math.abs(ph.x - t.clientX) <= _DEDUP_PX && Math.abs(ph.y - t.clientY) <= _DEDUP_PX) { dupeIdx = h; break; }
-    }
+    // 같은 제스처의 pointerdown이 이미 처리했는지 좌표로 판정
+    const dupeIdx = _isRecentGesture(t.clientX, t.clientY);
     if (dupeIdx >= 0) {
-      // pointerdown이 hit 완료 → touchLaneMap만 채워 touchend 해제 보장
+      // pointerdown이 처리 완료 → touchLaneMap만 채워 touchend 해제 보장
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
       touchLaneMap.set(t.identifier, i);
-      _recentPointerHits.splice(dupeIdx, 1);
+      _recentGestureHits.splice(dupeIdx, 1);
       continue;
     }
-    if (_processPlayingTouch(t) === -1) { e.stopImmediatePropagation(); return; }
+    const lane = _processPlayingTouch(t);
+    _markGesture(t.clientX, t.clientY);
+    if (lane === -1) { e.stopImmediatePropagation(); return; }
   }
 }, { passive: false, capture: true });
 // pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
@@ -4721,12 +4734,20 @@ let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'ra
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
   if (state !== 'playing') e.preventDefault();
-  // 드롭된 touchstart 복구
+  // 드롭된 touchstart 복구 — pointerdown이 이미 처리한 제스처는 재처리하지 않음
   if (state === 'playing' && !gamePaused && !songLoading) {
+    const _lwMv = _fLw || getLaneW(), _lsxMv = _fLsx || getLaneStartX();
     for (let ti = 0; ti < e.changedTouches.length; ti++) {
       const t = e.changedTouches[ti];
       if (touchLaneMap.has(t.identifier)) continue;
+      // pointerdown이 이미 handleLanePress 호출 → 식별자만 등록 (touchend 해제 보장)
+      if (_isRecentGesture(t.clientX, t.clientY) >= 0) {
+        const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - _lsxMv) / _lwMv)));
+        touchLaneMap.set(t.identifier, i);
+        continue;
+      }
       _processPlayingTouch(t);
+      _markGesture(t.clientX, t.clientY);
     }
   }
   // 설정창 열려있으면 스크롤 드래그
