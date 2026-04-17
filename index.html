@@ -10136,6 +10136,28 @@ function pauseGame() {
 }
 
 let _prevActxState = ''; // actx 상태 전환 감지용
+// iOS 오디오 인터럽트 복구 (알람/전화 후)
+if (actx && actx.addEventListener) {
+  actx.addEventListener('statechange', () => {
+    if (!actx) return;
+    if (actx.state === 'running') {
+      // interrupted/suspended → running 복구
+      if (state === 'playing' && gamePaused) {
+        // 인게임 퍼즈 상태: 오디오만 준비 (유저가 계속하기 누르면 resumeGame에서 재개)
+      } else {
+        // 비인게임: BGM 자동 복구
+        if (state === 'title' && titleBgmPlaying) titleBgm.play().catch(()=>{});
+        if (state === 'select' && songPreviewAudio && previewActive) songPreviewAudio.play().catch(()=>{});
+        if (state === 'ranking' && rankingBgmPlaying) rankingBgm.play().catch(()=>{});
+        if (state === 'shop' && shopBgmPlaying) shopBgm.play().catch(()=>{});
+        if (state === 'achievement' && achievementBgmPlaying) achievementBgm.play().catch(()=>{});
+      }
+    } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+      // 알람/전화 시작: 인게임이면 퍼즈
+      if (state === 'playing' && !gamePaused) pauseGame();
+    }
+  });
+}
 // actx 가 suspended→running 복구 시 ABS 소스 재생성 (이어폰 재연결 등)
 function _restartAudioAfterContextResume() {
   if (!actx || actx.state !== 'running' || countdownTime > 0) return;
@@ -10175,6 +10197,10 @@ function resumeGame() {
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   resumeAudio();
+  // iOS: interrupted 상태면 resume 완료 후 오디오 재시작
+  if (actx && actx.state !== 'running') {
+    actx.resume().then(() => { _restartAudioAfterContextResume(); }).catch(()=>{});
+  }
   // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
