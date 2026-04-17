@@ -4960,10 +4960,13 @@ function handleLanePress(lane) {
   const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
   let closest = null, closestDist = Infinity;
 
-  for (let ni = 0; ni < nodes.length; ni++) {
+  // ★ nodeScanStart 부터 스캔 (hit/missed prefix skip) + 시간순 정렬이므로 tMax 초과 시 break.
+  //   노트 수천 개 짜리 곡에서 탭당 N 전체 iterate → O(활성 윈도우) 로 단축.
+  for (let ni = nodeScanStart; ni < nodes.length; ni++) {
     const n = nodes[ni];
+    if (n.time > tMax) break; // 이후는 전부 미래
     if (n.hit || n.missed) continue;
-    if (n.time < tMin || n.time > tMax) continue;
+    if (n.time < tMin) continue;
     if (n.lane !== lane) continue;
     const dist = Math.abs(n.time - gameTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
