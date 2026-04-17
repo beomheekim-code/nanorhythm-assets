@@ -4366,7 +4366,6 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-const _touchMarkers = [];
 const _processedTouchIds = new Set();
 // document capture phase: touchLayer보다 먼저 실행되어 드롭된 터치를 잡음
 document.addEventListener('touchstart', e => {
@@ -4380,7 +4379,6 @@ document.addEventListener('touchstart', e => {
     const mx = touch.clientX, my = gameY(touch.clientY);
     if (mx < lsx - margin || mx >= laneEnd + margin) continue;
     const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-    _touchMarkers.push({ x: mx, y: my, t: performance.now() });
     keyHeld[i] = true; keyFlash[i] = 0.3;
     touchLaneMap.set(touch.identifier, i);
     if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
@@ -4391,8 +4389,6 @@ touchLayer.addEventListener('touchstart', e => {
   if (state !== 'login' && !nicknameOverlay) e.preventDefault();
   // ★ playing 상태 최우선 ��리 — 다른 UI 체크 전에 즉시 레인 입력
   if (state === 'playing' && !gamePaused) {
-    if (navigator.vibrate) navigator.vibrate(8);
-    for (const _mt of e.changedTouches) _touchMarkers.push({ x: _mt.clientX, y: gameY(_mt.clientY), t: performance.now() });
     const t0 = e.changedTouches[0];
     // Pause button — 우상단
     const _tpbW = sz(48), _tpbH = sz(36);
@@ -4438,7 +4434,6 @@ touchLayer.addEventListener('touchstart', e => {
       if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin || _tcy < -safeTop || _tcy >= by+bh) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
-      _touchMarkers.push({ x: _tcx, y: _tcy, t: performance.now() });
       touchLaneMap.set(touch.identifier, i);
       if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
       else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -4653,7 +4648,6 @@ touchLayer.addEventListener('touchmove', e => {
       const mx = touch.clientX;
       if (mx < lsx - margin || mx >= laneEnd + margin) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-      _touchMarkers.push({ x: mx, y: gameY(touch.clientY), t: now });
       keyHeld[i] = true; keyFlash[i] = 0.3;
       touchLaneMap.set(touch.identifier, i);
       if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
@@ -4812,21 +4806,18 @@ touchLayer.addEventListener('touchcancel', e => {
 
 // Pointer Events 보조: touchstart가 드롭될 때 pointerdown이 대신 처리
 const _pointerLaneMap = new Map();
+let _lastPointerDownTime = 0;
 touchLayer.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse') return;
   if (state !== 'playing' || gamePaused || songLoading) return;
-  const now = performance.now();
-  const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-  const mx = e.clientX, my = gameY(e.clientY);
+  // touchstart가 이미 처리했으면 스킵 (같은 이벤트 루프에서 _processedTouchIds에 등록됨)
+  if (_processedTouchIds.size > 0) { return; }
+  const lw = getLaneW(), lsx = getLaneStartX();
+  const mx = e.clientX;
   const laneEnd = lsx + lw * laneCount;
   const margin = isMobile ? lsx : lw * 0.4;
   if (mx < lsx - margin || mx >= laneEnd + margin) return;
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-  const _ptId = 'p' + e.pointerId;
-  if (_processedTouchIds.has(_ptId)) { _pointerLaneMap.set(e.pointerId, i); return; }
-  _processedTouchIds.add(_ptId);
-  if (navigator.vibrate) navigator.vibrate(8);
-  _touchMarkers.push({ x: mx, y: gameY(e.clientY), t: now });
   keyHeld[i] = true; keyFlash[i] = 0.3;
   _pointerLaneMap.set(e.pointerId, i);
   if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
@@ -4838,9 +4829,6 @@ touchLayer.addEventListener('pointerup', e => {
   if (lane !== undefined) {
     keyHeld[lane] = false;
     _pointerLaneMap.delete(e.pointerId);
-  }
-  if (_pointerLaneMap.size === 0 && touchLaneMap.size === 0) {
-    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
   }
 }, { passive: true });
 touchLayer.addEventListener('pointercancel', e => {
@@ -6721,17 +6709,6 @@ function renderButtons() {
       ctx.fillStyle = held ? '#fff' : col + '55';
       ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh / 2);
     }
-  }
-  // 터치 마커 (입력 확인용)
-  const _mkNow = performance.now();
-  for (let _mi = _touchMarkers.length - 1; _mi >= 0; _mi--) {
-    const mk = _touchMarkers[_mi];
-    const age = _mkNow - mk.t;
-    if (age > 300) { _touchMarkers.splice(_mi, 1); continue; }
-    const a = 0.7 * (1 - age / 300);
-    const r = sz(12) + age * 0.08;
-    ctx.beginPath(); ctx.arc(mk.x, mk.y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 2; ctx.stroke();
   }
 }
 
