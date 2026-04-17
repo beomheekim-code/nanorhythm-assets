@@ -4333,7 +4333,7 @@ document.addEventListener('touchstart', e => {
         }
       }
       // 레인 매핑 (터치 반경으로 걸치는 레인 전부 입력)
-      const r = t.radiusX || 20;
+      const r = Math.min(t.radiusX || 10, lw * 0.2);
       const laneL = Math.max(0, Math.floor((x - r - lsx) / lw));
       const laneR = Math.min(laneCount - 1, Math.floor((x + r - lsx) / lw));
       const primary = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
