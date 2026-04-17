@@ -4500,18 +4500,23 @@ document.addEventListener('touchstart', e => {
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
-    // 같은 제스처의 pointerdown이 이미 처리했는지 좌표로 판정
+    // 1) 페어링 큐 (40ms TTL) 매치 — splice 로 쌍 소비
     const dupeIdx = _isRecentGesture(t.clientX, t.clientY);
     if (dupeIdx >= 0) {
-      // pointerdown이 처리 완료 → touchLaneMap만 채워 touchend 해제 보장
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
       touchLaneMap.set(t.identifier, i);
       _recentGestureHits.splice(dupeIdx, 1);
       continue;
     }
+    // 2) 페어링 큐 TTL 만료 but pointerdown pointer 는 여전히 활성 — iOS 고부하 대비
+    if (_handledByActivePointer(t.clientX, t.clientY)) {
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
+      touchLaneMap.set(t.identifier, i);
+      continue;
+    }
     const lane = _processPlayingTouch(t);
     _markGesture(t.clientX, t.clientY);
-    if (lane === -1) { e.stopImmediatePropagation(); return; }
+    if (lane === -1) { e.stopImmediatePropagation(); /* 루프 계속 — 동시 다른 레인 탭 씹힘 방지 */ }
   }
 }, { passive: false, capture: true });
 // pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
@@ -10275,22 +10280,48 @@ function resumeGame() {
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   resumeAudio();
-  // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
-    // 오디오 재시작 — 항상 HTML Audio 사용 (iOS 인터럽트 안전)
-    if (actx) {
-      if (actx.state !== 'running') actx.resume().catch(()=>{});
-      songStartTime = actx.currentTime - targetTime;
-    }
-    if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } window._absNodes = null; }
-    // ABS gain 래치도 같이 해제 — updateStemVolumes가 HTML 스템을 계속 음소거하던 원인
+    if (actx && actx.state !== 'running') actx.resume().catch(()=>{});
+    // 기존 ABS 소스 정리
+    if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
+    window._absNodes = null;
     window._absGains = null;
     window._absStartCtx = null;
     window._absPausedAt = null;
     _audioInterrupted = false;
-    if (usingStemMode) {
+    // 1순위: ABS 재생성 (actx.currentTime 샘플 정확도 — HTML Audio seek 지연 100~500ms 회피)
+    const _canAbs = actx && usingStemMode && stemAudioBuffers && Object.keys(stemAudioBuffers).length > 0;
+    if (_canAbs) {
+      window._absNodes = [];
+      window._absGains = [];
+      window._absStartCtx = actx.currentTime - targetTime;
+      songStartTime = actx.currentTime - targetTime;
+      const _audioDest = (gameMode === 'nano' && nanoFilter) ? nanoFilter : actx.destination;
+      if (gameMode === 'nano' && nanoFilter) { try { nanoFilter.connect(actx.destination); } catch(e){} }
+      for (let i = 0; i < allStemAudios.length; i++) {
+        if (stemAudioBuffers[i]) {
+          const gain = actx.createGain();
+          const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+          gain.gain.value = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+          gain.connect(_isAlways ? actx.destination : _audioDest);
+          const src = actx.createBufferSource();
+          src.buffer = stemAudioBuffers[i];
+          src.connect(gain);
+          src.start(0, Math.max(0, targetTime));
+          window._absNodes.push(src);
+          window._absGains.push(gain);
+        } else {
+          window._absNodes.push(null);
+          window._absGains.push(null);
+        }
+        // HTML Audio 는 뮤트 상태로 position 참조용만
+        if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
+      }
+    } else if (usingStemMode) {
+      // ABS 불가 (buffer 없음) — HTML Audio fallback
+      if (actx) songStartTime = actx.currentTime - targetTime;
       for (let i = 0; i < allStemAudios.length; i++) {
         if (allStemAudios[i]) {
           const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
@@ -10303,6 +10334,7 @@ function resumeGame() {
         if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
       }
     } else if (songAudio) {
+      if (actx) songStartTime = actx.currentTime - targetTime;
       songAudio.currentTime = targetTime;
       songAudio.play().catch(()=>{});
     }
