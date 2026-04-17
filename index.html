@@ -344,7 +344,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@aee6d3b/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@fb48266/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -1211,6 +1211,94 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
     excludeStems: [1, 4], // bass, piano 빈 스템
+  },
+  {
+    name: "Let's Go Shopping!", sub: 'Bright Pop', bpm: 152,
+    color: '#ff6699', bg1: '#4a0028', bg2: '#1a0a1a',
+    bars: 52, file: "Music/Let's_Go_Shopping!.ogg",
+    cover: "Music/Let's_Go_Shopping!/Let's_Go_Shopping!.png",
+    stemDir: "Music/Let's_Go_Shopping!/",
+    stemPrefix: "Let's_Go_Shopping!",
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,0,1,0, 1,1,0,1,0,1,0,1],
+    excludeStems: [4, 5], chordMode: true,
+  },
+  {
+    name: 'Midnight Breeze', sub: 'Chill R&B', bpm: 117,
+    color: '#6688cc', bg1: '#0a1428', bg2: '#020810',
+    bars: 57, file: 'Music/Midnight_Breeze.ogg',
+    cover: 'Music/Midnight_Breeze/Midnight_Breeze.png',
+    stemDir: 'Music/Midnight_Breeze/',
+    stemPrefix: 'Midnight_Breeze',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
+    excludeStems: [4, 5], chordMode: true,
+  },
+  {
+    name: 'Pebbles To Granite', sub: 'Hip-Hop', bpm: 89,
+    color: '#aa8855', bg1: '#2a1a08', bg2: '#0a0804',
+    bars: 44, file: 'Music/Pebbles_To_Granite.ogg',
+    cover: 'Music/Pebbles_To_Granite/Pebbles_To_Granite.png',
+    stemDir: 'Music/Pebbles_To_Granite/',
+    stemPrefix: 'Pebbles_To_Granite',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
+    excludeStems: [5], chordMode: true,
+  },
+  {
+    name: 'Rainbow Flight', sub: 'Synth Pop', bpm: 117,
+    color: '#ff77aa', bg1: '#28082a', bg2: '#0a0416',
+    bars: 54, file: 'Music/Rainbow_Flight.ogg',
+    cover: 'Music/Rainbow_Flight/Rainbow_Flight.png',
+    stemDir: 'Music/Rainbow_Flight/',
+    stemPrefix: 'Rainbow_Flight',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
+    excludeStems: [4, 5], chordMode: true,
+  },
+  {
+    name: 'Velocity And Pride', sub: 'EDM / Anthem', bpm: 152,
+    color: '#ff4444', bg1: '#2a0808', bg2: '#100404',
+    bars: 95, file: 'Music/Velocity_And_Pride.ogg',
+    cover: 'Music/Velocity_And_Pride/Velocity and Pride.png',
+    stemDir: 'Music/Velocity_And_Pride/',
+    stemPrefix: 'Velocity_And_Pride',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
+    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '靴紐を結び直して', sub: 'J-Pop', bpm: 117,
+    color: '#55ccaa', bg1: '#082a1a', bg2: '#041008',
+    bars: 58, file: 'Music/靴紐を結び直して.ogg',
+    cover: 'Music/靴紐を結び直して/靴紐を結び直して.png',
+    stemDir: 'Music/靴紐を結び直して/',
+    stemPrefix: '靴紐を結び直して',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,0,1,0,1, 0,1,0,1,0,0,1,0],
+    vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '기분 좋은 날', sub: 'K-Pop Ballad', bpm: 92,
+    color: '#ffcc44', bg1: '#2a2008', bg2: '#100c04',
+    bars: 51, file: 'Music/기분_좋은_날.ogg',
+    cover: 'Music/기분_좋은_날/기분_좋은_날.png',
+    stemDir: 'Music/기분_좋은_날/',
+    stemPrefix: '기분_좋은_날',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
+    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '바람을 타고', sub: 'K-Pop Dance', bpm: 172,
+    color: '#44bbff', bg1: '#081a2a', bg2: '#040a10',
+    bars: 117, file: 'Music/바람을_타고.ogg',
+    cover: 'Music/바람을_타고/바람을_타고.png',
+    stemDir: 'Music/바람을_타고/',
+    stemPrefix: '바람을_타고',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
+    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
   },
 ];
 
