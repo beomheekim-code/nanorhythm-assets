@@ -4421,42 +4421,40 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
-// iOS 터치 제스처 가로채기 방지 — capture phase에서 preventDefault
-document.addEventListener('touchstart', e => { if (state === 'playing') e.preventDefault(); }, { passive: false, capture: true });
-document.addEventListener('touchstart', e => {
-  // ★ playing 상태 — 최소 코드 경로
-  if (state === 'playing' && !gamePaused) {
-    _dbgTouch += e.changedTouches.length;
-    const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-    const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
-    for (let ti = 0; ti < e.changedTouches.length; ti++) {
-      const t = e.changedTouches[ti];
-      const x = t.clientX, y = t.clientY - safeTop;
-      // 일시정지 (우상단)
-      if (y < sz(40) && x > W - sz(52)) { _dbgLog.push('P'); if (_dbgLog.length>12) _dbgLog.shift(); pauseGame(); return; }
-      // 배속 버튼 (왼쪽 여백)
-      if (x < lsx) {
-        const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
-        const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
-        const _spTop = getBtnY() - sz(6) - _spH;
-        const _spBot = _spTop + _spH;
-        if (y >= _spTop && y < _spBot) {
-          const _spMid = _spTop + _spPad + _spBtn + _spGap;
-          if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
-          else if (y >= _spMid + _spBtn + _spGap) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); }
-          _dbgLog.push('S'); if (_dbgLog.length>12) _dbgLog.shift();
-          continue;
-        }
-      }
-      // 레인 매핑
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
-      touchLaneMap.set(t.identifier, i);
-      _dbgLog.push('K'+i); if (_dbgLog.length>12) _dbgLog.shift();
-      if (_canHit) handleLanePress(i);
+// ★ playing 터치 — capture phase (최우선, preventDefault 포함)
+function _processPlayingTouch(t) {
+  const x = t.clientX, y = t.clientY - safeTop;
+  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+  if (y < sz(40) && x > W - sz(52)) { _dbgLog.push('P'); if (_dbgLog.length>12) _dbgLog.shift(); pauseGame(); return -1; }
+  if (x < lsx) {
+    const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+    const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
+    const _spTop = getBtnY() - sz(6) - _spH;
+    if (y >= _spTop && y < _spTop + _spH) {
+      const _spMid = _spTop + _spPad + _spBtn + _spGap;
+      if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
+      else if (y >= _spMid + _spBtn + _spGap) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); }
+      _dbgLog.push('S'); if (_dbgLog.length>12) _dbgLog.shift();
+      return -2;
     }
-    return;
   }
+  const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+  keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
+  touchLaneMap.set(t.identifier, i);
+  _dbgLog.push('K'+i); if (_dbgLog.length>12) _dbgLog.shift();
+  const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
+  if (_canHit) handleLanePress(i);
+  return i;
+}
+document.addEventListener('touchstart', e => {
+  if (state !== 'playing' || gamePaused) return;
+  e.preventDefault();
+  _dbgTouch += e.changedTouches.length;
+  for (let ti = 0; ti < e.changedTouches.length; ti++) {
+    if (_processPlayingTouch(e.changedTouches[ti]) === -1) return;
+  }
+}, { passive: false, capture: true });
+document.addEventListener('touchstart', e => {
   if (state === 'playing' && gamePaused) {
     const t0 = e.changedTouches[0];
     if (window._pausedExitBtn) {
@@ -4790,19 +4788,12 @@ document.addEventListener('touchend', e => {
   }
   // 활성 터치가 없으면 전체 해제 (안전장치)
   if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
-  // 누락된 활성 터치 복구 (멀티터치 드롭 대응)
+  // 드롭된 touchstart 복구 (touchend의 changedTouches에서 미등록 터치 감지)
   if (state === 'playing' && !gamePaused && !songLoading) {
-    const lw = getLaneW(), lsx = getLaneStartX();
-    const laneEnd = lsx + lw * laneCount;
-    const margin = isMobile ? lsx : lw * 0.4;
-    for (const touch of e.touches) {
+    for (const touch of e.changedTouches) {
       if (touchLaneMap.has(touch.identifier)) continue;
-      const mx = touch.clientX;
-      if (mx < lsx - margin || mx >= laneEnd + margin) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+      _processPlayingTouch(touch);
+      _dbgLog.push('R'); if (_dbgLog.length>12) _dbgLog.shift();
     }
   }
   // shop: 드래그 아니면 click 처리
