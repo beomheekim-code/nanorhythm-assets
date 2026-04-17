@@ -10218,7 +10218,26 @@ function resumeGame() {
         }
       }
       window._absPausedAt = null;
-      // ABS 실패 시 HTML Audio fallback
+      // ABS 소리 확인 — 0.5초 후 actx 출력 체크, 무음이면 HTML Audio 폴백
+      if (_absCreated) {
+        setTimeout(() => {
+          if (!gamePaused && usingStemMode && actx) {
+            try {
+              const an = actx.createAnalyser(); an.fftSize = 256;
+              if (window._absGains && window._absGains[0]) window._absGains[0].connect(an);
+              const buf = new Uint8Array(an.frequencyBinCount);
+              an.getByteFrequencyData(buf);
+              const sum = buf.reduce((a,b) => a+b, 0);
+              if (sum === 0) {
+                for (let i = 0; i < allStemAudios.length; i++) {
+                  if (allStemAudios[i]) { allStemAudios[i].currentTime = gameTime; allStemAudios[i].play().catch(()=>{}); }
+                }
+              }
+              try { an.disconnect(); } catch(e){}
+            } catch(e){}
+          }
+        }, 500);
+      }
       if (!_absCreated) {
         for (let i = 0; i < allStemAudios.length; i++) {
           if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; allStemAudios[i].play().catch(()=>{}); }
