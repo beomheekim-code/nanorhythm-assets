@@ -1856,7 +1856,7 @@ function getLaneStartX() {
 function _getMaxLaneArea() { return W - _hpMargin(); }
 function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2; }
 // 버튼 정사각형 (높이=레인폭) + 하단 정렬 → 확보된 공간만큼 레일 확장
-function _btnBottomPad() { return isMobile ? sz(30) : 0; }
+function _btnBottomPad() { return isMobile ? (isIOS ? sz(36) : sz(24)) : 0; }
 function getBtnH() { return Math.min(getLaneW(), (H + safeBottom) * 0.18); }
 function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
 function getHitY() { return getBtnY() - sz(8); }
@@ -4720,6 +4720,21 @@ document.addEventListener('touchend', e => {
   }
   // 활성 터치가 없으면 전체 해제 (안전장치)
   if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  // 누락된 활성 터치 복구 (멀티터치 드롭 대응)
+  if (state === 'playing' && !gamePaused && !songLoading) {
+    const lw = getLaneW(), lsx = getLaneStartX();
+    const laneEnd = lsx + lw * laneCount;
+    const margin = isMobile ? lsx : lw * 0.4;
+    for (const touch of e.touches) {
+      if (touchLaneMap.has(touch.identifier)) continue;
+      const mx = touch.clientX;
+      if (mx < lsx - margin || mx >= laneEnd + margin) continue;
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
+      keyHeld[i] = true; keyFlash[i] = 0.3;
+      touchLaneMap.set(touch.identifier, i);
+      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+    }
+  }
   // shop: 드래그 아니면 click 처리
   if (state === 'shop') {
     if (!_wasShopDrag) {
