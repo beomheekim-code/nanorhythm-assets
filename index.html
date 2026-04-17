@@ -5317,11 +5317,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   nodes.sort((a, b) => a.time - b.time);
-  // 홀드 노트 구간 내 같은 레인 일반 노트 제거
+  // 홀드 노트 구간 내 같은 레인 일반 노트 제거 (홀드 시작~끝 + 여유 0.15초)
   for (let a = 0; a < nodes.length; a++) {
     if (nodes[a].type !== 'hold') continue;
     for (let b = nodes.length - 1; b > a; b--) {
-      if (nodes[b].lane === nodes[a].lane && nodes[b].time > nodes[a].time && nodes[b].time < nodes[a].endTime) {
+      if (nodes[b].lane === nodes[a].lane && nodes[b].type !== 'hold' && nodes[b].time >= nodes[a].time && nodes[b].time < nodes[a].endTime + 0.15) {
         nodes.splice(b, 1);
       }
     }
