@@ -6757,9 +6757,13 @@ function renderNotes() {
     }
   }
 
-  // Missed flash
-  for (const n of nodes) {
-    if (!n.missed || n.type==='trap') continue;
+  // Missed flash — 최근에 missed 된 노트만 보이는 fade 구간. nodeScanStart 부터 역방향 스캔.
+  // 미스 컷 시점: sy = hitY → n.time = gameTime. sy > hitY + _s80 (화면 하단 벗어남) 면 더 이상 볼 것 없음.
+  const _visTimeCut = _s80 / noteSpeed; // 이만큼 시간 전 과거 노트만 유효
+  for (let i = nodeScanStart - 1; i >= 0; i--) {
+    const n = nodes[i];
+    if (gameTime - n.time > _visTimeCut) break; // 너무 과거 — 이전은 전부 화면 밖
+    if (!n.missed || n.type === 'trap') continue;
     const sy = hitY - (n.time - gameTime) * noteSpeed;
     if (sy < hitY || sy > hitY + _s80) continue;
     const sx = getLaneX(n.lane);
