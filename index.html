@@ -4420,6 +4420,12 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+// Safari gesture(pinch/rotate) 차단 — 2+ 손가락 시 gesture 이벤트가 처리되면
+// touch 이벤트가 지연/드롭될 수 있어 playing 중에는 항상 preventDefault.
+document.addEventListener('gesturestart', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturechange', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gestureend', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
 // 두 가지 dedup 메커니즘 사용:
 //  (1) _recentGestureHits: 짧은 TTL 40ms — pointerdown↔touchstart 한 쌍 페어링
@@ -4889,8 +4895,12 @@ document.addEventListener('touchend', e => {
       if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  // 양쪽 맵 모두 비었을 때만 전체 해제 (pointer 고착 방지)
-  if (touchLaneMap.size === 0 && _pointerLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  // 모든 손가락 떼어짐 → 양쪽 맵 강제 clear (iOS pointerup drop 시 stale 누적 방지)
+  if (e.touches.length === 0) {
+    touchLaneMap.clear();
+    _pointerLaneMap.clear();
+    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
+  }
   // shop: 드래그 아니면 click 처리
   if (state === 'shop') {
     if (!_wasShopDrag) {
@@ -4931,7 +4941,12 @@ document.addEventListener('touchcancel', e => {
       if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  if (touchLaneMap.size === 0 && _pointerLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  // 모든 손가락 떼어짐 → 강제 clear (stale leak 방지)
+  if (e.touches.length === 0) {
+    touchLaneMap.clear();
+    _pointerLaneMap.clear();
+    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
+  }
   selectDragX = -1;
 }, { passive: false });
 
