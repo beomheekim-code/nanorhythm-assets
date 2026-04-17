@@ -10195,18 +10195,15 @@ function resumeGame() {
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   resumeAudio();
-  // 오디오 컨텍스트 복구 (interrupted/suspended → resume, 이미 running이면 즉시 재시작)
+  // 오디오 컨텍스트 복구
   if (actx && actx.state !== 'running') {
-    actx.resume().then(() => { _restartAudioAfterContextResume(); }).catch(()=>{});
-  } else if (actx) {
-    _restartAudioAfterContextResume();
+    actx.resume().catch(()=>{});
   }
   // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
     if (actx) songStartTime = actx.currentTime - targetTime;
-    // actx 가 아직 suspended 면 ABS 소스 생성을 resume 완료 후로 defer
     if (actx && actx.state !== 'running') {
       actx.resume().then(() => {
         _restartAudioAfterContextResume();
