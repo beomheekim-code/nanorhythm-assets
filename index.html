@@ -4422,11 +4422,20 @@ addEventListener('wheel', e => {
 
 let _dbgTouch = 0, _dbgLane = 0, _dbgEmpty = 0, _dbgLog = [], _dbgFlash = 0;
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
-const _laneLastInput = new Float64Array(8);
+// pointerdown과 touchstart는 한 제스처에서 둘 다 발화 → 좌표+시간으로 dedup
+// (레인 단위 게이트는 빠른 연타를 먹어버리므로 사용 금지)
+const _pointerLaneMap = new Map(); // pointerId → lane (touchend drop 대비 해제용)
+let _recentPointerHits = []; // pointerdown 직후 좌표 캐시 — touchstart 중복 판정
+const _DEDUP_MS = 150, _DEDUP_PX = 8; // 150ms: iOS 고부하로 인한 touchstart 지연 대비 (splice 기반이라 연타 영향 없음)
+let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
 function _processPlayingTouch(t) {
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-  if (y < sz(40) && x > W - sz(52)) { _dbgLog.push('P'); if (_dbgLog.length>12) _dbgLog.shift(); pauseGame(); return -1; }
+  if (y < sz(40) && x > W - sz(52)) {
+    _dbgLog.push('P'); if (_dbgLog.length>12) _dbgLog.shift();
+    _pauseGestureAt = performance.now();
+    pauseGame(); return -1;
+  }
   if (x < lsx) {
     const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
     const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
@@ -4440,11 +4449,9 @@ function _processPlayingTouch(t) {
     }
   }
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-  const _now = performance.now();
-  if (_now - _laneLastInput[i] < 10) return i;
-  _laneLastInput[i] = _now;
-  keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
+  // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
+  keyHeld[i] = true; keyFlash[i] = 0.3; _dbgFlash++;
   _dbgLog.push('K'+i); if (_dbgLog.length>12) _dbgLog.shift();
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
@@ -4454,18 +4461,68 @@ function _processPlayingTouch(t) {
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   _dbgTouch++;
-  _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  if (lane >= 0) {
+    _pointerLaneMap.set(e.pointerId, lane);
+    _recentPointerHits.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    if (_recentPointerHits.length > 16) _recentPointerHits.shift();
+  }
 }, { capture: true });
 document.addEventListener('touchstart', e => {
+  // pointerdown이 방금 이 제스처로 pause 실행 → bubble phase의 즉시 resume 방지
+  if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) {
+    e.stopImmediatePropagation(); e.preventDefault(); return;
+  }
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
   _dbgTouch += e.changedTouches.length;
+  const _now = performance.now();
+  // 만료된 pointerdown 캐시 정리
+  while (_recentPointerHits.length && _now - _recentPointerHits[0].t > _DEDUP_MS) _recentPointerHits.shift();
+  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
-    if (_processPlayingTouch(e.changedTouches[ti]) === -1) { e.stopImmediatePropagation(); return; }
+    const t = e.changedTouches[ti];
+    // 같은 제스처의 pointerdown이 이미 hit 처리했는지 좌표+시간으로 판정
+    let dupeIdx = -1;
+    for (let h = 0; h < _recentPointerHits.length; h++) {
+      const ph = _recentPointerHits[h];
+      if (Math.abs(ph.x - t.clientX) <= _DEDUP_PX && Math.abs(ph.y - t.clientY) <= _DEDUP_PX) { dupeIdx = h; break; }
+    }
+    if (dupeIdx >= 0) {
+      // pointerdown이 hit 완료 → touchLaneMap만 채워 touchend 해제 보장
+      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
+      touchLaneMap.set(t.identifier, i);
+      _recentPointerHits.splice(dupeIdx, 1);
+      continue;
+    }
+    if (_processPlayingTouch(t) === -1) { e.stopImmediatePropagation(); return; }
   }
 }, { passive: false, capture: true });
+// pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  const lane = _pointerLaneMap.get(e.pointerId);
+  if (lane === undefined) return;
+  _pointerLaneMap.delete(e.pointerId);
+  let stillHeld = false;
+  for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) keyHeld[lane] = false;
+});
+document.addEventListener('pointercancel', e => {
+  if (e.pointerType === 'mouse') return;
+  const lane = _pointerLaneMap.get(e.pointerId);
+  if (lane === undefined) return;
+  _pointerLaneMap.delete(e.pointerId);
+  let stillHeld = false;
+  for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) keyHeld[lane] = false;
+});
 document.addEventListener('touchstart', e => {
   if (state === 'playing' && gamePaused) {
+    // pointerdown이 방금 일으킨 pause 제스처는 resume으로 이어지지 않도록 차단
+    if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) return;
     const t0 = e.changedTouches[0];
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
@@ -4782,16 +4839,20 @@ document.addEventListener('touchend', e => {
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
   _listTouchMode = '';
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
-  // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락은 유지)
+  // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락 + pointer 트래킹은 유지)
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
     if (lane !== undefined) {
-      keyHeld[lane] = false;
       touchLaneMap.delete(touch.identifier);
+      // 같은 레인을 다른 손가락/pointer가 아직 잡고 있으면 유지
+      let stillHeld = false;
+      for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  // 활성 터치가 없으면 전체 해제 (안전장치)
-  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  // 양쪽 맵 모두 비었을 때만 전체 해제 (pointer 고착 방지)
+  if (touchLaneMap.size === 0 && _pointerLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
   // shop: 드래그 아니면 click 처리
   if (state === 'shop') {
     if (!_wasShopDrag) {
@@ -4824,11 +4885,14 @@ document.addEventListener('touchcancel', e => {
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
     if (lane !== undefined) {
-      keyHeld[lane] = false;
       touchLaneMap.delete(touch.identifier);
+      let stillHeld = false;
+      for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  if (touchLaneMap.size === 0 && _pointerLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
   selectDragX = -1;
 }, { passive: false });
 
