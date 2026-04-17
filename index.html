@@ -4366,49 +4366,47 @@ addEventListener('wheel', e => {
 }, { passive: false });
 
 document.addEventListener('touchstart', e => {
-  // ★ playing 상태 최우선 처리 — 다른 UI 체크 전에 즉시 레인 입력
+  // ★ playing 상태 최우선 처리 — 레인 터치 fast path
   if (state === 'playing' && !gamePaused) {
-    const t0 = e.changedTouches[0];
-    // Pause button
-    const _tpbW = sz(48), _tpbH = sz(36);
-    const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tpbX, _tpbY, _tpbW, _tpbH)) { pauseGame(); return; }
-    // Speed control buttons
-    let _tSpeedHandled = false;
-    const _tlgap = getLaneStartX() - sz(6);
-    const _tgw = Math.min(sz(18), Math.max(sz(8), _tlgap - sz(8)));
-    const _tspBtn = sz(30), _tspGap = sz(5), _tspPad = sz(4);
-    const _tspBlockH = _tspBtn*3 + _tspGap*2 + _tspPad*2;
-    const _tgcx = isMobile ? sz(2) + Math.max(_tgw, _tspBtn)/2 : Math.max(sz(2) + _tgw/2, getLaneStartX() - sz(20) - Math.max(_tgw, _tspBtn)/2);
-    const _tspBlockTop = getBtnY() - sz(6) - _tspBlockH;
-    const _tspCx = _tgcx;
-    const _tspBaseY = _tspBlockTop + _tspPad;
-    const _tspMinusX = _tspCx - _tspBtn/2, _tspMinusY = _tspBaseY;
-    const _tspPlusY = _tspMinusY + _tspBtn + _tspGap + _tspBtn + _tspGap;
-    if (hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspMinusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); _tSpeedHandled = true;
-    }
-    if (!_tSpeedHandled && hitTest(t0.clientX, gameY(t0.clientY), _tspMinusX, _tspPlusY, _tspBtn, _tspBtn)) {
-      playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); _tSpeedHandled = true;
-    }
-    const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
+    const lw = getLaneW(), lsx = getLaneStartX();
     const _laneEnd = lsx + lw * laneCount;
-    const _tLaneMargin = isMobile ? lsx : lw * 0.4;
+    // Fast path: 레인 영역 터치는 즉시 처리 (UI 버튼 계산 스킵)
     for (const touch of e.changedTouches) {
-      if (_tSpeedHandled && touch === t0) continue;
       const _tcx = touch.clientX;
-      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
-      else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+      if (_tcx >= lsx && _tcx < _laneEnd) {
+        const i = Math.floor((_tcx - lsx) / lw);
+        keyHeld[i] = true; keyFlash[i] = 0.3;
+        touchLaneMap.set(touch.identifier, i);
+        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(i);
+        else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+        continue;
+      }
+      // 레인 양 끝 여백 → 가장 가까운 레인으로 스냅
+      const _tLaneMargin = isMobile ? lsx : lw * 0.4;
+      if (_tcx >= lsx - _tLaneMargin && _tcx < lsx) {
+        keyHeld[0] = true; keyFlash[0] = 0.3;
+        touchLaneMap.set(touch.identifier, 0);
+        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(0);
+        continue;
+      }
+      if (_tcx >= _laneEnd && _tcx < _laneEnd + _tLaneMargin) {
+        const last = laneCount - 1;
+        keyHeld[last] = true; keyFlash[last] = 0.3;
+        touchLaneMap.set(touch.identifier, last);
+        if (!songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5))) handleLanePress(last);
+        continue;
+      }
+      // 레인 밖: 일시정지 / 배속 체크
+      const _t0y = gameY(touch.clientY);
+      const _tpbW = sz(48), _tpbH = sz(36);
+      const _tpbX = W - _tpbW - ((isMobile && !isPortrait) ? sz(1) : sz(4)), _tpbY = -safeTop + sz(2);
+      if (_tcx >= _tpbX && _tcx < _tpbX+_tpbW && _t0y >= _tpbY && _t0y < _tpbY+_tpbH) { pauseGame(); return; }
     }
-    // 이전 touchstart가 드롭된 활성 터치 복구 (멀티터치 드롭 대응)
+    // 이전 touchstart가 드롭된 활성 터치 복구
     for (const touch of e.touches) {
       if (touchLaneMap.has(touch.identifier)) continue;
       const _tcx = touch.clientX;
-      if (_tcx < lsx - _tLaneMargin || _tcx >= _laneEnd + _tLaneMargin) continue;
+      if (_tcx < lsx - (isMobile ? lsx : lw*0.4) || _tcx >= _laneEnd + (isMobile ? lsx : lw*0.4)) continue;
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
       keyHeld[i] = true; keyFlash[i] = 0.3;
       touchLaneMap.set(touch.identifier, i);
