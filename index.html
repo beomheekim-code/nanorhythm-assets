@@ -4459,9 +4459,10 @@ addEventListener('wheel', e => {
 
 // Safari gesture(pinch/rotate) 차단 — 2+ 손가락 시 gesture 이벤트가 처리되면
 // touch 이벤트가 지연/드롭될 수 있어 playing 중에는 항상 preventDefault.
-document.addEventListener('gesturestart', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
-document.addEventListener('gesturechange', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
-document.addEventListener('gestureend', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+// ★ capture: true 로 최우선 차단. 내부 gesture 엔진이 더 빨리 포기하도록.
+document.addEventListener('gesturestart', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false, capture: true });
+document.addEventListener('gesturechange', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false, capture: true });
+document.addEventListener('gestureend', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false, capture: true });
 
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
 // 두 가지 dedup 메커니즘 사용:
