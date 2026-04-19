@@ -4501,8 +4501,10 @@ function _gestureAlreadyHandled(x, y) {
 let _inputEventTime = 0;
 // ★ 진단용 카운터 — 경로별 진입 수 분리 표시
 let _diagHandlerEnter = 0;
-let _diagWinTouch = 0, _diagWinPointer = 0; // window 레벨
-let _diagDocTouch = 0, _diagDocPointer = 0; // document 레벨
+let _diagWinTouch = 0, _diagWinPointer = 0; // window 레벨 (state 체크 후)
+let _diagDocTouch = 0, _diagDocPointer = 0; // document 레벨 (state 체크 후)
+let _diagRawTouch = 0; // 상태 체크 이전 touchstart raw count (전역)
+let _diagGuardBlock = 0; // state/gamePaused 체크로 차단된 횟수
 const _diagLaneHit = new Array(8).fill(0);
 function _processPlayingTouch(t) {
   _diagHandlerEnter++;
@@ -4564,7 +4566,8 @@ document.addEventListener('touchstart', e => {
 // ★ window 레벨 백업 리스너 — document 레벨에서 이벤트가 어떤 이유로든 유실될 때 방어.
 //   중복 호출되어도 handleLanePress.note.hit 가 dedup, playEmptyPressSfx 는 50ms 쿨다운으로 억제.
 window.addEventListener('touchstart', e => {
-  if (state !== 'playing' || gamePaused) return;
+  _diagRawTouch += e.changedTouches.length; // ★ 상태 체크 전 raw count
+  if (state !== 'playing' || gamePaused) { _diagGuardBlock += e.changedTouches.length; return; }
   _diagWinTouch += e.changedTouches.length;
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
@@ -7203,14 +7206,14 @@ function renderUI() {
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
   ctx.fillText(window._hudScoreStr || '0', _scoreX, _scoreTopY + _scoreLabelSize + _scoreValueSize);
-  // ★ 진단 카운터 — 경로별 분리. 양손 따닥/따닥 때 어느 경로가 드롭되는지 파악용.
+  // ★ 진단 카운터 — Raw(상태 체크 전) + Block(state/paused 로 차단) + 경로별.
   ctx.font = `${sz(9)}px monospace`; ctx.fillStyle='rgba(255,230,0,0.85)';
   const _diagY1 = _scoreTopY + _scoreLabelSize + _scoreValueSize + sz(12);
-  // Win = window 레벨, Doc = document 레벨. T=touchstart, P=pointerdown.
-  ctx.fillText('Win T:'+_diagWinTouch+' P:'+_diagWinPointer+'  Doc T:'+_diagDocTouch+' P:'+_diagDocPointer, _scoreX, _diagY1);
+  ctx.fillText('Raw:'+_diagRawTouch+' Block:'+_diagGuardBlock+' paused:'+(gamePaused?1:0), _scoreX, _diagY1);
+  ctx.fillText('Win T:'+_diagWinTouch+' P:'+_diagWinPointer+'  Doc T:'+_diagDocTouch+' P:'+_diagDocPointer, _scoreX, _diagY1 + sz(11));
   let _diagStr = 'Enter '+_diagHandlerEnter+' |';
   for (let li=0; li<laneCount; li++) _diagStr += ' L'+li+':'+(_diagLaneHit[li]||0);
-  ctx.fillText(_diagStr, _scoreX, _diagY1 + sz(11));
+  ctx.fillText(_diagStr, _scoreX, _diagY1 + sz(22));
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
