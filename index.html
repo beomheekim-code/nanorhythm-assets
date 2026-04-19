@@ -10370,15 +10370,15 @@ function _onActxStateChange() {
   if (actx.state === 'running') {
     _bgmNeedsResume = true;
     if (_suspendPauseTimer) { clearTimeout(_suspendPauseTimer); _suspendPauseTimer = null; }
-  } else if (actx.state === 'interrupted') {
-    _audioInterrupted = true;
-    if (state === 'playing' && !gamePaused) pauseGame();
-  } else if (actx.state === 'suspended') {
-    // 500ms 지나도 여전히 suspended 면 그때 pause (transient blip 은 무시)
+  } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+    // ★ 'interrupted'/'suspended' 둘 다 500ms 디바운스. iOS 는 rapid SFX 중 순간 interrupted
+    //   상태로 진입했다 즉시 running 복귀하는 경우가 있는데, 즉시 pauseGame 하면 그 찰나의
+    //   탭이 gamePaused early return 으로 차단되어 씹힘 발생. 진짜 전화/알람 같은 장기 인터럽트는
+    //   500ms 안에 복귀 안 하니까 그대로 pause 처리됨.
     if (_suspendPauseTimer) clearTimeout(_suspendPauseTimer);
     _suspendPauseTimer = setTimeout(() => {
       _suspendPauseTimer = null;
-      if (actx && actx.state === 'suspended') {
+      if (actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
         _audioInterrupted = true;
         if (state === 'playing' && !gamePaused) pauseGame();
       }
