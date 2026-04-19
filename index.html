@@ -1633,16 +1633,32 @@ function cancelPass() {
 const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 let devInvincible = false; // 로컬 테스트용 HP 무적
 
-// ===== COVER IMAGE PRELOAD =====
-// cover에 경로가 있으면 Image 객체로 프리로드 (예: cover: 'Music/Cherry Blossom/cover.jpg')
+// ===== COVER IMAGE (LAZY LOAD + LRU) =====
+// ★ 곡 수천 개 확장 대비 — 렌더 시점에만 Image 객체 생성 + 메모리 상한 (LRU eviction).
+//   기존: 전부 미리 new Image() → 수천 동시 fetch + 수천 Image 객체 상주 = 브라우저 과부하.
+//   변경: getCoverImage(idx) 호출 시점에 lazy 생성. LRU 150 개 초과 시 오래된 것부터 제거.
 const coverImages = {};
-songs.forEach((s, i) => {
-  if (s.cover) {
-    const img = new Image();
+const _coverLRU = [];
+const _COVER_CACHE_MAX = 150;
+function getCoverImage(idx) {
+  const s = songs[idx];
+  if (!s || !s.cover) return null;
+  let img = coverImages[idx];
+  if (!img) {
+    img = new Image();
     img.src = assetUrl(s.cover);
-    coverImages[i] = img;
+    coverImages[idx] = img;
   }
-});
+  // LRU 최신화
+  const lruIdx = _coverLRU.indexOf(idx);
+  if (lruIdx >= 0) _coverLRU.splice(lruIdx, 1);
+  _coverLRU.push(idx);
+  while (_coverLRU.length > _COVER_CACHE_MAX) {
+    const evicted = _coverLRU.shift();
+    delete coverImages[evicted];
+  }
+  return img;
+}
 
 // ===== SONG AUDIO =====
 let songAudio = null;
@@ -3312,33 +3328,14 @@ function renderFade() {
 
 // ===== GAME STATE =====
 let state = 'title';
-// ===== CDN 에셋 프리로드 =====
-// ★ 곡 OGG (3~5MB × 46 = 150~200MB) 를 초기에 다운로드하면 모바일에서 치명적으로 느림.
-//   대신 cover 이미지만 (~50KB × 46 = 2MB) preload 해서 select 화면 즉시 반응성 확보.
-//   곡 본체는 preview/startSong 에서 on-demand 로드 → 첫 재생은 다소 느리지만
-//   이후엔 브라우저 캐시로 즉시. 최초 접속 속도 크게 개선.
+// ===== CDN 에셋 프리로드 (수천 곡 대비) =====
+// ★ 수천 곡 확장 대비 — 전부 preload 안 함. cover 도 lazy (getCoverImage), 곡 본체도 on-demand.
+//   기존 preload 로직은 호환성을 위해 남겨두지만 URL 목록은 빈 배열 → 즉시 _preloadDone=true.
+//   _preloadDone 체크하는 곳 (전이 가드) 은 그대로 의미 유지.
 let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0, _preloadStartTime = performance.now();
 function preloadAssets() {
-  const urls = [];
-  for (const s of songs) {
-    if (s.cover) urls.push(assetUrl(s.cover));
-    // s.file (곡 본체 OGG) 는 preload 안 함 — on-demand 로드.
-  }
-  _preloadTotal = urls.length;
-  _preloadLoaded = 0; _preloadFailed = 0;
-  if (_preloadTotal === 0) { _preloadDone = true; return; }
-  let qi = 0;
-  function next() {
-    if (qi >= urls.length) return;
-    if (state === 'playing') { setTimeout(next, 1000); return; }
-    const url = urls[qi++];
-    fetch(url, { mode: 'cors' }).then(r => { if (r.ok) return r.blob(); throw 0; })
-      .then(() => { _preloadLoaded++; })
-      .catch(() => { _preloadFailed++; })
-      .finally(() => { if (_preloadLoaded + _preloadFailed >= _preloadTotal) _preloadDone = true; else next(); });
-  }
-  const concurrency = 4;
-  for (let c = 0; c < concurrency; c++) next();
+  _preloadTotal = 0; _preloadLoaded = 0; _preloadFailed = 0;
+  _preloadDone = true; // 아무것도 preload 안 함 → 즉시 완료
 }
 preloadAssets();
 // 이미 로그인된 경우 Firebase에서 설정 동기화
@@ -6304,7 +6301,7 @@ function render() {
 
     // 커버 이미지
     const _coverCy = _topY + _cr;
-    const _ci = coverImages[curSongIdx];
+    const _ci = getCoverImage(curSongIdx);
     if (_ci && _ci.complete && _ci.naturalWidth > 0) {
       ctx.save();
       ctx.globalAlpha = 0.9;
@@ -9096,11 +9093,12 @@ function renderSelect() {
     ctx.globalAlpha = alpha;
 
     // === 커버 이미지 (회전 안 함 — 항상 정방향) ===
-    if (coverImages[i] && coverImages[i].complete && coverImages[i].naturalWidth > 0) {
+    const _ci2 = getCoverImage(i);
+    if (_ci2 && _ci2.complete && _ci2.naturalWidth > 0) {
       ctx.save();
       ctx.beginPath(); ctx.arc(0, 0, r*0.92, 0, Math.PI*2); ctx.clip();
       const imgSize = r * 1.84;
-      ctx.drawImage(coverImages[i], -imgSize/2, -imgSize/2, imgSize, imgSize);
+      ctx.drawImage(_ci2, -imgSize/2, -imgSize/2, imgSize, imgSize);
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = '#000'; ctx.fill();
       ctx.restore();
