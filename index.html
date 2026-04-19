@@ -4509,31 +4509,26 @@ function _processPlayingTouch(t) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
-  // ★ 같은 탭의 pointerdown↔touchstart 중복 호출 차단 (20ms 락).
-  //   ⚠ e.timeStamp 기반 (_inputEventTime) 으로 비교 — 메인 스레드 스톨로
-  //   이벤트가 batch 전달돼도 실제 탭 시각 차이를 보니까 real-world 연타를 안 씹음.
-  //   handleLanePress/playEmptyPressSfx만 건너뛰고 keyHeld/touchLaneMap은 위에서 이미 처리됨.
-  const _now = _inputEventTime || performance.now();
-  if (_lastLaneHitAt[i] && _now - _lastLaneHitAt[i] < _LANE_HIT_COOLDOWN_MS) return i;
+  // ★ dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
+  //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
+  //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
-  if (_canHit) { handleLanePress(i); _lastLaneHitAt[i] = _now; }
+  if (_canHit) handleLanePress(i);
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
   //   _processPlayingTouch 리팩토링 시 빠뜨렸던 것. iOS 에서 카운트다운 중 무음 regression 원인.
-  else if (!songLoading && countdownTime > 0) { playEmptyPressSfx(i); _lastLaneHitAt[i] = _now; }
+  else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
   return i;
 }
-// pointerdown — ★ 레인 처리 제거. touchstart 한 곳으로 일원화해서 양 이벤트 경쟁 조건 제거.
-//   여기선 pointerup 정리를 위한 pointerId→lane 매핑만 수행 (touchend 드롭 대비).
-//   이전 버전(두 이벤트 모두 handleLanePress 호출 + dedup)은 iOS 고부하에서
-//   미스 후 렌더 스파이크로 pair dedup 이 새 탭을 silent drop 시키는 경쟁 조건이 있었음.
+// pointerdown — ★ 레인 처리 복원. touchstart + pointerdown 양쪽 다 handleLanePress 호출.
+//   iOS Safari 가 두 손 거의 동시 따닥 시 touchstart 를 드롭하거나 코얼레스하는 경우가 있음 →
+//   pointerdown 은 별도 파이프라인이라 덜 영향받아 방어 경로 역할.
+//   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
-  const x = e.clientX, y = e.clientY - safeTop;
-  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-  if (x < lsx) return; // speed btn 영역 — 레인 아님
-  if (y < sz(40) && x > W - sz(52)) return; // pause btn
-  const lane = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-  _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
+  _inputEventTime = e.timeStamp || performance.now();
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
+  _inputEventTime = 0;
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
