@@ -561,6 +561,13 @@ let previewActive = false;
 
 function initAudio() {
   actx = new (window.AudioContext || window.webkitAudioContext)();
+  // ★ iOS 17+ AudioSession API — 'playback' 카테고리로 격상.
+  //   효과: (1) 화면 녹화에 BGM 포함, (2) iOS 가 "미디어 재생 앱" 으로 인식해
+  //   터치 이벤트 throttling 완화, (3) 오디오 세션 suspend/interrupted transient 감소.
+  //   iOS 17 미만 또는 비-iOS 플랫폼에선 navigator.audioSession 자체가 없어 안전하게 무시됨.
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  } catch(e) {}
   masterGain = actx.createGain(); masterGain.gain.value = 0.6;
   masterGain.connect(actx.destination);
   drumBus = actx.createGain(); drumBus.gain.value = 0.65; drumBus.connect(masterGain);
@@ -590,6 +597,12 @@ function routeAudioThroughGain(audioEl, gainValue) {
 
 function resumeAudio() {
   if (!actx) initAudio();
+  // ★ 재설정 (유저 제스처 컨텍스트에서 더 확실히 적용됨)
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== 'playback') {
+      navigator.audioSession.type = 'playback';
+    }
+  } catch(e) {}
   if (actx.state === 'suspended') actx.resume();
   // iOS: 무음 버퍼 재생으로 AudioContext + HTML Audio 동시 unlock
   if (!resumeAudio._unlocked && actx) {
