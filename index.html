@@ -12,8 +12,8 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419280000;
-// ★ tryFinalize skip 조건 버그 핫픽스 — 로딩 100% 에서 멈추던 regression 수정
+window.__BUILD_TS = 20260419290000;
+// ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
     // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
@@ -636,12 +636,7 @@ function routeAudioThroughGain(audioEl, gainValue) {
 
 function resumeAudio() {
   if (!actx) initAudio();
-  // ★ 재설정 (유저 제스처 컨텍스트에서 더 확실히 적용됨)
-  try {
-    if (navigator.audioSession && navigator.audioSession.type !== 'playback') {
-      navigator.audioSession.type = 'playback';
-    }
-  } catch(e) {}
+  // ★ audioSession 은 initAudio 에서 한 번만 설정 — 여기서 매 호출 재설정하면 탭당 오버헤드
   if (actx.state === 'suspended') actx.resume();
   // iOS: 무음 버퍼 재생으로 AudioContext + HTML Audio 동시 unlock
   if (!resumeAudio._unlocked && actx) {
@@ -652,7 +647,11 @@ function resumeAudio() {
     src.start(0);
     resumeAudio._unlocked = true;
   }
-  applyBgmVol();
+  // applyBgmVol 은 볼륨 설정 변경 시에만 필요 — 매 탭마다 호출하면 4~5 HTMLAudio 쓰기
+  if (resumeAudio._lastVol !== volBgm) {
+    resumeAudio._lastVol = volBgm;
+    applyBgmVol();
+  }
 }
 
 const PREVIEW_FADE_OUT = 3; // last 3 seconds fade out
