@@ -12,7 +12,7 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419210000;
+window.__BUILD_TS = 20260419220000;
 (function(){
   try {
     // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
@@ -4639,6 +4639,24 @@ document.addEventListener('touchstart', e => {
     resumeGame(); return;
   }
   resumeAudio();
+  // ★ 업데이트 모달 버튼 — 인게임 중 아닐 때 최우선 처리
+  if (window.__updateAvailable && window._updateModalBtn && state !== 'playing') {
+    const t0 = e.changedTouches[0];
+    const btn = window._updateModalBtn;
+    if (t0 && hitTest(t0.clientX, gameY(t0.clientY), btn.x, btn.y, btn.w, btn.h)) {
+      // window.close() 시도 (in-app 브라우저는 성공할 수도)
+      try { window.close(); } catch(e) {}
+      // close 실패 시 다른 URL 로 강제 이동 (캐시 bust)
+      setTimeout(() => {
+        try {
+          location.replace(location.pathname + '?_v=' + Date.now() + location.hash);
+        } catch(e) {}
+      }, 200);
+      return;
+    }
+    // 모달 떠 있으면 다른 입력 전부 무시
+    return;
+  }
   // iOS 알람/전화 후 BGM 복구 (사용자 제스처 컨텍스트)
   if (_bgmNeedsResume) {
     _bgmNeedsResume = false;
@@ -10570,21 +10588,40 @@ function loop(time) {
     ctx.fillText('나가기', W/2, exBY + exBH*0.65);
     window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
   }
-  // ★ 업데이트 감지 배너 — 인게임 방해 안 하도록 state !== 'playing' 일 때만 표시.
-  //   유저에게 "브라우저 완전히 닫고 다시 열기" 안내 (새로고침은 iOS 에서 캐시 못 날림).
+  // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
+  //   유저 강제로 닫기 버튼 누르게 해서 window.close() + 재로드 시도.
   if (window.__updateAvailable && state !== 'playing') {
-    const _ubW = Math.min(sz(340), W - sz(24));
-    const _ubH = sz(56);
-    const _ubX = (W - _ubW) / 2;
-    const _ubY = -safeTop + sz(8);
-    ctx.fillStyle = 'rgba(80,40,20,0.95)'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
-    ctx.strokeStyle = '#ffb050'; ctx.lineWidth = 2; rrStroke(_ubX, _ubY, _ubW, _ubH, sz(8));
-    ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(12)}px sans-serif`;
+    // 검은 오버레이
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
+    // 모달 박스
+    const _umW = Math.min(sz(320), W - sz(32));
+    const _umH = sz(200);
+    const _umX = (W - _umW) / 2;
+    const _umY = (H - _umH) / 2;
+    ctx.fillStyle = 'rgba(30,20,10,0.98)'; rrFill(_umX, _umY, _umW, _umH, sz(14));
+    ctx.strokeStyle = '#ffb050'; ctx.lineWidth = 3; rrStroke(_umX, _umY, _umW, _umH, sz(14));
+    // 제목
+    ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('⚠ 업데이트가 있습니다', W/2, _ubY + sz(16));
-    ctx.fillStyle = '#fff'; ctx.font = `${sz(11)}px sans-serif`;
-    ctx.fillText('브라우저 탭을 완전히 닫고 다시 열어주세요', W/2, _ubY + sz(36));
+    ctx.fillText('⚠ 새 업데이트 적용 필요', _umX + _umW/2, _umY + sz(32));
+    // 본문
+    ctx.fillStyle = '#fff'; ctx.font = `${sz(12)}px sans-serif`;
+    ctx.fillText('새 버전이 배포되었습니다.', _umX + _umW/2, _umY + sz(68));
+    ctx.fillText('아래 버튼을 눌러 업데이트를 적용해주세요.', _umX + _umW/2, _umY + sz(88));
+    ctx.fillStyle = 'rgba(255,200,120,0.75)'; ctx.font = `${sz(10)}px sans-serif`;
+    ctx.fillText('(버튼이 작동 안 하면 탭을 직접 닫아주세요)', _umX + _umW/2, _umY + sz(110));
+    // 확인 버튼
+    const _ubW = sz(180), _ubH = sz(42);
+    const _ubX = _umX + (_umW - _ubW) / 2;
+    const _ubY = _umY + _umH - _ubH - sz(16);
+    ctx.fillStyle = '#ffb050'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.fillStyle = '#1a0f00'; ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.fillText('업데이트 적용하기', _ubX + _ubW/2, _ubY + _ubH/2);
     ctx.textBaseline = 'alphabetic';
+    window._updateModalBtn = { x: _ubX, y: _ubY, w: _ubW, h: _ubH };
+  } else {
+    window._updateModalBtn = null;
   }
   renderAd();
   renderFade();
