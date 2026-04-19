@@ -11,9 +11,6 @@
 <meta http-equiv="Expires" content="0">
 <title>NANO RHYTHM</title>
 <script>
-// ★ 공격적 캐시 무력화 — 매 세션 첫 로드 시 URL 에 타임스탬프 쿼리 부여.
-//   이미 _v 쿼리 있으면 재사용 (같은 세션 내 새로고침엔 유지). iframe 안전.
-//   iOS Safari/Chrome 은 meta Cache-Control 자주 무시하므로 URL 변화로 강제 fresh 로드.
 (function(){
   try {
     if (location.search.indexOf('_v=') === -1) {
@@ -4472,10 +4469,9 @@ addEventListener('wheel', e => {
 
 // Safari gesture(pinch/rotate) 차단 — 2+ 손가락 시 gesture 이벤트가 처리되면
 // touch 이벤트가 지연/드롭될 수 있어 playing 중에는 항상 preventDefault.
-// ★ gesturestart 한 번만 preventDefault. gesturechange 는 연속 발화라 매 프레임
-//   capture handler 돌면 Chrome iOS 메인 스레드 점유해서 렌더 stutter 유발.
-//   start 에서 한 번 preventDefault 하면 뒤따르는 change/end 도 iOS 내부에서 억제됨.
 document.addEventListener('gesturestart', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturechange', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gestureend', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
 
 // ★ playing 터치 — capture phase (최우선, preventDefault 포함)
 // 두 가지 dedup 메커니즘 사용:
@@ -4492,7 +4488,6 @@ let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart res
 //   2차 탭을 오판으로 씹는 경쟁 조건이 있어서 레인별 타임스탬프로 교체.
 //   20ms 락은 pair 검출엔 충분(실측 <5ms)하고 사람 최대 연타(~20Hz=50ms)는 안 걸림.
 const _lastLaneHitAt = [];
-const _lastLaneHitX = [];
 const _LANE_HIT_COOLDOWN_MS = 20;
 function _isRecentGesture(x, y) {
   const now = performance.now();
@@ -4549,9 +4544,9 @@ function _processPlayingTouch(t) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
-  // ★ dedup 제거 (ebb898b 상태로 복원) — 사용자 제보에 따르면 이 상태가 매끄러움.
-  //   1탭 2히트 버그는 handleLanePress 의 note.hit 플래그로 동일 노트 중복 방지되지만,
-  //   가까운 다음 노트는 맞을 수 있음 (기존 버그). 매끄러움 우선 트레이드오프.
+  // ★ dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
+  //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
+  //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
@@ -4563,8 +4558,6 @@ function _processPlayingTouch(t) {
 //   iOS Safari 가 두 손 거의 동시 따닥 시 touchstart 를 드롭하거나 코얼레스하는 경우가 있음 →
 //   pointerdown 은 별도 파이프라인이라 덜 영향받아 방어 경로 역할.
 //   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
-// ★ pointerdown + touchstart 이중 경로 — 한쪽 드롭시 다른쪽이 방어.
-//   _processPlayingTouch 내부 15ms + 좌표 dedup 이 1탭 2히트 버그 방지.
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   _inputEventTime = e.timeStamp || performance.now();
@@ -4572,10 +4565,9 @@ document.addEventListener('pointerdown', e => {
   if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
   _inputEventTime = 0;
 }, { capture: true });
-// ★ touchstart 가 handleLanePress 단독 호출. 두 손 동시 탭이 한 이벤트에 모이므로
-//   iOS 멀티터치 드롭에 강함. 1탭 2히트 버그도 없음 (handleLanePress 호출 경로 단일).
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
+  // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     _processPlayingTouch(e.changedTouches[ti]);
@@ -5883,12 +5875,9 @@ function update(dt) {
   shakeX *= 0.82; shakeY *= 0.82;
   for (let i=0;i<laneCount;i++) keyFlash[i] = Math.max(0, keyFlash[i]-dt*2);
   if (judgmentTimer > 0) { judgmentTimer -= dt; if (judgmentTimer <= 0) judgmentPriority = 0; }
-  // ★ 모바일 부하 감소: 40→15, 스폰 루프 1회로
-  const _fpMax = isMobile ? 15 : 40;
-  const _fpSpawns = isMobile ? 1 : 2;
-  if (fever && feverParticles.length < _fpMax) {
+  if (fever && feverParticles.length < 40) {
     // Spawn side fire particles during fever
-    for (let i = 0; i < _fpSpawns; i++) {
+    for (let i = 0; i < 2; i++) {
       const side = Math.random() > 0.5 ? 0 : W;
       const col = `hsl(${Math.random()*60+20},100%,${55+Math.random()*35}%)`;
       feverParticles.push({ x: side + (Math.random()-0.5)*30, y: H * (0.3 + Math.random()*0.6),
@@ -6046,8 +6035,9 @@ function update(dt) {
             window._absNodes.push(null);
             window._absGains.push(null);
           }
-          // HTML Audio는 뮤트 유지 (position 참조용으로만 유지)
-          if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = 0; allStemAudios[i].play().catch(()=>{}); }
+          // ★ HTML Audio 완전 정지 — 이중 재생이 iOS 에서 오디오 글리치 + 터치 throttling 유발.
+          //   position 참조는 actx.currentTime - _absStartCtx 로 이미 계산되므로 불필요.
+          if (allStemAudios[i]) { allStemAudios[i].pause(); allStemAudios[i].currentTime = 0; }
         }
       } else if (songAudio) {
         songAudio.currentTime = 0; songAudio.play().catch(()=>{});
@@ -6463,9 +6453,8 @@ function render() {
   // In-game ambient particles
   const lsx = _fLaneStartX, totalLW = _fTotalLW;
   const songCol = curSong ? curSong.color : '#fff';
-  // Spawn various types (모바일 부하 감소: 25→10, 스폰 확률도 낮춤)
-  const _gpMax = isMobile ? 10 : 25;
-  if (gameParticles.length < _gpMax && (!isMobile || Math.random() < 0.5)) {
+  // Spawn various types
+  if (gameParticles.length < 25) {
     const type = Math.random();
     if (type < 0.5) {
       // Side streaks - shoot up from edges
@@ -6667,10 +6656,8 @@ function renderLanes() {
   ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, laneTop); ctx.lineTo(lsx + lw*laneCount, hitY+_s10); ctx.stroke();
 
   // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 일시정지 시 gameTime과 함께 멈춤)
-  // ★ 모바일에서는 2박마다 (부하 감소)
   if (state === 'playing' && noteSpeed > 0) {
-    const beatMul = isMobile ? 2 : 1;
-    const railGap = noteSpeed * (60 / (curSong ? curSong.bpm : 120)) * beatMul;
+    const railGap = noteSpeed * (60 / (curSong ? curSong.bpm : 120)); // 1박 간격
     const tw = lw * laneCount;
     const offset = (gameTime * noteSpeed) % railGap; // gameTime 기반 (일시정지 시 정지)
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
