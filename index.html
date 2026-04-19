@@ -4522,16 +4522,18 @@ function _processPlayingTouch(t) {
   else if (!songLoading && countdownTime > 0) { playEmptyPressSfx(i); _lastLaneHitAt[i] = _now; }
   return i;
 }
-// pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
+// pointerdown — ★ 레인 처리 제거. touchstart 한 곳으로 일원화해서 양 이벤트 경쟁 조건 제거.
+//   여기선 pointerup 정리를 위한 pointerId→lane 매핑만 수행 (touchend 드롭 대비).
+//   이전 버전(두 이벤트 모두 handleLanePress 호출 + dedup)은 iOS 고부하에서
+//   미스 후 렌더 스파이크로 pair dedup 이 새 탭을 silent drop 시키는 경쟁 조건이 있었음.
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
-  _inputEventTime = e.timeStamp || performance.now();
-  // ★ dedup 제거 — 어떤 경우든 처리. touchstart 가 뒤이어 오면 queue 로 dedup.
-  //   Silent drop 을 최우선으로 없앰. pair delay > 40ms 로 인한 cosmetic 빨간 flash 는 감수.
-  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
-  _markGesture(e.clientX, e.clientY);
-  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
-  _inputEventTime = 0;
+  const x = e.clientX, y = e.clientY - safeTop;
+  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+  if (x < lsx) return; // speed btn 영역 — 레인 아님
+  if (y < sz(40) && x > W - sz(52)) return; // pause btn
+  const lane = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+  _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
