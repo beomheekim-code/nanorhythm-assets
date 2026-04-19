@@ -5538,10 +5538,34 @@ function startSong(idx) {
   let _energyStemsDone = 0, _energyStemsTotal = stemNames.filter((_,i) => !ALWAYS_AUDIBLE_STEMS.includes(i)).length;
 
   function finishLoading() {
-    songLoading = false;
-    // onset 모드: 카운트다운 없이 바로 시작 (레일 선 연출로 대체)
-    countdownTime = 3.5; // onset 모드도 동일 (레일 연출 시간)
-    lastTime = 0;
+    const _actuallyFinish = () => {
+      if (!songLoading) return; // 이미 끝남 (timeout + statechange 이중 호출 방지)
+      songLoading = false;
+      // onset 모드: 카운트다운 없이 바로 시작 (레일 선 연출로 대체)
+      countdownTime = 3.5; // onset 모드도 동일 (레일 연출 시간)
+      lastTime = 0;
+    };
+    // ★ iOS 에서 actx.state 가 'running' 아니면 탭 시 src.start() 가 silently drop 됨.
+    //   카운트다운 시작 전에 actx 가 running 으로 확실히 전환된 뒤 countdown 시작.
+    if (actx && actx.state !== 'running') {
+      try { actx.resume().catch(()=>{}); } catch(e) {}
+      // 무음 버퍼로 iOS unlock 재프로드 (resumeAudio._unlocked 이미 true 여도 한 번 더)
+      try {
+        const b = actx.createBuffer(1, 1, actx.sampleRate);
+        const s = actx.createBufferSource();
+        s.buffer = b; s.connect(actx.destination); s.start(0);
+      } catch(e) {}
+      const _onRun = () => {
+        if (actx.state !== 'running') return;
+        try { actx.removeEventListener('statechange', _onRun); } catch(e) {}
+        _actuallyFinish();
+      };
+      try { actx.addEventListener('statechange', _onRun); } catch(e) {}
+      // 1.5s 안전 timeout — statechange 가 안 뜨거나 iOS 가 계속 suspended 면 그냥 시작
+      setTimeout(_actuallyFinish, 1500);
+    } else {
+      _actuallyFinish();
+    }
   }
 
   function tryFinalize() {
