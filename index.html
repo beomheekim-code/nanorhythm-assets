@@ -4557,12 +4557,18 @@ document.addEventListener('pointerdown', e => {
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
-  // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
-  _inputEventTime = e.timeStamp || performance.now();
+  // ★ pointerdown 이 handleLanePress 단독 호출. touchstart 는 touch identifier
+  //   → lane 매핑만 (touchend cleanup 보장). 이전에 양쪽 다 handleLanePress
+  //   호출 시 연속 노트 1탭 2히트 버그 발생 (윈도우 내 다음 노트도 맞춰짐).
+  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
-    _processPlayingTouch(e.changedTouches[ti]);
+    const t = e.changedTouches[ti];
+    const x = t.clientX, y = t.clientY - safeTop;
+    if (x < lsx) continue; // speed btn 영역
+    if (y < sz(40) && x > W - sz(52)) continue; // pause btn
+    const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+    touchLaneMap.set(t.identifier, i);
   }
-  _inputEventTime = 0;
 }, { passive: true, capture: true });
 // ★ window 레벨 백업 리스너 제거 — 중복 핸들러가 iOS 메인 스레드 부하 → 오히려
 //   throttling 유발 의심. document 레벨 단일 경로로 충분.
