@@ -12,8 +12,8 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-// fix: preview 무음 regression — audioSession 재설정 복원
-window.__BUILD_TS = 20260419330000;
+// fix: 인게임 중 update fetch skip — 터치 dispatch 여유 확보
+window.__BUILD_TS = 20260419340000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -26,6 +26,10 @@ window.__BUILD_TS = 20260419330000;
     // 주기적 업데이트 감지 — 서버 최신 HTML 에서 __BUILD_TS 추출 비교
     async function _checkUpdate(){
       if (document.hidden || window.__updateAvailable) return; // 이미 감지됐으면 skip
+      // ★ 인게임 중엔 fetch/regex 가 main thread 부담 → 터치 dispatch 지연 원인.
+      //   모달 자체가 state !== 'playing' 에서만 뜨고, transitionTo 에서 playing 종료 시
+      //   즉시 _checkUpdate() 호출하므로 인게임 중 체크는 순수 낭비.
+      if (typeof state !== 'undefined' && state === 'playing') return;
       try {
         // full URL 사용 (iframe proxy/kplay 경로 대응). 캐시 bust 쿼리 추가.
         var u = location.href.split('#')[0];
