@@ -448,22 +448,19 @@ function stopShopBgm() {
 }
 
 function startTitleBgm() {
-  // ★ 이미 실제로 재생 중이면 skip (paused=false 로 확인)
   if (titleBgmPlaying && !titleBgm.paused) return;
   try {
+    // ★ iOS 오디오 세션 강제 활성화 — HTML Audio 와 actx 는 같은 세션 공유
+    if (actx && actx.state !== 'running') { try { actx.resume(); } catch(e) {} }
+    // ★ load() 를 gesture 컨텍스트 안에서 sync 하게 호출 → iOS 가 element 잠금 해제
+    try { titleBgm.load(); } catch(e) {}
     titleBgm.currentTime = 0;
     titleBgm.volume = getTitleBgmMaxVol();
     const p = titleBgm.play();
     if (p && p.then) {
-      // play() 성공 시에만 playing=true 세팅 → 실패 시 다음 gesture 에서 재시도 가능
-      p.then(() => { titleBgmPlaying = true; }).catch(() => {
-        try {
-          titleBgm.load();
-          titleBgm.play().then(() => { titleBgmPlaying = true; }).catch(()=>{});
-        } catch(e) {}
-      });
+      p.then(() => { titleBgmPlaying = true; }).catch(()=>{});
     } else {
-      titleBgmPlaying = true; // 구형 브라우저 (play 가 Promise 반환 안 함)
+      titleBgmPlaying = true;
     }
   } catch(e) {}
 }
@@ -4517,15 +4514,10 @@ function _processPlayingTouch(t) {
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   _inputEventTime = e.timeStamp || performance.now();
-  let lane;
-  // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip. (페어링 큐 40ms TTL)
-  if (_isRecentGesture(e.clientX, e.clientY) >= 0) {
-    const _lwP = _fLw || getLaneW(), _lsxP = _fLsx || getLaneStartX();
-    lane = Math.max(0, Math.min(laneCount - 1, Math.floor((e.clientX - _lsxP) / _lwP)));
-  } else {
-    lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
-    _markGesture(e.clientX, e.clientY);
-  }
+  // ★ dedup 제거 — 어떤 경우든 처리. touchstart 가 뒤이어 오면 queue 로 dedup.
+  //   Silent drop 을 최우선으로 없앰. pair delay > 40ms 로 인한 cosmetic 빨간 flash 는 감수.
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  _markGesture(e.clientX, e.clientY);
   if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
   _inputEventTime = 0;
 }, { capture: true });
@@ -5545,9 +5537,21 @@ function startSong(idx) {
   let _energyStemsDone = 0, _energyStemsTotal = stemNames.filter((_,i) => !ALWAYS_AUDIBLE_STEMS.includes(i)).length;
 
   function finishLoading() {
+    // ★ 네트워크 느린 경우: stem buffer 하나도 디코딩 안 되어 있으면 2초 더 기다림 (최대 10회 = 20초).
+    //   기본 timeout (15~30초) 만으로는 불충분한 슬로우 케이스 대응. buffer 없이 countdown 시작하면
+    //   ABS play 실패 + HTML 도 버퍼 부족으로 무음 — 인게임 BGM 안 들리는 이슈 방지.
+    if (curSong && curSong.stemDir && stemCount > 0) {
+      const decodedCount = Object.keys(stemAudioBuffers).filter(k => stemAudioBuffers[k]).length;
+      finishLoading._retryCount = (finishLoading._retryCount || 0);
+      if (decodedCount === 0 && finishLoading._retryCount < 10) {
+        finishLoading._retryCount++;
+        setTimeout(finishLoading, 2000);
+        return;
+      }
+    }
+    finishLoading._retryCount = 0;
     songLoading = false;
-    // onset 모드: 카운트다운 없이 바로 시작 (레일 선 연출로 대체)
-    countdownTime = 3.5; // onset 모드도 동일 (레일 연출 시간)
+    countdownTime = 3.5;
     lastTime = 0;
   }
 
@@ -5680,8 +5684,8 @@ function startSong(idx) {
         }, () => { console.warn('iOS decodeAudioData failed:', path); });
       }).catch(()=>{});
     }
-    // 타임아웃 (iOS는 네트워크 느릴 수 있으니 15초)
-    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 15000);
+    // 타임아웃 30초 (iOS 느린 네트워크 대응). finishLoading 에서 buffer 없으면 추가 20초 재시도.
+    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 30000);
   } else if (curSong.stemDir && stemCount > 0) {
     let loaded = 0, failed = 0;
     pulseStemAudios = [];
@@ -5763,8 +5767,8 @@ function startSong(idx) {
         }
       }, { once: true });
     }
-    // 타임아웃: 10초 안에 로딩 안 되면 강제 시작
-    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 10000);
+    // 타임아웃 30초 (느린 네트워크 대응). finishLoading 에서 buffer 없으면 추가 20초 재시도.
+    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 30000);
   } else {
     _energyReady = true; // 비스템곡: 에너지 분석 없음
     songAudio = new Audio(assetUrl(curSong.file));
