@@ -12,7 +12,7 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419250000;
+window.__BUILD_TS = 20260419260000;
 (function(){
   try {
     // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
@@ -21,21 +21,30 @@ window.__BUILD_TS = 20260419250000;
       location.replace(location.pathname + location.search + sep + '_v=' + Date.now() + location.hash);
       return;
     }
-    // 주기적 업데이트 감지 — 서버의 최신 HTML 에서 __BUILD_TS 추출 비교
+    // 주기적 업데이트 감지 — 서버 최신 HTML 에서 __BUILD_TS 추출 비교
     async function _checkUpdate(){
-      if (document.hidden) return;
+      if (document.hidden || window.__updateAvailable) return; // 이미 감지됐으면 skip
       try {
-        var r = await fetch(location.pathname + '?__chk=' + Date.now(), {cache:'no-store'});
+        // full URL 사용 (iframe proxy/kplay 경로 대응). 캐시 bust 쿼리 추가.
+        var u = location.href.split('#')[0];
+        u += (u.indexOf('?') === -1 ? '?' : '&') + '__chk=' + Date.now();
+        var r = await fetch(u, {cache:'no-store'});
+        if (!r.ok) return;
         var txt = await r.text();
         var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
-        if (m && parseInt(m[1]) > window.__BUILD_TS) {
-          window.__updateAvailable = true;
+        if (m) {
+          var srv = parseInt(m[1]);
+          if (srv > window.__BUILD_TS) {
+            console.log('[update] detected:', srv, '>', window.__BUILD_TS);
+            window.__updateAvailable = true;
+          }
         }
-      } catch(e) {}
+      } catch(e) { console.warn('[update] check failed:', e); }
     }
-    // 페이지 로드 30초 후 첫 체크, 이후 3분마다
-    setTimeout(_checkUpdate, 30000);
-    setInterval(_checkUpdate, 180000);
+    // 10초 후 첫 체크, 이후 60초마다. visibilitychange 에서도 체크 (백그라운드 복귀 시).
+    setTimeout(_checkUpdate, 10000);
+    setInterval(_checkUpdate, 60000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) _checkUpdate(); });
   } catch(e) {}
 })();
 </script>
