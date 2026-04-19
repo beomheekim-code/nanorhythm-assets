@@ -5565,6 +5565,12 @@ function startSong(idx) {
   _lastLaneHitAt.length = 0;
   _pauseGestureAt = 0;
   _inputEventTime = 0;
+  // ★ 진단 카운터도 곡 시작마다 리셋 — 인게임 순수 데이터만 보기 위해
+  _diagHandlerEnter = 0;
+  _diagWinTouch = 0; _diagWinPointer = 0;
+  _diagDocTouch = 0; _diagDocPointer = 0;
+  _diagRawTouch = 0; _diagGuardBlock = 0;
+  for (let _li = 0; _li < _diagLaneHit.length; _li++) _diagLaneHit[_li] = 0;
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
