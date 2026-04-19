@@ -3313,12 +3313,16 @@ function renderFade() {
 // ===== GAME STATE =====
 let state = 'title';
 // ===== CDN 에셋 프리로드 =====
+// ★ 곡 OGG (3~5MB × 46 = 150~200MB) 를 초기에 다운로드하면 모바일에서 치명적으로 느림.
+//   대신 cover 이미지만 (~50KB × 46 = 2MB) preload 해서 select 화면 즉시 반응성 확보.
+//   곡 본체는 preview/startSong 에서 on-demand 로드 → 첫 재생은 다소 느리지만
+//   이후엔 브라우저 캐시로 즉시. 최초 접속 속도 크게 개선.
 let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0, _preloadStartTime = performance.now();
 function preloadAssets() {
   const urls = [];
   for (const s of songs) {
     if (s.cover) urls.push(assetUrl(s.cover));
-    if (s.file) urls.push(assetUrl(s.file));
+    // s.file (곡 본체 OGG) 는 preload 안 함 — on-demand 로드.
   }
   _preloadTotal = urls.length;
   _preloadLoaded = 0; _preloadFailed = 0;
