@@ -10309,14 +10309,29 @@ function pauseGame() {
 let _prevActxState = ''; // actx 상태 전환 감지용
 let _bgmNeedsResume = false;
 let _audioInterrupted = false;
+let _suspendPauseTimer = null; // transient suspended blip 무시용 디바운스
 // iOS 오디오 인터럽트 복구 (알람/전화 후)
+// ★ iOS 오디오 컨텍스트는 노드 생성/SFX 재생 등으로 짧게 suspended 됐다가 즉시 running 복귀하는 경우 있음.
+//   이걸 즉시 pauseGame 하면 MISS/따닥 시 flash 없이 게임이 일시 정지 → 다음 탭으로 자동 resume 되는
+//   silent drop 증상 유발. 'suspended' 는 500ms 디바운스, 'interrupted' 만 즉시 pause.
 function _onActxStateChange() {
   if (!actx) return;
   if (actx.state === 'running') {
     _bgmNeedsResume = true;
-  } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+    if (_suspendPauseTimer) { clearTimeout(_suspendPauseTimer); _suspendPauseTimer = null; }
+  } else if (actx.state === 'interrupted') {
     _audioInterrupted = true;
     if (state === 'playing' && !gamePaused) pauseGame();
+  } else if (actx.state === 'suspended') {
+    // 500ms 지나도 여전히 suspended 면 그때 pause (transient blip 은 무시)
+    if (_suspendPauseTimer) clearTimeout(_suspendPauseTimer);
+    _suspendPauseTimer = setTimeout(() => {
+      _suspendPauseTimer = null;
+      if (actx && actx.state === 'suspended') {
+        _audioInterrupted = true;
+        if (state === 'playing' && !gamePaused) pauseGame();
+      }
+    }, 500);
   }
 }
 if (actx) {
