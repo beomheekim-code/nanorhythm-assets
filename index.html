@@ -4499,6 +4499,10 @@ function _processPlayingTouch(t) {
 // pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  // ★ Safari 의 엣지 스와이프/pinch/롱프레스 gesture recognizer 에게
+  //   "이 pointer 는 내가 통제한다" 고 명시 → 해당 pointer 는 gesture 로 재해석 안 됨
+  //   → 엣지 근처/2 손가락 근접 등에서 터치 지연/드롭 감소.
+  try { if (e.target && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch(err) {}
   _inputEventTime = e.timeStamp || performance.now();
   let lane;
   // 같은 제스처의 touchstart가 이미 처리했으면 재처리 skip. (페어링 큐 40ms TTL)
@@ -5579,11 +5583,13 @@ function startSong(idx) {
     if (usingStemMode) {
       for (let k = 0; k < allStemAudios.length; k++) {
         if (allStemAudios[k]) {
-          // 로딩 중 미리 seek+play+pause → 브라우저가 오디오 버퍼링 완료
-          // 카운트다운 끝에서 play()만 하면 끊김 없음
+          // ★ iOS: play() 만 하고 pause() 안 함 → HTML Audio 세션 카운트다운 내내 활성 유지
+          //    → iOS 오디오 세션 깨어있음 → actx 가 내부적으로 dormant 안 됨
+          //    → 카운트다운 중 빈노트 SFX (src.start) 가 silently drop 안 됨.
+          //    카운트다운 끝에서 currentTime=0 리셋 후 play() 다시 호출해 BGM 시작 (기존 로직).
           allStemAudios[k].currentTime = 0;
           allStemAudios[k].volume = 0;
-          allStemAudios[k].play().then(() => { allStemAudios[k].pause(); allStemAudios[k].currentTime = 0; }).catch(()=>{});
+          allStemAudios[k].play().catch(()=>{});
         }
       }
       // 펄스 오디오 생성
