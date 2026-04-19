@@ -6036,9 +6036,8 @@ function update(dt) {
             window._absNodes.push(null);
             window._absGains.push(null);
           }
-          // ★ HTML Audio 완전 정지 — 이중 재생이 iOS 에서 오디오 글리치 + 터치 throttling 유발.
-          //   position 참조는 actx.currentTime - _absStartCtx 로 이미 계산되므로 불필요.
-          if (allStemAudios[i]) { allStemAudios[i].pause(); allStemAudios[i].currentTime = 0; }
+          // HTML Audio는 뮤트 유지 (position 참조용으로만 유지)
+          if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = 0; allStemAudios[i].play().catch(()=>{}); }
         }
       } else if (songAudio) {
         songAudio.currentTime = 0; songAudio.play().catch(()=>{});
