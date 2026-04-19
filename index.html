@@ -578,21 +578,6 @@ function routeAudioThroughGain(audioEl, gainValue) {
   } catch(e) { return null; } // 이미 연결된 경우 에러
 }
 
-// ★ iOS keep-alive: actx.state 가 'running' 이어도 아무 source 없으면 suspended 로 돌아가거나
-//    신규 source 를 silently drop 하는 경우 있음. 무음 loop 을 깔아두면 actx 가 진짜로 계속 running.
-let _actxKeepAliveSrc = null;
-function _ensureActxKeepAlive() {
-  if (!actx || _actxKeepAliveSrc) return;
-  try {
-    const buf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate); // 0.5s 무음
-    const src = actx.createBufferSource();
-    src.buffer = buf; src.loop = true;
-    const g = actx.createGain(); g.gain.value = 0;
-    src.connect(g); g.connect(actx.destination);
-    src.start(0);
-    _actxKeepAliveSrc = src;
-  } catch(e) {}
-}
 function resumeAudio() {
   if (!actx) initAudio();
   if (actx.state === 'suspended') actx.resume();
@@ -605,7 +590,6 @@ function resumeAudio() {
     src.start(0);
     resumeAudio._unlocked = true;
   }
-  _ensureActxKeepAlive(); // 무음 loop 으로 actx running 상태 유지
   applyBgmVol();
 }
 
