@@ -4546,8 +4546,7 @@ document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
   _inputEventTime = e.timeStamp || performance.now();
-  // ★ 좌표 dedup 제거 — _processPlayingTouch 내부 레인별 20ms 락으로 통일.
-  //   (이전 _isRecentGesture 큐 방식은 따닥 연타 시 2차 탭을 1차 pointerdown 마크로 오판해 씹는 경쟁 조건 있음)
+  // ★ 좌표 dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
     const lane = _processPlayingTouch(t);
@@ -4555,6 +4554,22 @@ document.addEventListener('touchstart', e => {
   }
   _inputEventTime = 0;
 }, { passive: false, capture: true });
+// ★ window 레벨 백업 리스너 — document 레벨에서 이벤트가 어떤 이유로든 유실될 때 방어.
+//   중복 호출되어도 handleLanePress.note.hit 가 dedup, playEmptyPressSfx 는 50ms 쿨다운으로 억제.
+window.addEventListener('touchstart', e => {
+  if (state !== 'playing' || gamePaused) return;
+  _inputEventTime = e.timeStamp || performance.now();
+  for (let ti = 0; ti < e.changedTouches.length; ti++) {
+    _processPlayingTouch(e.changedTouches[ti]);
+  }
+  _inputEventTime = 0;
+}, { passive: true, capture: true });
+window.addEventListener('pointerdown', e => {
+  if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _inputEventTime = e.timeStamp || performance.now();
+  _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  _inputEventTime = 0;
+}, { capture: true });
 // pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
 document.addEventListener('pointerup', e => {
   if (e.pointerType === 'mouse') return;
