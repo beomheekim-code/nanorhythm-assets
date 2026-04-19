@@ -4499,8 +4499,10 @@ function _gestureAlreadyHandled(x, y) {
 // ★ 탭 이벤트 실제 발생 시각 (DOMHighResTimeStamp) — 이벤트 핸들러 진입 시 세팅.
 //   렌더 프레임이 느려서 이벤트 dispatch 가 지연된 경우 handleLanePress 가 이 값으로 보정.
 let _inputEventTime = 0;
-// ★ 진단용 카운터 — 화면 좌상단에 총 진입 수 + 레인별 표시
+// ★ 진단용 카운터 — 경로별 진입 수 분리 표시
 let _diagHandlerEnter = 0;
+let _diagWinTouch = 0, _diagWinPointer = 0; // window 레벨
+let _diagDocTouch = 0, _diagDocPointer = 0; // document 레벨
 const _diagLaneHit = new Array(8).fill(0);
 function _processPlayingTouch(t) {
   _diagHandlerEnter++;
@@ -4542,6 +4544,7 @@ function _processPlayingTouch(t) {
 //   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _diagDocPointer++;
   _inputEventTime = e.timeStamp || performance.now();
   const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
   if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
@@ -4551,6 +4554,7 @@ document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
   //   non-passive 는 iOS 가 "preventDefault 대기" 로 다음 이벤트 dispatch 를 미룸 → rapid tap 드롭 원인.
+  _diagDocTouch += e.changedTouches.length;
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     _processPlayingTouch(e.changedTouches[ti]);
@@ -4561,6 +4565,7 @@ document.addEventListener('touchstart', e => {
 //   중복 호출되어도 handleLanePress.note.hit 가 dedup, playEmptyPressSfx 는 50ms 쿨다운으로 억제.
 window.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
+  _diagWinTouch += e.changedTouches.length;
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     _processPlayingTouch(e.changedTouches[ti]);
@@ -4569,6 +4574,7 @@ window.addEventListener('touchstart', e => {
 }, { passive: true, capture: true });
 window.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _diagWinPointer++;
   _inputEventTime = e.timeStamp || performance.now();
   _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
   _inputEventTime = 0;
@@ -7197,12 +7203,14 @@ function renderUI() {
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
   ctx.fillText(window._hudScoreStr || '0', _scoreX, _scoreTopY + _scoreLabelSize + _scoreValueSize);
-  // ★ 진단 카운터 — 스코어 아래에 작게 표시. 터치 진입 총 수 + 레인별.
-  ctx.font = `${sz(10)}px monospace`; ctx.fillStyle='rgba(255,230,0,0.85)';
-  const _diagY = _scoreTopY + _scoreLabelSize + _scoreValueSize + sz(14);
-  let _diagStr = 'TAP '+_diagHandlerEnter+' |';
+  // ★ 진단 카운터 — 경로별 분리. 양손 따닥/따닥 때 어느 경로가 드롭되는지 파악용.
+  ctx.font = `${sz(9)}px monospace`; ctx.fillStyle='rgba(255,230,0,0.85)';
+  const _diagY1 = _scoreTopY + _scoreLabelSize + _scoreValueSize + sz(12);
+  // Win = window 레벨, Doc = document 레벨. T=touchstart, P=pointerdown.
+  ctx.fillText('Win T:'+_diagWinTouch+' P:'+_diagWinPointer+'  Doc T:'+_diagDocTouch+' P:'+_diagDocPointer, _scoreX, _diagY1);
+  let _diagStr = 'Enter '+_diagHandlerEnter+' |';
   for (let li=0; li<laneCount; li++) _diagStr += ' L'+li+':'+(_diagLaneHit[li]||0);
-  ctx.fillText(_diagStr, _scoreX, _diagY);
+  ctx.fillText(_diagStr, _scoreX, _diagY1 + sz(11));
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
