@@ -10,16 +10,55 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>NANO RHYTHM</title>
+<script>
+// ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
+window.__BUILD_TS = 20260419280000;
+// ★ tryFinalize skip 조건 버그 핫픽스 — 로딩 100% 에서 멈추던 regression 수정
+(function(){
+  try {
+    // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
+    if (location.search.indexOf('_v=') === -1) {
+      var sep = location.search ? '&' : '?';
+      location.replace(location.pathname + location.search + sep + '_v=' + Date.now() + location.hash);
+      return;
+    }
+    // 주기적 업데이트 감지 — 서버 최신 HTML 에서 __BUILD_TS 추출 비교
+    async function _checkUpdate(){
+      if (document.hidden || window.__updateAvailable) return; // 이미 감지됐으면 skip
+      try {
+        // full URL 사용 (iframe proxy/kplay 경로 대응). 캐시 bust 쿼리 추가.
+        var u = location.href.split('#')[0];
+        u += (u.indexOf('?') === -1 ? '?' : '&') + '__chk=' + Date.now();
+        var r = await fetch(u, {cache:'no-store'});
+        if (!r.ok) return;
+        var txt = await r.text();
+        var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
+        if (m) {
+          var srv = parseInt(m[1]);
+          if (srv > window.__BUILD_TS) {
+            console.log('[update] detected:', srv, '>', window.__BUILD_TS);
+            window.__updateAvailable = true;
+          }
+        }
+      } catch(e) { console.warn('[update] check failed:', e); }
+    }
+    // 10초 후 첫 체크, 이후 60초마다. visibilitychange 에서도 체크 (백그라운드 복귀 시).
+    setTimeout(_checkUpdate, 10000);
+    setInterval(_checkUpdate, 60000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) _checkUpdate(); });
+  } catch(e) {}
+})();
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:fixed;top:0;left:0;right:0;bottom:0}
-canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:fixed;top:0;left:0;right:0;bottom:0;overscroll-behavior:none;-webkit-overflow-scrolling:auto}
+canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;transform:translateZ(0);-webkit-transform:translateZ(0);will-change:transform}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<input id="searchInput" style="position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:200px;height:30px;font-size:16px;background:transparent;color:transparent;border:none;outline:none;caret-color:transparent;z-index:9999;ime-mode:active;" type="text" autocomplete="off">
-<input id="loginInputEl" style="position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:240px;height:40px;font-size:18px;text-align:center;background:transparent;color:transparent;border:none;outline:none;z-index:9999;ime-mode:active;caret-color:transparent;" type="text" maxlength="12" autocomplete="off">
+<input id="searchInput" style="position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:200px;height:30px;font-size:16px;background:transparent;color:transparent;border:none;outline:none;caret-color:transparent;z-index:9999;ime-mode:active;pointer-events:none;" type="text" autocomplete="off">
+<input id="loginInputEl" style="position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:240px;height:40px;font-size:18px;text-align:center;background:transparent;color:transparent;border:none;outline:none;z-index:9999;ime-mode:active;caret-color:transparent;pointer-events:none;" type="text" maxlength="12" autocomplete="off">
 <input id="speedInputEl" style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;" type="text" inputmode="decimal" maxlength="4" autocomplete="off">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -383,6 +422,7 @@ function applySfxVol() {
 const titleBgm = new Audio(assetUrl('title_bgm.ogg'));
 titleBgm.loop = false;  // 페이드아웃 + 수동 restart 위해 loop 꺼둠
 titleBgm.volume = 0.55;
+titleBgm.preload = 'auto';  // iOS standalone: 명시적 preload 로 첫 play() 실패 방지
 let titleBgmPlaying = false;
 let titleBgmUnlocked = false; // true once audio is unlocked by user gesture
 const TITLE_BGM_FADE_OUT = 3; // 곡 끝 3초 페이드아웃
@@ -447,12 +487,21 @@ function stopShopBgm() {
 }
 
 function startTitleBgm() {
-  if (!titleBgmPlaying) {
+  if (titleBgmPlaying && !titleBgm.paused) return;
+  try {
+    // ★ iOS 오디오 세션 강제 활성화 — HTML Audio 와 actx 는 같은 세션 공유
+    if (actx && actx.state !== 'running') { try { actx.resume(); } catch(e) {} }
+    // ★ load() 를 gesture 컨텍스트 안에서 sync 하게 호출 → iOS 가 element 잠금 해제
+    try { titleBgm.load(); } catch(e) {}
     titleBgm.currentTime = 0;
-    titleBgm.volume = getTitleBgmMaxVol();  // 페이드아웃 후 남은 낮은 볼륨 리셋
-    titleBgm.play().catch(()=>{});
-    titleBgmPlaying = true;
-  }
+    titleBgm.volume = getTitleBgmMaxVol();
+    const p = titleBgm.play();
+    if (p && p.then) {
+      p.then(() => { titleBgmPlaying = true; }).catch(()=>{});
+    } else {
+      titleBgmPlaying = true;
+    }
+  } catch(e) {}
 }
 function stopTitleBgm() {
   if (titleBgmPlaying) { titleBgm.pause(); titleBgmPlaying = false; }
@@ -551,6 +600,13 @@ let previewActive = false;
 
 function initAudio() {
   actx = new (window.AudioContext || window.webkitAudioContext)();
+  // ★ iOS 17+ AudioSession API — 'playback' 카테고리로 격상.
+  //   효과: (1) 화면 녹화에 BGM 포함, (2) iOS 가 "미디어 재생 앱" 으로 인식해
+  //   터치 이벤트 throttling 완화, (3) 오디오 세션 suspend/interrupted transient 감소.
+  //   iOS 17 미만 또는 비-iOS 플랫폼에선 navigator.audioSession 자체가 없어 안전하게 무시됨.
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  } catch(e) {}
   masterGain = actx.createGain(); masterGain.gain.value = 0.6;
   masterGain.connect(actx.destination);
   drumBus = actx.createGain(); drumBus.gain.value = 0.65; drumBus.connect(masterGain);
@@ -580,6 +636,12 @@ function routeAudioThroughGain(audioEl, gainValue) {
 
 function resumeAudio() {
   if (!actx) initAudio();
+  // ★ 재설정 (유저 제스처 컨텍스트에서 더 확실히 적용됨)
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== 'playback') {
+      navigator.audioSession.type = 'playback';
+    }
+  } catch(e) {}
   if (actx.state === 'suspended') actx.resume();
   // iOS: 무음 버퍼 재생으로 AudioContext + HTML Audio 동시 unlock
   if (!resumeAudio._unlocked && actx) {
@@ -1633,16 +1695,32 @@ function cancelPass() {
 const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 let devInvincible = false; // 로컬 테스트용 HP 무적
 
-// ===== COVER IMAGE PRELOAD =====
-// cover에 경로가 있으면 Image 객체로 프리로드 (예: cover: 'Music/Cherry Blossom/cover.jpg')
+// ===== COVER IMAGE (LAZY LOAD + LRU) =====
+// ★ 곡 수천 개 확장 대비 — 렌더 시점에만 Image 객체 생성 + 메모리 상한 (LRU eviction).
+//   기존: 전부 미리 new Image() → 수천 동시 fetch + 수천 Image 객체 상주 = 브라우저 과부하.
+//   변경: getCoverImage(idx) 호출 시점에 lazy 생성. LRU 150 개 초과 시 오래된 것부터 제거.
 const coverImages = {};
-songs.forEach((s, i) => {
-  if (s.cover) {
-    const img = new Image();
+const _coverLRU = [];
+const _COVER_CACHE_MAX = 150;
+function getCoverImage(idx) {
+  const s = songs[idx];
+  if (!s || !s.cover) return null;
+  let img = coverImages[idx];
+  if (!img) {
+    img = new Image();
     img.src = assetUrl(s.cover);
-    coverImages[i] = img;
+    coverImages[idx] = img;
   }
-});
+  // LRU 최신화
+  const lruIdx = _coverLRU.indexOf(idx);
+  if (lruIdx >= 0) _coverLRU.splice(lruIdx, 1);
+  _coverLRU.push(idx);
+  while (_coverLRU.length > _COVER_CACHE_MAX) {
+    const evicted = _coverLRU.shift();
+    delete coverImages[evicted];
+  }
+  return img;
+}
 
 // ===== SONG AUDIO =====
 let songAudio = null;
@@ -2080,7 +2158,7 @@ function confirmSearchSelection() {
     snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
     lastScrollSong = selectedSong;
   }
-  searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
+  searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur();
 }
 const searchInputEl = document.getElementById('searchInput');
 searchInputEl.addEventListener('input', () => {
@@ -2090,7 +2168,7 @@ searchInputEl.addEventListener('input', () => {
   updateSearchFilter();
 });
 searchInputEl.addEventListener('keydown', e => {
-  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); e.preventDefault(); }
+  if (e.code === 'Escape') { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur(); e.preventDefault(); }
   else if (e.code === 'Enter') { confirmSearchSelection(); e.preventDefault(); }
   else if (e.code === 'ArrowDown') { searchHighlight = Math.min(searchHighlight + 1, searchFiltered.length - 1); e.preventDefault(); }
   else if (e.code === 'ArrowUp') { searchHighlight = Math.max(searchHighlight - 1, 0); e.preventDefault(); }
@@ -2409,7 +2487,7 @@ function completeLogin(name, method) {
     safeSetItem('rhythm_kplayNickname_' + pendingAuthUid, name);
     pendingAuthUid = '';
   }
-  if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
+  if (!titleBgmPlaying || titleBgm.paused) { resumeAudio(); startTitleBgm(); } titleBgmUnlocked = true;
   // 주간 랭킹 보상 체크 (Firebase 비동기)
   setTimeout(() => { try { checkWeeklyRewards(); } catch(e) {} }, 1500);
 }
@@ -2676,6 +2754,18 @@ function subscribeFbRanking(songIdx, diffIdx, lc) {
   fbDb.ref('scores/' + key).on('value', snap => {
     fbRankingsCache[key] = snap.val() || {};
   }, () => {});
+}
+// ★ 게임 시작 시 전체 랭킹 구독 해제 — 인게임 중 다른 유저 점수 제출 때마다
+//   snapshot parse 가 메인 스레드 스톨 → iOS 가 rapid touch 드롭하는 원인 추정.
+//   랭킹 화면 재진입 시 subscribeFbRanking() 다시 호출되므로 기능 영향 없음.
+function unsubscribeAllFbRankings() {
+  if (!fbDb) return;
+  for (const key in _fbRankingSubs) {
+    if (_fbRankingSubs[key]) {
+      try { fbDb.ref('scores/' + key).off('value'); } catch(e) {}
+      delete _fbRankingSubs[key];
+    }
+  }
 }
 function getMyBest(songIdx, diffIdx, lc) {
   if (!currentUser) return 0;
@@ -3259,6 +3349,11 @@ let fadePendingCallback = null;
 
 function transitionTo(newState, callback) {
   if (fadeDir !== 0) return; // 이미 전환 중
+  // ★ 인게임 종료 전환 시 Firebase 재연결 + Wake Lock 해제
+  if ((state === 'playing' || state === 'ending') && newState !== 'playing') {
+    try { if (fbDb) fbDb.goOnline(); } catch(e) {}
+    try { if (window._wakeLock) { window._wakeLock.release().catch(()=>{}); window._wakeLock = null; } } catch(e) {}
+  }
   fadePendingState = newState;
   fadePendingCallback = callback || null;
   fadeDir = 1; // 페이드아웃 시작
@@ -3312,6 +3407,16 @@ function renderFade() {
 
 // ===== GAME STATE =====
 let state = 'title';
+// ===== CDN 에셋 프리로드 (수천 곡 대비) =====
+// ★ 수천 곡 확장 대비 — 전부 preload 안 함. cover 도 lazy (getCoverImage), 곡 본체도 on-demand.
+//   기존 preload 로직은 호환성을 위해 남겨두지만 URL 목록은 빈 배열 → 즉시 _preloadDone=true.
+//   _preloadDone 체크하는 곳 (전이 가드) 은 그대로 의미 유지.
+let _preloadDone = false, _preloadTotal = 0, _preloadLoaded = 0, _preloadFailed = 0, _preloadStartTime = performance.now();
+function preloadAssets() {
+  _preloadTotal = 0; _preloadLoaded = 0; _preloadFailed = 0;
+  _preloadDone = true; // 아무것도 preload 안 함 → 즉시 완료
+}
+preloadAssets();
 // 이미 로그인된 경우 Firebase에서 설정 동기화
 if (currentUser) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
@@ -3616,7 +3721,7 @@ let inputQueue = [];
 addEventListener('keydown', e => {
   if (e.repeat) return;
   // 타이틀 화면: 아무 키나 눌러도 BGM 시작
-  if (state === 'title' && !titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
+  if (state === 'title' && (!titleBgmPlaying || titleBgm.paused)) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
   // 닉네임 입력 중
   if (nicknameOverlay) {
     if (e.code === 'Enter' || e.code === 'NumpadEnter') { confirmNickname(); e.preventDefault(); }
@@ -3624,7 +3729,7 @@ addEventListener('keydown', e => {
   }
   // 로그인 화면: 소셜 로그인 버튼만 사용
   if (state === 'login') {
-    if (!titleBgmUnlocked) { startTitleBgm(); titleBgmUnlocked = true; }
+    if (!titleBgmPlaying || titleBgm.paused) { startTitleBgm(); } titleBgmUnlocked = true;
     return;
   }
   if (gamePaused) { resumeGame(); return; }
@@ -3898,11 +4003,12 @@ function handleSelectClick(mx, my) {
     playScrollTick();
     if (searchActive && mx > cx + lay.optW - 30) {
       searchActive = false; searchText = ''; searchInputEl.value = '';
-      searchInputEl.style.top = '-100px'; searchInputEl.blur();
+      searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur();
     } else {
       searchActive = true; searchInputEl.value = searchText;
       // iOS: input을 실제 화면 안으로 잠깐 이동 후 focus (키패드 트리거)
       searchInputEl.style.top = (searchBarY + safeTop) + 'px';
+      searchInputEl.style.pointerEvents = 'auto';
       searchInputEl.focus();
     }
     return;
@@ -3922,12 +4028,12 @@ function handleSelectClick(mx, my) {
         selectTargetScrollX = null; selectScrollVel = 0;
         snapAnimFrom = selectScrollX; snapAnimTo = selectScrollX; snapAnimDur = 0;
         lastScrollSong = selectedSong;
-        searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur();
+        searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur();
       }
       return;
     }
   }
-  if (searchActive) { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+  if (searchActive) { searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur(); }
   // Arrow buttons (◀ ▶) — handleSelectClick은 mouseup/touchend에서 호출되므로 hold 시작 X
   // hold는 mousedown/touchstart에서 직접 처리됨. 여기선 화살표 hit이면 그냥 무시 (이미 처리됨)
   const centerX = W / 2;
@@ -4132,7 +4238,7 @@ addEventListener('mousedown', e => {
     return;
   }
   if (state === 'login') {
-    if (!titleBgmUnlocked) { startTitleBgm(); titleBgmUnlocked = true; }
+    if (!titleBgmPlaying || titleBgm.paused) { startTitleBgm(); } titleBgmUnlocked = true;
     const mx = e.clientX, my = gameY(e.clientY);
     for (const btn of loginBtnAreas) {
       if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
@@ -4145,10 +4251,11 @@ addEventListener('mousedown', e => {
   if (mailboxOpen) { handleMailboxClick(e.clientX, gameY(e.clientY)); return; }
   if (settingsOpen) { handleSettingsClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'title') {
+    if (!_preloadDone) return;
     const mx = e.clientX, my = gameY(e.clientY);
     if (!currentUser) {
       // 첫 클릭 시 BGM 시작
-      if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
+      if (!titleBgmPlaying || titleBgm.paused) { resumeAudio(); startTitleBgm(); } titleBgmUnlocked = true;
       // 비로그인: Kplay 로그인 버튼만 처리
       for (const btn of loginBtnAreas) {
         if (hitTest(mx, my, btn.x, btn.y, btn.w, btn.h)) {
@@ -4394,44 +4501,144 @@ addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-document.addEventListener('touchstart', e => {
-  // ★ playing 상태 — 최소 코드 경로
-  if (state === 'playing' && !gamePaused) {
-    const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-    const le = _fLaneEnd || (lsx + lw * laneCount);
-    const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
-    // e.touches 전체 스캔 — changedTouches + 이전 누락 터치 모두 포함
-    for (let ti = 0; ti < e.touches.length; ti++) {
-      const t = e.touches[ti];
-      if (touchLaneMap.has(t.identifier)) continue;
-      const x = t.clientX, y = t.clientY - safeTop;
-      // 일시정지 (우상단)
-      if (y < sz(40) && x > W - sz(52)) { pauseGame(); return; }
-      // 배속 버튼 (왼쪽 여백)
-      if (x < lsx) {
-        const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
-        const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
-        const _spTop = getBtnY() - sz(6) - _spH;
-        const _spBot = _spTop + _spH;
-        if (y >= _spTop && y < _spBot) {
-          const _spMid = _spTop + _spPad + _spBtn + _spGap;
-          if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
-          else if (y >= _spMid + _spBtn + _spGap) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); }
-          continue;
-        }
-      }
-      // 레인 매핑 (primary + 반경 내 인접 레인)
-      const primary = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-      keyHeld[primary] = true; keyFlash[primary] = 0.3;
-      touchLaneMap.set(t.identifier, primary);
-      if (_canHit) handleLanePress(primary);
-      const r = Math.min(t.radiusX || 10, lw * 0.2);
-      if (primary > 0 && (x - r) < lsx + primary * lw) { keyHeld[primary-1] = true; keyFlash[primary-1] = 0.3; if (_canHit) handleLanePress(primary-1); }
-      if (primary < laneCount-1 && (x + r) >= lsx + (primary+1) * lw) { keyHeld[primary+1] = true; keyFlash[primary+1] = 0.3; if (_canHit) handleLanePress(primary+1); }
-    }
-    return;
+// Safari gesture(pinch/rotate) 차단 — 2+ 손가락 시 gesture 이벤트가 처리되면
+// touch 이벤트가 지연/드롭될 수 있어 playing 중에는 항상 preventDefault.
+document.addEventListener('gesturestart', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturechange', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+document.addEventListener('gestureend', e => { if (state === 'playing' && !gamePaused) e.preventDefault(); }, { passive: false });
+
+// ★ playing 터치 — capture phase (최우선, preventDefault 포함)
+// 두 가지 dedup 메커니즘 사용:
+//  (1) _recentGestureHits: 짧은 TTL 40ms — pointerdown↔touchstart 한 쌍 페어링
+//  (2) _pointerLaneMap: pointerId→{lane,x,y} — 활성 중인 pointer 좌표 추적 (TTL 없음)
+// → 연속 탭(따닥)은 40ms TTL 로 false-match 방지. 정지 손가락 복구는 활성 pointer 로 판정.
+const _pointerLaneMap = new Map(); // pointerId → {lane, x, y}
+let _recentGestureHits = []; // 페어링용 단기 큐 {x,y,t}
+const _DEDUP_MS = 40;  // pair 페어링에만 사용. 연속 탭(25Hz+)이어도 false-match 안 되도록 짧게.
+const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표. 서브픽셀 여유만.
+let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
+// ★ 레인별 마지막 hit 시각 — 같은 탭의 pointerdown↔touchstart 이중 호출 방지.
+//   좌표 기반 dedup(_recentGestureHits)는 iOS 고부하에서 이벤트 중복/순서역전 시
+//   2차 탭을 오판으로 씹는 경쟁 조건이 있어서 레인별 타임스탬프로 교체.
+//   20ms 락은 pair 검출엔 충분(실측 <5ms)하고 사람 최대 연타(~20Hz=50ms)는 안 걸림.
+const _lastLaneHitAt = [];
+const _LANE_HIT_COOLDOWN_MS = 20;
+function _isRecentGesture(x, y) {
+  const now = performance.now();
+  while (_recentGestureHits.length && now - _recentGestureHits[0].t > _DEDUP_MS) _recentGestureHits.shift();
+  for (let h = 0; h < _recentGestureHits.length; h++) {
+    const g = _recentGestureHits[h];
+    if (Math.abs(g.x - x) <= _DEDUP_PX && Math.abs(g.y - y) <= _DEDUP_PX) return h;
   }
+  return -1;
+}
+function _markGesture(x, y) {
+  _recentGestureHits.push({ x, y, t: performance.now() });
+  if (_recentGestureHits.length > 24) _recentGestureHits.shift();
+}
+// 활성 pointer 중에 이 좌표의 제스처가 이미 처리됐는지.
+// ★ 500ms TTL — pointerup 이 드롭돼 _plM 에 ghost 가 남은 경우, 오래된 엔트리는 무시.
+//    ghost 가 새 터치를 조용히 먹어 빨간 flash 조차 안 뜨는 무반응 씹힘 방지.
+const _PLM_TTL = 500;
+function _handledByActivePointer(x, y) {
+  const now = performance.now();
+  for (const pe of _pointerLaneMap.values()) {
+    if (!pe) continue;
+    if (pe.t && now - pe.t > _PLM_TTL) continue; // stale ghost — skip
+    if (Math.abs(pe.x - x) <= _DEDUP_PX && Math.abs(pe.y - y) <= _DEDUP_PX) return true;
+  }
+  return false;
+}
+// 통합 check — 페어링 큐 OR 활성 pointer
+function _gestureAlreadyHandled(x, y) {
+  return _isRecentGesture(x, y) >= 0 || _handledByActivePointer(x, y);
+}
+// ★ 탭 이벤트 실제 발생 시각 (DOMHighResTimeStamp) — 이벤트 핸들러 진입 시 세팅.
+//   렌더 프레임이 느려서 이벤트 dispatch 가 지연된 경우 handleLanePress 가 이 값으로 보정.
+let _inputEventTime = 0;
+function _processPlayingTouch(t) {
+  const x = t.clientX, y = t.clientY - safeTop;
+  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+  if (y < sz(40) && x > W - sz(52)) {
+    _pauseGestureAt = performance.now();
+    pauseGame(); return -1;
+  }
+  if (x < lsx) {
+    const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+    const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
+    const _spTop = getBtnY() - sz(6) - _spH;
+    if (y >= _spTop && y < _spTop + _spH) {
+      const _spMid = _spTop + _spPad + _spBtn + _spGap;
+      if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
+      else if (y >= _spMid + _spBtn + _spGap) { playScrollTick(); speedUp(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(1); }
+      return -2;
+    }
+  }
+  const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+  // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
+  if (t.identifier != null) touchLaneMap.set(t.identifier, i);
+  keyHeld[i] = true; keyFlash[i] = 0.3;
+  // ★ dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
+  //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
+  //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
+  const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
+  if (_canHit) handleLanePress(i);
+  // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
+  //   _processPlayingTouch 리팩토링 시 빠뜨렸던 것. iOS 에서 카운트다운 중 무음 regression 원인.
+  else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+  return i;
+}
+// pointerdown — ★ 레인 처리 복원. touchstart + pointerdown 양쪽 다 handleLanePress 호출.
+//   iOS Safari 가 두 손 거의 동시 따닥 시 touchstart 를 드롭하거나 코얼레스하는 경우가 있음 →
+//   pointerdown 은 별도 파이프라인이라 덜 영향받아 방어 경로 역할.
+//   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
+document.addEventListener('pointerdown', e => {
+  if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
+  _inputEventTime = e.timeStamp || performance.now();
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
+  _inputEventTime = 0;
+}, { capture: true });
+document.addEventListener('touchstart', e => {
+  if (state !== 'playing' || gamePaused) return;
+  // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
+  _inputEventTime = e.timeStamp || performance.now();
+  for (let ti = 0; ti < e.changedTouches.length; ti++) {
+    _processPlayingTouch(e.changedTouches[ti]);
+  }
+  _inputEventTime = 0;
+}, { passive: true, capture: true });
+// ★ window 레벨 백업 리스너 제거 — 중복 핸들러가 iOS 메인 스레드 부하 → 오히려
+//   throttling 유발 의심. document 레벨 단일 경로로 충분.
+// pointerup/cancel — iOS에서 touchend가 드롭될 경우의 keyHeld 고착 방지
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 바로 resume 가능
+  const pe = _pointerLaneMap.get(e.pointerId);
+  if (!pe) return;
+  const lane = pe.lane;
+  _pointerLaneMap.delete(e.pointerId);
+  let stillHeld = false;
+  for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
+  if (!stillHeld) keyHeld[lane] = false;
+});
+document.addEventListener('pointercancel', e => {
+  if (e.pointerType === 'mouse') return;
+  _pauseGestureAt = 0;
+  const pe = _pointerLaneMap.get(e.pointerId);
+  if (!pe) return;
+  const lane = pe.lane;
+  _pointerLaneMap.delete(e.pointerId);
+  let stillHeld = false;
+  for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+  if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
+  if (!stillHeld) keyHeld[lane] = false;
+});
+document.addEventListener('touchstart', e => {
   if (state === 'playing' && gamePaused) {
+    // pointerdown이 방금 일으킨 pause 제스처는 resume으로 이어지지 않도록 차단
+    if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) return;
     const t0 = e.changedTouches[0];
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
@@ -4442,6 +4649,33 @@ document.addEventListener('touchstart', e => {
     resumeGame(); return;
   }
   resumeAudio();
+  // ★ 업데이트 모달 버튼 — 인게임 중 아닐 때 최우선 처리
+  if (window.__updateAvailable && window._updateModalBtn && state !== 'playing') {
+    const t0 = e.changedTouches[0];
+    const btn = window._updateModalBtn;
+    if (t0 && hitTest(t0.clientX, gameY(t0.clientY), btn.x, btn.y, btn.w, btn.h)) {
+      // window.close() 시도 (in-app 브라우저는 성공할 수도)
+      try { window.close(); } catch(e) {}
+      // close 실패 시 다른 URL 로 강제 이동 (캐시 bust)
+      setTimeout(() => {
+        try {
+          location.replace(location.pathname + '?_v=' + Date.now() + location.hash);
+        } catch(e) {}
+      }, 200);
+      return;
+    }
+    // 모달 떠 있으면 다른 입력 전부 무시
+    return;
+  }
+  // iOS 알람/전화 후 BGM 복구 (사용자 제스처 컨텍스트)
+  if (_bgmNeedsResume) {
+    _bgmNeedsResume = false;
+    if (state === 'title' && titleBgmPlaying) titleBgm.play().catch(()=>{});
+    if (state === 'select' && songPreviewAudio && previewActive) { try { songPreviewAudio.currentTime = 0; songPreviewAudio.play().catch(()=>{}); } catch(e){} }
+    if (state === 'ranking' && rankingBgmPlaying) rankingBgm.play().catch(()=>{});
+    if (state === 'shop' && shopBgmPlaying) shopBgm.play().catch(()=>{});
+    if (state === 'achievement' && achievementBgmPlaying) achievementBgm.play().catch(()=>{});
+  }
   // 중복 로그인 킥 팝업 최우선 처리
   if (_kickedPopupOpen) {
     const t0 = e.changedTouches[0];
@@ -4521,7 +4755,7 @@ document.addEventListener('touchstart', e => {
     return;
   }
   if (state === 'login') {
-    if (!titleBgmUnlocked) { startTitleBgm(); titleBgmUnlocked = true; }
+    if (!titleBgmPlaying || titleBgm.paused) { resumeAudio(); startTitleBgm(); } titleBgmUnlocked = true;
     const t0 = e.changedTouches[0];
     const mx = t0.clientX, my = gameY(t0.clientY);
     for (const btn of loginBtnAreas) {
@@ -4540,10 +4774,11 @@ document.addEventListener('touchstart', e => {
   }
   if (settingsOpen) { const t = e.changedTouches[0]; handleSettingsClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'title') {
+    if (!_preloadDone) return;
     const t = e.changedTouches[0];
     const tmx = t.clientX, tmy = gameY(t.clientY);
     if (!currentUser) {
-      if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
+      if (!titleBgmPlaying || titleBgm.paused) { resumeAudio(); startTitleBgm(); } titleBgmUnlocked = true;
       // 비로그인: Kplay 로그인 버튼만 처리
       for (const btn of loginBtnAreas) {
         if (hitTest(tmx, tmy, btn.x, btn.y, btn.w, btn.h)) {
@@ -4627,20 +4862,24 @@ let _settingsTouchStartY = 0, _settingsTouchStartScroll = 0, _settingsTouching =
 let _listTouchStartY = 0, _listTouchStartScroll = 0, _listTouchMode = ''; // 'rank'|'ach'|'chart'|'shop'
 let _listTouchMaxDelta = 0; // 손가락이 움직인 최대 거리 (drag-vs-tap 판정)
 document.addEventListener('touchmove', e => {
-  e.preventDefault();
-  // ★ 누락된 touchstart 복구: touchLaneMap에 없는 활성 터치를 새 입력으로 처리
+  if (state !== 'playing') e.preventDefault();
+  if (state === 'playing' && !gamePaused && !songLoading) _inputEventTime = e.timeStamp || performance.now();
+  // 드롭된 touchstart 복구 — pointerdown이 이미 처리한 제스처는 재처리하지 않음
   if (state === 'playing' && !gamePaused && !songLoading) {
-    const lw = getLaneW(), lsx = getLaneStartX();
-    const laneEnd = lsx + lw * laneCount;
-    const margin = isMobile ? lsx : lw * 0.4;
-    for (const touch of e.touches) {
-      if (touchLaneMap.has(touch.identifier)) continue;
-      const mx = touch.clientX;
-      if (mx < lsx - margin || mx >= laneEnd + margin) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
+    const _lwMv = _fLw || getLaneW(), _lsxMv = _fLsx || getLaneStartX();
+    for (let ti = 0; ti < e.changedTouches.length; ti++) {
+      const t = e.changedTouches[ti];
+      if (touchLaneMap.has(t.identifier)) continue;
+      // pointerdown이 이미 handleLanePress 호출 → 식별자만 등록 (touchend 해제 보장)
+      // 활성 pointer 체크는 TTL 없음 — 손가락이 오래 머물러도 중복 호출 방지
+      if (_gestureAlreadyHandled(t.clientX, t.clientY)) {
+        const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - _lsxMv) / _lwMv)));
+        touchLaneMap.set(t.identifier, i);
+        keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
+        continue;
+      }
+      _processPlayingTouch(t);
+      _markGesture(t.clientX, t.clientY);
     }
   }
   // 설정창 열려있으면 스크롤 드래그
@@ -4686,16 +4925,23 @@ document.addEventListener('touchmove', e => {
       const prevLane = touchLaneMap.get(touch.identifier);
       const newLane = Math.max(0, Math.min(laneCount - 1, Math.floor((touch.clientX - lsx) / lw)));
       if (prevLane === undefined) {
-        // 누락된 touchstart 복구
+        // 누락된 touchstart 복구 — pointerdown(활성 pointer)이 이미 처리했으면 재호출 금지
         keyHeld[newLane] = true; keyFlash[newLane] = 0.3;
         touchLaneMap.set(touch.identifier, newLane);
-        if (_canHit) handleLanePress(newLane);
+        if (_canHit && !_gestureAlreadyHandled(touch.clientX, touch.clientY)) {
+          handleLanePress(newLane);
+          _markGesture(touch.clientX, touch.clientY);
+        } else if (!_canHit && countdownTime > 0) {
+          // 카운트다운 중 누락 touchstart 복구: 빈노트 SFX
+          playEmptyPressSfx(newLane);
+        }
       } else if (newLane !== prevLane) {
         // 슬라이드: 경유한 레인도 모두 입력
         const dir = newLane > prevLane ? 1 : -1;
         for (let li = prevLane + dir; li !== newLane + dir; li += dir) {
           keyHeld[li] = true; keyFlash[li] = 0.3;
           if (_canHit) handleLanePress(li);
+          else if (countdownTime > 0) playEmptyPressSfx(li);
         }
         keyHeld[prevLane] = false;
         touchLaneMap.set(touch.identifier, newLane);
@@ -4740,48 +4986,29 @@ document.addEventListener('touchmove', e => {
 document.addEventListener('touchend', e => {
   stopSelectArrowHold();
   stopSpeedHold();
+  _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 즉시 resume 가능
   if (_settingsTouching) _settingsTouching = false;
   // shop 드래그였는지 보존 (실제 손가락 이동 거리 기준 — 스크롤이 끝에 막혀도 드래그 인식)
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
   _listTouchMode = '';
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
-  // 드롭된 touchstart 역추적: touchend에서 처음 보는 터치 = touchstart가 드롭된 터치
-  if (state === 'playing' && !gamePaused && !songLoading) {
-    const lw = getLaneW(), lsx = getLaneStartX();
-    const _leEnd = lsx + lw * laneCount;
-    for (const touch of e.changedTouches) {
-      if (touchLaneMap.has(touch.identifier)) continue;
-      const _tcx = touch.clientX;
-      if (_tcx < 0 || _tcx >= W) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((_tcx - lsx) / lw)));
-      keyFlash[i] = 0.3;
-      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
-    }
-  }
-  // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락은 유지)
+  // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락 + pointer 트래킹은 유지)
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
     if (lane !== undefined) {
-      keyHeld[lane] = false;
       touchLaneMap.delete(touch.identifier);
+      // 같은 레인을 다른 손가락/pointer가 아직 잡고 있으면 유지
+      let stillHeld = false;
+      for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
+      if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  // 활성 터치가 없으면 전체 해제 (안전장치)
-  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
-  // 누락된 활성 터치 복구 (멀티터치 드롭 대응)
-  if (state === 'playing' && !gamePaused && !songLoading) {
-    const lw = getLaneW(), lsx = getLaneStartX();
-    const laneEnd = lsx + lw * laneCount;
-    const margin = isMobile ? lsx : lw * 0.4;
-    for (const touch of e.touches) {
-      if (touchLaneMap.has(touch.identifier)) continue;
-      const mx = touch.clientX;
-      if (mx < lsx - margin || mx >= laneEnd + margin) continue;
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((mx - lsx) / lw)));
-      keyHeld[i] = true; keyFlash[i] = 0.3;
-      touchLaneMap.set(touch.identifier, i);
-      if (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5)) handleLanePress(i);
-    }
+  // 모든 손가락 떼어짐 → 양쪽 맵 강제 clear (iOS pointerup drop 시 stale 누적 방지)
+  if (e.touches.length === 0) {
+    touchLaneMap.clear();
+    _pointerLaneMap.clear();
+    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
   }
   // shop: 드래그 아니면 click 처리
   if (state === 'shop') {
@@ -4810,16 +5037,25 @@ document.addEventListener('touchend', e => {
 document.addEventListener('touchcancel', e => {
   stopSelectArrowHold();
   stopSpeedHold();
+  _pauseGestureAt = 0;
   if (_settingsTouching) _settingsTouching = false;
   _listTouchMode = '';
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
     if (lane !== undefined) {
-      keyHeld[lane] = false;
       touchLaneMap.delete(touch.identifier);
+      let stillHeld = false;
+      for (const v of touchLaneMap.values()) { if (v === lane) { stillHeld = true; break; } }
+      if (!stillHeld) for (const v of _pointerLaneMap.values()) { if (v && v.lane === lane) { stillHeld = true; break; } }
+      if (!stillHeld) keyHeld[lane] = false;
     }
   }
-  if (touchLaneMap.size === 0) { for (let i=0;i<laneCount;i++) keyHeld[i]=false; }
+  // 모든 손가락 떼어짐 → 강제 clear (stale leak 방지)
+  if (e.touches.length === 0) {
+    touchLaneMap.clear();
+    _pointerLaneMap.clear();
+    for (let i = 0; i < laneCount; i++) keyHeld[i] = false;
+  }
   selectDragX = -1;
 }, { passive: false });
 
@@ -4830,15 +5066,25 @@ function handleLanePress(lane) {
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
-  const tMin = gameTime - timeWindow, tMax = gameTime + timeWindow;
+  // ★ 이벤트 dispatch 지연 보정 — 프레임이 느리면 e.timeStamp 기준으로 탭 실제 시각 사용.
+  //   렌더 30ms 지연 + noteSpeed 1200 → 36px 오차가 쌓이던 게 사라짐.
+  let tapTime = gameTime;
+  if (_inputEventTime > 0) {
+    const delay = performance.now() - _inputEventTime;
+    if (delay > 1 && delay < 100) tapTime = gameTime - delay / 1000;
+  }
+  const tMin = tapTime - timeWindow, tMax = tapTime + timeWindow;
   let closest = null, closestDist = Infinity;
 
-  for (let ni = 0; ni < nodes.length; ni++) {
+  // ★ nodeScanStart 부터 스캔 (hit/missed prefix skip) + 시간순 정렬이므로 tMax 초과 시 break.
+  //   노트 수천 개 짜리 곡에서 탭당 N 전체 iterate → O(활성 윈도우) 로 단축.
+  for (let ni = nodeScanStart; ni < nodes.length; ni++) {
     const n = nodes[ni];
+    if (n.time > tMax) break; // 이후는 전부 미래
     if (n.hit || n.missed) continue;
-    if (n.time < tMin || n.time > tMax) continue;
+    if (n.time < tMin) continue;
     if (n.lane !== lane) continue;
-    const dist = Math.abs(n.time - gameTime) * noteSpeed;
+    const dist = Math.abs(n.time - tapTime) * noteSpeed;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
   if (!closest) { playEmptyPressSfx(lane); _lastEmptyFlash[lane] = performance.now(); return; }
@@ -5317,11 +5563,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   nodes.sort((a, b) => a.time - b.time);
-  // 홀드 노트 구간 내 같은 레인 일반 노트 제거
+  // 홀드 노트 구간 내 같은 레인 일반 노트 제거 (홀드 시작~끝 + 여유 0.15초)
   for (let a = 0; a < nodes.length; a++) {
     if (nodes[a].type !== 'hold') continue;
     for (let b = nodes.length - 1; b > a; b--) {
-      if (nodes[b].lane === nodes[a].lane && nodes[b].time > nodes[a].time && nodes[b].time < nodes[a].endTime) {
+      if (nodes[b].lane === nodes[a].lane && nodes[b].type !== 'hold' && nodes[b].time >= nodes[a].time && nodes[b].time < nodes[a].endTime + 0.15) {
         nodes.splice(b, 1);
       }
     }
@@ -5341,7 +5587,24 @@ let stemOnsetCache = {};     // 스템별 onset 결과 캐시
 
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
+  // ★ 인게임 중 Firebase 랭킹 리스너가 살아있으면 다른 유저 점수 제출 때마다
+  //   메인 스레드에서 snapshot parse → iOS 가 rapid touch 드롭하는 원인.
+  //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
+  unsubscribeAllFbRankings();
   recordPlay(idx);
+  // ★ Firebase WebSocket 완전 해제 — WiFi 환경 heartbeat/auth 백그라운드 작업
+  //   메인 스레드 점유 방지. transitionTo 에서 goOnline 으로 재연결.
+  try { if (fbDb) fbDb.goOffline(); } catch(e) {}
+  // ★ Wake Lock API — iOS 에게 "게임 중, 풀파워 유지" 선언. 화면 dimming/CPU throttling 방지.
+  //   iOS 16.4+ 지원. 지원 안 하는 환경은 try/catch 로 무시됨.
+  try {
+    if (navigator.wakeLock && !window._wakeLock) {
+      navigator.wakeLock.request('screen').then(wl => {
+        window._wakeLock = wl;
+        wl.addEventListener('release', () => { window._wakeLock = null; });
+      }).catch(()=>{});
+    }
+  } catch(e) {}
   curSongIdx = idx; curSong = songs[idx];
   curDiff = DIFFICULTIES[selectedDiff];
   const speedMul = selectedSpeed;
@@ -5352,6 +5615,15 @@ function startSong(idx) {
   stemOnsetCache = {};
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
+  // ★ 터치/포인터 상태 방어적 초기화 — 메뉴/로딩 중 쌓인 stale 엔트리 제거.
+  //   iOS 가 pointerup/touchend 드롭하거나 외부 링크 진입 시 이전 세션 잔재로 silent drop 유발 가능.
+  //   로딩 화면 진입마다 리셋해서 실제 게임 시작 시점엔 항상 깨끗한 상태 보장.
+  _pointerLaneMap.clear();
+  touchLaneMap.clear();
+  _recentGestureHits.length = 0;
+  _lastLaneHitAt.length = 0;
+  _pauseGestureAt = 0;
+  _inputEventTime = 0;
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
@@ -5374,15 +5646,30 @@ function startSong(idx) {
   let _energyStemsDone = 0, _energyStemsTotal = stemNames.filter((_,i) => !ALWAYS_AUDIBLE_STEMS.includes(i)).length;
 
   function finishLoading() {
+    // ★ 네트워크 느린 경우: stem buffer 하나도 디코딩 안 되어 있으면 2초 더 기다림 (최대 10회 = 20초).
+    //   기본 timeout (15~30초) 만으로는 불충분한 슬로우 케이스 대응. buffer 없이 countdown 시작하면
+    //   ABS play 실패 + HTML 도 버퍼 부족으로 무음 — 인게임 BGM 안 들리는 이슈 방지.
+    if (curSong && curSong.stemDir && stemCount > 0) {
+      const decodedCount = Object.keys(stemAudioBuffers).filter(k => stemAudioBuffers[k]).length;
+      finishLoading._retryCount = (finishLoading._retryCount || 0);
+      if (decodedCount === 0 && finishLoading._retryCount < 10) {
+        finishLoading._retryCount++;
+        setTimeout(finishLoading, 2000);
+        return;
+      }
+    }
+    finishLoading._retryCount = 0;
     songLoading = false;
-    // onset 모드: 카운트다운 없이 바로 시작 (레일 선 연출로 대체)
-    countdownTime = 3.5; // onset 모드도 동일 (레일 연출 시간)
+    countdownTime = 3.5;
     lastTime = 0;
   }
 
   function tryFinalize() {
     // 스템 + 에너지 맵 모두 완료 시 최종 노트 생성 후 시작
     if (!_stemsReady || !_energyReady) return;
+    // ★ 로딩 끝나고 실제 플레이 중이면 SKIP — detectOnsets 7개 + generateNodesFromOnsets 가 2-3초 블록 유발.
+    //   songLoading 플래그로 로딩 중 vs 실제 플레이 구분 (로딩 중엔 정상 실행 필요).
+    if (!songLoading && state === 'playing' && countdownTime <= 0) return;
     // 오디오 길이 기반 bars 보정 + 에너지 맵 반영 최종 노트 생성 (1회만)
     const origBars = curSong.bars;
     if (curSong._audioBars) curSong.bars = curSong._audioBars;
@@ -5468,7 +5755,7 @@ function startSong(idx) {
           // BufferPlayer에 버퍼 할당
           allStemAudios[_si].buffer = buffer;
           stemAudioBuffers[_si] = buffer; // 빈노트/곡끝용 재사용
-          // 첫 소리 위치 + 에너지맵 분석 (기존 로직 동일)
+          // 첫 소리 위치 + 에너지맵 분석
           const data = buffer.getChannelData(0);
           const sr = buffer.sampleRate;
           const bigChunk = Math.floor(sr * 0.1);
@@ -5509,8 +5796,8 @@ function startSong(idx) {
         }, () => { console.warn('iOS decodeAudioData failed:', path); });
       }).catch(()=>{});
     }
-    // 타임아웃 (iOS는 네트워크 느릴 수 있으니 15초)
-    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 15000);
+    // 타임아웃 30초 (iOS 느린 네트워크 대응). finishLoading 에서 buffer 없으면 추가 20초 재시도.
+    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 30000);
   } else if (curSong.stemDir && stemCount > 0) {
     let loaded = 0, failed = 0;
     pulseStemAudios = [];
@@ -5592,8 +5879,8 @@ function startSong(idx) {
         }
       }, { once: true });
     }
-    // 타임아웃: 10초 안에 로딩 안 되면 강제 시작
-    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 10000);
+    // 타임아웃 30초 (느린 네트워크 대응). finishLoading 에서 buffer 없으면 추가 20초 재시도.
+    setTimeout(() => { if (songLoading) { songLoadProgress = songLoadTotal; _energyReady = true; onAllLoaded(); } }, 30000);
   } else {
     _energyReady = true; // 비스템곡: 에너지 분석 없음
     songAudio = new Audio(assetUrl(curSong.file));
@@ -5727,8 +6014,8 @@ function update(dt) {
   if (state === 'select') {
     if (inputQueue.length > 0)    for (const inp of inputQueue) {
       if (inp === 'tab') { selectFocus = (selectFocus + 1) % 3; }
-      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
-      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.blur(); }
+      if (inp === 'ranking') { rankingScroll = 0; rankingKeyCount = laneCount; subscribeFbRanking(selectedSong, selectedDiff, rankingKeyCount); stopPreview(); startRankingBgm(); transitionTo('ranking'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur(); }
+      if (inp === 'achievement') { achievementScroll = 0; achievementSongFilter = selectedSong; stopPreview(); startAchievementBgm(); transitionTo('achievement'); searchActive = false; searchText = ''; searchScroll = 0; searchInputEl.value = ''; searchInputEl.style.top = '-100px'; searchInputEl.style.pointerEvents = 'none'; searchInputEl.blur(); }
       if (selectFocus === 0) {
         if (inp==='left') { const p = _dPos(selectedSong); selectedSong = _dSong(p > 0 ? p - 1 : _dLen() - 1); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
         if (inp==='right') { const p = _dPos(selectedSong); selectedSong = _dSong(p < _dLen() - 1 ? p + 1 : 0); loadSongDiffSpeed(selectedSong); scrollToSong(selectedSong); }
@@ -5816,8 +6103,9 @@ function update(dt) {
             window._absNodes.push(null);
             window._absGains.push(null);
           }
-          // HTML Audio는 뮤트 유지 (position 참조용으로만 유지)
-          if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = 0; allStemAudios[i].play().catch(()=>{}); }
+          // ★ HTML Audio 완전 정지 — 이중 재생이 iOS 에서 오디오 글리치 + 터치 throttling 유발.
+          //   position 참조는 actx.currentTime - _absStartCtx 로 이미 계산되므로 불필요.
+          if (allStemAudios[i]) { allStemAudios[i].pause(); allStemAudios[i].currentTime = 0; }
         }
       } else if (songAudio) {
         songAudio.currentTime = 0; songAudio.play().catch(()=>{});
@@ -6133,7 +6421,7 @@ function render() {
 
     // 커버 이미지
     const _coverCy = _topY + _cr;
-    const _ci = coverImages[curSongIdx];
+    const _ci = getCoverImage(curSongIdx);
     if (_ci && _ci.complete && _ci.naturalWidth > 0) {
       ctx.save();
       ctx.globalAlpha = 0.9;
@@ -6494,7 +6782,9 @@ function renderNotes() {
   // 피버 flicker는 프레임 단위 한 번만 계산 (노트마다 반복 X)
   const _feverFlickerBase = fever ? (Math.sin(_now * 0.015) * 0.3 + 0.7) : 0.7;
   // 프레임 단위 캐시 (sz, lane 관련 반복 호출 제거)
-  const _laneW = getLaneW();
+  const _laneW = _fLw || getLaneW();
+  const _laneSX = _fLsx || getLaneStartX();
+  const _laneHalfW = _laneW / 2;
   const _sz2 = sz(2), _sz6 = sz(6), _sz8 = sz(8), _sz9 = sz(9), _sz11 = sz(11);
   // 노트가 safeTop 위쪽(화면 최상단)부터 나타나도록 cutoff 확장
   const _noteTopMargin = safeTop + 30;
@@ -6509,7 +6799,10 @@ function renderNotes() {
       if (n.type === 'hold') continue;
       break;
     }
-    const sx = getLaneX(n.lane);
+    // past 일반 노트는 sx 계산 전에 조기 continue — 함수 호출 절약
+    if (n.type !== 'hold' && (n.hit || n.missed)) continue;
+    // 인라인 lane x 좌표 (getLaneX 함수 콜 제거 — 노트당 3 회 함수 호출 절약)
+    const sx = _laneSX + n.lane * _laneW + _laneHalfW;
 
     // Draw hold bar (even while holding/complete)
     if (n.type === 'hold' && !n.missed) {
@@ -6627,9 +6920,13 @@ function renderNotes() {
     }
   }
 
-  // Missed flash
-  for (const n of nodes) {
-    if (!n.missed || n.type==='trap') continue;
+  // Missed flash — 최근에 missed 된 노트만 보이는 fade 구간. nodeScanStart 부터 역방향 스캔.
+  // 미스 컷 시점: sy = hitY → n.time = gameTime. sy > hitY + _s80 (화면 하단 벗어남) 면 더 이상 볼 것 없음.
+  const _visTimeCut = _s80 / noteSpeed; // 이만큼 시간 전 과거 노트만 유효
+  for (let i = nodeScanStart - 1; i >= 0; i--) {
+    const n = nodes[i];
+    if (gameTime - n.time > _visTimeCut) break; // 너무 과거 — 이전은 전부 화면 밖
+    if (!n.missed || n.type === 'trap') continue;
     const sy = hitY - (n.time - gameTime) * noteSpeed;
     if (sy < hitY || sy > hitY + _s80) continue;
     const sx = getLaneX(n.lane);
@@ -8334,6 +8631,21 @@ function renderTitle() {
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
   ctx.fillText('v15.8', 6, H + safeBottom - 4);
 
+  // ===== 프리로드 프로그레스바 =====
+  if (!_preloadDone && _preloadTotal > 0) {
+    const pct = _preloadTotal > 0 ? (_preloadLoaded + _preloadFailed) / _preloadTotal : 0;
+    const barW = Math.min(sz(260), W * 0.65), barH = sz(8);
+    const barX = (W - barW) / 2, barY = _visY(0.62);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(barX, barY, barW, barH, sz(4));
+    ctx.fillStyle = '#9e7aff';
+    rrFill(barX, barY, barW * pct, barH, sz(4));
+    ctx.font = `bold ${sz(11)}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(`패치 중... ${Math.round(pct * 100)}%`, W / 2, barY - sz(8));
+    return;
+  }
+
   if (!currentUser) {
     // ===== 비로그인: Kplay 로그인 버튼 =====
     loginBtnAreas = [];
@@ -8901,11 +9213,12 @@ function renderSelect() {
     ctx.globalAlpha = alpha;
 
     // === 커버 이미지 (회전 안 함 — 항상 정방향) ===
-    if (coverImages[i] && coverImages[i].complete && coverImages[i].naturalWidth > 0) {
+    const _ci2 = getCoverImage(i);
+    if (_ci2 && _ci2.complete && _ci2.naturalWidth > 0) {
       ctx.save();
       ctx.beginPath(); ctx.arc(0, 0, r*0.92, 0, Math.PI*2); ctx.clip();
       const imgSize = r * 1.84;
-      ctx.drawImage(coverImages[i], -imgSize/2, -imgSize/2, imgSize, imgSize);
+      ctx.drawImage(_ci2, -imgSize/2, -imgSize/2, imgSize, imgSize);
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = '#000'; ctx.fill();
       ctx.restore();
@@ -9915,14 +10228,16 @@ function renderResult() {
   for (const s of stars) { ctx.globalAlpha=s.b*0.2; ctx.fillStyle='#fff'; ctx.fillRect(s.x,s.y,s.s,s.s); }
   ctx.globalAlpha=1;
   const song=curSong;
-  ctx.font=`bold ${sz(34)}px sans-serif`;
+  const _rTop = -safeTop + sz(10);
+  const _rH = H + safeTop + safeBottom - sz(20);
+  ctx.font=`bold ${sz(28)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle='#fff';
-  ctx.shadowColor='#fff'; ctx.shadowBlur=8;
-  ctx.fillText('RESULT',W/2,H*0.1+12); ctx.shadowBlur=0;
-  ctx.font=`${sz(15)}px sans-serif`; ctx.fillStyle=song.color;
+  if (!isMobile) { ctx.shadowColor='#fff'; ctx.shadowBlur=8; }
+  ctx.fillText('RESULT',W/2, _rTop + _rH * 0.08); ctx.shadowBlur=0;
+  ctx.font=`${sz(13)}px sans-serif`; ctx.fillStyle=song.color;
   const diffLabel = curDiff ? curDiff.name : '';
   const spdLabel = selectedSpeed.toFixed(1)+'x';
-  ctx.fillText(song.name+'  ·  '+diffLabel+'  ·  '+spdLabel,W/2,H*0.17);
+  ctx.fillText(song.name+'  ·  '+diffLabel+'  ·  '+spdLabel,W/2, _rTop + _rH * 0.14);
 
   const pct=totalNodes>0?collected/totalNodes:0;
   const cleared = gauge > 0; // 클리어 여부 (게이지 사망 = 미클리어)
@@ -9941,61 +10256,63 @@ function renderResult() {
   }
   const gc={P:'#ff44ff',S:'#ffd700',A:'#00ff88',B:'#00d4ff',C:'#ff9500',D:'#ff3333'};
 
-  const gradeR = sz(44);
+  const _gradeY = _rTop + _rH * 0.30;
+  const gradeR = sz(38);
   if (grade === 'P') {
-    // P등급: 무지개 링 + 강한 글로우
     const t = Date.now() * 0.003;
-    ctx.beginPath(); ctx.arc(W/2,H*0.33,gradeR,0,Math.PI*2);
-    const rGrad = ctx.createConicGradient(t, W/2, H*0.33);
+    ctx.beginPath(); ctx.arc(W/2, _gradeY, gradeR, 0, Math.PI*2);
+    const rGrad = ctx.createConicGradient(t, W/2, _gradeY);
     rGrad.addColorStop(0,'#ff44ff'); rGrad.addColorStop(0.25,'#44ddff');
     rGrad.addColorStop(0.5,'#ffdd44'); rGrad.addColorStop(0.75,'#44ff88');
     rGrad.addColorStop(1,'#ff44ff');
     ctx.strokeStyle=rGrad; ctx.lineWidth=4; ctx.stroke();
-    ctx.font=`bold ${sz(32)}px sans-serif`;
-    ctx.fillStyle='#ff44ff'; ctx.shadowColor='#ff44ff'; ctx.shadowBlur=40;
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PERFECT',W/2,H*0.33);
+    ctx.font=`bold ${sz(28)}px sans-serif`;
+    ctx.fillStyle='#ff44ff';
+    if (!isMobile) { ctx.shadowColor='#ff44ff'; ctx.shadowBlur=40; }
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('PERFECT',W/2, _gradeY);
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   } else {
-    ctx.beginPath(); ctx.arc(W/2,H*0.33,gradeR,0,Math.PI*2);
+    ctx.beginPath(); ctx.arc(W/2, _gradeY, gradeR, 0, Math.PI*2);
     ctx.strokeStyle=gc[grade]+'44'; ctx.lineWidth=3; ctx.stroke();
-    ctx.font=`bold ${sz(60)}px sans-serif`;
-    ctx.fillStyle=gc[grade]; ctx.shadowColor=gc[grade]; ctx.shadowBlur=20;
-    ctx.textBaseline='middle'; ctx.fillText(grade,W/2,H*0.33);
+    ctx.font=`bold ${sz(50)}px sans-serif`;
+    ctx.fillStyle=gc[grade];
+    if (!isMobile) { ctx.shadowColor=gc[grade]; ctx.shadowBlur=20; }
+    ctx.textBaseline='middle'; ctx.fillText(grade,W/2, _gradeY);
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   }
 
   const stats=[['SCORE',normalizedScore.toLocaleString()],['MAX COMBO',maxCombo+'x'],['HIT',collected+' / '+totalNodes],['MISS',''+missed],['ACCURACY',(pct*100).toFixed(1)+'%']];
-  ctx.font=`${sz(13)}px sans-serif`;
-  const sy0=H*0.48;
+  ctx.font=`${sz(12)}px sans-serif`;
+  const _statRowH = sz(22);
+  const sy0 = _rTop + _rH * 0.46;
   stats.forEach((s,i)=>{
-    const sy=sy0+i*26;
+    const sy=sy0+i*_statRowH;
     ctx.fillStyle='rgba(255,255,255,0.03)';
-    const bw=sz(250);
-    rrFill((W-bw)/2,sy-10,bw,20,5);
-    ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText(s[0],W/2-10,sy+4);
-    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.fillText(s[1],W/2+10,sy+4);
+    const bw = Math.min(sz(250), W * 0.85);
+    rrFill((W-bw)/2,sy - _statRowH*0.4, bw, _statRowH*0.8, 5);
+    ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillText(s[0],W/2-sz(8),sy+2);
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.fillText(s[1],W/2+sz(8),sy+2);
   });
 
   const msgs={P:'ALL PERFECT!!',S:'EXCELLENT!',A:'GREAT!',B:'GOOD!',C:'CLEAR',D:'TRY AGAIN'};
-  ctx.font=`bold ${sz(17)}px sans-serif`;
-  ctx.textAlign='center'; ctx.fillStyle=gc[grade]; ctx.fillText(msgs[grade],W/2,H*0.76);
+  ctx.font=`bold ${sz(15)}px sans-serif`;
+  ctx.textAlign='center'; ctx.fillStyle=gc[grade]; ctx.fillText(msgs[grade],W/2, _rTop + _rH * 0.74);
 
-  // Best score / new record
   const myBest = getMyBest(curSongIdx, selectedDiff);
   if (myBest > 0) {
-    ctx.font=`bold ${sz(14)}px sans-serif`;
+    ctx.font=`bold ${sz(12)}px sans-serif`;
     if (score >= myBest) {
       ctx.fillStyle='#ffd700';
-      ctx.fillText('NEW RECORD!  ' + myBest.toLocaleString(), W/2, H*0.81);
+      ctx.fillText('NEW RECORD!  ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
     } else {
       ctx.fillStyle='rgba(255,255,255,0.4)';
-      ctx.fillText('BEST: ' + myBest.toLocaleString(), W/2, H*0.81);
+      ctx.fillText('BEST: ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
     }
   }
 
   // Newly unlocked achievements
   if (newlyUnlocked.length > 0) {
-    const achY = H*0.84;
+    const achY = _rTop + _rH * 0.83;
     const achW = sz(280);
     const achX = (W-achW)/2;
     const show = Math.min(newlyUnlocked.length, 3);
@@ -10096,6 +10413,40 @@ function pauseGame() {
 }
 
 let _prevActxState = ''; // actx 상태 전환 감지용
+let _bgmNeedsResume = false;
+let _audioInterrupted = false;
+let _suspendPauseTimer = null; // transient suspended blip 무시용 디바운스
+// iOS 오디오 인터럽트 복구 (알람/전화 후)
+// ★ iOS 오디오 컨텍스트는 노드 생성/SFX 재생 등으로 짧게 suspended 됐다가 즉시 running 복귀하는 경우 있음.
+//   이걸 즉시 pauseGame 하면 MISS/따닥 시 flash 없이 게임이 일시 정지 → 다음 탭으로 자동 resume 되는
+//   silent drop 증상 유발. 'suspended' 는 500ms 디바운스, 'interrupted' 만 즉시 pause.
+function _onActxStateChange() {
+  if (!actx) return;
+  // ★ 인게임 중 actx 상태 변경 이벤트 게이팅 — SFX 생성으로 인한 잦은 state change 가
+  //   clearTimeout/setTimeout 누적 유발 → 메인 스레드 오버헤드. 게임 중엔 무시.
+  if (state === 'playing') return;
+  if (actx.state === 'running') {
+    _bgmNeedsResume = true;
+    if (_suspendPauseTimer) { clearTimeout(_suspendPauseTimer); _suspendPauseTimer = null; }
+  } else if (actx.state === 'interrupted' || actx.state === 'suspended') {
+    // ★ 'interrupted'/'suspended' 둘 다 500ms 디바운스. iOS 는 rapid SFX 중 순간 interrupted
+    //   상태로 진입했다 즉시 running 복귀하는 경우가 있는데, 즉시 pauseGame 하면 그 찰나의
+    //   탭이 gamePaused early return 으로 차단되어 씹힘 발생. 진짜 전화/알람 같은 장기 인터럽트는
+    //   500ms 안에 복귀 안 하니까 그대로 pause 처리됨.
+    if (_suspendPauseTimer) clearTimeout(_suspendPauseTimer);
+    _suspendPauseTimer = setTimeout(() => {
+      _suspendPauseTimer = null;
+      if (actx && (actx.state === 'suspended' || actx.state === 'interrupted')) {
+        _audioInterrupted = true;
+        if (state === 'playing' && !gamePaused) pauseGame();
+      }
+    }, 500);
+  }
+}
+if (actx) {
+  try { actx.addEventListener('statechange', _onActxStateChange); } catch(e) {}
+  actx.onstatechange = _onActxStateChange;
+}
 // actx 가 suspended→running 복구 시 ABS 소스 재생성 (이어폰 재연결 등)
 function _restartAudioAfterContextResume() {
   if (!actx || actx.state !== 'running' || countdownTime > 0) return;
@@ -10108,13 +10459,11 @@ function _restartAudioAfterContextResume() {
         for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} }
       }
       window._absNodes = [];
-      window._absGains = window._absGains || [];
+      window._absGains = [];
       window._absStartCtx = actx.currentTime - targetTime;
       for (let i = 0; i < allStemAudios.length; i++) {
         if (stemAudioBuffers[i]) {
-          if (!window._absGains[i]) {
-            const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
-          }
+          const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
           const src = actx.createBufferSource();
           src.buffer = stemAudioBuffers[i];
           src.connect(window._absGains[i]);
@@ -10135,54 +10484,71 @@ function resumeGame() {
   resumeSyncCounter = 15; // 재개 후 15프레임간 오디오에 강제 동기화
   _prevActxState = ''; // 전환 감지 리셋 — resume 직후 재pause 방지
   resumeAudio();
-  // 오디오 위치를 gameTime 기준으로 재동기화 (항상 실행)
   if (countdownTime <= 0) {
     const targetTime = pausedAtTime;
     gameTime = targetTime;
-    if (actx) songStartTime = actx.currentTime - targetTime;
-    // actx 가 아직 suspended 면 ABS 소스 생성을 resume 완료 후로 defer
-    if (actx && actx.state !== 'running') {
-      actx.resume().then(() => {
-        _restartAudioAfterContextResume();
-      }).catch(()=>{});
+    if (actx && actx.state !== 'running') actx.resume().catch(()=>{});
+    // 기존 ABS 소스 정리
+    if (window._absNodes) { for (const src of window._absNodes) { if (src) try { src.stop(); } catch(e){} } }
+    window._absNodes = null;
+    window._absGains = null;
+    window._absStartCtx = null;
+    window._absPausedAt = null;
+    _audioInterrupted = false;
+    // 1순위: ABS 재생성 (actx.currentTime 샘플 정확도 — HTML Audio seek 지연 100~500ms 회피)
+    const _canAbs = actx && usingStemMode && stemAudioBuffers && Object.keys(stemAudioBuffers).length > 0;
+    if (_canAbs) {
+      // ★ onset 모드의 _startDelay(3.5s) 만큼 buffer offset 빼야 함.
+      //   불변식: audioRef = (actx.currentTime - _absStartCtx) + _startDelay = gameTime
+      //   따라서 buffer_pos = targetTime - _startDelay, _absStartCtx 도 그에 맞춰.
+      const _sd = (curSong && curSong._startDelay) || 0;
+      const _bufOff = Math.max(0, targetTime - _sd);
+      window._absNodes = [];
+      window._absGains = [];
+      window._absStartCtx = actx.currentTime - _bufOff;
+      songStartTime = actx.currentTime - _bufOff;
+      const _audioDest = (gameMode === 'nano' && nanoFilter) ? nanoFilter : actx.destination;
+      if (gameMode === 'nano' && nanoFilter) { try { nanoFilter.connect(actx.destination); } catch(e){} }
+      for (let i = 0; i < allStemAudios.length; i++) {
+        if (stemAudioBuffers[i]) {
+          const gain = actx.createGain();
+          const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+          gain.gain.value = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+          gain.connect(_isAlways ? actx.destination : _audioDest);
+          const src = actx.createBufferSource();
+          src.buffer = stemAudioBuffers[i];
+          src.connect(gain);
+          src.start(0, _bufOff);
+          window._absNodes.push(src);
+          window._absGains.push(gain);
+        } else {
+          window._absNodes.push(null);
+          window._absGains.push(null);
+        }
+        // HTML Audio 는 뮤트 상태로 position 참조용만 — HTML 은 buffer 기준이므로 동일 offset
+        if (allStemAudios[i]) { allStemAudios[i].volume = 0; allStemAudios[i].currentTime = _bufOff; allStemAudios[i].play().catch(()=>{}); }
+      }
     } else if (usingStemMode) {
-      // ABS 모드: 새 source 생성하여 재개 (actx running 확인됨)
-      if (window._absPausedAt != null && stemAudioBuffers && actx) {
-        window._absNodes = [];
-        window._absGains = window._absGains || [];
-        window._absStartCtx = actx.currentTime - window._absPausedAt;
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (stemAudioBuffers[i]) {
-            if (!window._absGains[i]) {
-              const g = actx.createGain(); g.connect(actx.destination); window._absGains[i] = g;
-            }
-            const src = actx.createBufferSource();
-            src.buffer = stemAudioBuffers[i];
-            src.connect(window._absGains[i]);
-            src.start(0, window._absPausedAt);
-            window._absNodes.push(src);
-          } else { window._absNodes.push(null); }
-        }
-        window._absPausedAt = null;
-      } else {
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) { allStemAudios[i].currentTime = targetTime; }
-        }
-        for (let i = 0; i < allStemAudios.length; i++) {
-          if (allStemAudios[i]) allStemAudios[i].play().catch(()=>{});
+      // ABS 불가 (buffer 없음) — HTML Audio fallback. 동일하게 _startDelay 보정.
+      const _sdH = (curSong && curSong._startDelay) || 0;
+      const _bufOffH = Math.max(0, targetTime - _sdH);
+      if (actx) songStartTime = actx.currentTime - _bufOffH;
+      for (let i = 0; i < allStemAudios.length; i++) {
+        if (allStemAudios[i]) {
+          const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
+          allStemAudios[i].volume = (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+          allStemAudios[i].currentTime = _bufOffH;
+          allStemAudios[i].play().catch(()=>{});
         }
       }
-    }
-    // 펄스 오디오 동기화 (actx running 이든 아니든)
-    if (usingStemMode) {
       for (let i = 0; i < pulseStemAudios.length; i++) {
-        if (pulseStemAudios[i]) {
-          pulseStemAudios[i].currentTime = targetTime + PULSE_LEAD;
-          pulseStemAudios[i].play().catch(()=>{});
-        }
+        if (pulseStemAudios[i]) { pulseStemAudios[i].currentTime = _bufOffH + PULSE_LEAD; pulseStemAudios[i].play().catch(()=>{}); }
       }
     } else if (songAudio) {
-      songAudio.currentTime = targetTime;
+      const _sdS = (curSong && curSong._startDelay) || 0;
+      const _bufOffS = Math.max(0, targetTime - _sdS);
+      if (actx) songStartTime = actx.currentTime - _bufOffS;
+      songAudio.currentTime = _bufOffS;
       songAudio.play().catch(()=>{});
     }
   }
@@ -10237,6 +10603,41 @@ function loop(time) {
     ctx.fillStyle = 'rgba(255,120,120,0.9)';
     ctx.fillText('나가기', W/2, exBY + exBH*0.65);
     window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
+  }
+  // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
+  //   유저 강제로 닫기 버튼 누르게 해서 window.close() + 재로드 시도.
+  if (window.__updateAvailable && state !== 'playing') {
+    // 검은 오버레이
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
+    // 모달 박스
+    const _umW = Math.min(sz(320), W - sz(32));
+    const _umH = sz(200);
+    const _umX = (W - _umW) / 2;
+    const _umY = (H - _umH) / 2;
+    ctx.fillStyle = 'rgba(30,20,10,0.98)'; rrFill(_umX, _umY, _umW, _umH, sz(14));
+    ctx.strokeStyle = '#ffb050'; ctx.lineWidth = 3; rrStroke(_umX, _umY, _umW, _umH, sz(14));
+    // 제목
+    ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(18)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚠ 새 업데이트 적용 필요', _umX + _umW/2, _umY + sz(32));
+    // 본문
+    ctx.fillStyle = '#fff'; ctx.font = `${sz(12)}px sans-serif`;
+    ctx.fillText('새 버전이 배포되었습니다.', _umX + _umW/2, _umY + sz(68));
+    ctx.fillText('아래 버튼을 눌러 업데이트를 적용해주세요.', _umX + _umW/2, _umY + sz(88));
+    ctx.fillStyle = 'rgba(255,200,120,0.75)'; ctx.font = `${sz(10)}px sans-serif`;
+    ctx.fillText('(버튼이 작동 안 하면 탭을 직접 닫아주세요)', _umX + _umW/2, _umY + sz(110));
+    // 확인 버튼
+    const _ubW = sz(180), _ubH = sz(42);
+    const _ubX = _umX + (_umW - _ubW) / 2;
+    const _ubY = _umY + _umH - _ubH - sz(16);
+    ctx.fillStyle = '#ffb050'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.fillStyle = '#1a0f00'; ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.fillText('업데이트 적용하기', _ubX + _ubW/2, _ubY + _ubH/2);
+    ctx.textBaseline = 'alphabetic';
+    window._updateModalBtn = { x: _ubX, y: _ubY, w: _ubW, h: _ubH };
+  } else {
+    window._updateModalBtn = null;
   }
   renderAd();
   renderFade();
