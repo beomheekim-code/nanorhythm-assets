@@ -4549,16 +4549,14 @@ document.addEventListener('pointerdown', e => {
 }, { capture: true });
 document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
-  e.preventDefault();
+  // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
+  //   non-passive 는 iOS 가 "preventDefault 대기" 로 다음 이벤트 dispatch 를 미룸 → rapid tap 드롭 원인.
   _inputEventTime = e.timeStamp || performance.now();
-  // ★ 좌표 dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
-    const t = e.changedTouches[ti];
-    const lane = _processPlayingTouch(t);
-    if (lane === -1) { e.stopImmediatePropagation(); /* 루프 계속 — 동시 다른 레인 탭 씹힘 방지 */ }
+    _processPlayingTouch(e.changedTouches[ti]);
   }
   _inputEventTime = 0;
-}, { passive: false, capture: true });
+}, { passive: true, capture: true });
 // ★ window 레벨 백업 리스너 — document 레벨에서 이벤트가 어떤 이유로든 유실될 때 방어.
 //   중복 호출되어도 handleLanePress.note.hit 가 dedup, playEmptyPressSfx 는 50ms 쿨다운으로 억제.
 window.addEventListener('touchstart', e => {
