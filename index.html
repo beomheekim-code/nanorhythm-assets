@@ -11,12 +11,31 @@
 <meta http-equiv="Expires" content="0">
 <title>NANO RHYTHM</title>
 <script>
+// ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
+window.__BUILD_TS = 20260419200000;
 (function(){
   try {
+    // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
     if (location.search.indexOf('_v=') === -1) {
       var sep = location.search ? '&' : '?';
       location.replace(location.pathname + location.search + sep + '_v=' + Date.now() + location.hash);
+      return;
     }
+    // 주기적 업데이트 감지 — 서버의 최신 HTML 에서 __BUILD_TS 추출 비교
+    async function _checkUpdate(){
+      if (document.hidden) return;
+      try {
+        var r = await fetch(location.pathname + '?__chk=' + Date.now(), {cache:'no-store'});
+        var txt = await r.text();
+        var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
+        if (m && parseInt(m[1]) > window.__BUILD_TS) {
+          window.__updateAvailable = true;
+        }
+      } catch(e) {}
+    }
+    // 페이지 로드 30초 후 첫 체크, 이후 3분마다
+    setTimeout(_checkUpdate, 30000);
+    setInterval(_checkUpdate, 180000);
   } catch(e) {}
 })();
 </script>
@@ -3320,6 +3339,10 @@ let fadePendingCallback = null;
 
 function transitionTo(newState, callback) {
   if (fadeDir !== 0) return; // 이미 전환 중
+  // ★ 인게임 종료 전환 시 Firebase 재연결 — startSong 의 goOffline 복원
+  if ((state === 'playing' || state === 'ending') && newState !== 'playing') {
+    try { if (fbDb) fbDb.goOnline(); } catch(e) {}
+  }
   fadePendingState = newState;
   fadePendingCallback = callback || null;
   fadeDir = 1; // 페이드아웃 시작
@@ -5540,6 +5563,9 @@ function startSong(idx) {
   //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
   unsubscribeAllFbRankings();
   recordPlay(idx);
+  // ★ Firebase WebSocket 완전 해제 — WiFi 환경 heartbeat/auth 백그라운드 작업
+  //   메인 스레드 점유 방지. transitionTo 에서 goOnline 으로 재연결.
+  try { if (fbDb) fbDb.goOffline(); } catch(e) {}
   curSongIdx = idx; curSong = songs[idx];
   curDiff = DIFFICULTIES[selectedDiff];
   const speedMul = selectedSpeed;
@@ -10532,6 +10558,22 @@ function loop(time) {
     ctx.fillStyle = 'rgba(255,120,120,0.9)';
     ctx.fillText('나가기', W/2, exBY + exBH*0.65);
     window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
+  }
+  // ★ 업데이트 감지 배너 — 인게임 방해 안 하도록 state !== 'playing' 일 때만 표시.
+  //   유저에게 "브라우저 완전히 닫고 다시 열기" 안내 (새로고침은 iOS 에서 캐시 못 날림).
+  if (window.__updateAvailable && state !== 'playing') {
+    const _ubW = Math.min(sz(340), W - sz(24));
+    const _ubH = sz(56);
+    const _ubX = (W - _ubW) / 2;
+    const _ubY = -safeTop + sz(8);
+    ctx.fillStyle = 'rgba(80,40,20,0.95)'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.strokeStyle = '#ffb050'; ctx.lineWidth = 2; rrStroke(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(12)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚠ 업데이트가 있습니다', W/2, _ubY + sz(16));
+    ctx.fillStyle = '#fff'; ctx.font = `${sz(11)}px sans-serif`;
+    ctx.fillText('브라우저 탭을 완전히 닫고 다시 열어주세요', W/2, _ubY + sz(36));
+    ctx.textBaseline = 'alphabetic';
   }
   renderAd();
   renderFade();
