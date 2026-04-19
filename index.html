@@ -759,28 +759,15 @@ function updateStemVolumes(dt) {
     const songEnded = songDuration > 0 && gameTime >= songDuration - 1;
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const useAbs = window._absGains && window._absGains.length > 0;
-    const _now = performance.now();
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
       const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
       const targetVol = baseVol * vol;
-      // 빈노트 SFX pulse — set 되어 있으면 500ms 선형 decay 볼륨 spike
-      let pulseVol = 0;
-      const p = stemPulses[i];
-      if (p) {
-        const age = _now - p.start;
-        if (age < p.dur) pulseVol = p.peak * (1 - age / p.dur);
-        else stemPulses[i] = null;
-      }
       if (useAbs && window._absGains[i]) {
         const g = window._absGains[i].gain;
         if (Math.abs(g.value - targetVol) > 0.001) g.value = targetVol;
       }
-      if (allStemAudios[i]) {
-        const base = useAbs ? 0 : targetVol;
-        const nv = Math.max(base, pulseVol);
-        if (Math.abs(allStemAudios[i].volume - nv) > 0.001) allStemAudios[i].volume = nv;
-      }
+      if (allStemAudios[i]) { const nv = useAbs ? 0 : targetVol; if (Math.abs(allStemAudios[i].volume - nv) > 0.001) allStemAudios[i].volume = nv; }
     }
   } else if (songAudio) {
     const nv = 0.7 * volBgm; if (Math.abs(songAudio.volume - nv) > 0.001) songAudio.volume = nv;
@@ -811,14 +798,6 @@ function playEmptyPressSfx(lane) {
   if (songDuration > 0 && gameTime >= songDuration - 1) return;
   const peakVol = countdownTime > 0 ? STEM_VOL_NORMAL * volBgm : Math.min(1.0, STEM_VOL_NORMAL * volBgm * 1.4);
   if (usingStemMode) {
-    // ★ iOS: 매 탭은 user gesture context — paused 된 stems 강제 재생 시도.
-    //   onAllLoaded 의 play() 가 silent fail 했거나 iOS 가 도중에 pause 했어도 여기서 복구.
-    //   stems 가 실제 재생 중이어야 HTML volume spike 가 들림.
-    for (let k = 0; k < allStemAudios.length; k++) {
-      if (allStemAudios[k] && allStemAudios[k].paused && !allStemAudios[k].ended) {
-        allStemAudios[k].play().catch(()=>{});
-      }
-    }
     // onset 모드: 해당 레인의 다음 노트 stem + onset 시간으로 재생
     let targetStems = [];
     let targetOffset = 0;
@@ -849,22 +828,20 @@ function playEmptyPressSfx(lane) {
     }
     targetStems.forEach(si => {
       const stemEnded = allStemAudios[si] ? allStemAudios[si].ended : true;
-      // ★ 카운트다운 중 & HTML stem 재생 가능 → HTML volume spike 경로 (Web Audio 우회).
-      //   iOS 에서 Web Audio BufferSource 가 actx dormant 일 때 silently drop 되는 것 회피.
-      //   stems 는 방금 force-play 시도 + onAllLoaded 에서 play() 유지된 상태.
-      if (allStemAudios[si] && !stemEnded && !allStemAudios[si].paused) {
+      if (countdownTime > 0 || stemEnded) {
+        if (stemAudioBuffers[si] && actx) {
+          const src = actx.createBufferSource();
+          const gain = actx.createGain();
+          src.buffer = stemAudioBuffers[si];
+          gain.gain.setValueAtTime(peakVol, actx.currentTime);
+          gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
+          src.connect(gain); gain.connect(actx.destination);
+          const offset = targetOffset > 0 ? targetOffset : (stemFirstSoundTime[si] || 0);
+          src.start(0, offset, 0.5);
+        }
+      } else {
         stemPulses[si] = { start: now, peak: peakVol, dur: 500 };
-        allStemAudios[si].volume = peakVol;
-      } else if (stemAudioBuffers[si] && actx) {
-        // HTML stem 이 paused/ended → Web Audio fallback
-        const src = actx.createBufferSource();
-        const gain = actx.createGain();
-        src.buffer = stemAudioBuffers[si];
-        gain.gain.setValueAtTime(peakVol, actx.currentTime);
-        gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
-        src.connect(gain); gain.connect(actx.destination);
-        const offset = targetOffset > 0 ? targetOffset : (stemFirstSoundTime[si] || 0);
-        src.start(0, offset, 0.5);
+        if (allStemAudios[si]) allStemAudios[si].volume = peakVol;
       }
     });
   } else {
