@@ -5516,6 +5516,15 @@ function startSong(idx) {
   stemOnsetCache = {};
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
+  // ★ 터치/포인터 상태 방어적 초기화 — 메뉴/로딩 중 쌓인 stale 엔트리 제거.
+  //   iOS 가 pointerup/touchend 드롭하거나 외부 링크 진입 시 이전 세션 잔재로 silent drop 유발 가능.
+  //   로딩 화면 진입마다 리셋해서 실제 게임 시작 시점엔 항상 깨끗한 상태 보장.
+  _pointerLaneMap.clear();
+  touchLaneMap.clear();
+  _recentGestureHits.length = 0;
+  _lastLaneHitAt.length = 0;
+  _pauseGestureAt = 0;
+  _inputEventTime = 0;
   particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
