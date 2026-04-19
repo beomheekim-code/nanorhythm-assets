@@ -4448,6 +4448,12 @@ let _recentGestureHits = []; // 페어링용 단기 큐 {x,y,t}
 const _DEDUP_MS = 40;  // pair 페어링에만 사용. 연속 탭(25Hz+)이어도 false-match 안 되도록 짧게.
 const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표. 서브픽셀 여유만.
 let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
+// ★ 레인별 마지막 hit 시각 — 같은 탭의 pointerdown↔touchstart 이중 호출 방지.
+//   좌표 기반 dedup(_recentGestureHits)는 iOS 고부하에서 이벤트 중복/순서역전 시
+//   2차 탭을 오판으로 씹는 경쟁 조건이 있어서 레인별 타임스탬프로 교체.
+//   20ms 락은 pair 검출엔 충분(실측 <5ms)하고 사람 최대 연타(~20Hz=50ms)는 안 걸림.
+const _lastLaneHitAt = [];
+const _LANE_HIT_COOLDOWN_MS = 20;
 function _isRecentGesture(x, y) {
   const now = performance.now();
   while (_recentGestureHits.length && now - _recentGestureHits[0].t > _DEDUP_MS) _recentGestureHits.shift();
@@ -4503,11 +4509,15 @@ function _processPlayingTouch(t) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
+  // ★ 같은 탭의 pointerdown↔touchstart 중복 호출 차단 (20ms 락).
+  //   handleLanePress/playEmptyPressSfx만 건너뛰고 keyHeld/touchLaneMap은 위에서 이미 처리됨.
+  const _now = performance.now();
+  if (_lastLaneHitAt[i] && _now - _lastLaneHitAt[i] < _LANE_HIT_COOLDOWN_MS) return i;
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
-  if (_canHit) handleLanePress(i);
+  if (_canHit) { handleLanePress(i); _lastLaneHitAt[i] = _now; }
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
   //   _processPlayingTouch 리팩토링 시 빠뜨렸던 것. iOS 에서 카운트다운 중 무음 regression 원인.
-  else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
+  else if (!songLoading && countdownTime > 0) { playEmptyPressSfx(i); _lastLaneHitAt[i] = _now; }
   return i;
 }
 // pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
@@ -4525,22 +4535,11 @@ document.addEventListener('touchstart', e => {
   if (state !== 'playing' || gamePaused) return;
   e.preventDefault();
   _inputEventTime = e.timeStamp || performance.now();
-  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
+  // ★ 좌표 dedup 제거 — _processPlayingTouch 내부 레인별 20ms 락으로 통일.
+  //   (이전 _isRecentGesture 큐 방식은 따닥 연타 시 2차 탭을 1차 pointerdown 마크로 오판해 씹는 경쟁 조건 있음)
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
-    // 페어링 큐 (40ms TTL) 매치만 사용 — pointerdown-touchstart pair 는 거의 항상 40ms 내.
-    // _handledByActivePointer 는 touchstart 에서 제거 — ghost 매치로 silent drop 유발.
-    // (touchmove 복구에는 유지 — 정지 손가락 재호출 방지 필수)
-    const dupeIdx = _isRecentGesture(t.clientX, t.clientY);
-    if (dupeIdx >= 0) {
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
-      touchLaneMap.set(t.identifier, i);
-      keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
-      _recentGestureHits.splice(dupeIdx, 1);
-      continue;
-    }
     const lane = _processPlayingTouch(t);
-    _markGesture(t.clientX, t.clientY);
     if (lane === -1) { e.stopImmediatePropagation(); /* 루프 계속 — 동시 다른 레인 탭 씹힘 방지 */ }
   }
   _inputEventTime = 0;
