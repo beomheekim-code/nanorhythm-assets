@@ -12,7 +12,7 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419290000;
+window.__BUILD_TS = 20260419300000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -42,9 +42,11 @@ window.__BUILD_TS = 20260419290000;
         }
       } catch(e) { console.warn('[update] check failed:', e); }
     }
-    // 10초 후 첫 체크, 이후 60초마다. visibilitychange 에서도 체크 (백그라운드 복귀 시).
-    setTimeout(_checkUpdate, 10000);
-    setInterval(_checkUpdate, 60000);
+    // 5초 후 첫 체크, 이후 30초마다. visibilitychange 에서도 체크 (백그라운드 복귀 시).
+    // transitionTo 에서 playing→select/title 전환 시 즉시 호출 (인게임 나오자마자 감지).
+    window._checkUpdate = _checkUpdate;
+    setTimeout(_checkUpdate, 5000);
+    setInterval(_checkUpdate, 30000);
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) _checkUpdate(); });
   } catch(e) {}
 })();
@@ -3348,10 +3350,11 @@ let fadePendingCallback = null;
 
 function transitionTo(newState, callback) {
   if (fadeDir !== 0) return; // 이미 전환 중
-  // ★ 인게임 종료 전환 시 Firebase 재연결 + Wake Lock 해제
+  // ★ 인게임 종료 전환 시 Firebase 재연결 + Wake Lock 해제 + 업데이트 체크 강제
   if ((state === 'playing' || state === 'ending') && newState !== 'playing') {
     try { if (fbDb) fbDb.goOnline(); } catch(e) {}
     try { if (window._wakeLock) { window._wakeLock.release().catch(()=>{}); window._wakeLock = null; } } catch(e) {}
+    try { if (window._checkUpdate) window._checkUpdate(); } catch(e) {}
   }
   fadePendingState = newState;
   fadePendingCallback = callback || null;
