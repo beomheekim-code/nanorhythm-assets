@@ -4479,6 +4479,7 @@ let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart res
 //   2차 탭을 오판으로 씹는 경쟁 조건이 있어서 레인별 타임스탬프로 교체.
 //   20ms 락은 pair 검출엔 충분(실측 <5ms)하고 사람 최대 연타(~20Hz=50ms)는 안 걸림.
 const _lastLaneHitAt = [];
+const _lastLaneHitX = [];
 const _LANE_HIT_COOLDOWN_MS = 20;
 function _isRecentGesture(x, y) {
   const now = performance.now();
@@ -4535,9 +4536,12 @@ function _processPlayingTouch(t) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
-  // ★ dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
-  //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
-  //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
+  // ★ 15ms + 좌표 dedup — 같은 탭의 pointerdown↔touchstart 짝은 <5ms, 같은 좌표라 매치됨.
+  //   slow 따닥(50ms+) 은 시간차로, fast 따닥도 좌표 다르니 전부 통과. 1탭 2히트 버그 방지.
+  const _now = _inputEventTime || performance.now();
+  if (_lastLaneHitAt[i] && _now - _lastLaneHitAt[i] < 15 &&
+      Math.abs((_lastLaneHitX[i] || 0) - x) < 8) return i;
+  _lastLaneHitAt[i] = _now; _lastLaneHitX[i] = x;
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
@@ -4549,17 +4553,14 @@ function _processPlayingTouch(t) {
 //   iOS Safari 가 두 손 거의 동시 따닥 시 touchstart 를 드롭하거나 코얼레스하는 경우가 있음 →
 //   pointerdown 은 별도 파이프라인이라 덜 영향받아 방어 경로 역할.
 //   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
-// ★ pointerdown — pointerId→lane 매핑만 (pointerup 해제용). handleLanePress 호출 안 함.
-//   iOS 가 멀티터치 동시 탭 시 pointerdown 개별 발사 중 일부를 드롭하는 현상 있음.
-//   touchstart 는 배치로 한 이벤트에 changedTouches=N 으로 와서 드롭 확률 낮음 → 거기서 처리.
+// ★ pointerdown + touchstart 이중 경로 — 한쪽 드롭시 다른쪽이 방어.
+//   _processPlayingTouch 내부 15ms + 좌표 dedup 이 1탭 2히트 버그 방지.
 document.addEventListener('pointerdown', e => {
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
-  const x = e.clientX, y = e.clientY - safeTop;
-  const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
-  if (x < lsx) return;
-  if (y < sz(40) && x > W - sz(52)) return;
-  const lane = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
-  _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
+  _inputEventTime = e.timeStamp || performance.now();
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
+  _inputEventTime = 0;
 }, { capture: true });
 // ★ touchstart 가 handleLanePress 단독 호출. 두 손 동시 탭이 한 이벤트에 모이므로
 //   iOS 멀티터치 드롭에 강함. 1탭 2히트 버그도 없음 (handleLanePress 호출 경로 단일).
