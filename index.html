@@ -10,6 +10,19 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>NANO RHYTHM</title>
+<script>
+// ★ 공격적 캐시 무력화 — 매 세션 첫 로드 시 URL 에 타임스탬프 쿼리 부여.
+//   이미 _v 쿼리 있으면 재사용 (같은 세션 내 새로고침엔 유지). iframe 안전.
+//   iOS Safari/Chrome 은 meta Cache-Control 자주 무시하므로 URL 변화로 강제 fresh 로드.
+(function(){
+  try {
+    if (location.search.indexOf('_v=') === -1) {
+      var sep = location.search ? '&' : '?';
+      location.replace(location.pathname + location.search + sep + '_v=' + Date.now() + location.hash);
+    }
+  } catch(e) {}
+})();
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:fixed;top:0;left:0;right:0;bottom:0;overscroll-behavior:none;-webkit-overflow-scrolling:auto}
