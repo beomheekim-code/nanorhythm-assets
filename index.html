@@ -3310,11 +3310,6 @@ let fadePendingCallback = null;
 
 function transitionTo(newState, callback) {
   if (fadeDir !== 0) return; // 이미 전환 중
-  // ★ 인게임 종료 전환 시 Firebase 재연결 — startSong 에서 goOffline 한 걸 복원.
-  //   'playing' 또는 'ending'(내부 상태) 에서 나갈 때 모두 복원.
-  if ((state === 'playing' || state === 'ending') && newState !== 'playing') {
-    try { if (fbDb) fbDb.goOnline(); } catch(e) {}
-  }
   fadePendingState = newState;
   fadePendingCallback = callback || null;
   fadeDir = 1; // 페이드아웃 시작
@@ -5543,10 +5538,6 @@ function startSong(idx) {
   //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
   unsubscribeAllFbRankings();
   recordPlay(idx);
-  // ★ Firebase WebSocket 완전 해제 — WiFi 환경에서 heartbeat/auth 주기 작업이
-  //   iOS 메인 스레드 점유 → 버벅 + 터치 드롭 악화 (사용자 제보: WiFi 에서 심함).
-  //   transitionTo 에서 goOnline 으로 재연결. 인게임 중 네트워크 불필요.
-  try { if (fbDb) fbDb.goOffline(); } catch(e) {}
   curSongIdx = idx; curSong = songs[idx];
   curDiff = DIFFICULTIES[selectedDiff];
   const speedMul = selectedSpeed;
