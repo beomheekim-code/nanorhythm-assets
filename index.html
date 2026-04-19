@@ -383,6 +383,7 @@ function applySfxVol() {
 const titleBgm = new Audio(assetUrl('title_bgm.ogg'));
 titleBgm.loop = false;  // 페이드아웃 + 수동 restart 위해 loop 꺼둠
 titleBgm.volume = 0.55;
+titleBgm.preload = 'auto';  // iOS standalone: 명시적 preload 로 첫 play() 실패 방지
 let titleBgmPlaying = false;
 let titleBgmUnlocked = false; // true once audio is unlocked by user gesture
 const TITLE_BGM_FADE_OUT = 3; // 곡 끝 3초 페이드아웃
@@ -450,7 +451,13 @@ function startTitleBgm() {
   if (!titleBgmPlaying) {
     titleBgm.currentTime = 0;
     titleBgm.volume = getTitleBgmMaxVol();  // 페이드아웃 후 남은 낮은 볼륨 리셋
-    titleBgm.play().catch(()=>{});
+    // iOS standalone: play() 가 reject 되는 경우 대비 — load() 후 재시도
+    const p = titleBgm.play();
+    if (p && p.catch) {
+      p.catch(() => {
+        try { titleBgm.load(); titleBgm.play().catch(()=>{}); } catch(e) {}
+      });
+    }
     titleBgmPlaying = true;
   }
 }
@@ -4671,7 +4678,7 @@ document.addEventListener('touchstart', e => {
     return;
   }
   if (state === 'login') {
-    if (!titleBgmUnlocked) { startTitleBgm(); titleBgmUnlocked = true; }
+    if (!titleBgmUnlocked) { resumeAudio(); startTitleBgm(); titleBgmUnlocked = true; }
     const t0 = e.changedTouches[0];
     const mx = t0.clientX, my = gameY(t0.clientY);
     for (const btn of loginBtnAreas) {
