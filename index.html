@@ -12,7 +12,7 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419240000;
+window.__BUILD_TS = 20260419250000;
 (function(){
   try {
     // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
@@ -5657,6 +5657,9 @@ function startSong(idx) {
   function tryFinalize() {
     // 스템 + 에너지 맵 모두 완료 시 최종 노트 생성 후 시작
     if (!_stemsReady || !_energyReady) return;
+    // ★ 인게임 중이면 SKIP — detectOnsets 7개 + generateNodesFromOnsets 가 2-3초 메인 스레드 블록 유발.
+    //   로딩 전에 못 마쳤으면 패턴 기반 초기 노트로 계속 진행 (노트 손실 없음, 그냥 덜 정교함).
+    if (state === 'playing' && countdownTime <= 0) return;
     // 오디오 길이 기반 bars 보정 + 에너지 맵 반영 최종 노트 생성 (1회만)
     const origBars = curSong.bars;
     if (curSong._audioBars) curSong.bars = curSong._audioBars;
@@ -5742,7 +5745,7 @@ function startSong(idx) {
           // BufferPlayer에 버퍼 할당
           allStemAudios[_si].buffer = buffer;
           stemAudioBuffers[_si] = buffer; // 빈노트/곡끝용 재사용
-          // 첫 소리 위치 + 에너지맵 분석 (기존 로직 동일)
+          // 첫 소리 위치 + 에너지맵 분석
           const data = buffer.getChannelData(0);
           const sr = buffer.sampleRate;
           const bigChunk = Math.floor(sr * 0.1);
