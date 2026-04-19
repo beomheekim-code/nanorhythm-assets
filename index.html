@@ -6315,15 +6315,10 @@ function render() {
   const song = curSong || songs[0];
 
   // BG — 안전 영역까지 확장 (Kplay iframe 위/아래 빈 공간 제거)
-  // ★ 그라데이션 캐시 — W/H/safe/song 변화 시에만 재생성. iOS 메인 스레드 부하 감소.
   const totalH = H + safeTop + safeBottom;
-  const _bgKey = W+'x'+H+'x'+safeTop+'x'+safeBottom+'x'+song.bg1+'x'+song.bg2;
-  if (window._bgGradKey !== _bgKey) {
-    window._bgGrad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-    window._bgGrad.addColorStop(0, song.bg1); window._bgGrad.addColorStop(1, song.bg2);
-    window._bgGradKey = _bgKey;
-  }
-  ctx.fillStyle = window._bgGrad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+  const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+  grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
+  ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
 
   if (state==='login') { renderLogin(); ctx.restore(); return; }
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
