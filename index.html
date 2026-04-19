@@ -4549,12 +4549,9 @@ function _processPlayingTouch(t) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
-  // ★ 15ms + 좌표 dedup — 같은 탭의 pointerdown↔touchstart 짝은 <5ms, 같은 좌표라 매치됨.
-  //   slow 따닥(50ms+) 은 시간차로, fast 따닥도 좌표 다르니 전부 통과. 1탭 2히트 버그 방지.
-  const _now = _inputEventTime || performance.now();
-  if (_lastLaneHitAt[i] && _now - _lastLaneHitAt[i] < 15 &&
-      Math.abs((_lastLaneHitX[i] || 0) - x) < 8) return i;
-  _lastLaneHitAt[i] = _now; _lastLaneHitX[i] = x;
+  // ★ dedup 제거 (ebb898b 상태로 복원) — 사용자 제보에 따르면 이 상태가 매끄러움.
+  //   1탭 2히트 버그는 handleLanePress 의 note.hit 플래그로 동일 노트 중복 방지되지만,
+  //   가까운 다음 노트는 맞을 수 있음 (기존 버그). 매끄러움 우선 트레이드오프.
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
