@@ -4494,6 +4494,9 @@ function _processPlayingTouch(t) {
   keyHeld[i] = true; keyFlash[i] = 0.3;
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i);
+  // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
+  //   _processPlayingTouch 리팩토링 시 빠뜨렸던 것. iOS 에서 카운트다운 중 무음 regression 원인.
+  else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
   return i;
 }
 // pointerdown — touchstart보다 먼저 발생하는 게 보통이지만 iOS 고부하에서 역전 가능
@@ -4849,6 +4852,9 @@ document.addEventListener('touchmove', e => {
         if (_canHit && !_gestureAlreadyHandled(touch.clientX, touch.clientY)) {
           handleLanePress(newLane);
           _markGesture(touch.clientX, touch.clientY);
+        } else if (!_canHit && countdownTime > 0) {
+          // 카운트다운 중 누락 touchstart 복구: 빈노트 SFX
+          playEmptyPressSfx(newLane);
         }
       } else if (newLane !== prevLane) {
         // 슬라이드: 경유한 레인도 모두 입력
@@ -4856,6 +4862,7 @@ document.addEventListener('touchmove', e => {
         for (let li = prevLane + dir; li !== newLane + dir; li += dir) {
           keyHeld[li] = true; keyFlash[li] = 0.3;
           if (_canHit) handleLanePress(li);
+          else if (countdownTime > 0) playEmptyPressSfx(li);
         }
         keyHeld[prevLane] = false;
         touchLaneMap.set(touch.identifier, newLane);
@@ -5583,13 +5590,11 @@ function startSong(idx) {
     if (usingStemMode) {
       for (let k = 0; k < allStemAudios.length; k++) {
         if (allStemAudios[k]) {
-          // ★ iOS: play() 만 하고 pause() 안 함 → HTML Audio 세션 카운트다운 내내 활성 유지
-          //    → iOS 오디오 세션 깨어있음 → actx 가 내부적으로 dormant 안 됨
-          //    → 카운트다운 중 빈노트 SFX (src.start) 가 silently drop 안 됨.
-          //    카운트다운 끝에서 currentTime=0 리셋 후 play() 다시 호출해 BGM 시작 (기존 로직).
+          // 로딩 중 미리 seek+play+pause → 브라우저가 오디오 버퍼링 완료
+          // 카운트다운 끝에서 play()만 하면 끊김 없음
           allStemAudios[k].currentTime = 0;
           allStemAudios[k].volume = 0;
-          allStemAudios[k].play().catch(()=>{});
+          allStemAudios[k].play().then(() => { allStemAudios[k].pause(); allStemAudios[k].currentTime = 0; }).catch(()=>{});
         }
       }
       // 펄스 오디오 생성
