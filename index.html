@@ -2703,6 +2703,18 @@ function subscribeFbRanking(songIdx, diffIdx, lc) {
     fbRankingsCache[key] = snap.val() || {};
   }, () => {});
 }
+// ★ 게임 시작 시 전체 랭킹 구독 해제 — 인게임 중 다른 유저 점수 제출 때마다
+//   snapshot parse 가 메인 스레드 스톨 → iOS 가 rapid touch 드롭하는 원인 추정.
+//   랭킹 화면 재진입 시 subscribeFbRanking() 다시 호출되므로 기능 영향 없음.
+function unsubscribeAllFbRankings() {
+  if (!fbDb) return;
+  for (const key in _fbRankingSubs) {
+    if (_fbRankingSubs[key]) {
+      try { fbDb.ref('scores/' + key).off('value'); } catch(e) {}
+      delete _fbRankingSubs[key];
+    }
+  }
+}
 function getMyBest(songIdx, diffIdx, lc) {
   if (!currentUser) return 0;
   if (lc == null) lc = laneCount;
@@ -5502,6 +5514,10 @@ let stemOnsetCache = {};     // 스템별 onset 결과 캐시
 
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
+  // ★ 인게임 중 Firebase 랭킹 리스너가 살아있으면 다른 유저 점수 제출 때마다
+  //   메인 스레드에서 snapshot parse → iOS 가 rapid touch 드롭하는 원인.
+  //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
+  unsubscribeAllFbRankings();
   recordPlay(idx);
   curSongIdx = idx; curSong = songs[idx];
   curDiff = DIFFICULTIES[selectedDiff];
