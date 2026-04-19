@@ -803,17 +803,18 @@ function playEmptyPressSfx(lane) {
     let targetOffset = 0;
     if (curSong && curSong._onsetMode && nodes.length > 0) {
       const delay = curSong._startDelay || 0;
+      // iOS 디코딩 타이밍 — target stem 의 buffer 가 아직 없으면 건너뛰고 fallback 경로로.
       for (const n of nodes) {
         if (n.hit || n.missed) continue;
-        if (n.lane === lane && n.stem != null) {
+        if (n.lane === lane && n.stem != null && stemAudioBuffers[n.stem]) {
           targetStems = [n.stem];
-          targetOffset = Math.max(0, n.time - delay); // 노트의 실제 오디오 위치
+          targetOffset = Math.max(0, n.time - delay);
           break;
         }
       }
       if (targetStems.length === 0) {
         for (const n of nodes) {
-          if (!n.hit && !n.missed && n.stem != null) {
+          if (!n.hit && !n.missed && n.stem != null && stemAudioBuffers[n.stem]) {
             targetStems = [n.stem];
             targetOffset = Math.max(0, n.time - delay);
             break;
@@ -822,9 +823,16 @@ function playEmptyPressSfx(lane) {
       }
     }
     if (targetStems.length === 0) {
-      // fallback: 레인 매핑 사용
+      // fallback: 레인 매핑 사용 (decoded 된 stem 만)
       const ls = getLaneStems();
-      if (ls && ls[lane]) targetStems = ls[lane].filter(si => !ALWAYS_AUDIBLE_STEMS.includes(si));
+      if (ls && ls[lane]) targetStems = ls[lane].filter(si => !ALWAYS_AUDIBLE_STEMS.includes(si) && stemAudioBuffers[si]);
+    }
+    if (targetStems.length === 0) {
+      // 최종 fallback: 디코딩된 아무 non-always-audible stem (iOS decode 지연 대응)
+      for (let si = 0; si < (curSong.stemNames || []).length; si++) {
+        if (ALWAYS_AUDIBLE_STEMS.includes(si)) continue;
+        if (stemAudioBuffers[si]) { targetStems = [si]; break; }
+      }
     }
     targetStems.forEach(si => {
       const stemEnded = allStemAudios[si] ? allStemAudios[si].ended : true;
@@ -10399,6 +10407,19 @@ function resumeGame() {
       if (actx) songStartTime = actx.currentTime - _bufOffS;
       songAudio.currentTime = _bufOffS;
       songAudio.play().catch(()=>{});
+    }
+    // ★ iOS 백그라운드 복귀 대응 — actx 가 아직 running 이 아니면 방금 만든 ABS 소스들이
+    //    침묵함 (iOS 가 suspended 상태에 start 한 source 를 끊어버리는 경우). state 가
+    //    running 으로 전환될 때 한 번 더 재생성해서 보장.
+    if (actx && actx.state !== 'running') {
+      const _retryAfterResume = () => {
+        if (actx.state !== 'running') return;
+        actx.removeEventListener('statechange', _retryAfterResume);
+        if (state === 'playing' && !gamePaused && countdownTime <= 0) {
+          _restartAudioAfterContextResume();
+        }
+      };
+      try { actx.addEventListener('statechange', _retryAfterResume); } catch(e) {}
     }
   }
 }
