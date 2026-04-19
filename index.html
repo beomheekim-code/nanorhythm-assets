@@ -4499,7 +4499,11 @@ function _gestureAlreadyHandled(x, y) {
 // ★ 탭 이벤트 실제 발생 시각 (DOMHighResTimeStamp) — 이벤트 핸들러 진입 시 세팅.
 //   렌더 프레임이 느려서 이벤트 dispatch 가 지연된 경우 handleLanePress 가 이 값으로 보정.
 let _inputEventTime = 0;
+// ★ 진단용 카운터 — 화면 좌상단에 총 진입 수 + 레인별 표시
+let _diagHandlerEnter = 0;
+const _diagLaneHit = new Array(8).fill(0);
 function _processPlayingTouch(t) {
+  _diagHandlerEnter++;
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   if (y < sz(40) && x > W - sz(52)) {
@@ -4518,6 +4522,7 @@ function _processPlayingTouch(t) {
     }
   }
   const i = Math.max(0, Math.min(laneCount - 1, Math.floor((x - lsx) / lw)));
+  _diagLaneHit[i] = (_diagLaneHit[i] || 0) + 1;
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
@@ -7194,6 +7199,12 @@ function renderUI() {
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
   if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
   ctx.fillText(window._hudScoreStr || '0', _scoreX, _scoreTopY + _scoreLabelSize + _scoreValueSize);
+  // ★ 진단 카운터 — 스코어 아래에 작게 표시. 터치 진입 총 수 + 레인별.
+  ctx.font = `${sz(10)}px monospace`; ctx.fillStyle='rgba(255,230,0,0.85)';
+  const _diagY = _scoreTopY + _scoreLabelSize + _scoreValueSize + sz(14);
+  let _diagStr = 'TAP '+_diagHandlerEnter+' |';
+  for (let li=0; li<laneCount; li++) _diagStr += ' L'+li+':'+(_diagLaneHit[li]||0);
+  ctx.fillText(_diagStr, _scoreX, _diagY);
 
   // Combo display — 노트 영역 상단
   if (combo > 0) {
