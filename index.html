@@ -12,7 +12,7 @@
 <title>NANO RHYTHM</title>
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
-window.__BUILD_TS = 20260419200000;
+window.__BUILD_TS = 20260419210000;
 (function(){
   try {
     // 첫 로드 시 URL 에 _v 타임스탬프 부여 (iframe src 재요청 시 fresh 강제)
@@ -3339,9 +3339,10 @@ let fadePendingCallback = null;
 
 function transitionTo(newState, callback) {
   if (fadeDir !== 0) return; // 이미 전환 중
-  // ★ 인게임 종료 전환 시 Firebase 재연결 — startSong 의 goOffline 복원
+  // ★ 인게임 종료 전환 시 Firebase 재연결 + Wake Lock 해제
   if ((state === 'playing' || state === 'ending') && newState !== 'playing') {
     try { if (fbDb) fbDb.goOnline(); } catch(e) {}
+    try { if (window._wakeLock) { window._wakeLock.release().catch(()=>{}); window._wakeLock = null; } } catch(e) {}
   }
   fadePendingState = newState;
   fadePendingCallback = callback || null;
@@ -5566,6 +5567,16 @@ function startSong(idx) {
   // ★ Firebase WebSocket 완전 해제 — WiFi 환경 heartbeat/auth 백그라운드 작업
   //   메인 스레드 점유 방지. transitionTo 에서 goOnline 으로 재연결.
   try { if (fbDb) fbDb.goOffline(); } catch(e) {}
+  // ★ Wake Lock API — iOS 에게 "게임 중, 풀파워 유지" 선언. 화면 dimming/CPU throttling 방지.
+  //   iOS 16.4+ 지원. 지원 안 하는 환경은 try/catch 로 무시됨.
+  try {
+    if (navigator.wakeLock && !window._wakeLock) {
+      navigator.wakeLock.request('screen').then(wl => {
+        window._wakeLock = wl;
+        wl.addEventListener('release', () => { window._wakeLock = null; });
+      }).catch(()=>{});
+    }
+  } catch(e) {}
   curSongIdx = idx; curSong = songs[idx];
   curDiff = DIFFICULTIES[selectedDiff];
   const speedMul = selectedSpeed;
