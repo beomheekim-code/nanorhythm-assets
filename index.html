@@ -4527,21 +4527,15 @@ document.addEventListener('touchstart', e => {
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     const t = e.changedTouches[ti];
-    // 1) 페어링 큐 (40ms TTL) 매치 — splice 로 쌍 소비
+    // 페어링 큐 (40ms TTL) 매치만 사용 — pointerdown-touchstart pair 는 거의 항상 40ms 내.
+    // _handledByActivePointer 는 touchstart 에서 제거 — ghost 매치로 silent drop 유발.
+    // (touchmove 복구에는 유지 — 정지 손가락 재호출 방지 필수)
     const dupeIdx = _isRecentGesture(t.clientX, t.clientY);
     if (dupeIdx >= 0) {
       const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
       touchLaneMap.set(t.identifier, i);
-      // pointerdown 이 드롭됐을 수도 있으니 시각 피드백은 여기서도 보장
       keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
       _recentGestureHits.splice(dupeIdx, 1);
-      continue;
-    }
-    // 2) 페어링 큐 TTL 만료 but pointerdown pointer 는 여전히 활성 — iOS 고부하 대비
-    if (_handledByActivePointer(t.clientX, t.clientY)) {
-      const i = Math.max(0, Math.min(laneCount - 1, Math.floor((t.clientX - lsx) / lw)));
-      touchLaneMap.set(t.identifier, i);
-      keyHeld[i] = true; if (keyFlash[i] < 0.3) keyFlash[i] = 0.3;
       continue;
     }
     const lane = _processPlayingTouch(t);
