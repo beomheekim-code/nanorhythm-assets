@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421083000;
+window.__BUILD_TS = 20260421084000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1734,10 +1734,18 @@ function renderAd() {
 let adBtnArea = null;
 
 function buyPlayWithPoints(idx) {
-  if (getCoins() >= UNLOCK_POINT_COST) {
+  const have = getCoins();
+  if (have >= UNLOCK_POINT_COST) {
     addCoins(-UNLOCK_POINT_COST);
     addSongFreePlay(idx);
     closeUnlockPopup();
+    return;
+  }
+  // 음표 부족 — 프로덕션: 충전 팝업. 로컬호스트: 무시 (기존 동작 유지).
+  if (!isLocalhost) {
+    const sn = songs[idx] ? songs[idx].name : '곡 해금';
+    closeUnlockPopup();
+    openCoinChargePopup(UNLOCK_POINT_COST, have, sn);
   }
 }
 
@@ -4644,6 +4652,7 @@ addEventListener('mousedown', e => {
     inputQueue.push('confirm'); return;
   }
   if (state === 'result') { inputQueue.push('confirm'); return; }
+  if (coinChargePopupOpen) { handleCoinChargePopupClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'shop') { handleShopClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'inventory') { handleInventoryClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'ranking') { handleRankingClick(e.clientX, gameY(e.clientY)); return; }
@@ -5173,6 +5182,7 @@ document.addEventListener('touchstart', e => {
   if (state === 'result') { inputQueue.push('confirm'); return; }
   // shop은 touchend에서 처리 (drag-vs-tap 구분)
   if (state === 'shop') return;
+  if (coinChargePopupOpen) { const t = e.changedTouches[0]; if (t) handleCoinChargePopupClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'ranking') { const t = e.changedTouches[0]; handleRankingClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'achievement') { const t = e.changedTouches[0]; handleAchievementClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'inventory') { const t = e.changedTouches[0]; if (t) handleInventoryClick(t.clientX, gameY(t.clientY)); return; }
@@ -6747,9 +6757,9 @@ function render() {
 
   if (state==='login') { renderLogin(); ctx.restore(); return; }
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
-  if (state==='select') { renderSelect(); if (unlockPopupOpen) renderUnlockPopup(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
-  if (state==='shop') { renderShop(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
-  if (state==='inventory') { renderInventory(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
+  if (state==='select') { renderSelect(); if (unlockPopupOpen) renderUnlockPopup(); if (coinChargePopupOpen) renderCoinChargePopup(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
+  if (state==='shop') { renderShop(); if (coinChargePopupOpen) renderCoinChargePopup(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
+  if (state==='inventory') { renderInventory(); if (coinChargePopupOpen) renderCoinChargePopup(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='ranking') { renderRanking(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='achievement') { renderAchievement(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='result') { renderResult(); ctx.restore(); return; }
@@ -8548,6 +8558,81 @@ function renderUnlockPopup() {
 }
 let unlockPopupAreas = {};
 
+// ===== COIN CHARGE POPUP (음표 부족 시) =====
+// 구매(스킨/잠긴 곡) 시도 시 음표 부족하면 → 음표 팩(Credits 결제) 옵션 노출.
+// 로컬호스트: 팝업 대신 기존 toast/바로 성공 경로 유지 (개발 편의).
+let coinChargePopupOpen = false;
+let _coinChargeCtx = { need: 0, have: 0, label: '' };
+let _coinChargeBtnAreas = [];
+let _coinChargeCloseArea = null;
+function openCoinChargePopup(need, have, label) {
+  _coinChargeCtx = { need, have, label: label || '' };
+  coinChargePopupOpen = true;
+}
+function closeCoinChargePopup() { coinChargePopupOpen = false; _coinChargeBtnAreas = []; _coinChargeCloseArea = null; }
+
+function renderCoinChargePopup() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(320);
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  ctx.fillStyle = '#181825'; rrFill(px, py, pw, ph, sz(14));
+  ctx.strokeStyle = 'rgba(255,215,0,0.35)'; ctx.lineWidth = 1; rrStroke(px, py, pw, ph, sz(14));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${sz(16)}px sans-serif`; ctx.fillStyle = '#ffd700';
+  ctx.fillText('♪  음표가 부족해요', W/2, py + sz(28));
+  const { need, have, label } = _coinChargeCtx;
+  ctx.font = `${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  const subtitle = (label ? label + ' — ' : '') + '보유 ' + have + ' / 필요 ' + need + ' ♪';
+  ctx.fillText(subtitle, W/2, py + sz(52));
+  // 음표 팩 3종
+  const packs = [
+    { amount: 100,  credits: 10, itemId: 'coins100' },
+    { amount: 500,  credits: 45, itemId: 'coins500' },
+    { amount: 1000, credits: 80, itemId: 'coins1000' },
+  ];
+  _coinChargeBtnAreas = [];
+  const bw = pw * 0.82, bh = sz(46);
+  const bx = (W - bw) / 2;
+  let yCur = py + sz(78);
+  for (const p of packs) {
+    ctx.fillStyle = 'rgba(255,215,0,0.14)'; rrFill(bx, yCur, bw, bh, sz(8));
+    ctx.strokeStyle = 'rgba(255,215,0,0.55)'; ctx.lineWidth = 1.2; rrStroke(bx, yCur, bw, bh, sz(8));
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = '#ffd700';
+    ctx.textAlign = 'left';
+    ctx.fillText('♪ ' + p.amount.toLocaleString(), bx + sz(14), yCur + bh/2);
+    ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = '#fff';
+    ctx.textAlign = 'right';
+    ctx.fillText(p.credits + ' Credits', bx + bw - sz(14), yCur + bh/2);
+    _coinChargeBtnAreas.push({ amount: p.amount, credits: p.credits, itemId: p.itemId, x: bx, y: yCur, w: bw, h: bh });
+    yCur += bh + sz(10);
+  }
+  // 취소
+  yCur += sz(4);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('취소', W/2, yCur + sz(10));
+  _coinChargeCloseArea = { x: W/2 - sz(40), y: yCur, w: sz(80), h: sz(22) };
+}
+
+function handleCoinChargePopupClick(mx, my) {
+  if (_coinChargeCloseArea && hitTest(mx, my, _coinChargeCloseArea.x, _coinChargeCloseArea.y, _coinChargeCloseArea.w, _coinChargeCloseArea.h)) {
+    playScrollTick(); closeCoinChargePopup(); return;
+  }
+  for (const b of _coinChargeBtnAreas) {
+    if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
+      playScrollTick();
+      closeCoinChargePopup();
+      buyCoinsPack(b.amount, b.credits, b.itemId);
+      return;
+    }
+  }
+  // 바깥 탭 → 닫기
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(320);
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  if (!hitTest(mx, my, px, py, pw, ph)) closeCoinChargePopup();
+}
+
 // ===== SHOP (별도 페이지) =====
 function getShopItems() {
   return [
@@ -8623,7 +8708,12 @@ function buyPassWithKplay() {
 function buySkinWithCoins(cat, skinId, cost, label) {
   if (ownsSkin(cat, skinId)) { showLoginToast('이미 보유중입니다', '#ffa500'); return; }
   const have = getCoins();
-  if (have < cost) { showLoginToast('음표가 부족합니다 (' + have + '/' + cost + ')', '#ff4444'); return; }
+  if (have < cost) {
+    // 프로덕션: 음표 충전 팝업. 로컬호스트: 간단 toast (개발 편의).
+    if (isLocalhost) { showLoginToast('음표가 부족합니다 (' + have + '/' + cost + ')', '#ff4444'); return; }
+    openCoinChargePopup(cost, have, label);
+    return;
+  }
   addCoins(-cost);
   addOwnedSkin(cat, skinId);
   showLoginToast(label + ' 구매 완료! 가방에서 장착하세요', '#44dd66', null, 2);
@@ -8914,9 +9004,11 @@ function renderShop() {
       ctx.fillStyle = btnG; rrFill(pbx, pby, pbw, pbh, sz(8));
       ctx.shadowBlur = 0;
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrStroke(pbx, pby, pbw, pbh, sz(8));
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // ♪ 같은 비대칭 글리프 포함돼도 시각 중앙 정렬 — measureText 로 tw 구해 left 기준 수동 배치.
       ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = '#1a0d2e';
-      ctx.fillText(item.price, pbx + pbw/2, pby + pbh/2);
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      const _priceTw = ctx.measureText(item.price).width;
+      ctx.fillText(item.price, pbx + (pbw - _priceTw) / 2, pby + pbh/2);
     } else if (status) {
       ctx.fillStyle = status.color + '20'; rrFill(pbx, pby, pbw, pbh, sz(8));
       ctx.strokeStyle = status.color + '88'; ctx.lineWidth = 1.5; rrStroke(pbx, pby, pbw, pbh, sz(8));
@@ -9127,10 +9219,21 @@ function renderInventory() {
   hg.addColorStop(1, 'rgba(122,77,255,0.25)');
   ctx.fillStyle = hg; ctx.fillRect(0, headerTop, W, headerH);
   ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, headerTop, W, headerH);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // 타이틀 — 가방 아이콘(canvas) + 텍스트. 이모지 대신 햄버거 메뉴와 동일 monochrome 아이콘.
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   ctx.font = `bold ${_mob ? sz(18) : sz(22)}px sans-serif`; ctx.fillStyle = '#fff';
+  const _titleTxt = '나의 가방';
+  const _titleTw = ctx.measureText(_titleTxt).width;
+  const _iconR = _mob ? sz(9) : sz(11);
+  const _gap = sz(10);
+  const _totalW = _iconR * 2 + _gap + _titleTw;
+  const _iconX = W/2 - _totalW/2 + _iconR;
+  const _textX = _iconX + _iconR + _gap;
+  const _titleY = headerTop + headerH/2;
+  drawInlineBagIcon(_iconX, _titleY, _iconR);
   ctx.shadowColor = 'rgba(180,100,255,0.6)'; ctx.shadowBlur = 8;
-  ctx.fillText('🎒  나의 가방', W/2, headerTop + headerH/2);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(_titleTxt, _textX, _titleY);
   ctx.shadowBlur = 0;
 
   // 탭 바 — 9 카테고리 수평 (가로 스크롤 필요 없게 짧은 라벨)
