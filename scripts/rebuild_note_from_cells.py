@@ -21,7 +21,10 @@ CELL_SIZE = 400   # 최종 셀당 크기 (정사각)
 N_CELLS = 8
 PADDING = 0.05    # 꽃과 셀 가장자리 여유 (셀 크기의 5%)
 
-# 먼저 각 소스 셀에 flood fill 로 bg 투명화 (체크/회색 제거)
+# 단일 flood fill — corners 에서 저채도 연결 영역 제거.
+# SAT_THRESH 25: bg 만 제거, 꽃 body 는 전부 보존.
+# 45 로 올리면 lilac/pale-pink 처럼 sat < 60 인 pastel 꽃이 eaten 됨.
+# halo 가 일부 남지만 flower 훼손보다 나음. 완벽한 제거는 유저가 각 셀 수작업 필요.
 from collections import deque
 SAT_THRESH = 25
 
@@ -31,8 +34,7 @@ def flood_transparent(a):
     sat = rgb.max(axis=2) - rgb.min(axis=2)
     low_sat = sat < SAT_THRESH
     to_trans = np.zeros((H, W), dtype=bool)
-    corners = [(0, 0), (W-1, 0), (0, H-1), (W-1, H-1)]
-    for (cx, cy) in corners:
+    for (cx, cy) in [(0, 0), (W-1, 0), (0, H-1), (W-1, H-1)]:
         if not low_sat[cy, cx] or to_trans[cy, cx]: continue
         q = deque([(cx, cy)])
         to_trans[cy, cx] = True
