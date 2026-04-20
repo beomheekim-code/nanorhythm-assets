@@ -26,8 +26,7 @@ N_CELLS = 8
 # pill 설정
 PILL_W_RATIO = 0.7       # pill 폭 = 셀 폭의 70%
 EDGE_FADE_PX = 25        # 좌우 rounded edge fade 거리
-HIGHLIGHT_W_RATIO = 0.12 # 중앙 하이라이트 줄 폭 (pill 폭 대비)
-HIGHLIGHT_ALPHA = 100    # 하이라이트 투명도 (0-255)
+# 중앙 하이라이트 줄 제거 (유저 피드백)
 
 src = Image.open(SRC_NOTE).convert('RGBA')
 src_a = np.array(src)
@@ -78,22 +77,6 @@ for i in range(N_CELLS):
             g_p = int(g * (1 - edge_v * 0.15) + deep[1] * edge_v * 0.15)
             b_p = int(b * (1 - edge_v * 0.15) + deep[2] * edge_v * 0.15)
             canvas[py, px] = [r_p, g_p, b_p, edge_alpha]
-
-        # 중앙 하이라이트 줄 (white, 은은)
-        hl_w = int(pill_w * HIGHLIGHT_W_RATIO)
-        hl_x0 = pill_x0 + (pill_w - hl_w) // 2
-        for px_local in range(hl_w):
-            px = hl_x0 + px_local
-            # soft 중앙 fade
-            hl_v = 1.0 - abs(px_local - hl_w / 2) / (hl_w / 2)
-            hl_a = int(HIGHLIGHT_ALPHA * hl_v)
-            # 현재 pill 색 위에 white 반투명 블렌드
-            cr, cg, cb, ca = canvas[py, px]
-            if ca > 0:
-                blend_a = hl_a / 255.0
-                canvas[py, px, 0] = int(cr * (1 - blend_a) + 255 * blend_a)
-                canvas[py, px, 1] = int(cg * (1 - blend_a) + 255 * blend_a)
-                canvas[py, px, 2] = int(cb * (1 - blend_a) + 255 * blend_a)
 
     print(f'[{i+1}] flower color = #{fr:02x}{fg:02x}{fb:02x}, pill {pill_w}×{BODY_CELL_H}')
 
