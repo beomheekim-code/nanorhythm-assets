@@ -1420,6 +1420,50 @@ const songs = [
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
     excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
   },
+  {
+    name: 'The Last Quarter', sub: 'Alt Rock', bpm: 144,
+    color: '#88aadd', bg1: '#0a1828', bg2: '#040810',
+    bars: 71, file: 'Music/The_Last_Quarter.ogg',
+    cover: 'Music/The_Last_Quarter/The_Last_Quarter.png',
+    stemDir: 'Music/The_Last_Quarter/',
+    stemPrefix: 'The_Last_Quarter',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,1,0,1,1,0,1, 1,0,1,0,1,0,1,1],
+    excludeStems: [4, 5], chordMode: true,
+  },
+  {
+    name: '밤하늘의 기적', sub: 'Midtempo Ballad', bpm: 123,
+    color: '#9966ff', bg1: '#1a0a2c', bg2: '#0a0414',
+    bars: 76, file: 'Music/밤하늘의_기적.ogg',
+    cover: 'Music/밤하늘의_기적/밤하늘의_기적.png',
+    stemDir: 'Music/밤하늘의_기적/',
+    stemPrefix: '밤하늘의_기적',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,1,0,1,0, 1,0,0,1,0,1,1,0],
+    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 96,
+    color: '#c8a2f0', bg1: '#1a1030', bg2: '#080416',
+    bars: 69, file: 'Music/별빛_아래의_약속.ogg',
+    cover: 'Music/별빛_아래의_약속/별빛_아래의_약속.png',
+    stemDir: 'Music/별빛_아래의_약속/',
+    stemPrefix: '별빛_아래의_약속',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
+    vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '질주', sub: 'Indie Rock', bpm: 92,
+    color: '#ff6b44', bg1: '#2c0e08', bg2: '#140804',
+    bars: 57, file: 'Music/질주.ogg',
+    cover: 'Music/질주/질주.png',
+    stemDir: 'Music/질주/',
+    stemPrefix: '질주',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    pattern: [1,0,0,0,1,0,1,0, 1,0,0,1,0,1,0,1],
+    excludeStems: [4, 6], vocalIntroRange: 'auto', chordMode: true,
+  },
 ];
 
 // ===== SONG LOCK / SHOP SYSTEM =====
@@ -2066,7 +2110,8 @@ function loadSkinImage(path, attempt = 0) {
     else { img._ok = false; _scheduleSkinRetry(path, attempt); }
   };
   img.onerror = () => { img._ok = false; _scheduleSkinRetry(path, attempt); };
-  img.src = path + bust;
+  // CDN 경유 — 상대경로는 localhost 만 동작하고 프로덕션(kplay)에선 404. assetUrl 로 CDN URL 붙임.
+  img.src = assetUrl(path) + bust;
   skinImages[path] = img;
   return img;
 }
