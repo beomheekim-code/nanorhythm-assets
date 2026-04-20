@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421072000;
+window.__BUILD_TS = 20260421080000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1870,7 +1870,7 @@ const KEY_MODES = {
 // 여러 스킨 디자인을 레지스트리로 관리. 신규 스킨 추가 = SKINS 객체에 항목 하나 추가.
 //
 // ── 스킨 스키마 ─────────────────────────────────────────────────────────────
-//   id:          'neon' 등 고유 id (localStorage rhythm_currentSkin 에 저장)
+//   id:          'neon' 등 고유 id (인벤토리 저장: rhythm_skinInv_{user}, 장비: rhythm_skinEq_{user})
 //   name:        UI 표시용 이름
 //   price:       상점 가격 (코인)
 //   imagePaths:  type → PNG 경로 맵. type ∈ { note, holdHead, holdBody, key }
@@ -1896,7 +1896,8 @@ const SKINS = {
   neon: {
     id: 'neon',
     name: '벚꽃 네온',
-    price: 200,
+    category: 'note',      // 속하는 스킨 카테고리 (인벤토리 탭)
+    price: 1500,           // 음표(코인) 가격
     // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
     //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
     imagePaths: {
@@ -1978,7 +1979,55 @@ const SKINS = {
     glowStyle: 'radial',
   },
 };
-let currentSkin = safeGetItem('rhythm_currentSkin') || 'neon'; // TODO: 상점/장착 붙으면 UI 에서 변경
+// ===== 스킨 인벤토리/장비 시스템 =====
+// 카테고리별 소유/장착 독립. 장착 안 된 카테고리는 default (fallback canvas 렌더).
+const SKIN_CATEGORIES = ['note','key','score_text','judgment_text','combo_text','hit_effect','hp_bar','lane','judge_line'];
+const SKIN_CATEGORY_LABELS = {
+  note:'노트', key:'키', score_text:'점수', judgment_text:'판정',
+  combo_text:'콤보', hit_effect:'이펙트', hp_bar:'HP바', lane:'레일', judge_line:'판정선'
+};
+// 카테고리별 스킨 카탈로그 (구매 가능한 스킨) — SKINS 레지스트리에서 파생
+//   skin 의 category 필드로 어느 카테고리에 속하는지 선언 (기본 'note')
+function getSkinsForCategory(cat) {
+  const out = [];
+  for (const id in SKINS) {
+    const s = SKINS[id];
+    if (!s || id === 'default') continue;
+    const c = s.category || 'note';
+    if (c === cat) out.push({ id, skin: s });
+  }
+  return out;
+}
+function _invKey() { return 'rhythm_skinInv_' + (currentUser || '_guest'); }
+function _eqKey() { return 'rhythm_skinEq_' + (currentUser || '_guest'); }
+function _loadInv() { try { return JSON.parse(safeGetItem(_invKey()) || '{}'); } catch { return {}; } }
+function _saveInv(x) { safeSetItem(_invKey(), JSON.stringify(x)); }
+function _loadEq() { try { return JSON.parse(safeGetItem(_eqKey()) || '{}'); } catch { return {}; } }
+function _saveEq(x) { safeSetItem(_eqKey(), JSON.stringify(x)); }
+function ownsSkin(cat, id) { const i = _loadInv(); return !!(i[cat] && i[cat].includes(id)); }
+function getOwnedSkins(cat) { const i = _loadInv(); return (i[cat] || []).slice(); }
+function addOwnedSkin(cat, id) {
+  const i = _loadInv(); i[cat] = i[cat] || [];
+  if (!i[cat].includes(id)) i[cat].push(id);
+  _saveInv(i);
+}
+function getEquippedSkin(cat) { return _loadEq()[cat] || null; }
+function setEquippedSkin(cat, id) {
+  const e = _loadEq();
+  if (id) e[cat] = id; else delete e[cat];
+  _saveEq(e);
+  _refreshActiveSkin();
+}
+// note 카테고리 장착 스킨이 legacy `currentSkin` 을 구동 (렌더 경로 호환).
+function _refreshActiveSkin() {
+  currentSkin = getEquippedSkin('note');
+  if (currentSkin) preloadSkin(currentSkin);
+  if (typeof laneCount !== 'undefined' && typeof skinPalette === 'function') {
+    LANE_COLORS = skinPalette(currentSkin, laneCount) || [...KEY_MODES[laneCount].colors];
+  }
+}
+// 초기값: 장착된 note 스킨 (null 이면 default 렌더). 아래 preloadSkin 호출 이후에 안전.
+let currentSkin = getEquippedSkin('note'); // null 가능 (= 기본 스킨)
 const skinImages = {};
 // ★ 로딩 실패 대응 — 곡 로딩 중 네트워크 경합/일시 지연으로 skin PNG 요청이 실패해도
 //   exponential backoff 로 최대 3회 재시도. 실패해도 drawSkinSprite 는 fallback(canvas)
@@ -2027,7 +2076,7 @@ function preloadSkin(id) {
     for (const k in s.imagePaths) loadSkinImage(s.imagePaths[k]);
   }
 }
-preloadSkin(currentSkin);
+if (currentSkin) preloadSkin(currentSkin);
 function skinPaletteIdx(id, lc, lane) {
   const s = SKINS[id];
   if (!s || !s.laneMapping || !s.laneMapping[lc]) return lane;
@@ -2746,7 +2795,9 @@ function completeLogin(name, method) {
   nicknameOverlay = false; nicknameInput = ''; nicknameError = '';
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
   // 계정 데이터 Firebase 동기화 (v16.1)
-  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
+  loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();
+  // 스킨 장착 상태 (유저별 localStorage → currentSkin 재설정)
+  try { _refreshActiveSkin(); } catch(e) {}  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
   if (pendingAuthUid) {
     _claimActiveSession(pendingAuthUid);
   } else if (window.kplay && window.kplay.user && window.kplay.user.userId) {
@@ -4115,6 +4166,7 @@ function handleHamburgerClick(mx, my) {
       const it = items[idx];
       if (it) {
         if (it.key === 'shop') { shopScroll = 0; stopPreview(); startShopBgm(); transitionTo('shop'); }
+        else if (it.key === 'inventory') { inventoryScroll = 0; inventoryTab = 'note'; stopPreview(); transitionTo('inventory'); }
         else if (it.key === 'mail') { mailboxOpen = true; }
         else if (it.key === 'settings') { settingsOpen = true; settingsBindingLane = -1; settingsScrollY = 0; }
       }
@@ -4585,6 +4637,7 @@ addEventListener('mousedown', e => {
   }
   if (state === 'result') { inputQueue.push('confirm'); return; }
   if (state === 'shop') { handleShopClick(e.clientX, gameY(e.clientY)); return; }
+  if (state === 'inventory') { handleInventoryClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'ranking') { handleRankingClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'achievement') { handleAchievementClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'select') {
@@ -5114,6 +5167,7 @@ document.addEventListener('touchstart', e => {
   if (state === 'shop') return;
   if (state === 'ranking') { const t = e.changedTouches[0]; handleRankingClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'achievement') { const t = e.changedTouches[0]; handleAchievementClick(t.clientX, gameY(t.clientY)); return; }
+  if (state === 'inventory') { const t = e.changedTouches[0]; if (t) handleInventoryClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'select') {
     const t = e.changedTouches[0];
     // 화살표 hold 검사 — 글리프 중심 기준 히트 영역
@@ -6687,6 +6741,7 @@ function render() {
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); if (nicknameOverlay) renderNicknameOverlay(); ctx.restore(); return; }
   if (state==='select') { renderSelect(); if (unlockPopupOpen) renderUnlockPopup(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='shop') { renderShop(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
+  if (state==='inventory') { renderInventory(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='ranking') { renderRanking(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='achievement') { renderAchievement(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); ctx.restore(); return; }
   if (state==='result') { renderResult(); ctx.restore(); return; }
@@ -8488,6 +8543,19 @@ let unlockPopupAreas = {};
 function getShopItems() {
   return [
     {
+      id: 'skin_neon_note', type: 'skin', section: '스킨',
+      label: '벚꽃 노트',
+      desc: '감성적인 벚꽃 네온 노트 스킨',
+      price: '1500 ♪',
+      priceType: 'coins',
+      color: '#b33f64', icon: '🌸',
+      iconImage: 'skins/neon/note/08.png',
+      skinCategory: 'note', skinId: 'neon',
+      getStatus: () => ownsSkin('note', 'neon') ? { text: '보유중', color: '#44dd66' } : null,
+      canBuy: () => !ownsSkin('note', 'neon'),
+      onBuy: () => buySkinWithCoins('note', 'neon', 1500, '벚꽃 노트'),
+    },
+    {
       id: 'pass28', type: 'pass', section: '구독',
       label: '28일 모든 곡 무제한',
       desc: '모든 잠긴 곡을 28일간 자유롭게 플레이',
@@ -8540,6 +8608,15 @@ function buyPassWithKplay() {
     showLoginToast('28\uC77C \uD328\uC2A4 \uD65C\uC131\uD654', '#ffd700');
   }
 }
+// 스킨 구매 — 음표(코인) 차감, 인벤토리에 추가. 중복 구매 방지.
+function buySkinWithCoins(cat, skinId, cost, label) {
+  if (ownsSkin(cat, skinId)) { showLoginToast('이미 보유중입니다', '#ffa500'); return; }
+  const have = getCoins();
+  if (have < cost) { showLoginToast('음표가 부족합니다 (' + have + '/' + cost + ')', '#ff4444'); return; }
+  addCoins(-cost);
+  addOwnedSkin(cat, skinId);
+  showLoginToast(label + ' 구매 완료! 가방에서 장착하세요', '#44dd66', null, 2);
+}
 function buyCoinsPack(amount, credits, itemId) {
   // 로컬호스트: SDK 우회하고 즉시 충전
   if (isLocalhost) {
@@ -8589,6 +8666,24 @@ function handleShopClick(mx, my) {
 // 상점 아이콘 캔버스 렌더링
 function drawShopItemIcon(item, cx, cy, r) {
   ctx.save();
+  // iconImage 가 있으면 그 이미지를 원형 clip 해서 렌더 (loadSkinImage 재활용 — 실패 시 이모지 fallback)
+  if (item.iconImage) {
+    const img = loadSkinImage(item.iconImage);
+    if (img && img.complete && img.naturalWidth) {
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI*2); ctx.clip();
+      const dSize = r * 1.9;
+      ctx.drawImage(img, cx - dSize/2, cy - dSize/2, dSize, dSize);
+      ctx.restore();
+      return;
+    }
+    // 이미지 로딩 중/실패 — 이모지 fallback
+    ctx.font = `${Math.round(r*1.1)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(item.icon || '★', cx, cy);
+    ctx.restore();
+    return;
+  }
   if (item.id === 'pass28') {
     // 헤드폰 (28일 패스) — 흰색/실버, 키 큰 밴드
     const cupW = r * 0.34, cupH = r * 0.55;
@@ -8875,9 +8970,14 @@ function renderBottomBar() {
     // 상점 페이지에선 '상점' 항목 제외
     const _unread = currentUser ? getUnreadMailCount() : 0;
     const _mailLabel = '우편함' + (_unread > 0 ? ' (' + _unread + ')' : '');
-    const menuItems = (state === 'shop')
-      ? [{label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}]
-      : [{label:'상점',icon:'🛒',key:'shop'},{label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}];
+    const _isShop = state === 'shop', _isInv = state === 'inventory';
+    const _bagItem = {label:'가방',icon:'🎒',key:'inventory'};
+    const _shopItem = {label:'상점',icon:'🛒',key:'shop'};
+    const menuItems = _isShop
+      ? [_bagItem, {label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}]
+      : _isInv
+        ? [_shopItem, {label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}]
+        : [_shopItem, _bagItem, {label:_mailLabel,icon:'✉',key:'mail'},{label:'설정',icon:'⚙',key:'settings'}];
     const menuH = menuItems.length * menuItemH;
     const menuX = hbX + hbW - menuW, menuY = hbY + hbH + sz(6);
     ctx.fillStyle = '#1a1a2e'; rrFill(menuX, menuY, menuW, menuH, sz(8));
@@ -8893,6 +8993,250 @@ function renderBottomBar() {
     hamburgerAreas = { btn:{x:hbX,y:hbY,w:hbW,h:hbH}, menu:{x:menuX,y:menuY,w:menuW,h:menuH,itemH:menuItemH,count:menuItems.length,items:menuItems} };
   } else {
     hamburgerAreas = { btn:{x:hbX,y:hbY,w:hbW,h:hbH}, menu:null };
+  }
+}
+
+// ===== 인벤토리 (가방) =====
+let inventoryTab = 'note';
+let inventoryScroll = 0;
+const _invBtnAreas = []; // 각 프레임 버튼 hit 영역
+
+function _getSkinPreviewPath(id) {
+  const s = SKINS[id];
+  if (!s) return null;
+  if (s.previewImage) return s.previewImage;
+  if (id === 'neon') return 'skins/neon/note/08.png';
+  return s.imagePaths?.note || null;
+}
+function _getSkinDisplayName(id) {
+  const s = SKINS[id]; return s ? (s.name || id) : id;
+}
+
+function renderInventory() {
+  const _totalH = H + safeTop + safeBottom;
+  const bg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+  bg.addColorStop(0, '#1a0d2e'); bg.addColorStop(0.4, '#120820'); bg.addColorStop(1, '#08040f');
+  ctx.fillStyle = bg; ctx.fillRect(0, -safeTop, W, _totalH);
+  const glow = ctx.createRadialGradient(W*0.5, sz(60), 0, W*0.5, sz(60), W*0.7);
+  glow.addColorStop(0, 'rgba(180,100,255,0.10)'); glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow; ctx.fillRect(0, -safeTop, W, _totalH);
+
+  // 헤더
+  const _mob = isMobile;
+  const headerTop = _mob ? -safeTop : 0;
+  const headerH = _mob ? (sz(44) + safeTop) : sz(56);
+  const hg = ctx.createLinearGradient(0, headerTop, W, headerTop + headerH);
+  hg.addColorStop(0, 'rgba(122,77,255,0.25)');
+  hg.addColorStop(0.5, 'rgba(180,100,255,0.18)');
+  hg.addColorStop(1, 'rgba(122,77,255,0.25)');
+  ctx.fillStyle = hg; ctx.fillRect(0, headerTop, W, headerH);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, headerTop, W, headerH);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${_mob ? sz(18) : sz(22)}px sans-serif`; ctx.fillStyle = '#fff';
+  ctx.shadowColor = 'rgba(180,100,255,0.6)'; ctx.shadowBlur = 8;
+  ctx.fillText('🎒  나의 가방', W/2, headerTop + headerH/2);
+  ctx.shadowBlur = 0;
+
+  // 탭 바 — 9 카테고리 수평 (가로 스크롤 필요 없게 짧은 라벨)
+  _invBtnAreas.length = 0;
+  const tabY = headerTop + headerH + sz(8);
+  const tabH = sz(28);
+  const tabPad = sz(8);
+  ctx.font = `bold ${sz(11)}px sans-serif`;
+  const tabW = (W - sz(16)) / SKIN_CATEGORIES.length;
+  for (let i = 0; i < SKIN_CATEGORIES.length; i++) {
+    const cat = SKIN_CATEGORIES[i];
+    const tx = sz(8) + i * tabW;
+    const active = cat === inventoryTab;
+    ctx.fillStyle = active ? 'rgba(180,100,255,0.35)' : 'rgba(255,255,255,0.05)';
+    rrFill(tx + sz(2), tabY, tabW - sz(4), tabH, sz(6));
+    ctx.strokeStyle = active ? 'rgba(200,150,255,0.9)' : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = active ? 1.5 : 1;
+    rrStroke(tx + sz(2), tabY, tabW - sz(4), tabH, sz(6));
+    ctx.fillStyle = active ? '#fff' : 'rgba(255,255,255,0.55)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(SKIN_CATEGORY_LABELS[cat], tx + tabW/2, tabY + tabH/2);
+    _invBtnAreas.push({ type:'tab', cat, x: tx + sz(2), y: tabY, w: tabW - sz(4), h: tabH });
+  }
+
+  // 컨텐츠 영역 (탭 아래 ~ 뒤로가기 위)
+  const contentTop = tabY + tabH + sz(12);
+  const contentBottom = _mob ? (H + safeBottom - sz(48)) : (H - 56);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, contentTop, W, contentBottom - contentTop); ctx.clip();
+
+  const owned = getOwnedSkins(inventoryTab);
+  if (owned.length === 0) {
+    // 빈 상태 — 회색 안내
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `${sz(13)}px sans-serif`;
+    ctx.fillText('보유한 ' + SKIN_CATEGORY_LABELS[inventoryTab] + ' 스킨이 없습니다', W/2, contentTop + sz(60));
+    ctx.font = `${sz(11)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillText('상점에서 구매해보세요', W/2, contentTop + sz(82));
+  } else {
+    // 그리드 — 카드 형태
+    const cardW = Math.min(sz(360), W * 0.92), cardX = (W - cardW) / 2;
+    let yCur = contentTop + sz(8) - inventoryScroll;
+    const cardH = sz(96);
+    const equippedId = getEquippedSkin(inventoryTab);
+    // 해제 카드 (항상 상단)
+    {
+      const isDefault = !equippedId;
+      ctx.fillStyle = 'rgba(18,12,32,0.92)'; rrFill(cardX, yCur, cardW, cardH, sz(14));
+      ctx.strokeStyle = isDefault ? 'rgba(120,180,255,0.6)' : 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = isDefault ? 1.5 : 1;
+      rrStroke(cardX, yCur, cardW, cardH, sz(14));
+      // 아이콘 (기본 원형)
+      const iconCx = cardX + sz(38), iconCy = yCur + cardH/2, iconR = sz(28);
+      const ig = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
+      ig.addColorStop(0, 'rgba(120,180,255,0.35)'); ig.addColorStop(1, 'rgba(120,180,255,0.05)');
+      ctx.fillStyle = ig;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,180,255,0.8)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${sz(16)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('D', iconCx, iconCy);
+      // 라벨
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = '#fff';
+      ctx.fillText('기본 스킨', cardX + sz(74), yCur + cardH/2 - sz(10));
+      ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText('장착 해제 시 표시되는 기본 모양', cardX + sz(74), yCur + cardH/2 + sz(10));
+      // 버튼 — 현재 장착 해제 상태이면 '장착중' 표시, 아니면 '장착'
+      const bbw = sz(76), bbh = sz(32);
+      const bbx = cardX + cardW - bbw - sz(12), bby = yCur + (cardH - bbh)/2;
+      if (isDefault) {
+        ctx.fillStyle = 'rgba(120,180,255,0.18)'; rrFill(bbx, bby, bbw, bbh, sz(8));
+        ctx.strokeStyle = 'rgba(120,180,255,0.7)'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
+        ctx.fillStyle = 'rgba(160,210,255,0.9)';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font = `bold ${sz(12)}px sans-serif`;
+        ctx.fillText('장착중', bbx + bbw/2, bby + bbh/2);
+      } else {
+        ctx.fillStyle = '#ddd'; rrFill(bbx, bby, bbw, bbh, sz(8));
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
+        ctx.fillStyle = '#1a0d2e';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font = `bold ${sz(12)}px sans-serif`;
+        ctx.fillText('장착', bbx + bbw/2, bby + bbh/2);
+        _invBtnAreas.push({ type:'unequip', cat: inventoryTab, x:bbx, y:bby, w:bbw, h:bbh });
+      }
+      yCur += cardH + sz(10);
+    }
+    // 소유 스킨 카드들
+    for (const skinId of owned) {
+      const s = SKINS[skinId];
+      const col = (s && s.palette && s.palette[0]) || '#9f7fff';
+      const equipped = equippedId === skinId;
+      ctx.fillStyle = 'rgba(18,12,32,0.92)'; rrFill(cardX, yCur, cardW, cardH, sz(14));
+      const cg = ctx.createLinearGradient(cardX, yCur, cardX + cardW, yCur + cardH);
+      cg.addColorStop(0, col + '18'); cg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = cg; rrFill(cardX, yCur, cardW, cardH, sz(14));
+      ctx.strokeStyle = equipped ? (col + 'cc') : (col + '44');
+      ctx.lineWidth = equipped ? 1.8 : 1;
+      rrStroke(cardX, yCur, cardW, cardH, sz(14));
+      // 좌측 액센트
+      ctx.fillStyle = col; rrFill(cardX, yCur + sz(8), sz(4), cardH - sz(16), sz(2));
+      // 아이콘 — 스킨 프리뷰 이미지
+      const iconCx = cardX + sz(38), iconCy = yCur + cardH/2, iconR = sz(28);
+      const ig = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
+      ig.addColorStop(0, col + '55'); ig.addColorStop(1, col + '08');
+      ctx.fillStyle = ig;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
+      const previewPath = _getSkinPreviewPath(skinId);
+      const img = previewPath ? loadSkinImage(previewPath) : null;
+      if (img && img.complete && img.naturalWidth) {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR * 0.92, 0, Math.PI*2); ctx.clip();
+        const dSize = iconR * 1.9;
+        ctx.drawImage(img, iconCx - dSize/2, iconCy - dSize/2, dSize, dSize);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#fff'; ctx.font = `${sz(18)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('★', iconCx, iconCy);
+      }
+      // 라벨
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = '#fff';
+      ctx.fillText(_getSkinDisplayName(skinId), cardX + sz(74), yCur + cardH/2 - sz(10));
+      ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText(SKIN_CATEGORY_LABELS[inventoryTab] + ' 스킨', cardX + sz(74), yCur + cardH/2 + sz(10));
+      // 버튼 (장착 or 해제)
+      const bbw = sz(76), bbh = sz(32);
+      const bbx = cardX + cardW - bbw - sz(12), bby = yCur + (cardH - bbh)/2;
+      if (equipped) {
+        ctx.fillStyle = col + '22'; rrFill(bbx, bby, bbw, bbh, sz(8));
+        ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
+        ctx.fillStyle = col;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font = `bold ${sz(12)}px sans-serif`;
+        ctx.fillText('해제', bbx + bbw/2, bby + bbh/2);
+        _invBtnAreas.push({ type:'unequip', cat: inventoryTab, x:bbx, y:bby, w:bbw, h:bbh });
+      } else {
+        const btnG = ctx.createLinearGradient(bbx, bby, bbx, bby + bbh);
+        btnG.addColorStop(0, col); btnG.addColorStop(1, col + 'aa');
+        ctx.fillStyle = btnG; rrFill(bbx, bby, bbw, bbh, sz(8));
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
+        ctx.fillStyle = '#1a0d2e';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font = `bold ${sz(12)}px sans-serif`;
+        ctx.fillText('장착', bbx + bbw/2, bby + bbh/2);
+        _invBtnAreas.push({ type:'equip', cat: inventoryTab, id: skinId, x:bbx, y:bby, w:bbw, h:bbh });
+      }
+      yCur += cardH + sz(10);
+    }
+    // 스크롤 최대값 저장
+    const bottomAbs = yCur + inventoryScroll + sz(40);
+    window._inventoryMaxScroll = Math.max(0, bottomAbs - contentBottom);
+  }
+  ctx.restore();
+
+  // 뒤로가기 (shop 과 동일 스타일)
+  const _mpBack = isMobile;
+  const _mpLand = isMobile && !isPortrait && !isTablet && H < 500;
+  const bbW = _mpBack ? (_mpLand ? sz(46) : sz(36)) : 70;
+  const bbH = _mpBack ? (_mpLand ? sz(34) : sz(28)) : 38;
+  const bbX = _mpBack ? sz(8) : 12;
+  const bbY = _mpBack ? (H + safeBottom - sz(4) - bbH) : (H - bbH - 10);
+  window._inventoryBackBtn = { x: bbX, y: bbY, w: bbW, h: bbH };
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; rrStroke(bbX, bbY, bbW, bbH, _mpBack ? sz(7) : 8);
+  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.textBaseline = 'middle';
+  if (_mpBack) { ctx.font = `bold ${_mpLand ? sz(18) : sz(16)}px sans-serif`; ctx.fillText('←', bbX + bbW/2, bbY + bbH/2); }
+  else { ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillText('← 뒤로', bbX + bbW/2, bbY + bbH/2); }
+  ctx.textBaseline = 'alphabetic';
+  renderBottomBar();
+}
+
+function handleInventoryClick(mx, my) {
+  if (handleHamburgerClick(mx, my)) return;
+  const _ibb = window._inventoryBackBtn;
+  if (_ibb && hitTest(mx, my, _ibb.x, _ibb.y, _ibb.w, _ibb.h)) {
+    playScrollTick(); transitionTo('select'); return;
+  }
+  for (const b of _invBtnAreas) {
+    if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
+      if (b.type === 'tab') { playScrollTick(); inventoryTab = b.cat; inventoryScroll = 0; return; }
+      if (b.type === 'equip') {
+        playScrollTick();
+        setEquippedSkin(b.cat, b.id);
+        showLoginToast(_getSkinDisplayName(b.id) + ' 장착 완료', '#44dd66');
+        return;
+      }
+      if (b.type === 'unequip') {
+        playScrollTick();
+        setEquippedSkin(b.cat, null);
+        showLoginToast(SKIN_CATEGORY_LABELS[b.cat] + ' 해제 (기본 스킨)', '#88aaff');
+        return;
+      }
+    }
   }
 }
 
