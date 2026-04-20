@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-_cells/key_overlay/ 의 8 개별 셀을 사용해 벚꽃_노트.png 재생성.
-기존 _cells/key_overlay/01~08.png 는 꽃이 셀 상단에 있지만 노트용으론 중앙 필요.
-→ 각 셀에서 꽃 tight bbox 찾아서 400×400 square 캔버스 중앙에 재배치.
-결과: 3200×400 RGBA (8셀 × 400×400 각각).
+스킨 노트 atlas 재생성 (cell-based).
 
-홀드머리용도 동일 소스라 복사 → 벚꽃_홀드머리.png.
+manifest.cellsDir 의 {prefix}_{01~nCells}.png 셀들을 읽어 tight bbox 로 crop,
+{cellSize}×{cellSize} 정사각 캔버스 중앙에 재배치하여 nCells 개 가로로 잇는 atlas 생성.
+출력: manifest.files.note (3200×400 RGBA, 8셀 기준).
+
+선택: manifest.files.holdHeadSilhouette 정의 시 silhouette 버전도 생성.
 """
 import sys, io, os, glob, json
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -60,9 +61,16 @@ def flood_transparent(a):
     a[to_trans, 3] = 0
     return a
 
-files = sorted(glob.glob(os.path.join(CELLS_DIR, '*.png')))[:N_CELLS]
+# 셀은 같은 폴더에서 숫자 파일명(01.png~NN.png)만 선별. atlas 출력(한글명) 등 비-숫자 파일은 자동 제외.
+import re
+_NUMERIC = re.compile(r'^(\d{2,3})\.png$')
+files = sorted([
+    os.path.join(CELLS_DIR, f)
+    for f in os.listdir(CELLS_DIR)
+    if _NUMERIC.match(f)
+])[:N_CELLS]
 if len(files) < N_CELLS:
-    print(f'ERROR: {CELLS_DIR} 에 {N_CELLS} 개 PNG 필요. 현재 {len(files)}개.')
+    print(f'ERROR: {CELLS_DIR} 에 NN.png 형식 {N_CELLS}개 필요. 현재 {len(files)}개.')
     sys.exit(1)
 
 canvas = Image.new('RGBA', (CELL_SIZE * N_CELLS, CELL_SIZE), (0, 0, 0, 0))

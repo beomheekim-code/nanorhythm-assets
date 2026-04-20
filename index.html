@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421064500;
+window.__BUILD_TS = 20260421070000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1865,7 +1865,7 @@ const KEY_MODES = {
 //   id:          'neon' 등 고유 id (localStorage rhythm_currentSkin 에 저장)
 //   name:        UI 표시용 이름
 //   price:       상점 가격 (코인)
-//   imagePaths:  type → PNG 경로 맵. type ∈ { note, holdHead, holdBody, key, keyOverlay }
+//   imagePaths:  type → PNG 경로 맵. type ∈ { note, holdHead, holdBody, key }
 //                홀드머리 = 노트와 동일 디자인이면 같은 파일 가리키면 됨.
 //                홀드 tail 은 별도 sprite 없음 — renderNotes 가 holdHead sprite 를 tail 위치에 재활용.
 //   sprites:     type → 팔레트 idx 별 [x,y,w,h] 배열 (아틀라스 좌표).
@@ -1892,22 +1892,18 @@ const SKINS = {
     // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
     //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
     imagePaths: {
-      note:     'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
-      // ★ holdHead = note 와 동일 PNG (앞부분 = 노트 문양 그대로).
-      //   tail(뒷부분) 도 같은 holdHead sprite 재활용 — body 뒤 z, head 뒤에 flower 한 번 더.
-      holdHead: 'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
-      holdBody: 'skins/neon/note/벚꽃_홀드몸통.png',     // 3200×800, 8셀 네온 pill
-      key:      'skins/neon/note/벚꽃_노트키.png',       // 2752×1536, 4col×2row 키 베이스
-      // ★ 키 위 꽃 오버레이 — 유저 제미나이 생성 8셀 → compose+flood+normalize 완료.
-      //   2752×1536 RGBA, 4col×2row, 셀 688×768. 각 셀 상단에 정규화 크기 꽃 배치.
-      keyOverlay: 'skins/neon/note/벚꽃_노트키_오버레이.png',
+      note:     'skins/neon/note/neon_note.png',         // 3200×400, 8셀 flower
+      // ★ holdHead = note 와 동일 PNG (앞부분 = 노트 문양 그대로). tail 도 동일 sprite 재활용.
+      holdHead: 'skins/neon/note/neon_note.png',         // 3200×400, 8셀 flower
+      holdBody: 'skins/neon/note/neon_holdbody.png',     // 3200×800, 8셀 네온 pill
+      // key/score_text/judgment_text/combo_text/hit_effect/hp_bar/lane/judge_line — 셀 업로드 대기
     },
     // ★ 새 꽃 모양 sprite (직사각형 X) — 각 셀 352×303(노트) / 352×311(홀드머리), 8셀 가로 스트립.
     //   cell 코너 flood fill(max<80) 로 dark sky bg 제거, 꽃 내부 dark 픽셀은 보존.
     //   new note 팔레트 순: rose-pink/lilac/light-blue/mint/gold/coral/magenta/pale-pink
     //   기존 OLD 팔레트(rose/lilac/peach/coral/mint/indigo/cream/gold) 의 body/key 와 호환 위해
     //   MAP[old_pi] = new_cell_idx 매핑: [0,1,7,5,3,2,6,4] — 색상 유사성 기준 최적 매칭.
-    // ★ 고해상도 재생성 — _cells/key_overlay/ 의 8 개별 꽃(각 1952×2176) 을 400×400 square 로
+    // ★ 고해상도 재생성 — skins/neon/note/01~08.png (원본 셀) 을 400×400 square 로
     //   정규화해서 3200×400 sheet 생성 (rebuild_note_from_cells.py). 꽃이 각 셀 중앙에 정렬.
     //   MAP [0,1,7,5,3,2,6,4] 적용 (OLD 팔레트 → new flower cell idx × 400)
     sprites: {
@@ -1944,18 +1940,8 @@ const SKINS = {
         [2400, 0, 400, 800],  // 6 cream → file 6 (magenta)
         [1600, 0, 400, 800],  // 7 gold → file 4
       ],
-      // 노트키 — 2752×1536 이미지, 4col×2row 그리드. 셀 688×768.
-      key: [
-        [0,0,688,768],[688,0,688,768],[1376,0,688,768],[2064,0,688,768],
-        [0,768,688,768],[688,768,688,768],[1376,768,688,768],[2064,768,688,768],
-      ],
-      // keyOverlay — key 와 동일 그리드. 런타임에 key 위에 알파 합성.
-      keyOverlay: [
-        [0,0,688,768],[688,0,688,768],[1376,0,688,768],[2064,0,688,768],
-        [0,768,688,768],[688,768,688,768],[1376,768,688,768],[2064,768,688,768],
-      ],
     },
-    // 새 팔레트 — 벚꽃_홀드머리.png 각 셀 중앙(cx, y=110) 실제 픽셀 샘플링
+    // 팔레트 — neon_note.png 각 셀 중앙 실제 픽셀 샘플링
     // rose(dark pink), lilac, peach, coral, mint, indigo(slate), cream, gold(beige)
     palette: ['#b33f64','#d0afda','#fbc1b5','#f8897e','#b8dcc2','#697293','#e9e8ed','#e9d097'],
     //         0 rose    1 lilac   2 peach   3 coral   4 mint    5 indigo  6 cream   7 gold
@@ -1977,7 +1963,6 @@ const SKINS = {
       note:     { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
       holdHead: { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
       holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게
-      keyOverlay: { widthMul: 1.6, heightRatio: 768 / 688 },  // source aspect
     },
     // 키 base (rounded rect + letter) 스킵 — 판정선에 꽃만 중앙 정렬 (유저 피드백)
     skipKeyBase: true,
