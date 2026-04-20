@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421081000;
+window.__BUILD_TS = 20260421082000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8550,7 +8550,9 @@ function getShopItems() {
       price: '1500 ♪',
       priceType: 'coins',
       color: '#b33f64', icon: '🌸',
-      iconImage: 'skins/neon/note/08.png',
+      // atlas 내 cleaned 꽃 셀 (3200×400 중 x=2800, 400×400) — 배경 투명 + 중앙 정렬
+      iconImage: 'skins/neon/note/neon_note.png',
+      iconSrc: [2800, 0, 400, 400],
       skinCategory: 'note', skinId: 'neon',
       getStatus: () => ownsSkin('note', 'neon') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('note', 'neon'),
@@ -8667,17 +8669,21 @@ function handleShopClick(mx, my) {
 // 상점 아이콘 캔버스 렌더링
 function drawShopItemIcon(item, cx, cy, r) {
   ctx.save();
-  // iconImage 가 있으면 그 이미지를 원형 clip 해서 렌더 (loadSkinImage 재활용 — 실패 시 이모지 fallback)
+  // iconImage 가 있으면 그 이미지를 원형 clip 해서 렌더 (loadSkinImage 재활용)
+  //   iconSrc: [sx,sy,sw,sh] 있으면 atlas 부분 컷 → cleaned/centered 스프라이트 사용 가능.
   if (item.iconImage) {
     const img = loadSkinImage(item.iconImage);
     if (img && img.complete && img.naturalWidth) {
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI*2); ctx.clip();
-      const dSize = r * 1.9;
-      ctx.drawImage(img, cx - dSize/2, cy - dSize/2, dSize, dSize);
+      const dSize = r * 1.7;
+      if (item.iconSrc) {
+        const [sx, sy, sw, sh] = item.iconSrc;
+        ctx.drawImage(img, sx, sy, sw, sh, cx - dSize/2, cy - dSize/2, dSize, dSize);
+      } else {
+        ctx.drawImage(img, cx - dSize/2, cy - dSize/2, dSize, dSize);
+      }
       ctx.restore();
       return;
     }
-    // 이미지 로딩 중/실패 — 이모지 fallback
     ctx.font = `${Math.round(r*1.1)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
@@ -8846,15 +8852,17 @@ function renderShop() {
     // 좌측 액센트 바
     ctx.fillStyle = item.color; rrFill(cx, y + sz(8), sz(4), ih - sz(16), sz(2));
 
-    // 아이콘 (글로우 원 + 캔버스 그리기)
+    // 아이콘 — skin 타입은 투명 배경(halo/테두리 없음), 나머지는 기존 글로우 원
     const iconCx = cx + sz(38), iconCy = y + ih/2;
     const iconR = sz(28);
-    const iconGrad = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
-    iconGrad.addColorStop(0, item.color + '55'); iconGrad.addColorStop(1, item.color + '08');
-    ctx.fillStyle = iconGrad;
-    ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = item.color + '88'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
+    if (item.type !== 'skin') {
+      const iconGrad = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
+      iconGrad.addColorStop(0, item.color + '55'); iconGrad.addColorStop(1, item.color + '08');
+      ctx.fillStyle = iconGrad;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = item.color + '88'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
+    }
     drawShopItemIcon(item, iconCx, iconCy, iconR);
 
     // 가격 버튼 (우측 정렬) — 먼저 좌표 계산해서 텍스트 폭 제한에 사용
@@ -8988,7 +8996,13 @@ function renderBottomBar() {
       if (mi > 0) { ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(menuX+sz(8),iy); ctx.lineTo(menuX+menuW-sz(8),iy); ctx.stroke(); }
       ctx.textAlign='left'; ctx.textBaseline='middle';
       ctx.fillStyle='#fff';
-      ctx.font=`${sz(14)}px sans-serif`; ctx.fillText(menuItems[mi].icon, menuX+sz(12), iy+menuItemH/2);
+      // inventory(가방) 는 이모지 대신 단색 흰색 아이콘 (다른 항목처럼 monochrome)
+      if (menuItems[mi].key === 'inventory') {
+        drawInlineBagIcon(menuX + sz(12) + sz(7), iy + menuItemH/2, sz(7));
+      } else {
+        ctx.font=`${sz(14)}px sans-serif`;
+        ctx.fillText(menuItems[mi].icon, menuX+sz(12), iy+menuItemH/2);
+      }
       ctx.font=`${sz(13)}px sans-serif`; ctx.fillText(menuItems[mi].label, menuX+sz(34), iy+menuItemH/2);
     }
     hamburgerAreas = { btn:{x:hbX,y:hbY,w:hbW,h:hbH}, menu:{x:menuX,y:menuY,w:menuW,h:menuH,itemH:menuItemH,count:menuItems.length,items:menuItems} };
@@ -9002,12 +9016,51 @@ let inventoryTab = 'note';
 let inventoryScroll = 0;
 const _invBtnAreas = []; // 각 프레임 버튼 hit 영역
 
-function _getSkinPreviewPath(id) {
+// 가방(backpack) 아이콘 — 이모지 🎒 대신 canvas stroke 로 단색 흰색 렌더.
+//   (cx, cy) 아이콘 중심, r 반지름(대략).
+function drawInlineBagIcon(cx, cy, r) {
+  ctx.save();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 가방 본체 (둥근 사각) — 아래 살짝 넓게, 위는 좁게 (사다리꼴 느낌)
+  const w = r * 1.7, h = r * 1.9;
+  const x = cx - w/2, y = cy - h*0.35;
+  ctx.beginPath();
+  // 상단 좌우 모서리는 약간 둥글게, 하단은 더 둥글게
+  const rT = r * 0.25, rB = r * 0.4;
+  ctx.moveTo(x + rT, y);
+  ctx.lineTo(x + w - rT, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rT);
+  ctx.lineTo(x + w, y + h - rB);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rB, y + h);
+  ctx.lineTo(x + rB, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rB);
+  ctx.lineTo(x, y + rT);
+  ctx.quadraticCurveTo(x, y, x + rT, y);
+  ctx.stroke();
+  // 손잡이 (위쪽 작은 아치)
+  ctx.beginPath();
+  ctx.arc(cx, y, r * 0.5, Math.PI * 1.05, Math.PI * 1.95, false);
+  ctx.stroke();
+  // 가방 앞면 작은 주머니 (가로 선)
+  ctx.beginPath();
+  ctx.moveTo(x + w*0.22, y + h*0.55);
+  ctx.lineTo(x + w*0.78, y + h*0.55);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// 스킨 프리뷰 — atlas 내 cleaned 셀 사용 (배경 투명, 꽃 중앙 정렬).
+//   반환: { path, src:[sx,sy,sw,sh] } 또는 null.
+function _getSkinPreview(id) {
   const s = SKINS[id];
   if (!s) return null;
-  if (s.previewImage) return s.previewImage;
-  if (id === 'neon') return 'skins/neon/note/08.png';
-  return s.imagePaths?.note || null;
+  if (id === 'neon') return { path: 'skins/neon/note/neon_note.png', src: [2800, 0, 400, 400] };
+  // 기본: atlas 첫 셀
+  const p = s.imagePaths?.note;
+  if (p) return { path: p, src: [0, 0, 400, 400] };
+  return null;
 }
 function _getSkinDisplayName(id) {
   const s = SKINS[id]; return s ? (s.name || id) : id;
@@ -9082,52 +9135,7 @@ function renderInventory() {
     let yCur = contentTop + sz(8) - inventoryScroll;
     const cardH = sz(96);
     const equippedId = getEquippedSkin(inventoryTab);
-    // 해제 카드 (항상 상단)
-    {
-      const isDefault = !equippedId;
-      ctx.fillStyle = 'rgba(18,12,32,0.92)'; rrFill(cardX, yCur, cardW, cardH, sz(14));
-      ctx.strokeStyle = isDefault ? 'rgba(120,180,255,0.6)' : 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = isDefault ? 1.5 : 1;
-      rrStroke(cardX, yCur, cardW, cardH, sz(14));
-      // 아이콘 (기본 원형)
-      const iconCx = cardX + sz(38), iconCy = yCur + cardH/2, iconR = sz(28);
-      const ig = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
-      ig.addColorStop(0, 'rgba(120,180,255,0.35)'); ig.addColorStop(1, 'rgba(120,180,255,0.05)');
-      ctx.fillStyle = ig;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(120,180,255,0.8)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${sz(16)}px sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('D', iconCx, iconCy);
-      // 라벨
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = '#fff';
-      ctx.fillText('기본 스킨', cardX + sz(74), yCur + cardH/2 - sz(10));
-      ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText('장착 해제 시 표시되는 기본 모양', cardX + sz(74), yCur + cardH/2 + sz(10));
-      // 버튼 — 현재 장착 해제 상태이면 '장착중' 표시, 아니면 '장착'
-      const bbw = sz(76), bbh = sz(32);
-      const bbx = cardX + cardW - bbw - sz(12), bby = yCur + (cardH - bbh)/2;
-      if (isDefault) {
-        ctx.fillStyle = 'rgba(120,180,255,0.18)'; rrFill(bbx, bby, bbw, bbh, sz(8));
-        ctx.strokeStyle = 'rgba(120,180,255,0.7)'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
-        ctx.fillStyle = 'rgba(160,210,255,0.9)';
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.font = `bold ${sz(12)}px sans-serif`;
-        ctx.fillText('장착중', bbx + bbw/2, bby + bbh/2);
-      } else {
-        ctx.fillStyle = '#ddd'; rrFill(bbx, bby, bbw, bbh, sz(8));
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
-        ctx.fillStyle = '#1a0d2e';
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.font = `bold ${sz(12)}px sans-serif`;
-        ctx.fillText('장착', bbx + bbw/2, bby + bbh/2);
-        _invBtnAreas.push({ type:'unequip', cat: inventoryTab, x:bbx, y:bby, w:bbw, h:bbh });
-      }
-      yCur += cardH + sz(10);
-    }
-    // 소유 스킨 카드들
+    // 소유 스킨 카드들 (해제 = 자동으로 기본 스킨)
     for (const skinId of owned) {
       const s = SKINS[skinId];
       const col = (s && s.palette && s.palette[0]) || '#9f7fff';
@@ -9141,22 +9149,18 @@ function renderInventory() {
       rrStroke(cardX, yCur, cardW, cardH, sz(14));
       // 좌측 액센트
       ctx.fillStyle = col; rrFill(cardX, yCur + sz(8), sz(4), cardH - sz(16), sz(2));
-      // 아이콘 — 스킨 프리뷰 이미지
+      // 아이콘 — 스킨 프리뷰 이미지 (투명 배경, halo 없음)
       const iconCx = cardX + sz(38), iconCy = yCur + cardH/2, iconR = sz(28);
-      const ig = ctx.createRadialGradient(iconCx, iconCy, 0, iconCx, iconCy, iconR);
-      ig.addColorStop(0, col + '55'); ig.addColorStop(1, col + '08');
-      ctx.fillStyle = ig;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR, 0, Math.PI*2); ctx.stroke();
-      const previewPath = _getSkinPreviewPath(skinId);
-      const img = previewPath ? loadSkinImage(previewPath) : null;
+      const preview = _getSkinPreview(skinId);
+      const img = preview ? loadSkinImage(preview.path) : null;
       if (img && img.complete && img.naturalWidth) {
-        ctx.save();
-        ctx.beginPath(); ctx.arc(iconCx, iconCy, iconR * 0.92, 0, Math.PI*2); ctx.clip();
-        const dSize = iconR * 1.9;
-        ctx.drawImage(img, iconCx - dSize/2, iconCy - dSize/2, dSize, dSize);
-        ctx.restore();
+        const dSize = iconR * 1.7;
+        if (preview.src) {
+          const [sx, sy, sw, sh] = preview.src;
+          ctx.drawImage(img, sx, sy, sw, sh, iconCx - dSize/2, iconCy - dSize/2, dSize, dSize);
+        } else {
+          ctx.drawImage(img, iconCx - dSize/2, iconCy - dSize/2, dSize, dSize);
+        }
       } else {
         ctx.fillStyle = '#fff'; ctx.font = `${sz(18)}px sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
