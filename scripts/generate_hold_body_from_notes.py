@@ -65,20 +65,16 @@ for i in range(N_CELLS):
     rim_w = max(3, int(pill_w * RIM_W_RATIO))
     hl_w  = max(5, int(pill_w * HL_W_RATIO))
 
-    # ★ 세로 그라데이션 + tail(위쪽) 투명도 페이드.
-    #   py=0 (top, tail side) → darker + transparent
-    #   py=H-1 (bottom, head side) → brighter + opaque
+    # ★ 세로 그라데이션 (투명도 없음, 알파 1.0 유지).
+    #   py=0 (top, tail side) → 매우 어둑
+    #   py=H-1 (bottom, head side) → 밝음 (살짝 부스트)
+    #   smoothstep 커브로 대비 극대화.
     for py in range(BODY_CELL_H):
-        v = py / (BODY_CELL_H - 1)   # 0(top, tail) → 1(bottom, head)
-        # 컬러 그라데이션: 밑(head)이 밝고 위(tail)로 갈수록 살짝 어둑 (smoke trail 느낌)
-        vgrad = 0.78 + 0.22 * v      # 0.78 at top → 1.00 at bottom
-        # 알파 페이드: 위쪽 40% 에서 부드럽게 사라짐 (꼬리 smoke 끝)
-        #   t = 0 at top, 1 at 40% from top, 1 유지 below
-        if v < 0.40:
-            t = v / 0.40
-            alpha_mul = t * t          # quadratic ease-in (매우 부드러운 페이드)
-        else:
-            alpha_mul = 1.0
+        v = py / (BODY_CELL_H - 1)       # 0(top) → 1(bottom)
+        # smoothstep: 3v² - 2v³ — 위아래 평탄, 중간 급변 (더 drastic gradient)
+        s = v * v * (3 - 2 * v)
+        vgrad = 0.50 + 0.65 * s          # 0.50 at top → 1.15 at bottom (2.3× 대비)
+        alpha_mul = 1.0                  # 투명도 없음
 
         # pill 안쪽 영역
         for px in range(pill_x0, pill_x1):
