@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260420233000;
+window.__BUILD_TS = 20260420234500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1860,43 +1860,39 @@ const SKINS = {
     id: 'neon',
     name: '벚꽃 네온',
     price: 200,
-    imagePath: 'skins/neon/note/Gemini_Generated_Image_ivgg46ivgg46ivgg.png',
-    // 팔레트 색 순서: Gemini 라벨 기준 rose, pastel, lilac, indigo, lime, gold, tan, mint (Section A/C 자연 순서)
-    // Section B 는 원본 아틀라스 배치가 다름(rose,pastel,green,tan,gold,purple,yellow,mint) → 팔레트 순으로 재배치
+    // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
+    //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
+    imagePaths: {
+      note:     'skins/neon/note/벚꽃_노트.png',     // 2660×221, 8색 가로 스트립
+      holdHead: 'skins/neon/note/벚꽃_홀드머리.png', // 2660×221, 8색 가로 스트립
+      holdBody: 'skins/neon/note/벚꽃_홀드몸통.png', // 2145×314, 8색 가로 스트립
+    },
+    // 각 스트립 W/8 균등 분할 — 셀별 실제 bbox 는 내부 크롭에 따라 들쭉날쭉하므로
+    // 균등 분할로 노트 비율 일관성 확보. drawImage 가 dst 로 스케일하므로 문제없음.
     sprites: {
-      // Section A: 무늬 있는 일반 노트 — 이미 Gemini 라벨 순서
       note: [
-        [69,117,610,123],[759,117,610,123],[1449,117,610,123],[2139,117,610,123],
-        [69,347,610,123],[759,347,610,123],[1449,347,610,123],[2139,347,610,123],
+        [0,0,333,221],[333,0,332,221],[665,0,333,221],[998,0,332,221],
+        [1330,0,333,221],[1663,0,332,221],[1995,0,333,221],[2328,0,332,221],
       ],
-      // Section B: 블랭크 (홀드 머리) — 팔레트 순서로 remap
-      // [0]rose=B[0] [1]pastel=B[1] [2]lilac=B[5] [3]indigo=null(폴백)
-      // [4]lime=B[2] [5]gold=B[4] [6]tan=B[3] [7]mint=B[7]
       holdHead: [
-        [64,653,610,127],   // 0 rose
-        [759,653,610,127],  // 1 pastel
-        [759,846,610,129],  // 2 lilac (B[5])
-        null,               // 3 indigo — B 섹션에 매칭 없음, 단색 폴백
-        [1453,653,610,127], // 4 lime (B[2])
-        [64,846,610,129],   // 5 gold (B[4])
-        [2149,653,610,127], // 6 tan (B[3])
-        [2149,846,610,129], // 7 mint
+        [0,0,333,221],[333,0,332,221],[665,0,333,221],[998,0,332,221],
+        [1330,0,333,221],[1663,0,332,221],[1995,0,333,221],[2328,0,332,221],
       ],
-      // Section C: 세로형 (홀드 바디) — 이미 Gemini 라벨 순서
       holdBody: [
-        [84,1235,232,210],[429,1235,232,210],[774,1235,232,210],[1119,1235,232,210],
-        [1464,1235,232,210],[1809,1235,232,210],[2154,1235,232,210],[2499,1235,232,210],
+        [0,0,268,314],[268,0,268,314],[536,0,268,314],[804,0,268,314],
+        [1072,0,269,314],[1341,0,268,314],[1609,0,268,314],[1877,0,268,314],
       ],
     },
-    // 전체 8색 팔레트 (Gemini 라벨 순) — HEX는 채도 높은 B 샘플 기반, indigo 는 하드코딩
-    palette: ['#ff66ab','#fcb3be','#5c25b1','#2a1a8a','#33c535','#ecbb05','#c88143','#a6ffa1'],
-    //         rose      pastel    lilac     indigo    lime      gold      tan       mint
-    // 키수별 lane → palette/sprite idx 매핑 (시각 대비 최대화, 인접 동색 회피)
+    // 새 팔레트 — 벚꽃_홀드머리.png 각 셀 중앙(cx, y=110) 실제 픽셀 샘플링
+    // rose(dark pink), lilac, peach, coral, mint, indigo(slate), cream, gold(beige)
+    palette: ['#b33f64','#d0afda','#fbc1b5','#f8897e','#b8dcc2','#697293','#e9e8ed','#e9d097'],
+    //         0 rose    1 lilac   2 peach   3 coral   4 mint    5 indigo  6 cream   7 gold
+    // 키수별 lane → palette/sprite idx — 인접 동계열 회피, 대비 극대화
     laneMapping: {
-      4: [0, 2, 4, 6],           // rose, lilac, lime, tan
-      5: [0, 2, 4, 5, 6],        // rose, lilac, lime, gold, tan
-      6: [0, 1, 2, 4, 6, 7],     // rose, pastel, lilac, lime, tan, mint
-      7: [0, 1, 2, 4, 5, 6, 7],  // +gold
+      4: [0, 1, 4, 5],           // rose, lilac, mint, indigo (pink/purple/green/blue)
+      5: [0, 1, 3, 4, 5],        // +coral
+      6: [0, 1, 3, 4, 5, 7],     // +gold
+      7: [0, 1, 2, 3, 4, 5, 7],  // +peach
       8: [0, 1, 2, 3, 4, 5, 6, 7],
     },
   },
@@ -1913,7 +1909,13 @@ function loadSkinImage(path) {
 }
 function preloadSkin(id) {
   const s = SKINS[id];
-  if (s && s.imagePath) loadSkinImage(s.imagePath);
+  if (!s) return;
+  // 레거시 단일 아틀라스
+  if (s.imagePath) loadSkinImage(s.imagePath);
+  // 신규 type 별 분리 스트립 (note/holdHead/holdBody)
+  if (s.imagePaths) {
+    for (const k in s.imagePaths) loadSkinImage(s.imagePaths[k]);
+  }
 }
 preloadSkin(currentSkin);
 function skinPaletteIdx(id, lc, lane) {
@@ -1934,8 +1936,10 @@ function drawSkinSprite(type, lane, dx, dy, dw, dh) {
   // lane → palette/sprite idx 매핑 (키수별)
   const pi = skinPaletteIdx(currentSkin, laneCount, lane);
   const r = arr[pi];
-  if (!r) return false; // 해당 팔레트 색에 sprite 없음 (ex. indigo holdHead) → 폴백
-  const img = skinImages[s.imagePath];
+  if (!r) return false; // 해당 팔레트 색에 sprite 없음 → 폴백
+  // type 별 분리 스트립 우선, 없으면 레거시 단일 아틀라스
+  const path = (s.imagePaths && s.imagePaths[type]) || s.imagePath;
+  const img = skinImages[path];
   if (!img || !img.complete || !img.naturalWidth) return false;
   ctx.drawImage(img, r[0], r[1], r[2], r[3], dx, dy, dw, dh);
   return true;
