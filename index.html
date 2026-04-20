@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421055500;
+window.__BUILD_TS = 20260421060500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1859,7 +1859,28 @@ const KEY_MODES = {
 };
 
 // ===== SKIN SYSTEM =====
-// 스킨 스프라이트 아틀라스 좌표(x,y,w,h)와 스킨별 팔레트(LANE_COLORS 오버라이드).
+// 여러 스킨 디자인을 레지스트리로 관리. 신규 스킨 추가 = SKINS 객체에 항목 하나 추가.
+//
+// ── 스킨 스키마 ─────────────────────────────────────────────────────────────
+//   id:          'neon' 등 고유 id (localStorage rhythm_currentSkin 에 저장)
+//   name:        UI 표시용 이름
+//   price:       상점 가격 (코인)
+//   imagePaths:  type → PNG 경로 맵. type ∈ { note, holdHead, holdBody, key, keyOverlay }
+//                홀드머리 = 노트와 동일 디자인이면 같은 파일 가리키면 됨.
+//   sprites:     type → 팔레트 idx 별 [x,y,w,h] 배열 (아틀라스 좌표).
+//                laneMapping 의 palette idx 를 sprites[type][pi] 에 매핑.
+//   palette:     팔레트 idx → hex 색 배열 (LANE_COLORS 오버라이드, 글로우/폴백용)
+//   laneMapping: 키 수(4/5/6/7/8) → 레인별 palette idx 배열
+//   visualSize:  type → { widthMul, heightMul | heightRatio } (히트박스 건드리지 않는 시각 확대)
+//   noteShape:   'rect'(default) | 'flower' 등 — rect 전제 로직 분기용
+//   skipKeyBase: true 면 receptor box 안 그리고 판정선만 남김 (꽃 스킨 전용)
+//   glowStyle:   'rect'(default) | 'radial' — 노트 뒤 글로우 형태
+//
+// ── 신규 스킨 추가 체크리스트 ─────────────────────────────────────────────
+//   1) skins/{id}/note/ 에 atlas PNG 배치 (note + holdBody, head/tail 은 note 재사용 가능)
+//   2) SKINS 에 항목 추가 → preloadSkin 으로 자동 로드
+//   3) 상점 UI 는 TODO — 상점 붙으면 price/name 기반 자동 카탈로그화
+//
 // default 스킨 = 파일 없음 → 기본 canvas 렌더 폴백.
 const SKINS = {
   default: null,
@@ -1870,9 +1891,11 @@ const SKINS = {
     // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
     //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
     imagePaths: {
-      note:     'skins/neon/note/벚꽃_노트.png',         // 2816×303, 8셀 flower
-      holdHead: 'skins/neon/note/벚꽃_홀드머리.png',     // 2816×311, 8셀 flower
-      holdBody: 'skins/neon/note/벚꽃_홀드몸통.png',     // 2145×314, 8셀 rect (OLD)
+      note:     'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
+      // ★ holdHead = note (동일 PNG) — 머리 = 노트 디자인. silhouette 버전 폐기.
+      //   sprites.holdHead 좌표는 note 와 동일 → note PNG 에서 바로 샘플링.
+      holdHead: 'skins/neon/note/벚꽃_노트.png',         // note 와 동일
+      holdBody: 'skins/neon/note/벚꽃_홀드몸통.png',     // 3200×800, 8셀 네온 pill
       key:      'skins/neon/note/벚꽃_노트키.png',       // 2752×1536, 4col×2row 키 베이스
       // ★ 키 위 꽃 오버레이 — 유저 제미나이 생성 8셀 → compose+flood+normalize 완료.
       //   2752×1536 RGBA, 4col×2row, 셀 688×768. 각 셀 상단에 정규화 크기 꽃 배치.
@@ -2010,22 +2033,17 @@ function _bakeSprite(type, pi, srcImg, r, w, h) {
   bctx.drawImage(srcImg, r[0], r[1], r[2], r[3], 0, 0, cv.width, cv.height);
   return cv;
 }
-// 진단용 카운터 — 콘솔에서 window.__skinDiag 로 확인
-window.__skinDiag = window.__skinDiag || {};
 function drawSkinSprite(type, lane, dx, dy, dw, dh) {
   const s = SKINS[currentSkin];
-  if (!s || !s.sprites) { window.__skinDiag[type+':no_sprites']=(window.__skinDiag[type+':no_sprites']||0)+1; return false; }
+  if (!s || !s.sprites) return false;
   const arr = s.sprites[type];
-  if (!arr) { window.__skinDiag[type+':no_arr']=(window.__skinDiag[type+':no_arr']||0)+1; return false; }
+  if (!arr) return false;
   const pi = skinPaletteIdx(currentSkin, laneCount, lane);
   const r = arr[pi];
-  if (!r) { window.__skinDiag[type+':no_r_pi'+pi]=(window.__skinDiag[type+':no_r_pi'+pi]||0)+1; return false; }
+  if (!r) return false;
   const path = (s.imagePaths && s.imagePaths[type]) || s.imagePath;
   const img = skinImages[path];
-  if (!img) { window.__skinDiag[type+':no_img']=(window.__skinDiag[type+':no_img']||0)+1; return false; }
-  if (!img.complete) { window.__skinDiag[type+':not_complete']=(window.__skinDiag[type+':not_complete']||0)+1; return false; }
-  if (!img.naturalWidth) { window.__skinDiag[type+':no_natural_w']=(window.__skinDiag[type+':no_natural_w']||0)+1; return false; }
-  window.__skinDiag[type+':ok']=(window.__skinDiag[type+':ok']||0)+1;
+  if (!img || !img.complete || !img.naturalWidth) return false;
   // 사이즈 고정 타입(note/holdHead) → pre-baked 캐시 사용. holdBody 는 매번 stretch.
   if (type !== 'holdBody') {
     const w = Math.round(dw), h = Math.round(dh);
@@ -7097,70 +7115,19 @@ function renderNotes() {
       const barTop = Math.max(-40, tailY);
       const barBot = Math.min(hitY + 80, headY);
 
-      if (barTop < barBot + 10) {
-        // Bar body
-        const bw = _noteW;
-        if (n.holding) {
-          // Active hold - bright bar with glow (shadowBlur 제거 → 경량 글로우)
-          ctx.fillStyle = col + '40';
-          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
-          ctx.fillStyle = col + 'bb';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-          // Pulsing particles along bar (빈도 감소: 30% → 10%)
-          if (Math.random() < 0.1 && particles.length < 80) {
-            const py = barTop + Math.random() * (hitY - barTop);
-            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
-          }
-        } else if (n.holdComplete) {
-          // Completed - fading
-          ctx.fillStyle = col + '33';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-        } else if (!n.hit) {
-          // Not yet hit - normal bar (스킨 스프라이트 우선, 없으면 canvas 폴백)
-          const _barH = Math.max(0, barBot - barTop);
-          const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
-          const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
-            ctx.fillStyle = col + '55';
-            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
-            ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
-            rrStroke(sx - bw/2, barTop, bw, _barH, _s7);
-          }
-        }
+      // ★ z-order: Head → Body → Tail (head 를 body 뎁스 뒤에 둠 = 먼저 그림)
+      //   head flower sprite 에 body pill 이 위로 덮히며 "연장되는 느낌" 살림.
 
-        // Tail end cap — 꼬리 끝 (홀드 끝나는 쪽). flower skin 에선 head 랑 같은 꽃 sprite 사용.
-        if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
-          const _vsT = SKINS[currentSkin]?.visualSize?.holdHead;
-          const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
-          const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
-                       : _vsT?.heightMul ? _noteHH * _vsT.heightMul : _noteHH;
-          const _drewTail = drawSkinSprite('holdHead', n.lane, sx - _twVis, tailY - _thVis, _twVis*2, _thVis*2);
-          if (!_drewTail) {
-            const tcW = _noteW;
-            const tcH = Math.min(_noteHH, sz(7));
-            ctx.fillStyle = n.holding ? col : col + 'cc';
-            rrFill(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
-            ctx.strokeStyle = col; ctx.lineWidth = 2;
-            rrStroke(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
-            if (n.holding) {
-              ctx.strokeStyle = col + '66'; ctx.lineWidth = 3;
-              rrStroke(sx-tcW/2-sz(2), tailY-tcH-sz(2), tcW+sz(4), tcH*2+sz(4), sz(5));
-            }
-          }
-        }
-      }
-
-      // Head circle (skip if already hit or missed)
+      // ── 1) Head (아래쪽 뎁스) — skip if already hit or missed
       if (!n.hit && !n.missed) {
         const sy = headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
-          // visualSize 로 height/width 확장 (flower aspect-preserving / 레일 폭 맞춤)
           const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
           const _hwVis = _vsH?.widthMul ? hw * _vsH.widthMul : hw;
           const _hhVis = _vsH?.heightRatio ? _hwVis * _vsH.heightRatio
                        : _vsH?.heightMul ? hh * _vsH.heightMul : hh;
-          // Glow — flower skin 은 radial (사각 안 비침), 기본은 rect
+          // Glow — flower skin 은 radial, 기본은 rect
           const _glowStyle = SKINS[currentSkin]?.glowStyle;
           if (_glowStyle === 'radial') {
             const _gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, _hwVis * 1.25);
@@ -7183,6 +7150,55 @@ function renderNotes() {
             ctx.fillStyle='#fff'; ctx.font=`bold ${_sz9}px sans-serif`;
             ctx.textAlign='center'; ctx.textBaseline='middle';
             ctx.fillText('\u266A', sx, sy+1);
+          }
+        }
+      }
+
+      // ── 2) Body + Tail (head 위에 덮음)
+      if (barTop < barBot + 10) {
+        const bw = _noteW;
+        if (n.holding) {
+          ctx.fillStyle = col + '40';
+          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
+          ctx.fillStyle = col + 'bb';
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+          if (Math.random() < 0.1 && particles.length < 80) {
+            const py = barTop + Math.random() * (hitY - barTop);
+            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
+          }
+        } else if (n.holdComplete) {
+          ctx.fillStyle = col + '33';
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+        } else if (!n.hit) {
+          const _barH = Math.max(0, barBot - barTop);
+          const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
+          const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
+          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
+            ctx.fillStyle = col + '55';
+            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
+            ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
+            rrStroke(sx - bw/2, barTop, bw, _barH, _s7);
+          }
+        }
+
+        // Tail end cap — 꼬리 끝 (flower skin 에선 head 와 같은 꽃 sprite)
+        if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
+          const _vsT = SKINS[currentSkin]?.visualSize?.holdHead;
+          const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
+          const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
+                       : _vsT?.heightMul ? _noteHH * _vsT.heightMul : _noteHH;
+          const _drewTail = drawSkinSprite('holdHead', n.lane, sx - _twVis, tailY - _thVis, _twVis*2, _thVis*2);
+          if (!_drewTail) {
+            const tcW = _noteW;
+            const tcH = Math.min(_noteHH, sz(7));
+            ctx.fillStyle = n.holding ? col : col + 'cc';
+            rrFill(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
+            ctx.strokeStyle = col; ctx.lineWidth = 2;
+            rrStroke(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
+            if (n.holding) {
+              ctx.strokeStyle = col + '66'; ctx.lineWidth = 3;
+              rrStroke(sx-tcW/2-sz(2), tailY-tcH-sz(2), tcW+sz(4), tcH*2+sz(4), sz(5));
+            }
           }
         }
       }
