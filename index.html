@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421011500;
+window.__BUILD_TS = 20260421012500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1942,19 +1942,19 @@ const SKINS = {
       7: [0, 1, 2, 3, 4, 5, 7],  // +peach
       8: [0, 1, 2, 3, 4, 5, 6, 7],
     },
-    // ★ 노트 모양/시각 크기 오버라이드 (스킨 한정, 기본 스킨은 영향 없음).
-    //   꽃 aspect 가 0.86 인데 기본 노트 dst 72×22 에 그리면 세로 3배 압축.
-    //   heightMul/widthMul 로 sprite 렌더 시 dst 크기 확장. logical hit rect 는 그대로 → 히트 판정 영향 없음.
-    //   widthMul 1.11 ≈ lane_w / _noteW (lane_w - sz(8)) → 노트를 레일 폭에 정확히 맞춤.
-    //   holdBody widthMul 1.2 → 몸통 굵게 (기존 "얇아" 피드백 반영).
+    // ★ 노트 시각 크기 — aspect-preserving 로 전환 (sprite 소스 h/w 비율 유지).
+    //   heightMul 고정 방식은 세로 압축 5배라 뭉개짐. heightRatio 는 _nwVis 에 곱해서
+    //   _nhVis 계산 → 소스 flower 비율 그대로 → 세로 압축률 가로와 동일 (최소 왜곡).
+    //   flower tight bbox 288×297 (노트) / 288×286 (머리) 기준 비율.
+    //   logical hit rect 는 그대로 → 히트 판정 영향 없음.
     noteShape: 'flower',
     visualSize: {
-      note:     { heightMul: 2.5, widthMul: 1.11 },
-      holdHead: { heightMul: 2.5, widthMul: 1.11 },
-      holdBody: { widthMul: 1.2 },
+      note:     { widthMul: 1.11, heightRatio: 297 / 288 },   // 1.031 (near square)
+      holdHead: { widthMul: 1.11, heightRatio: 286 / 288 },   // 0.993
+      holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게
     },
-    // rect 글로우 — flower sprite 뒤에 투명 직사각형이 비쳐서 지저분. flower 스킨은 끔.
-    skipRectGlow: true,
+    // rect 글로우 대신 radial(원형) glow — flower 뒤에 사각형 안 비치면서 "떨어지는 느낌" 유지.
+    glowStyle: 'radial',
   },
 };
 let currentSkin = safeGetItem('rhythm_currentSkin') || 'neon'; // TODO: 상점/장착 붙으면 UI 에서 변경
@@ -7134,16 +7134,24 @@ function renderNotes() {
         const sy = headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
-          // flower skin 은 sprite 뒤 rect 글로우가 투명 배경으로 비쳐서 지저분 → 스킵
-          const _skipGlow = SKINS[currentSkin]?.skipRectGlow;
-          if (!_skipGlow) {
+          // visualSize 로 height/width 확장 (flower aspect-preserving / 레일 폭 맞춤)
+          const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
+          const _hwVis = _vsH?.widthMul ? hw * _vsH.widthMul : hw;
+          const _hhVis = _vsH?.heightRatio ? _hwVis * _vsH.heightRatio
+                       : _vsH?.heightMul ? hh * _vsH.heightMul : hh;
+          // Glow — flower skin 은 radial (사각 안 비침), 기본은 rect
+          const _glowStyle = SKINS[currentSkin]?.glowStyle;
+          if (_glowStyle === 'radial') {
+            const _gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, _hwVis * 1.25);
+            _gr.addColorStop(0, col + '55');
+            _gr.addColorStop(0.6, col + '22');
+            _gr.addColorStop(1, col + '00');
+            ctx.fillStyle = _gr;
+            ctx.fillRect(sx - _hwVis * 1.3, sy - _hhVis * 1.3, _hwVis * 2.6, _hhVis * 2.6);
+          } else {
             ctx.fillStyle = col + '30';
             ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
           }
-          // visualSize 로 height/width 모두 확장 (flower 세로/레일 폭 맞춤)
-          const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
-          const _hhVis = _vsH?.heightMul ? hh * _vsH.heightMul : hh;
-          const _hwVis = _vsH?.widthMul ? hw * _vsH.widthMul : hw;
           const _drewHead = drawSkinSprite('holdHead', n.lane, sx-_hwVis, sy-_hhVis, _hwVis*2, _hhVis*2);
           if (!_drewHead) {
             ctx.fillStyle = col;
@@ -7187,8 +7195,9 @@ function renderNotes() {
         ctx.fillRect(sx-nw-8, sy-nh-9, (nw+8)*2, (nh+9)*2);
         // 메인 노트 (스킨 스프라이트 or 단색 폴백) — 피버 중
         const _vsN_fv = SKINS[currentSkin]?.visualSize?.note;
-        const _nhV_fv = _vsN_fv?.heightMul ? nh * _vsN_fv.heightMul : nh;
         const _nwV_fv = _vsN_fv?.widthMul ? nw * _vsN_fv.widthMul : nw;
+        const _nhV_fv = _vsN_fv?.heightRatio ? _nwV_fv * _vsN_fv.heightRatio
+                      : _vsN_fv?.heightMul ? nh * _vsN_fv.heightMul : nh;
         _drewNote = drawSkinSprite('note', n.lane, sx-_nwV_fv, sy-_nhV_fv, _nwV_fv*2, _nhV_fv*2);
         if (!_drewNote) {
           ctx.fillStyle = col;
@@ -7198,15 +7207,23 @@ function renderNotes() {
         ctx.fillStyle = `rgba(255,255,200,${0.4*flicker})`;
         ctx.fillRect(sx-nw+2, sy-nh+1, nw*2-4, nh*0.7);
       } else {
-        // 일반: flower skin 은 rect 글로우 스킵
-        const _skipG = SKINS[currentSkin]?.skipRectGlow;
-        if (!_skipG) {
+        // 일반 노트 — flower skin 은 radial glow (사각 안 비침 + 떨어지는 느낌 유지)
+        const _vsN = SKINS[currentSkin]?.visualSize?.note;
+        const _nwVis = _vsN?.widthMul ? nw * _vsN.widthMul : nw;
+        const _nhVis = _vsN?.heightRatio ? _nwVis * _vsN.heightRatio
+                     : _vsN?.heightMul ? nh * _vsN.heightMul : nh;
+        const _glowS = SKINS[currentSkin]?.glowStyle;
+        if (_glowS === 'radial') {
+          const _gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, _nwVis * 1.25);
+          _gr.addColorStop(0, col + '55');
+          _gr.addColorStop(0.6, col + '22');
+          _gr.addColorStop(1, col + '00');
+          ctx.fillStyle = _gr;
+          ctx.fillRect(sx - _nwVis * 1.3, sy - _nhVis * 1.3, _nwVis * 2.6, _nhVis * 2.6);
+        } else {
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-nw-3, sy-nh-3, (nw+3)*2, (nh+3)*2);
         }
-        const _vsN = SKINS[currentSkin]?.visualSize?.note;
-        const _nhVis = _vsN?.heightMul ? nh * _vsN.heightMul : nh;
-        const _nwVis = _vsN?.widthMul ? nw * _vsN.widthMul : nw;
         _drewNote = drawSkinSprite('note', n.lane, sx-_nwVis, sy-_nhVis, _nwVis*2, _nhVis*2);
         if (!_drewNote) {
           ctx.fillStyle=col;
