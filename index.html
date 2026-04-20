@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260420100000;
+window.__BUILD_TS = 20260420200000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1831,15 +1831,84 @@ const KEY_MODES = {
   },
 };
 
+// ===== SKIN SYSTEM =====
+// 스킨 스프라이트 아틀라스 좌표(x,y,w,h)와 스킨별 팔레트(LANE_COLORS 오버라이드).
+// default 스킨 = 파일 없음 → 기본 canvas 렌더 폴백.
+const SKINS = {
+  default: null,
+  neon: {
+    id: 'neon',
+    name: '벚꽃 네온',
+    price: 200,
+    imagePath: 'skins/neon/note/Gemini_Generated_Image_ivgg46ivgg46ivgg.png',
+    // 각 섹션 8색(팔레트 idx 0~7) 대응 아틀라스 좌표
+    sprites: {
+      // Section A: 무늬 있는 일반 노트
+      note: [
+        [69,117,610,123],[759,117,610,123],[1449,117,610,123],[2139,117,610,123],
+        [69,347,610,123],[759,347,610,123],[1449,347,610,123],[2139,347,610,123],
+      ],
+      // Section B: 블랭크 (홀드 머리)
+      holdHead: [
+        [64,653,610,127],[759,653,610,127],[1453,653,610,127],[2149,653,610,127],
+        [64,846,610,129],[759,846,610,129],[1453,846,610,129],[2149,846,610,129],
+      ],
+      // Section C: 세로형 (홀드 바디)
+      holdBody: [
+        [84,1235,232,210],[429,1235,232,210],[774,1235,232,210],[1119,1235,232,210],
+        [1464,1235,232,210],[1809,1235,232,210],[2154,1235,232,210],[2499,1235,232,210],
+      ],
+    },
+    // 키수별 팔레트. Section B(블랭크) 색 샘플링 기반, 시각 대비 최대화 순서.
+    colors: {
+      4: ['#ff66ab','#5c25b1','#33c535','#ecbb05'],
+      5: ['#ff66ab','#5c25b1','#fcb3be','#33c535','#ecbb05'],
+      6: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#ecbb05','#c88143'],
+      7: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#a6ffa1','#ecbb05','#c88143'],
+      8: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#a6ffa1','#fad204','#ecbb05','#c88143'],
+    },
+  },
+};
+let currentSkin = safeGetItem('rhythm_currentSkin') || 'neon'; // TODO: 상점/장착 붙으면 UI 에서 변경
+const skinImages = {};
+function loadSkinImage(path) {
+  if (!path) return null;
+  if (skinImages[path]) return skinImages[path];
+  const img = new Image();
+  img.src = path;
+  skinImages[path] = img;
+  return img;
+}
+function preloadSkin(id) {
+  const s = SKINS[id];
+  if (s && s.imagePath) loadSkinImage(s.imagePath);
+}
+preloadSkin(currentSkin);
+function skinPalette(id, lc) {
+  const s = SKINS[id];
+  return (s && s.colors && s.colors[lc]) ? [...s.colors[lc]] : null;
+}
+function drawSkinSprite(type, lane, dx, dy, dw, dh) {
+  const s = SKINS[currentSkin];
+  if (!s || !s.sprites) return false;
+  const arr = s.sprites[type];
+  if (!arr || !arr[lane]) return false;
+  const img = skinImages[s.imagePath];
+  if (!img || !img.complete || !img.naturalWidth) return false;
+  const r = arr[lane];
+  ctx.drawImage(img, r[0], r[1], r[2], r[3], dx, dy, dw, dh);
+  return true;
+}
+
 let laneCount = parseInt(safeGetItem('rhythm_laneCount')) || 4;
 if (isMobile) laneCount = 4;
 let LANE_CODES = [...KEY_MODES[laneCount].defaults];
-let LANE_COLORS = [...KEY_MODES[laneCount].colors];
+let LANE_COLORS = skinPalette(currentSkin, laneCount) || [...KEY_MODES[laneCount].colors];
 let LANE_SEQ = [...KEY_MODES[laneCount].seq];
 
 function setLaneMode(n) {
   laneCount = n;
-  LANE_COLORS = [...KEY_MODES[n].colors];
+  LANE_COLORS = skinPalette(currentSkin, n) || [...KEY_MODES[n].colors];
   LANE_SEQ = [...KEY_MODES[n].seq];
   loadKeymap();
   saveLaneCountToAccount();
@@ -6857,12 +6926,14 @@ function renderNotes() {
           ctx.fillStyle = col + '33';
           rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
         } else if (!n.hit) {
-          // Not yet hit - normal bar
-          ctx.fillStyle = col + '55';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-          // Border
-          ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
-          rrStroke(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+          // Not yet hit - normal bar (스킨 스프라이트 우선, 없으면 canvas 폴백)
+          const _barH = Math.max(0, barBot - barTop);
+          if (!drawSkinSprite('holdBody', n.lane, sx - bw/2, barTop, bw, _barH)) {
+            ctx.fillStyle = col + '55';
+            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
+            ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
+            rrStroke(sx - bw/2, barTop, bw, _barH, _s7);
+          }
         }
 
         // Tail end cap — 레인폭 비례 + sz()
@@ -6887,14 +6958,17 @@ function renderNotes() {
           const hw = _noteHW, hh = _noteHH;
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
-          ctx.fillStyle = col;
-          ctx.fillRect(sx-hw, sy-hh, hw*2, hh*2);
-          ctx.fillStyle='#fff'; ctx.globalAlpha=0.5;
-          ctx.fillRect(sx-hw+_sz2, sy-hh+_sz2, _sz8, _sz6);
-          ctx.globalAlpha=1;
-          ctx.fillStyle='#fff'; ctx.font=`bold ${_sz9}px sans-serif`;
-          ctx.textAlign='center'; ctx.textBaseline='middle';
-          ctx.fillText('\u266A', sx, sy+1);
+          const _drewHead = drawSkinSprite('holdHead', n.lane, sx-hw, sy-hh, hw*2, hh*2);
+          if (!_drewHead) {
+            ctx.fillStyle = col;
+            ctx.fillRect(sx-hw, sy-hh, hw*2, hh*2);
+            ctx.fillStyle='#fff'; ctx.globalAlpha=0.5;
+            ctx.fillRect(sx-hw+_sz2, sy-hh+_sz2, _sz8, _sz6);
+            ctx.globalAlpha=1;
+            ctx.fillStyle='#fff'; ctx.font=`bold ${_sz9}px sans-serif`;
+            ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('\u266A', sx, sy+1);
+          }
         }
       }
       continue;
@@ -6916,6 +6990,7 @@ function renderNotes() {
     } else {
       const col = LANE_COLORS[n.lane];
       const nw = _noteHW, nh = _noteHH;
+      let _drewNote = false;
       if (fever) {
         // 피버: 불타는 이펙트 (flicker 프레임 단위 + 노트별 오프셋)
         const flicker = _feverFlickerBase + Math.sin(n.time * 50) * 0.1;
@@ -6924,25 +6999,34 @@ function renderNotes() {
         ctx.fillRect(sx-nw-5, sy-nh-6, (nw+5)*2, (nh+6)*2);
         ctx.fillStyle = `rgba(255,${150+Math.floor(flicker*60)},30,${0.15*flicker})`;
         ctx.fillRect(sx-nw-8, sy-nh-9, (nw+8)*2, (nh+9)*2);
-        // 메인 노트 (밝은 색)
-        ctx.fillStyle = col;
-        ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
-        // 상단 하이라이트
+        // 메인 노트 (스킨 스프라이트 or 단색 폴백)
+        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-nh, nw*2, nh*2);
+        if (!_drewNote) {
+          ctx.fillStyle = col;
+          ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
+        }
+        // 상단 하이라이트 (피버 글로우는 sprite 위에도 덧입힘)
         ctx.fillStyle = `rgba(255,255,200,${0.4*flicker})`;
         ctx.fillRect(sx-nw+2, sy-nh+1, nw*2-4, nh*0.7);
       } else {
         // 일반: 기존 글로우
         ctx.fillStyle = col + '30';
         ctx.fillRect(sx-nw-3, sy-nh-3, (nw+3)*2, (nh+3)*2);
-        ctx.fillStyle=col;
-        ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
+        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-nh, nw*2, nh*2);
+        if (!_drewNote) {
+          ctx.fillStyle=col;
+          ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
+        }
       }
-      ctx.fillStyle='#fff'; ctx.globalAlpha=0.5;
-      ctx.fillRect(sx-nw+_sz2, sy-nh+_sz2, _sz8, _sz6);
-      ctx.globalAlpha=1;
-      ctx.fillStyle='#fff'; ctx.font=`bold ${_sz11}px sans-serif`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('\u266A', sx, sy+1);
+      // 기본 스킨 폴백일 때만 흰색 하이라이트 + ♪ (패턴 sprite 위엔 불필요)
+      if (!_drewNote) {
+        ctx.fillStyle='#fff'; ctx.globalAlpha=0.5;
+        ctx.fillRect(sx-nw+_sz2, sy-nh+_sz2, _sz8, _sz6);
+        ctx.globalAlpha=1;
+        ctx.fillStyle='#fff'; ctx.font=`bold ${_sz11}px sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('\u266A', sx, sy+1);
+      }
     }
   }
 
