@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421045500;
+window.__BUILD_TS = 20260421050500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -2010,17 +2010,22 @@ function _bakeSprite(type, pi, srcImg, r, w, h) {
   bctx.drawImage(srcImg, r[0], r[1], r[2], r[3], 0, 0, cv.width, cv.height);
   return cv;
 }
+// 진단용 카운터 — 콘솔에서 window.__skinDiag 로 확인
+window.__skinDiag = window.__skinDiag || {};
 function drawSkinSprite(type, lane, dx, dy, dw, dh) {
   const s = SKINS[currentSkin];
-  if (!s || !s.sprites) return false;
+  if (!s || !s.sprites) { window.__skinDiag[type+':no_sprites']=(window.__skinDiag[type+':no_sprites']||0)+1; return false; }
   const arr = s.sprites[type];
-  if (!arr) return false;
+  if (!arr) { window.__skinDiag[type+':no_arr']=(window.__skinDiag[type+':no_arr']||0)+1; return false; }
   const pi = skinPaletteIdx(currentSkin, laneCount, lane);
   const r = arr[pi];
-  if (!r) return false;
+  if (!r) { window.__skinDiag[type+':no_r_pi'+pi]=(window.__skinDiag[type+':no_r_pi'+pi]||0)+1; return false; }
   const path = (s.imagePaths && s.imagePaths[type]) || s.imagePath;
   const img = skinImages[path];
-  if (!img || !img.complete || !img.naturalWidth) return false;
+  if (!img) { window.__skinDiag[type+':no_img']=(window.__skinDiag[type+':no_img']||0)+1; return false; }
+  if (!img.complete) { window.__skinDiag[type+':not_complete']=(window.__skinDiag[type+':not_complete']||0)+1; return false; }
+  if (!img.naturalWidth) { window.__skinDiag[type+':no_natural_w']=(window.__skinDiag[type+':no_natural_w']||0)+1; return false; }
+  window.__skinDiag[type+':ok']=(window.__skinDiag[type+':ok']||0)+1;
   // 사이즈 고정 타입(note/holdHead) → pre-baked 캐시 사용. holdBody 는 매번 stretch.
   if (type !== 'holdBody') {
     const w = Math.round(dw), h = Math.round(dh);
