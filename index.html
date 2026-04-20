@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421060500;
+window.__BUILD_TS = 20260421061500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1892,9 +1892,10 @@ const SKINS = {
     //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
     imagePaths: {
       note:     'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
-      // ★ holdHead = note (동일 PNG) — 머리 = 노트 디자인. silhouette 버전 폐기.
-      //   sprites.holdHead 좌표는 note 와 동일 → note PNG 에서 바로 샘플링.
-      holdHead: 'skins/neon/note/벚꽃_노트.png',         // note 와 동일
+      // ★ holdHead = note 와 동일 PNG (앞부분 = 노트 문양 그대로).
+      holdHead: 'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
+      // ★ holdTail = 단색 silhouette PNG (뒷부분 = 단색 처리, body 뒤 z).
+      holdTail: 'skins/neon/note/벚꽃_홀드머리.png',     // 3200×400, 8셀 silhouette
       holdBody: 'skins/neon/note/벚꽃_홀드몸통.png',     // 3200×800, 8셀 네온 pill
       key:      'skins/neon/note/벚꽃_노트키.png',       // 2752×1536, 4col×2row 키 베이스
       // ★ 키 위 꽃 오버레이 — 유저 제미나이 생성 8셀 → compose+flood+normalize 완료.
@@ -1921,6 +1922,17 @@ const SKINS = {
         [1600, 0, 400, 400],  // 7 gold → new cell 4
       ],
       holdHead: [
+        [0,    0, 400, 400],
+        [400,  0, 400, 400],
+        [2800, 0, 400, 400],
+        [2000, 0, 400, 400],
+        [1200, 0, 400, 400],
+        [800,  0, 400, 400],
+        [2400, 0, 400, 400],
+        [1600, 0, 400, 400],
+      ],
+      // holdTail — silhouette (벚꽃_홀드머리.png, 동일 레이아웃 3200×400)
+      holdTail: [
         [0,    0, 400, 400],
         [400,  0, 400, 400],
         [2800, 0, 400, 400],
@@ -1975,6 +1987,7 @@ const SKINS = {
     visualSize: {
       note:     { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
       holdHead: { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
+      holdTail: { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source (silhouette)
       holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게
       keyOverlay: { widthMul: 1.6, heightRatio: 768 / 688 },  // source aspect
     },
@@ -7115,10 +7128,61 @@ function renderNotes() {
       const barTop = Math.max(-40, tailY);
       const barBot = Math.min(hitY + 80, headY);
 
-      // ★ z-order: Head → Body → Tail (head 를 body 뎁스 뒤에 둠 = 먼저 그림)
-      //   head flower sprite 에 body pill 이 위로 덮히며 "연장되는 느낌" 살림.
+      // ★ z-order: Tail(뒷부분, body 뒤) → Body → Head(앞부분, body 위)
+      //   앞부분(head) = 노트 문양 그대로(flower), 뒷부분(tail) = 단색 silhouette.
+      //   body 가 tail 일부를 덮으며 "연장되는 느낌" 살림.
 
-      // ── 1) Head (아래쪽 뎁스) — skip if already hit or missed
+      // ── 1) Tail (뒷부분, 단색 silhouette, body 뒤 z)
+      if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
+        const _vsT = SKINS[currentSkin]?.visualSize?.holdTail
+                  || SKINS[currentSkin]?.visualSize?.holdHead;
+        const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
+        const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
+                     : _vsT?.heightMul ? _noteHH * _vsT.heightMul : _noteHH;
+        const _drewTail = drawSkinSprite('holdTail', n.lane, sx - _twVis, tailY - _thVis, _twVis*2, _thVis*2);
+        if (!_drewTail) {
+          const tcW = _noteW;
+          const tcH = Math.min(_noteHH, sz(7));
+          ctx.fillStyle = n.holding ? col : col + 'cc';
+          rrFill(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
+          ctx.strokeStyle = col; ctx.lineWidth = 2;
+          rrStroke(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
+          if (n.holding) {
+            ctx.strokeStyle = col + '66'; ctx.lineWidth = 3;
+            rrStroke(sx-tcW/2-sz(2), tailY-tcH-sz(2), tcW+sz(4), tcH*2+sz(4), sz(5));
+          }
+        }
+      }
+
+      // ── 2) Body (tail 위, head 아래)
+      if (barTop < barBot + 10) {
+        const bw = _noteW;
+        if (n.holding) {
+          ctx.fillStyle = col + '40';
+          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
+          ctx.fillStyle = col + 'bb';
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+          if (Math.random() < 0.1 && particles.length < 80) {
+            const py = barTop + Math.random() * (hitY - barTop);
+            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
+          }
+        } else if (n.holdComplete) {
+          ctx.fillStyle = col + '33';
+          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+        } else if (!n.hit) {
+          const _barH = Math.max(0, barBot - barTop);
+          const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
+          const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
+          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
+            ctx.fillStyle = col + '55';
+            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
+            ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
+            rrStroke(sx - bw/2, barTop, bw, _barH, _s7);
+          }
+        }
+      }
+
+      // ── 3) Head (앞부분, flower 문양, body 위 z) — skip if already hit or missed
       if (!n.hit && !n.missed) {
         const sy = headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
@@ -7150,55 +7214,6 @@ function renderNotes() {
             ctx.fillStyle='#fff'; ctx.font=`bold ${_sz9}px sans-serif`;
             ctx.textAlign='center'; ctx.textBaseline='middle';
             ctx.fillText('\u266A', sx, sy+1);
-          }
-        }
-      }
-
-      // ── 2) Body + Tail (head 위에 덮음)
-      if (barTop < barBot + 10) {
-        const bw = _noteW;
-        if (n.holding) {
-          ctx.fillStyle = col + '40';
-          rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
-          ctx.fillStyle = col + 'bb';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-          if (Math.random() < 0.1 && particles.length < 80) {
-            const py = barTop + Math.random() * (hitY - barTop);
-            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
-          }
-        } else if (n.holdComplete) {
-          ctx.fillStyle = col + '33';
-          rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-        } else if (!n.hit) {
-          const _barH = Math.max(0, barBot - barTop);
-          const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
-          const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
-            ctx.fillStyle = col + '55';
-            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
-            ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
-            rrStroke(sx - bw/2, barTop, bw, _barH, _s7);
-          }
-        }
-
-        // Tail end cap — 꼬리 끝 (flower skin 에선 head 와 같은 꽃 sprite)
-        if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
-          const _vsT = SKINS[currentSkin]?.visualSize?.holdHead;
-          const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
-          const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
-                       : _vsT?.heightMul ? _noteHH * _vsT.heightMul : _noteHH;
-          const _drewTail = drawSkinSprite('holdHead', n.lane, sx - _twVis, tailY - _thVis, _twVis*2, _thVis*2);
-          if (!_drewTail) {
-            const tcW = _noteW;
-            const tcH = Math.min(_noteHH, sz(7));
-            ctx.fillStyle = n.holding ? col : col + 'cc';
-            rrFill(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
-            ctx.strokeStyle = col; ctx.lineWidth = 2;
-            rrStroke(sx-tcW/2, tailY-tcH, tcW, tcH*2, sz(4));
-            if (n.holding) {
-              ctx.strokeStyle = col + '66'; ctx.lineWidth = 3;
-              rrStroke(sx-tcW/2-sz(2), tailY-tcH-sz(2), tcW+sz(4), tcH*2+sz(4), sz(5));
-            }
           }
         }
       }
