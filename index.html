@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421004500;
+window.__BUILD_TS = 20260421010000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1875,22 +1875,31 @@ const SKINS = {
       holdBody: 'skins/neon/note/벚꽃_홀드몸통.png', // 2145×314, 8색 가로 스트립
       key:      'skins/neon/note/벚꽃_노트키.png',   // 2752×1536, 4col×2row 그리드 (688×768 per cell)
     },
-    // 각 스트립 W/8 균등 분할 (가로). 세로는 공통 solid 밴드로 통일 (y=50, h=140).
-    // 이유:
-    // (1) note(y=30~190)/holdHead(y=50~200) 서로 다른 solid 범위 → 같은 dst 로 그려도
-    //     sprite 내 콘텐츠 위치가 다르면 노트 vs 홀드머리가 미세하게 "크기 달라 보임".
-    //     교집합 y=50~190 (h=140) 로 통일.
-    // (2) 꽃잎 분포 분석: y=45~50/175~180 은 테두리 라인, 꽃잎은 y=55~170 에 분산.
-    //     y=50/h=140 은 테두리+꽃잎 모두 포함하면서 상하 글로우 제외.
-    // (3) 세로 압축률 221→140 = 37% 감소 → sakura 문양 가독성 향상.
+    // ★ 새 꽃 모양 sprite (직사각형 X) — 각 셀 352×303(노트) / 352×311(홀드머리), 8셀 가로 스트립.
+    //   cell 코너 flood fill(max<80) 로 dark sky bg 제거, 꽃 내부 dark 픽셀은 보존.
+    //   new note 팔레트 순: rose-pink/lilac/light-blue/mint/gold/coral/magenta/pale-pink
+    //   기존 OLD 팔레트(rose/lilac/peach/coral/mint/indigo/cream/gold) 의 body/key 와 호환 위해
+    //   MAP[old_pi] = new_cell_idx 매핑: [0,1,7,5,3,2,6,4] — 색상 유사성 기준 최적 매칭.
     sprites: {
       note: [
-        [0,50,333,140],[333,50,332,140],[665,50,333,140],[998,50,332,140],
-        [1330,50,333,140],[1663,50,332,140],[1995,50,333,140],[2328,50,332,140],
+        [0,0,352,303],     // 0 rose → new cell 0 rose-pink
+        [352,0,352,303],   // 1 lilac → new cell 1 lilac
+        [2464,0,352,303],  // 2 peach → new cell 7 pale-pink
+        [1760,0,352,303],  // 3 coral → new cell 5 coral
+        [1056,0,352,303],  // 4 mint → new cell 3 mint
+        [704,0,352,303],   // 5 indigo → new cell 2 light-blue
+        [2112,0,352,303],  // 6 cream → new cell 6 magenta
+        [1408,0,352,303],  // 7 gold → new cell 4 gold
       ],
       holdHead: [
-        [0,50,333,140],[333,50,332,140],[665,50,333,140],[998,50,332,140],
-        [1330,50,333,140],[1663,50,332,140],[1995,50,333,140],[2328,50,332,140],
+        [0,0,352,311],
+        [352,0,352,311],
+        [2464,0,352,311],
+        [1760,0,352,311],
+        [1056,0,352,311],
+        [704,0,352,311],
+        [2112,0,352,311],
+        [1408,0,352,311],
       ],
       // holdBody 는 세로 가변 stretch. 둥근 corner 구간 (y=0~40, 280~314) 제외하고
       // 중간 솔리드 밴드만 사용 → head 와 접합면에서 갭 없이 붙음.
@@ -1917,6 +1926,15 @@ const SKINS = {
       6: [0, 1, 3, 4, 5, 7],     // +gold
       7: [0, 1, 2, 3, 4, 5, 7],  // +peach
       8: [0, 1, 2, 3, 4, 5, 6, 7],
+    },
+    // ★ 노트 모양/시각 크기 오버라이드 (스킨 한정, 기본 스킨은 영향 없음).
+    //   꽃 aspect 가 0.86 (거의 정사각) 인데 기본 노트 dst 72×22 에 그리면 세로 3배 압축.
+    //   heightMul 로 sprite 렌더 시 세로 길이를 기본의 2.5배 (22→55) 로 키움 → 꽃 모양 보임.
+    //   logical hit rect 는 그대로 → 히트 판정 영향 없음.
+    noteShape: 'flower',
+    visualSize: {
+      note:     { heightMul: 2.5 },
+      holdHead: { heightMul: 2.5 },
     },
   },
 };
@@ -7091,7 +7109,10 @@ function renderNotes() {
           const hw = _noteHW, hh = _noteHH;
           ctx.fillStyle = col + '30';
           ctx.fillRect(sx-hw-3, sy-hh-3, (hw+3)*2, (hh+3)*2);
-          const _drewHead = drawSkinSprite('holdHead', n.lane, sx-hw, sy-hh, hw*2, hh*2);
+          // 스킨이 flower 같은 square-aspect sprite 일 때 세로 크기 키움 (시각 전용, hit 로직 동일)
+          const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
+          const _hhVis = _vsH ? hh * _vsH.heightMul : hh;
+          const _drewHead = drawSkinSprite('holdHead', n.lane, sx-hw, sy-_hhVis, hw*2, _hhVis*2);
           if (!_drewHead) {
             ctx.fillStyle = col;
             ctx.fillRect(sx-hw, sy-hh, hw*2, hh*2);
@@ -7133,7 +7154,9 @@ function renderNotes() {
         ctx.fillStyle = `rgba(255,${150+Math.floor(flicker*60)},30,${0.15*flicker})`;
         ctx.fillRect(sx-nw-8, sy-nh-9, (nw+8)*2, (nh+9)*2);
         // 메인 노트 (스킨 스프라이트 or 단색 폴백)
-        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-nh, nw*2, nh*2);
+        const _vsN_fever = SKINS[currentSkin]?.visualSize?.note;
+        const _nhVis_fever = _vsN_fever ? nh * _vsN_fever.heightMul : nh;
+        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-_nhVis_fever, nw*2, _nhVis_fever*2);
         if (!_drewNote) {
           ctx.fillStyle = col;
           ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
@@ -7145,7 +7168,9 @@ function renderNotes() {
         // 일반: 기존 글로우
         ctx.fillStyle = col + '30';
         ctx.fillRect(sx-nw-3, sy-nh-3, (nw+3)*2, (nh+3)*2);
-        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-nh, nw*2, nh*2);
+        const _vsN = SKINS[currentSkin]?.visualSize?.note;
+        const _nhVis = _vsN ? nh * _vsN.heightMul : nh;
+        _drewNote = drawSkinSprite('note', n.lane, sx-nw, sy-_nhVis, nw*2, _nhVis*2);
         if (!_drewNote) {
           ctx.fillStyle=col;
           ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
