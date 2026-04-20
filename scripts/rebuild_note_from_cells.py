@@ -61,15 +61,45 @@ for i, path in enumerate(files):
     # bg 투명화
     a = flood_transparent(a)
     alpha = a[:, :, 3]
-    # flower tight bbox
+    # flower tight bbox — 단, 가장 큰 connected component 만 사용 (stray 조각 제거)
     mask = alpha > 0
     if mask.sum() == 0:
         print(f'[{i+1}] empty')
         continue
-    ys, xs = np.where(mask)
-    bx, by = xs.min(), ys.min()
-    bw = xs.max() - xs.min() + 1
-    bh = ys.max() - ys.min() + 1
+    # connected components (BFS)
+    visited = np.zeros_like(mask, dtype=bool)
+    best_size = 0
+    best_coords = None
+    H_c, W_c = mask.shape
+    for sy in range(0, H_c, 20):
+        for sx in range(0, W_c, 20):
+            if not mask[sy, sx] or visited[sy, sx]: continue
+            # BFS
+            q = deque([(sx, sy)])
+            visited[sy, sx] = True
+            comp_coords = [(sx, sy)]
+            while q:
+                x, y = q.popleft()
+                for dx, dy in ((1,0),(-1,0),(0,1),(0,-1)):
+                    nx, ny = x+dx, y+dy
+                    if 0<=nx<W_c and 0<=ny<H_c and mask[ny,nx] and not visited[ny,nx]:
+                        visited[ny,nx] = True
+                        comp_coords.append((nx, ny))
+                        q.append((nx, ny))
+            if len(comp_coords) > best_size:
+                best_size = len(comp_coords)
+                best_coords = comp_coords
+    # stray components → 투명화
+    keep_mask = np.zeros_like(mask)
+    for (x, y) in best_coords:
+        keep_mask[y, x] = True
+    a[~keep_mask, 3] = 0
+    # 가장 큰 component 기준 bbox
+    xs_c = np.array([c[0] for c in best_coords])
+    ys_c = np.array([c[1] for c in best_coords])
+    bx, by = xs_c.min(), ys_c.min()
+    bw = xs_c.max() - xs_c.min() + 1
+    bh = ys_c.max() - ys_c.min() + 1
     # crop tight
     cropped = a[by:by+bh, bx:bx+bw].copy()
     # ★ premultiplied alpha resize — 투명 영역 RGB(gray) 가 opaque 가장자리로 bleed 하는 것 방지.
