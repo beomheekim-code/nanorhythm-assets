@@ -16,7 +16,8 @@ import numpy as np
 # 사용법: python rebuild_note_from_cells.py [skin_id]
 #   skin_id 생략 시 'neon' 기본. skins/{id}/manifest.json 에서 경로 읽음.
 SKIN_ID = sys.argv[1] if len(sys.argv) > 1 else 'neon'
-SKINS_ROOT = 'D:/리듬게임/skins'
+# script 위치 기준 상위의 skins/ 자동 감지 (어느 로컬 클론에서든 동작)
+SKINS_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'skins'))
 MANIFEST_PATH = os.path.join(SKINS_ROOT, SKIN_ID, 'manifest.json')
 with open(MANIFEST_PATH, encoding='utf-8') as f:
     manifest = json.load(f)
