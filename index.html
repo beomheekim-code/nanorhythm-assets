@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421024500;
+window.__BUILD_TS = 20260421030000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1948,9 +1948,10 @@ const SKINS = {
       note:     { widthMul: 1.11, heightRatio: 297 / 288 },   // 1.031 (near square)
       holdHead: { widthMul: 1.11, heightRatio: 286 / 288 },   // 0.993
       holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게
-      // keyOverlay — 키보다 1.6배 크게, source aspect 유지. 꽃이 키 위로 살짝 삐져나옴
-      keyOverlay: { widthMul: 1.6, heightRatio: 768 / 688 },  // 1.116 (source aspect)
+      keyOverlay: { widthMul: 1.6, heightRatio: 768 / 688 },  // source aspect
     },
+    // 키 base (rounded rect + letter) 스킵 — 판정선에 꽃만 중앙 정렬 (유저 피드백)
+    skipKeyBase: true,
     // rect 글로우 대신 radial(원형) glow — flower 뒤에 사각형 안 비치면서 "떨어지는 느낌" 유지.
     glowStyle: 'radial',
   },
@@ -7020,21 +7021,22 @@ function renderHitLine() {
     const held = keyHeld[i], flash = keyFlash[i] > 0;
 
     const rw = lw - _s8, rh = _s20;
-    // 스킨 스프라이트 우선 (pre-baked). 실패 시 기본 fillRect + strokeRect 로직 유지.
+    // skipKeyBase 스킨: 키 base / 오버레이 / letter 모두 생략. 판정선(상단 glow)만 유지.
+    // held/flash 시에는 판정선 위에 반투명 하이라이트만 얇게.
+    const _skipBase = SKINS[currentSkin]?.skipKeyBase;
+    if (_skipBase) {
+      if (held || flash) {
+        ctx.fillStyle = LANE_COLORS[i] + '40';
+        ctx.fillRect(cx - rw / 2, hitY - _s5, rw, _s10);
+      }
+      continue;
+    }
     const _drewKey = drawSkinSprite('key', i, cx-rw/2, hitY-rh/2, rw, rh);
     if (_drewKey) {
-      // held/flash 상태: 스킨 키 위에 반투명 하이라이트만 덧입힘 (스킨 디자인 보존)
       if (held || flash) {
         ctx.fillStyle = LANE_COLORS[i] + '55';
         ctx.fillRect(cx-rw/2, hitY-rh/2, rw, rh);
       }
-      // 키 위 꽃 오버레이 — 키 receptor 보다 크게 그려서 꽃이 키 밖으로 삐져나오게.
-      //   visualSize.keyOverlay.widthMul 로 크기 조절, heightRatio 로 source aspect 유지.
-      const _vsO = SKINS[currentSkin]?.visualSize?.keyOverlay;
-      const _ovW = _vsO?.widthMul ? rw * _vsO.widthMul : rw;
-      const _ovH = _vsO?.heightRatio ? _ovW * _vsO.heightRatio
-                 : _vsO?.heightMul ? rh * _vsO.heightMul : rh;
-      drawSkinSprite('keyOverlay', i, cx - _ovW / 2, hitY - _ovH / 2, _ovW, _ovH);
     } else {
       if (held || flash) {
         ctx.fillStyle = LANE_COLORS[i] + '66';
