@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421043500;
+window.__BUILD_TS = 20260421044500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -7197,16 +7197,29 @@ function renderNotes() {
       if (fever) {
         // 피버: 불타는 이펙트 (flicker 프레임 단위 + 노트별 오프셋)
         const flicker = _feverFlickerBase + Math.sin(n.time * 50) * 0.1;
-        // 외곽 화염 글로우
-        ctx.fillStyle = `rgba(255,${80+Math.floor(flicker*80)},0,${0.25*flicker})`;
-        ctx.fillRect(sx-nw-5, sy-nh-6, (nw+5)*2, (nh+6)*2);
-        ctx.fillStyle = `rgba(255,${150+Math.floor(flicker*60)},30,${0.15*flicker})`;
-        ctx.fillRect(sx-nw-8, sy-nh-9, (nw+8)*2, (nh+9)*2);
-        // 메인 노트 (스킨 스프라이트 or 단색 폴백) — 피버 중
         const _vsN_fv = SKINS[currentSkin]?.visualSize?.note;
         const _nwV_fv = _vsN_fv?.widthMul ? nw * _vsN_fv.widthMul : nw;
         const _nhV_fv = _vsN_fv?.heightRatio ? _nwV_fv * _vsN_fv.heightRatio
                       : _vsN_fv?.heightMul ? nh * _vsN_fv.heightMul : nh;
+        // flower skin: radial 화염 글로우 (직사각 fillRect 대신)
+        const _glowFv = SKINS[currentSkin]?.glowStyle;
+        if (_glowFv === 'radial') {
+          const _fr = `rgba(255,${80+Math.floor(flicker*80)},0,${0.35*flicker})`;
+          const _fy = `rgba(255,${150+Math.floor(flicker*60)},30,${0.25*flicker})`;
+          const _gOuter = ctx.createRadialGradient(sx, sy, 0, sx, sy, _nwV_fv * 1.5);
+          _gOuter.addColorStop(0, _fr);
+          _gOuter.addColorStop(0.6, _fy);
+          _gOuter.addColorStop(1, 'rgba(255,100,0,0)');
+          ctx.fillStyle = _gOuter;
+          ctx.fillRect(sx - _nwV_fv * 1.5, sy - _nhV_fv * 1.5, _nwV_fv * 3, _nhV_fv * 3);
+        } else {
+          // 기본(rect) skin: 원래 fillRect 2중
+          ctx.fillStyle = `rgba(255,${80+Math.floor(flicker*80)},0,${0.25*flicker})`;
+          ctx.fillRect(sx-nw-5, sy-nh-6, (nw+5)*2, (nh+6)*2);
+          ctx.fillStyle = `rgba(255,${150+Math.floor(flicker*60)},30,${0.15*flicker})`;
+          ctx.fillRect(sx-nw-8, sy-nh-9, (nw+8)*2, (nh+9)*2);
+        }
+        // 메인 노트 (스킨 스프라이트 or 단색 폴백) — 피버 중
         _drewNote = drawSkinSprite('note', n.lane, sx-_nwV_fv, sy-_nhV_fv, _nwV_fv*2, _nhV_fv*2);
         if (!_drewNote) {
           ctx.fillStyle = col;
