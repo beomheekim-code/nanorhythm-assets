@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421043000;
+window.__BUILD_TS = 20260421043500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1907,12 +1907,18 @@ const SKINS = {
         [2400, 0, 400, 400],
         [1600, 0, 400, 400],
       ],
-      // holdBody 는 세로 가변 stretch. 둥근 corner 구간 (y=0~40, 280~314) 제외하고
-      // 중간 솔리드 밴드만 사용 → head 와 접합면에서 갭 없이 붙음.
-      // 분석: y=40~285 opacity 99%+, 이 범위만 쓰면 경계 100% 솔리드 컬러 보장.
+      // holdBody — generate_hold_body_from_notes.py 프로시듀럴 생성.
+      // 3200×800, 각 셀 400×800 (rose/lilac/lblue/mint/gold/coral/magenta/palepink 순).
+      // MAP [0,1,7,5,3,2,6,4] 적용 — OLD 팔레트 idx → new body file idx.
       holdBody: [
-        [0,40,268,240],[268,40,268,240],[536,40,268,240],[804,40,268,240],
-        [1072,40,269,240],[1341,40,268,240],[1609,40,268,240],[1877,40,268,240],
+        [0,    0, 400, 800],  // 0 rose → file 0
+        [400,  0, 400, 800],  // 1 lilac → file 1
+        [2800, 0, 400, 800],  // 2 peach → file 7 (pale-pink)
+        [2000, 0, 400, 800],  // 3 coral → file 5
+        [1200, 0, 400, 800],  // 4 mint → file 3
+        [800,  0, 400, 800],  // 5 indigo → file 2 (light-blue)
+        [2400, 0, 400, 800],  // 6 cream → file 6 (magenta)
+        [1600, 0, 400, 800],  // 7 gold → file 4
       ],
       // 노트키 — 2752×1536 이미지, 4col×2row 그리드. 셀 688×768.
       key: [
