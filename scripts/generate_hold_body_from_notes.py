@@ -11,18 +11,27 @@
 
 결과: 3200×800 RGBA.
 """
-import sys, io, os
+import sys, io, os, json
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from PIL import Image
 import numpy as np
 
-BASE = 'D:/리듬게임/skins/neon/note'
-SRC_NOTE = os.path.join(BASE, '벚꽃_노트.png')
-OUT_BODY = os.path.join(BASE, '벚꽃_홀드몸통.png')
+# ── Skin 파라미터 ────────────────────────────────────────────────────────
+# 사용법: python generate_hold_body_from_notes.py [skin_id]
+#   skin_id 생략 시 'neon' 기본. skins/{id}/manifest.json 에서 파일 경로 읽음.
+SKIN_ID = sys.argv[1] if len(sys.argv) > 1 else 'neon'
+SKINS_ROOT = 'D:/리듬게임/skins'
+MANIFEST_PATH = os.path.join(SKINS_ROOT, SKIN_ID, 'manifest.json')
+with open(MANIFEST_PATH, encoding='utf-8') as f:
+    manifest = json.load(f)
 
-NOTE_CELL_W = 400
-BODY_CELL_W, BODY_CELL_H = 400, 800
-N_CELLS = 8
+BASE     = os.path.join(SKINS_ROOT, SKIN_ID)
+SRC_NOTE = os.path.join(BASE, manifest['files']['note'])
+OUT_BODY = os.path.join(BASE, manifest['files']['holdBody'])
+
+NOTE_CELL_W = manifest.get('cellSize', 400)
+BODY_CELL_W, BODY_CELL_H = NOTE_CELL_W, NOTE_CELL_W * 2
+N_CELLS = manifest.get('nCells', 8)
 
 PILL_W_RATIO   = 0.72   # pill 폭 = 셀 폭의 72% (외곽 halo 여유 14%)
 GLOW_OUT_PX    = 40     # pill 밖 halo 거리

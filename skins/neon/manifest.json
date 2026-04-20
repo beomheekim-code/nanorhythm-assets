@@ -1,0 +1,17 @@
+{
+  "id": "neon",
+  "name": "벚꽃 네온",
+  "files": {
+    "note":     "note/벚꽃_노트.png",
+    "holdHead": "note/벚꽃_노트.png",
+    "holdBody": "note/벚꽃_홀드몸통.png",
+    "key":      "note/벚꽃_노트키.png",
+    "keyOverlay": "note/벚꽃_노트키_오버레이.png"
+  },
+  "cellsDir": "note/_cells/note",
+  "cellSize": 400,
+  "nCells": 8,
+  "paletteCellMap": [0, 1, 7, 5, 3, 2, 6, 4],
+  "_paletteCellMap_note": "OLD 팔레트 idx(rose/lilac/peach/coral/mint/indigo/cream/gold) → new cell idx (벚꽃 1~8.png 업로드 순서)",
+  "palette": ["#b33f64","#d0afda","#fbc1b5","#f8897e","#b8dcc2","#697293","#e9e8ed","#e9d097"]
+}

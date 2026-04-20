@@ -7,18 +7,29 @@ _cells/key_overlay/ 의 8 개별 셀을 사용해 벚꽃_노트.png 재생성.
 
 홀드머리용도 동일 소스라 복사 → 벚꽃_홀드머리.png.
 """
-import sys, io, os, glob
+import sys, io, os, glob, json
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from PIL import Image
 import numpy as np
 
-BASE = 'D:/리듬게임/skins/neon/note'
-CELLS_DIR = os.path.join(BASE, '_cells', 'note')
-OUT_NOTE = os.path.join(BASE, '벚꽃_노트.png')
-OUT_HEAD = os.path.join(BASE, '벚꽃_홀드머리.png')
+# ── Skin 파라미터 ────────────────────────────────────────────────────────
+# 사용법: python rebuild_note_from_cells.py [skin_id]
+#   skin_id 생략 시 'neon' 기본. skins/{id}/manifest.json 에서 경로 읽음.
+SKIN_ID = sys.argv[1] if len(sys.argv) > 1 else 'neon'
+SKINS_ROOT = 'D:/리듬게임/skins'
+MANIFEST_PATH = os.path.join(SKINS_ROOT, SKIN_ID, 'manifest.json')
+with open(MANIFEST_PATH, encoding='utf-8') as f:
+    manifest = json.load(f)
 
-CELL_SIZE = 400   # 최종 셀당 크기 (정사각)
-N_CELLS = 8
+BASE      = os.path.join(SKINS_ROOT, SKIN_ID)
+CELLS_DIR = os.path.join(BASE, manifest['cellsDir'])
+OUT_NOTE  = os.path.join(BASE, manifest['files']['note'])
+# silhouette 출력은 holdHead 와 별개 — manifest 에 holdHeadSilhouette 있으면 사용, 없으면 생략
+_silh_rel = manifest.get('files', {}).get('holdHeadSilhouette')
+OUT_HEAD  = os.path.join(BASE, _silh_rel) if _silh_rel else None
+
+CELL_SIZE = manifest.get('cellSize', 400)
+N_CELLS   = manifest.get('nCells', 8)
 PADDING = 0.05    # 꽃과 셀 가장자리 여유 (셀 크기의 5%)
 
 # 단일 flood fill — corners 에서 저채도 연결 영역 제거.
@@ -128,6 +139,45 @@ for i, path in enumerate(files):
     print(f'[{i+1}] bbox {bw}x{bh} → {tw}x{th} at cell center ({ox},{oy})')
 
 canvas.save(OUT_NOTE)
-canvas.save(OUT_HEAD)  # 같은 소스 사용 (홀드머리 전용 디자인 받으면 분리)
-print(f'\n✓ 벚꽃_노트.png  {canvas.size}')
-print(f'✓ 벚꽃_홀드머리.png  {canvas.size}')
+print(f'\n✓ {OUT_NOTE}  {canvas.size}')
+
+# ★ silhouette 출력 — manifest 에 holdHeadSilhouette 정의된 경우만 생성.
+#   현 시스템에선 holdHead = note sprite 공유 (body 앞뒤 동일 꽃), silhouette 사용 안 함.
+#   향후 단색 스킨용 옵션으로 유지.
+if OUT_HEAD is None:
+    print('(silhouette skip — manifest.files.holdHeadSilhouette 미정의)')
+    sys.exit(0)
+
+head_arr = np.array(canvas)
+
+def _saturate(r, g, b, factor=1.3, darken=0.9):
+    gray = (r + g + b) / 3
+    r2 = int(np.clip((r - gray) * factor + gray, 0, 255) * darken)
+    g2 = int(np.clip((g - gray) * factor + gray, 0, 255) * darken)
+    b2 = int(np.clip((b - gray) * factor + gray, 0, 255) * darken)
+    return (r2, g2, b2)
+
+for i in range(N_CELLS):
+    x0, x1 = i * CELL_SIZE, (i + 1) * CELL_SIZE
+    cell = head_arr[:, x0:x1]
+    alpha = cell[:, :, 3]
+    mask = alpha > 0
+    if mask.sum() == 0: continue
+    # saturated & opaque 픽셀 중심으로 꽃 주요 색 측정
+    rgb = cell[:, :, :3].astype(np.int16)
+    sat = rgb.max(axis=2) - rgb.min(axis=2)
+    core = mask & (sat >= 30) & (alpha >= 200)
+    if core.sum() < 50: core = mask
+    mr = int(cell[:, :, 0][core].mean())
+    mg = int(cell[:, :, 1][core].mean())
+    mb = int(cell[:, :, 2][core].mean())
+    # saturated 변환
+    sr, sg, sb = _saturate(mr, mg, mb, 1.3, 0.9)
+    # flower 영역 전체 해당 단색으로 채움 (alpha 는 기존 유지 → 안티앨리어스 보존)
+    cell[mask, 0] = sr
+    cell[mask, 1] = sg
+    cell[mask, 2] = sb
+    print(f'  [{i+1}] solid silhouette color #{sr:02x}{sg:02x}{sb:02x}')
+
+Image.fromarray(head_arr).save(OUT_HEAD)
+print(f'✓ {OUT_HEAD}  {canvas.size} (silhouette)')
