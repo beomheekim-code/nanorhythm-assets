@@ -65,10 +65,20 @@ for i in range(N_CELLS):
     rim_w = max(3, int(pill_w * RIM_W_RATIO))
     hl_w  = max(5, int(pill_w * HL_W_RATIO))
 
+    # ★ 세로 그라데이션 + tail(위쪽) 투명도 페이드.
+    #   py=0 (top, tail side) → darker + transparent
+    #   py=H-1 (bottom, head side) → brighter + opaque
     for py in range(BODY_CELL_H):
-        v = py / (BODY_CELL_H - 1)
-        # 세로 subtle gradient — 유리관 반사: 중앙(0.5) 약간 어둡, 상/하 살짝 밝
-        vgrad = 0.96 + 0.08 * abs(v - 0.5) * 2  # 0.96..1.04
+        v = py / (BODY_CELL_H - 1)   # 0(top, tail) → 1(bottom, head)
+        # 컬러 그라데이션: 밑(head)이 밝고 위(tail)로 갈수록 살짝 어둑 (smoke trail 느낌)
+        vgrad = 0.78 + 0.22 * v      # 0.78 at top → 1.00 at bottom
+        # 알파 페이드: 위쪽 40% 에서 부드럽게 사라짐 (꼬리 smoke 끝)
+        #   t = 0 at top, 1 at 40% from top, 1 유지 below
+        if v < 0.40:
+            t = v / 0.40
+            alpha_mul = t * t          # quadratic ease-in (매우 부드러운 페이드)
+        else:
+            alpha_mul = 1.0
 
         # pill 안쪽 영역
         for px in range(pill_x0, pill_x1):
@@ -102,6 +112,7 @@ for i in range(N_CELLS):
                 g = min(255, int(cg * vgrad))
                 b = min(255, int(cb * vgrad))
                 a = 255
+            a = int(a * alpha_mul)
             canvas[py, px] = [r, g, b, a]
 
         # 외곽 halo — pill 양쪽 바깥
@@ -110,7 +121,7 @@ for i in range(N_CELLS):
                 px = (pill_x0 - d) if side < 0 else (pill_x1 - 1 + d)
                 if px < 0 or px >= canvas.shape[1]: continue
                 t = 1 - (d / GLOW_OUT_PX)  # 1(pill 인접) → 0(멀리)
-                a = int(115 * t * t)        # quadratic ease-out
+                a = int(115 * t * t * alpha_mul)  # quadratic ease-out + tail fade
                 if a <= 0: continue
                 canvas[py, px] = [rmr, rmg, rmb, a]
 
