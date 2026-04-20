@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421061500;
+window.__BUILD_TS = 20260421062500;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1867,6 +1867,7 @@ const KEY_MODES = {
 //   price:       상점 가격 (코인)
 //   imagePaths:  type → PNG 경로 맵. type ∈ { note, holdHead, holdBody, key, keyOverlay }
 //                홀드머리 = 노트와 동일 디자인이면 같은 파일 가리키면 됨.
+//                홀드 tail 은 별도 sprite 없음 — renderNotes 가 holdBody sprite 를 짧은 높이로 재활용.
 //   sprites:     type → 팔레트 idx 별 [x,y,w,h] 배열 (아틀라스 좌표).
 //                laneMapping 의 palette idx 를 sprites[type][pi] 에 매핑.
 //   palette:     팔레트 idx → hex 색 배열 (LANE_COLORS 오버라이드, 글로우/폴백용)
@@ -1894,8 +1895,8 @@ const SKINS = {
       note:     'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
       // ★ holdHead = note 와 동일 PNG (앞부분 = 노트 문양 그대로).
       holdHead: 'skins/neon/note/벚꽃_노트.png',         // 3200×400, 8셀 flower
-      // ★ holdTail = 단색 silhouette PNG (뒷부분 = 단색 처리, body 뒤 z).
-      holdTail: 'skins/neon/note/벚꽃_홀드머리.png',     // 3200×400, 8셀 silhouette
+      // ★ tail 은 별도 sprite 없음 — renderNotes 에서 holdBody sprite 를 짧은 높이로 재활용
+      //   ("body 의 짧은 버전 cap" 방식, 연장 느낌 최강).
       holdBody: 'skins/neon/note/벚꽃_홀드몸통.png',     // 3200×800, 8셀 네온 pill
       key:      'skins/neon/note/벚꽃_노트키.png',       // 2752×1536, 4col×2row 키 베이스
       // ★ 키 위 꽃 오버레이 — 유저 제미나이 생성 8셀 → compose+flood+normalize 완료.
@@ -1922,17 +1923,6 @@ const SKINS = {
         [1600, 0, 400, 400],  // 7 gold → new cell 4
       ],
       holdHead: [
-        [0,    0, 400, 400],
-        [400,  0, 400, 400],
-        [2800, 0, 400, 400],
-        [2000, 0, 400, 400],
-        [1200, 0, 400, 400],
-        [800,  0, 400, 400],
-        [2400, 0, 400, 400],
-        [1600, 0, 400, 400],
-      ],
-      // holdTail — silhouette (벚꽃_홀드머리.png, 동일 레이아웃 3200×400)
-      holdTail: [
         [0,    0, 400, 400],
         [400,  0, 400, 400],
         [2800, 0, 400, 400],
@@ -1987,8 +1977,7 @@ const SKINS = {
     visualSize: {
       note:     { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
       holdHead: { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source
-      holdTail: { widthMul: 1.11, heightRatio: 1.0 },          // 400×400 square source (silhouette)
-      holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게
+      holdBody: { widthMul: 1.4 },                             // 몸통 40% 굵게 (tail cap 도 이 값 사용)
       keyOverlay: { widthMul: 1.6, heightRatio: 768 / 688 },  // source aspect
     },
     // 키 base (rounded rect + letter) 스킵 — 판정선에 꽃만 중앙 정렬 (유저 피드백)
@@ -7132,15 +7121,16 @@ function renderNotes() {
       //   앞부분(head) = 노트 문양 그대로(flower), 뒷부분(tail) = 단색 silhouette.
       //   body 가 tail 일부를 덮으며 "연장되는 느낌" 살림.
 
-      // ── 1) Tail (뒷부분, 단색 silhouette, body 뒤 z)
+      // ── 1) Tail cap — body pill 의 짧은 버전 (body 와 일치, 연장 느낌 최강)
+      //   tail 을 독립 sprite 로 그리지 않고 holdBody sprite 를 짧은 높이로 tail 위에 덧붙임.
+      //   body(tailY~headY) 위에 cap(tailY-capH~tailY) 이 얹혀 seamless 하게 이어짐.
       if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
-        const _vsT = SKINS[currentSkin]?.visualSize?.holdTail
-                  || SKINS[currentSkin]?.visualSize?.holdHead;
-        const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
-        const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
-                     : _vsT?.heightMul ? _noteHH * _vsT.heightMul : _noteHH;
-        const _drewTail = drawSkinSprite('holdTail', n.lane, sx - _twVis, tailY - _thVis, _twVis*2, _thVis*2);
+        const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
+        const _bwVisT = _vsB?.widthMul ? _noteW * _vsB.widthMul : _noteW;
+        const _capH = sz(40);
+        const _drewTail = drawSkinSprite('holdBody', n.lane, sx - _bwVisT/2, tailY - _capH, _bwVisT, _capH);
         if (!_drewTail) {
+          // fallback (default 스킨): rounded rect cap
           const tcW = _noteW;
           const tcH = Math.min(_noteHH, sz(7));
           ctx.fillStyle = n.holding ? col : col + 'cc';
