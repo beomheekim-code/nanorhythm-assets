@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260420220000;
+window.__BUILD_TS = 20260420230000;
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -1841,31 +1841,43 @@ const SKINS = {
     name: '벚꽃 네온',
     price: 200,
     imagePath: 'skins/neon/note/Gemini_Generated_Image_ivgg46ivgg46ivgg.png',
-    // 각 섹션 8색(팔레트 idx 0~7) 대응 아틀라스 좌표
+    // 팔레트 색 순서: Gemini 라벨 기준 rose, pastel, lilac, indigo, lime, gold, tan, mint (Section A/C 자연 순서)
+    // Section B 는 원본 아틀라스 배치가 다름(rose,pastel,green,tan,gold,purple,yellow,mint) → 팔레트 순으로 재배치
     sprites: {
-      // Section A: 무늬 있는 일반 노트
+      // Section A: 무늬 있는 일반 노트 — 이미 Gemini 라벨 순서
       note: [
         [69,117,610,123],[759,117,610,123],[1449,117,610,123],[2139,117,610,123],
         [69,347,610,123],[759,347,610,123],[1449,347,610,123],[2139,347,610,123],
       ],
-      // Section B: 블랭크 (홀드 머리)
+      // Section B: 블랭크 (홀드 머리) — 팔레트 순서로 remap
+      // [0]rose=B[0] [1]pastel=B[1] [2]lilac=B[5] [3]indigo=null(폴백)
+      // [4]lime=B[2] [5]gold=B[4] [6]tan=B[3] [7]mint=B[7]
       holdHead: [
-        [64,653,610,127],[759,653,610,127],[1453,653,610,127],[2149,653,610,127],
-        [64,846,610,129],[759,846,610,129],[1453,846,610,129],[2149,846,610,129],
+        [64,653,610,127],   // 0 rose
+        [759,653,610,127],  // 1 pastel
+        [759,846,610,129],  // 2 lilac (B[5])
+        null,               // 3 indigo — B 섹션에 매칭 없음, 단색 폴백
+        [1453,653,610,127], // 4 lime (B[2])
+        [64,846,610,129],   // 5 gold (B[4])
+        [2149,653,610,127], // 6 tan (B[3])
+        [2149,846,610,129], // 7 mint
       ],
-      // Section C: 세로형 (홀드 바디)
+      // Section C: 세로형 (홀드 바디) — 이미 Gemini 라벨 순서
       holdBody: [
         [84,1235,232,210],[429,1235,232,210],[774,1235,232,210],[1119,1235,232,210],
         [1464,1235,232,210],[1809,1235,232,210],[2154,1235,232,210],[2499,1235,232,210],
       ],
     },
-    // 키수별 팔레트. Section B(블랭크) 색 샘플링 기반, 시각 대비 최대화 순서.
-    colors: {
-      4: ['#ff66ab','#5c25b1','#33c535','#ecbb05'],
-      5: ['#ff66ab','#5c25b1','#fcb3be','#33c535','#ecbb05'],
-      6: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#ecbb05','#c88143'],
-      7: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#a6ffa1','#ecbb05','#c88143'],
-      8: ['#ff66ab','#fcb3be','#5c25b1','#33c535','#a6ffa1','#fad204','#ecbb05','#c88143'],
+    // 전체 8색 팔레트 (Gemini 라벨 순) — HEX는 채도 높은 B 샘플 기반, indigo 는 하드코딩
+    palette: ['#ff66ab','#fcb3be','#5c25b1','#2a1a8a','#33c535','#ecbb05','#c88143','#a6ffa1'],
+    //         rose      pastel    lilac     indigo    lime      gold      tan       mint
+    // 키수별 lane → palette/sprite idx 매핑 (시각 대비 최대화, 인접 동색 회피)
+    laneMapping: {
+      4: [0, 2, 4, 6],           // rose, lilac, lime, tan
+      5: [0, 2, 4, 5, 6],        // rose, lilac, lime, gold, tan
+      6: [0, 1, 2, 4, 6, 7],     // rose, pastel, lilac, lime, tan, mint
+      7: [0, 1, 2, 4, 5, 6, 7],  // +gold
+      8: [0, 1, 2, 3, 4, 5, 6, 7],
     },
   },
 };
@@ -1884,18 +1896,27 @@ function preloadSkin(id) {
   if (s && s.imagePath) loadSkinImage(s.imagePath);
 }
 preloadSkin(currentSkin);
+function skinPaletteIdx(id, lc, lane) {
+  const s = SKINS[id];
+  if (!s || !s.laneMapping || !s.laneMapping[lc]) return lane;
+  return s.laneMapping[lc][lane] != null ? s.laneMapping[lc][lane] : lane;
+}
 function skinPalette(id, lc) {
   const s = SKINS[id];
-  return (s && s.colors && s.colors[lc]) ? [...s.colors[lc]] : null;
+  if (!s || !s.palette || !s.laneMapping || !s.laneMapping[lc]) return null;
+  return s.laneMapping[lc].map(idx => s.palette[idx]);
 }
 function drawSkinSprite(type, lane, dx, dy, dw, dh) {
   const s = SKINS[currentSkin];
   if (!s || !s.sprites) return false;
   const arr = s.sprites[type];
-  if (!arr || !arr[lane]) return false;
+  if (!arr) return false;
+  // lane → palette/sprite idx 매핑 (키수별)
+  const pi = skinPaletteIdx(currentSkin, laneCount, lane);
+  const r = arr[pi];
+  if (!r) return false; // 해당 팔레트 색에 sprite 없음 (ex. indigo holdHead) → 폴백
   const img = skinImages[s.imagePath];
   if (!img || !img.complete || !img.naturalWidth) return false;
-  const r = arr[lane];
   ctx.drawImage(img, r[0], r[1], r[2], r[3], dx, dy, dw, dh);
   return true;
 }
