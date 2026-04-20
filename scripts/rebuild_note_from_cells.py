@@ -13,7 +13,7 @@ from PIL import Image
 import numpy as np
 
 BASE = 'D:/리듬게임/skins/neon/note'
-CELLS_DIR = os.path.join(BASE, '_cells', 'key_overlay')
+CELLS_DIR = os.path.join(BASE, '_cells', 'note')
 OUT_NOTE = os.path.join(BASE, '벚꽃_노트.png')
 OUT_HEAD = os.path.join(BASE, '벚꽃_홀드머리.png')
 
@@ -71,12 +71,26 @@ for i, path in enumerate(files):
     bw = xs.max() - xs.min() + 1
     bh = ys.max() - ys.min() + 1
     # crop tight
-    flower = Image.fromarray(a[by:by+bh, bx:bx+bw])
-    # target 크기 (aspect 유지, 최대 변을 CELL_SIZE*(1-2*PADDING) 에 맞춤)
+    cropped = a[by:by+bh, bx:bx+bw].copy()
+    # ★ premultiplied alpha resize — 투명 영역 RGB(gray) 가 opaque 가장자리로 bleed 하는 것 방지.
+    #   PIL 의 RGBA resize 는 pre-multiply 안 해서 halo 생성. 수동 처리.
+    rgb_f = cropped[:, :, :3].astype(np.float32)
+    alpha_f = cropped[:, :, 3].astype(np.float32) / 255.0
+    premul_rgb = (rgb_f * alpha_f[:, :, np.newaxis]).astype(np.uint8)
+    premul_arr = np.concatenate([premul_rgb, cropped[:, :, 3:4]], axis=2)
+    flower = Image.fromarray(premul_arr)
+    # target 크기 (aspect 유지)
     max_dim = int(CELL_SIZE * (1 - 2 * PADDING))
     scale = min(max_dim / bw, max_dim / bh)
     tw = int(bw * scale); th = int(bh * scale)
     flower = flower.resize((tw, th), Image.LANCZOS)
+    # un-premultiply: RGB = premul_RGB / alpha
+    f_arr = np.array(flower, dtype=np.float32)
+    fa = f_arr[:, :, 3:4]
+    safe_a = np.where(fa > 0, fa, 1)
+    unpremul = (f_arr[:, :, :3] * 255 / safe_a).clip(0, 255).astype(np.uint8)
+    unpremul = np.concatenate([unpremul, f_arr[:, :, 3:4].astype(np.uint8)], axis=2)
+    flower = Image.fromarray(unpremul)
     # 셀 중앙에 paste
     ox = i * CELL_SIZE + (CELL_SIZE - tw) // 2
     oy = (CELL_SIZE - th) // 2
