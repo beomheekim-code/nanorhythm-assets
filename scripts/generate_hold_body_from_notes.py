@@ -65,15 +65,13 @@ for i in range(N_CELLS):
     rim_w = max(3, int(pill_w * RIM_W_RATIO))
     hl_w  = max(5, int(pill_w * HL_W_RATIO))
 
-    # ★ 세로 그라데이션 (투명도 없음, 알파 1.0 유지).
-    #   py=0 (top, tail side) → 매우 어둑
-    #   py=H-1 (bottom, head side) → 밝음 (살짝 부스트)
-    #   smoothstep 커브로 대비 극대화.
+    # ★ 세로 그라데이션 — 양끝(top/bottom) 동일 밝기, 중앙(v=0.5) 가장 어둑.
+    #   메탈 튜브 sheen 느낌: 위아래에서 빛 반사, 가운데가 그늘.
+    #   sin(π·v): v=0→0, v=0.5→1, v=1→0 이므로 1 에서 빼면 U 자형 밝기 커브.
+    import math as _m
     for py in range(BODY_CELL_H):
         v = py / (BODY_CELL_H - 1)       # 0(top) → 1(bottom)
-        # smoothstep: 3v² - 2v³ — 위아래 평탄, 중간 급변 (더 drastic gradient)
-        s = v * v * (3 - 2 * v)
-        vgrad = 0.50 + 0.65 * s          # 0.50 at top → 1.15 at bottom (2.3× 대비)
+        vgrad = 1.0 - 0.35 * _m.sin(_m.pi * v)  # 1.0 at ends, 0.65 at center
         alpha_mul = 1.0                  # 투명도 없음
 
         # pill 안쪽 영역
