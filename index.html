@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421192000;
+window.__BUILD_TS = 20260421200000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -32,10 +32,41 @@ function _activateDebug() {
   window._dbg = {
     lastLanePressAt: {}, lanePressLog: [], doubleHitCount: {},
     loadEvents: [], notes: [],
-    touchMarkers: [],  // 터치 시각 마커 (화면에 원형 표시, 1s 후 제거)
-    frameGapLog: [],   // 50ms+ 긴 프레임 (씹힘 상관관계)
+    touchMarkers: [],
+    frameGapLog: [],
     _lastFrameAt: 0,
+    perfEntries: [],   // { name, durMs, t } — 최근 3초. SLOW_FRAME 시 덤프용.
   };
+  // _measure: 구간 타이밍 기록. 게임 로직 영향 0 (fn 호출만 timing 감쌈).
+  window._measure = function(name, fn) {
+    if (!window._dbg) return fn();
+    const s = performance.now();
+    const r = fn();
+    const d = performance.now() - s;
+    if (d >= 1) {  // 1ms 미만 노이즈
+      window._dbg.perfEntries.push({ name, durMs: d, t: s });
+      const cutoff = performance.now() - 3000;
+      while (window._dbg.perfEntries.length && window._dbg.perfEntries[0].t < cutoff) {
+        window._dbg.perfEntries.shift();
+      }
+    }
+    return r;
+  };
+  // PerformanceObserver longtask — 메인 스레드 50ms+ 블록 자동 캡쳐 (script/rendering 분류).
+  //   Safari 는 부분 지원. 지원 안 되면 무시 (try/catch).
+  try {
+    if (typeof PerformanceObserver !== 'undefined') {
+      const po = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration >= 50) {
+            try { console.log('%c[LONGTASK] ' + entry.duration.toFixed(0) + 'ms name=' + (entry.name || '?'), 'color:#ff4488;font-weight:bold'); } catch(e){}
+          }
+        }
+      });
+      po.observe({ entryTypes: ['longtask'] });
+      window._dbg._po = po;
+    }
+  } catch(e) {}
   window._dbgLog = function(label) {
     if (!window._dbg) return;
     _dbg.loadEvents.push({ t: Math.round(performance.now()), label });
@@ -6841,7 +6872,12 @@ function startSong(idx) {
       placeholder.src = path;
       allStemAudios.push(placeholder);
       fetchSafe(path, {}, { retries: 4, timeout: 12000 }).then(r => r.arrayBuffer()).then(buf => {
+        const _dTs = performance.now();
         actx.decodeAudioData(buf, buffer => {
+          if (window._dbg) {
+            const dur = performance.now() - _dTs;
+            if (dur > 50) try { console.log('%c[DECODE] stem#' + _si + ' ' + dur.toFixed(0) + 'ms (main thread)', 'color:#ff8844'); } catch(e){}
+          }
           // BufferPlayer에 버퍼 할당
           allStemAudios[_si].buffer = buffer;
           stemAudioBuffers[_si] = buffer; // 빈노트/곡끝용 재사용
@@ -6903,7 +6939,12 @@ function startSong(idx) {
         const _si = stemIdx;
         const _isEnergyStem = !ALWAYS_AUDIBLE_STEMS.includes(i);
         fetchSafe(path, {}, { retries: 4, timeout: 12000 }).then(r => r.arrayBuffer()).then(buf => {
+          const _dTs2 = performance.now();
           actx.decodeAudioData(buf, buffer => {
+            if (window._dbg) {
+              const dur = performance.now() - _dTs2;
+              if (dur > 50) try { console.log('%c[DECODE] stem#' + _si + ' ' + dur.toFixed(0) + 'ms (main thread)', 'color:#ff8844'); } catch(e){}
+            }
             stemAudioBuffers[_si] = buffer;
             if (_isEnergyStem) {
               if (!ALWAYS_AUDIBLE_STEMS.includes(_si)) stemOnsetCache[_si] = detectOnsets(buffer);
@@ -7469,6 +7510,17 @@ function renderDebugOverlay() {
       window._dbg.frameGapLog.push({ t: Math.round(nowFrame), gapMs: Math.round(gap) });
       if (window._dbg.frameGapLog.length > 20) window._dbg.frameGapLog.shift();
       try { console.log('%c[SLOW_FRAME] gap=' + Math.round(gap) + 'ms (main thread busy)', 'color:#ffcc44'); } catch(e){}
+      // ★ 직전 500ms 내 측정된 구간들 중 Top-5 가장 느린 것 덤프 → 범인 특정
+      try {
+        const cutoff = nowFrame - 500;
+        const recent = window._dbg.perfEntries.filter(e => e.t >= cutoff).slice();
+        recent.sort((a, b) => b.durMs - a.durMs);
+        const top = recent.slice(0, 5);
+        if (top.length) {
+          const summary = top.map(e => e.name + '=' + e.durMs.toFixed(1) + 'ms').join(', ');
+          console.log('%c[PROFILE] 직전 500ms top-5: ' + summary, 'color:#ffcc44;font-weight:bold');
+        }
+      } catch(e){}
     }
   }
   window._dbg._lastFrameAt = nowFrame;
@@ -7739,16 +7791,30 @@ function render() {
   }
   ctx.globalAlpha = 1;
 
-  renderLanes();
-  renderNotes();
-  renderHitLine();
-  renderButtons();
-  renderCharacter();
-  renderParticles();
-  renderBursts();
-  renderHoldGlows();
-  renderJudgment();
-  renderUI();
+  // 디버그: 구간별 타이밍 (window._measure 존재 시). 프로덕션 영향 0.
+  if (window._measure) {
+    _measure('renderLanes', () => renderLanes());
+    _measure('renderNotes', () => renderNotes());
+    _measure('renderHitLine', () => renderHitLine());
+    _measure('renderButtons', () => renderButtons());
+    _measure('renderCharacter', () => renderCharacter());
+    _measure('renderParticles', () => renderParticles());
+    _measure('renderBursts', () => renderBursts());
+    _measure('renderHoldGlows', () => renderHoldGlows());
+    _measure('renderJudgment', () => renderJudgment());
+    _measure('renderUI', () => renderUI());
+  } else {
+    renderLanes();
+    renderNotes();
+    renderHitLine();
+    renderButtons();
+    renderCharacter();
+    renderParticles();
+    renderBursts();
+    renderHoldGlows();
+    renderJudgment();
+    renderUI();
+  }
 
   // Fever overlay — safeTop/Bottom 포함 전체 화면
   if (fever) {
@@ -12305,9 +12371,13 @@ function loop(time) {
   const dt = Math.min((time-lastTime)/1000, 0.033); // 최대 dt 33ms (30fps 하한)
   lastTime = time;
   updateAd(dt);
-  if (!gamePaused) { update(dt); }
+  if (!gamePaused) {
+    if (window._measure) window._measure('update', () => update(dt));
+    else update(dt);
+  }
   updateFade(dt);
-  render();
+  if (window._measure) window._measure('render', () => render());
+  else render();
   if (window._dbg) renderDebugOverlay();
   // 일시정지 오버레이
   if (gamePaused && state === 'playing') {
