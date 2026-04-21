@@ -2716,21 +2716,21 @@ function loadSkinImage(path, attempt = 0) {
   img._attempt = attempt;
   img.onload = () => {
     if (img.naturalWidth > 0) {
-      img._ok = true;
-      // ★ 디코드 + GPU 텍스처 워밍업 — 첫 drawImage 시 동기 디코드로 프레임 스파이크 발생하던 것.
-      //   decode() 로 비동기 디코드 완료 + 1×1 offscreen 에 한 번 drawImage 로 GPU 업로드 강제.
-      //   "강제 새로고침 직후 첫 곡에서 노트 떨어질 때 확 끊김" 원인 제거.
+      // ★ 디코드 + GPU 텍스처 워밍업 — 첫 drawImage 시 동기 디코드 + GPU 업로드 스파이크
+      //   방지. 모든 워밍업 완료 뒤에 _ok=true 로 올려야 렌더 루프가 안전하게 참조.
+      const finalize = () => { img._ok = true; };
+      const warm = () => {
+        try {
+          const tmp = document.createElement('canvas');
+          tmp.width = 1; tmp.height = 1;
+          tmp.getContext('2d').drawImage(img, 0, 0, 1, 1);
+        } catch (e) {}
+        finalize();
+      };
       try {
-        const warm = () => {
-          try {
-            const tmp = document.createElement('canvas');
-            tmp.width = 1; tmp.height = 1;
-            tmp.getContext('2d').drawImage(img, 0, 0, 1, 1);
-          } catch (e) {}
-        };
         if (img.decode) img.decode().then(warm).catch(warm);
         else warm();
-      } catch (e) {}
+      } catch (e) { finalize(); }
     }
     else { img._ok = false; _scheduleSkinRetry(path, attempt); }
   };
