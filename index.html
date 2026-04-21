@@ -2459,7 +2459,7 @@ const SKINS = {
     id: 'neon',
     name: '벚꽃 네온',
     category: 'note',      // 속하는 스킨 카테고리 (인벤토리 탭)
-    price: 1500,           // 음표(코인) 가격
+    price: 2000,           // 음표(코인) 가격
     // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
     //   scripts/process_sakura_skin.py 가 max(R,G,B)<35 픽셀 alpha=0 처리
     imagePaths: {
@@ -2539,6 +2539,41 @@ const SKINS = {
     skipKeyBase: true,
     // rect 글로우 대신 radial(원형) glow — flower 뒤에 사각형 안 비치면서 "떨어지는 느낌" 유지.
     glowStyle: 'radial',
+  },
+  // ★ 히트 이펙트 스킨 — 1024×1024 스프라이트 시트 (128×128 격자)
+  //   sprites 좌표는 시트 내 서브렉트. 렌더링은 renderBursts/renderParticles/
+  //   renderHoldGlows 에서 fx 장착 시 sprite 경로, 미장착 시 기존 canvas 경로.
+  sakura_fx: {
+    id: 'sakura_fx',
+    name: '벚꽃 히트 이펙트',
+    category: 'hit_effect',
+    price: 1000,
+    imagePaths: {
+      hit_effect: 'skins/neon/hit_effect/neon_hit_effect.png',
+    },
+    sprites: {
+      petal: [
+        [0,   0, 128, 128],
+        [128, 0, 128, 128],
+        [256, 0, 128, 128],
+        [384, 0, 128, 128],
+        [512, 0, 128, 128],
+      ],
+      ringPink:     [0,   128, 256, 256],
+      ringGold:     [256, 128, 256, 256],
+      sparkle: [
+        [0,   384, 128, 128],
+        [128, 384, 128, 128],
+        [256, 384, 128, 128],
+      ],
+      coreFlash:    [384, 384, 128, 128],
+      holdLineGlow: [0,   512, 512, 128],
+      drift: [
+        [40,  680, 48, 48],
+        [168, 680, 48, 48],
+        [296, 680, 48, 48],
+      ],
+    },
   },
 };
 // ===== 스킨 인벤토리/장비 시스템 =====
@@ -2636,12 +2671,17 @@ function setEquippedSkin(cat, id) {
 function _refreshActiveSkin() {
   currentSkin = getEquippedSkin('note');
   if (currentSkin) preloadSkin(currentSkin);
+  currentHitFxSkin = getEquippedSkin('hit_effect');
+  if (currentHitFxSkin) preloadSkin(currentHitFxSkin);
   if (typeof laneCount !== 'undefined' && typeof skinPalette === 'function') {
     LANE_COLORS = skinPalette(currentSkin, laneCount) || [...KEY_MODES[laneCount].colors];
   }
 }
 // 초기값: 장착된 note 스킨 (null 이면 default 렌더). 아래 preloadSkin 호출 이후에 안전.
 let currentSkin = getEquippedSkin('note'); // null 가능 (= 기본 스킨)
+// ★ 히트 이펙트 스킨 캐시 — 렌더 hot path 에서 _loadEq JSON.parse 피하려고 캐시.
+//   setEquippedSkin 호출 시 _refreshActiveSkin 에서 갱신됨.
+let currentHitFxSkin = getEquippedSkin('hit_effect'); // null 가능
 const skinImages = {};
 // ★ 로딩 실패 대응 — 곡 로딩 중 네트워크 경합/일시 지연으로 skin PNG 요청이 실패해도
 //   exponential backoff 로 최대 3회 재시도. 실패해도 drawSkinSprite 는 fallback(canvas)
@@ -2709,6 +2749,7 @@ function preloadSkin(id) {
   }
 }
 if (currentSkin) preloadSkin(currentSkin);
+if (currentHitFxSkin) preloadSkin(currentHitFxSkin);
 function skinPaletteIdx(id, lc, lane) {
   const s = SKINS[id];
   if (!s || !s.laneMapping || !s.laneMapping[lc]) return lane;
@@ -6298,7 +6339,24 @@ function spawnBurst(x, y, grade) {
     great:   { color1: '#00d4ff', color2: '#aaeeff', color3: '#0088ff', rings: 2, sparks: 10, size: 1.3 },
     good:    { color1: '#44dd66', color2: '#aaffbb', color3: '#22aa44', rings: 1, sparks: 6, size: 1.0 },
   }[grade];
-  bursts.push({ x, y, time: 0, maxTime: 0.6, ...conf });
+  bursts.push({ x, y, time: 0, maxTime: 0.6, grade, ...conf });
+  // ★ sakura_fx 장착 시 꽃잎 sprite 파티클로 교체 (링/플래시/스파클은 renderBursts 에서 그림).
+  const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
+  if (fxActive) {
+    const petalCount = Math.floor(conf.sparks * 0.9);
+    for (let i = 0; i < petalCount; i++) {
+      const a = Math.PI * 2 * i / petalCount + (Math.random() - 0.5) * 0.4;
+      const sp = (140 + Math.random() * 240) * conf.size;
+      particles.push({
+        x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 100,
+        life: 0.6 + Math.random()*0.5, maxLife: 1.1,
+        color: '#fff', size: 30 + Math.random() * 28,
+        sprite: true, spriteSet: 'petal', spriteIdx: Math.floor(Math.random() * 5),
+        rot: Math.random() * Math.PI * 2, rotVel: (Math.random() - 0.5) * 6,
+      });
+    }
+    return;
+  }
   // Big spark particles
   for (let i = 0; i < conf.sparks; i++) {
     const a = Math.PI * 2 * i / conf.sparks + (Math.random() - 0.5) * 0.4;
@@ -7373,30 +7431,46 @@ function update(dt) {
       const hx = getLaneX(n.lane), hy = getHitY();
       const col = LANE_COLORS[n.lane];
       const hw = (getLaneW() - 8) / 2;
-      // Big upward flame columns
-      for (let i = 0; i < laneCount; i++) {
-        const ox = (Math.random() - 0.5) * hw * 2;
-        const spd = -150 - Math.random() * 300;
-        particles.push({ x: hx + ox, y: hy, vx: (Math.random()-0.5)*60, vy: spd,
-          life: 0.4 + Math.random()*0.4, maxLife: 0.8, color: col, size: 6 + Math.random()*10 });
-      }
-      // Hot white/yellow core sparks
-      for (let i = 0; i < 2; i++) {
-        const coreCol = Math.random() > 0.5 ? '#fff' : '#ffd700';
-        particles.push({ x: hx + (Math.random()-0.5)*hw*0.8, y: hy, vx: (Math.random()-0.5)*30, vy: -100 - Math.random()*250,
-          life: 0.25 + Math.random()*0.25, maxLife: 0.5, color: coreCol, size: 4 + Math.random()*7 });
-      }
-      // Side fountain sparks
-      for (let i = 0; i < 2; i++) {
-        const dir = Math.random() > 0.5 ? 1 : -1;
-        particles.push({ x: hx + dir*hw, y: hy, vx: dir*(80+Math.random()*160), vy: -60 - Math.random()*120,
-          life: 0.25 + Math.random()*0.3, maxLife: 0.55, color: '#ffd700', size: 3 + Math.random()*5 });
-      }
-      // Rising embers (slow, long-lived)
-      if (Math.random() < 0.4) {
-        particles.push({ x: hx + (Math.random()-0.5)*hw*2, y: hy - Math.random()*30,
-          vx: (Math.random()-0.5)*15, vy: -30 - Math.random()*60,
-          life: 0.6 + Math.random()*0.5, maxLife: 1.1, color: '#ff8800', size: 2 + Math.random()*3 });
+      const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
+      if (fxActive) {
+        // ★ 상승 꽃잎/빛 입자 sprite
+        for (let i = 0; i < 3; i++) {
+          const ox = (Math.random() - 0.5) * hw * 1.6;
+          particles.push({
+            x: hx + ox, y: hy,
+            vx: (Math.random()-0.5)*40, vy: -100 - Math.random()*220,
+            life: 0.5 + Math.random()*0.5, maxLife: 1.0,
+            color: '#fff', size: 18 + Math.random()*14,
+            sprite: true, spriteSet: 'drift', spriteIdx: Math.floor(Math.random()*3),
+            rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*4,
+          });
+        }
+      } else {
+        // Big upward flame columns
+        for (let i = 0; i < laneCount; i++) {
+          const ox = (Math.random() - 0.5) * hw * 2;
+          const spd = -150 - Math.random() * 300;
+          particles.push({ x: hx + ox, y: hy, vx: (Math.random()-0.5)*60, vy: spd,
+            life: 0.4 + Math.random()*0.4, maxLife: 0.8, color: col, size: 6 + Math.random()*10 });
+        }
+        // Hot white/yellow core sparks
+        for (let i = 0; i < 2; i++) {
+          const coreCol = Math.random() > 0.5 ? '#fff' : '#ffd700';
+          particles.push({ x: hx + (Math.random()-0.5)*hw*0.8, y: hy, vx: (Math.random()-0.5)*30, vy: -100 - Math.random()*250,
+            life: 0.25 + Math.random()*0.25, maxLife: 0.5, color: coreCol, size: 4 + Math.random()*7 });
+        }
+        // Side fountain sparks
+        for (let i = 0; i < 2; i++) {
+          const dir = Math.random() > 0.5 ? 1 : -1;
+          particles.push({ x: hx + dir*hw, y: hy, vx: dir*(80+Math.random()*160), vy: -60 - Math.random()*120,
+            life: 0.25 + Math.random()*0.3, maxLife: 0.55, color: '#ffd700', size: 3 + Math.random()*5 });
+        }
+        // Rising embers (slow, long-lived)
+        if (Math.random() < 0.4) {
+          particles.push({ x: hx + (Math.random()-0.5)*hw*2, y: hy - Math.random()*30,
+            vx: (Math.random()-0.5)*15, vy: -30 - Math.random()*60,
+            life: 0.6 + Math.random()*0.5, maxLife: 1.1, color: '#ff8800', size: 2 + Math.random()*3 });
+        }
       }
     }
     // Glow burst at hit line
@@ -8455,22 +8529,83 @@ function rrStroke(x,y,w,h,r) {
 
 function renderCharacter() {}
 
+// ★ 히트 이펙트 스킨 활성 여부 + 로드된 이미지 번들 반환 (없으면 null → 기존 canvas 렌더).
+function _hitFxData() {
+  if (!currentHitFxSkin) return null;
+  const s = SKINS[currentHitFxSkin];
+  if (!s || !s.imagePaths || !s.imagePaths.hit_effect) return null;
+  const img = skinImages[s.imagePaths.hit_effect];
+  if (!img || !img._ok) return null;
+  return { skin: s, img };
+}
+
 function renderParticles() {
+  const fx = _hitFxData();
   for (const p of particles) {
-    ctx.globalAlpha = Math.max(0, p.life/p.maxLife);
+    const lifeRatio = Math.max(0, p.life/p.maxLife);
+    ctx.globalAlpha = lifeRatio;
+    if (p.sprite && fx && fx.skin.sprites[p.spriteSet]) {
+      const rect = fx.skin.sprites[p.spriteSet][p.spriteIdx || 0];
+      if (rect) {
+        const s = p.size * (0.6 + 0.4 * lifeRatio);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        if (p.rotVel !== undefined) ctx.rotate((p.rot || 0) + p.rotVel * (p.maxLife - p.life));
+        ctx.drawImage(fx.img, rect[0], rect[1], rect[2], rect[3], -s/2, -s/2, s, s);
+        ctx.restore();
+        continue;
+      }
+    }
     ctx.fillStyle = p.color;
-    const s = p.size * (p.life/p.maxLife);
+    const s = p.size * lifeRatio;
     ctx.fillRect(p.x-s/2, p.y-s/2, s, s);
   }
   ctx.globalAlpha = 1;
 }
 
 function renderBursts() {
+  const fx = _hitFxData();
   for (const b of bursts) {
     const t = b.time / b.maxTime;
     const alpha = 1 - t;
     ctx.save();
     ctx.translate(b.x, b.y);
+
+    if (fx) {
+      // ★ 벚꽃 sprite 버스트 — 링 2개(핑크+금) + 코어 플래시 + 스파클 방사
+      for (let r = 0; r < 2; r++) {
+        const delay = r * 0.1;
+        const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
+        if (rt <= 0 || rt >= 1) continue;
+        const size = (80 + r * 50 + rt * 180) * b.size;
+        const ringRect = r === 0 ? fx.skin.sprites.ringPink : fx.skin.sprites.ringGold;
+        ctx.globalAlpha = (1 - rt) * 0.9;
+        ctx.drawImage(fx.img, ringRect[0], ringRect[1], ringRect[2], ringRect[3],
+                      -size/2, -size/2, size, size);
+      }
+      if (t < 0.45) {
+        const ft = t / 0.45;
+        const flashSize = (60 + ft * 140) * b.size;
+        const cf = fx.skin.sprites.coreFlash;
+        ctx.globalAlpha = (1 - ft);
+        ctx.drawImage(fx.img, cf[0], cf[1], cf[2], cf[3],
+                      -flashSize/2, -flashSize/2, flashSize, flashSize);
+      }
+      const sparkCount = Math.max(4, Math.floor(b.sparks * 0.5));
+      for (let i = 0; i < sparkCount; i++) {
+        const a = Math.PI * 2 * i / sparkCount + t * 0.8;
+        const dist = (30 + 120 * t) * b.size;
+        const sx = Math.cos(a) * dist;
+        const sy = Math.sin(a) * dist;
+        const ss = (30 + (i * 7) % 18) * (1 - t) * b.size;
+        const sp = fx.skin.sprites.sparkle[i % 3];
+        ctx.globalAlpha = alpha * 0.95;
+        ctx.drawImage(fx.img, sp[0], sp[1], sp[2], sp[3],
+                      sx - ss/2, sy - ss/2, ss, ss);
+      }
+      ctx.restore();
+      continue;
+    }
 
     // Expanding rings with thickness
     for (let r = 0; r < b.rings; r++) {
@@ -8534,12 +8669,25 @@ function renderBursts() {
 }
 
 function renderHoldGlows() {
+  const fx = _hitFxData();
   for (const g of holdGlows) {
     const t = g.time / g.maxTime;
     const alpha = (1 - t);
     const hw = g.w / 2;
     ctx.save();
     ctx.translate(g.x, g.y);
+
+    if (fx) {
+      // ★ 벚꽃 라인 글로우 sprite — 판정선 위에 소프트 빛 바
+      const glow = fx.skin.sprites.holdLineGlow;
+      const w = hw * 2 * (1.4 + t * 0.9);
+      const h = _s40 * (1 - t * 0.25);
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.drawImage(fx.img, glow[0], glow[1], glow[2], glow[3],
+                    -w/2, -h/2, w, h);
+      ctx.restore();
+      continue;
+    }
 
     // Large fire glow expanding upward
     const glowH = _s90 * (0.4 + t * 0.6);
@@ -9588,16 +9736,31 @@ function getShopItems() {
       id: 'skin_neon_note', type: 'skin', section: '스킨',
       label: '벚꽃 노트',
       desc: '감성적인 벚꽃 네온 노트 스킨',
-      price: '1500 ♪',
+      price: '2000 ♪',
       priceType: 'coins',
       color: '#b33f64', icon: '🌸',
       // atlas 내 cleaned 꽃 셀 (3200×400 중 x=2800, 400×400) — 배경 투명 + 중앙 정렬
       iconImage: 'skins/neon/note/neon_note.png',
       iconSrc: [2800, 0, 400, 400],
-      skinCategory: 'note', skinId: 'neon', coinCost: 1500,
+      skinCategory: 'note', skinId: 'neon', coinCost: 2000,
       getStatus: () => ownsSkin('note', 'neon') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('note', 'neon'),
-      onBuy: () => buySkinWithCoins('note', 'neon', 1500, '벚꽃 노트'),
+      onBuy: () => buySkinWithCoins('note', 'neon', 2000, '벚꽃 노트'),
+    },
+    {
+      id: 'skin_sakura_fx', type: 'skin', section: '스킨',
+      label: '벚꽃 히트 이펙트',
+      desc: '히트/홀드 순간 벚꽃잎이 흩날리는 이펙트',
+      price: '1000 ♪',
+      priceType: 'coins',
+      color: '#ff4d94', icon: '🌸',
+      // 스프라이트 시트 내 핑크 링 셀 (0,128,256,256) — 상점 아이콘용 컷
+      iconImage: 'skins/neon/hit_effect/neon_hit_effect.png',
+      iconSrc: [0, 128, 256, 256],
+      skinCategory: 'hit_effect', skinId: 'sakura_fx', coinCost: 1000,
+      getStatus: () => ownsSkin('hit_effect', 'sakura_fx') ? { text: '보유중', color: '#44dd66' } : null,
+      canBuy: () => !ownsSkin('hit_effect', 'sakura_fx'),
+      onBuy: () => buySkinWithCoins('hit_effect', 'sakura_fx', 1000, '벚꽃 히트 이펙트'),
     },
     {
       id: 'pass28', type: 'pass', section: '구독',
