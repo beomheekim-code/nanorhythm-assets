@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421141000;
+window.__BUILD_TS = 20260421150000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -41,10 +41,27 @@ function _activateDebug() {
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js';
   s.onload = () => {
-    try { window._vc = new window.VConsole(); window._dbg._vcLoaded = true; } catch(e) { window._dbg._vcError = e.message; }
+    try {
+      window._vc = new window.VConsole();
+      window._dbg._vcLoaded = true;
+      // 버튼을 우측 중간 높이로 이동 — 기본 우하단은 4번째 레인 탭 영역과 겹침.
+      try { window._vc.setSwitchPosition(Math.round(window.innerHeight * 0.35), 0); } catch(e){}
+    } catch(e) { window._dbg._vcError = e.message; }
   };
   s.onerror = () => { if (window._dbg) window._dbg._vcError = 'vConsole 스크립트 로드 실패 (네트워크/CSP)'; };
   document.head.appendChild(s);
+  // vConsole DOM(버튼/패널) 내부 탭은 game input 으로 전파되지 않게 — pause 풀림 방지.
+  //   capture 단계에서 target 이 #__vconsole 자식이면 stopPropagation.
+  const _vcBlock = (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#__vconsole') || t.closest('.vc-switch') || t.closest('.vc-mask') || t.closest('.vc-panel')) {
+      e.stopPropagation();
+    }
+  };
+  ['pointerdown','pointerup','touchstart','touchend','mousedown','mouseup','click'].forEach(evt => {
+    window.addEventListener(evt, _vcBlock, { capture: true });
+  });
 }
 function _deactivateDebug() {
   window._dbg = null;
@@ -7011,8 +7028,8 @@ function renderDebugOverlay() {
   ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('● DEBUG', 4 + 36, 4 + 9);
-  const panelW = Math.min(320, window.innerWidth * 0.6);
-  const panelH = 200;
+  const panelW = Math.min(360, window.innerWidth * 0.7);
+  const panelH = 360;
   const x = window.innerWidth - panelW - 6, y = 6;
   ctx.fillStyle = 'rgba(0,0,0,0.78)';
   ctx.fillRect(x, y, panelW, panelH);
@@ -7037,10 +7054,14 @@ function renderDebugOverlay() {
   // recent lane press log (last 8)
   ctx.fillStyle = '#ffd';
   ctx.fillText('recent lane press (gapMs):', x+6, ly); ly += 12;
-  const log = window._dbg.lanePressLog.slice(-8).reverse();
+  const log = window._dbg.lanePressLog.slice(-20).reverse();
   for (const e of log) {
+    // 100ms 미만 gap = 더블히트 의심 → 빨갛게
+    if (e.gapMs > 0 && e.gapMs < 100) ctx.fillStyle = '#ff6666';
+    else ctx.fillStyle = '#fff';
     ctx.fillText(`  L${e.lane}  +${e.gapMs}ms  ${e.src || '?'}`, x+6, ly); ly += 11;
   }
+  ctx.fillStyle = '#fff';
   // load events (last 6)
   ctx.fillStyle = '#fcf';
   ctx.fillText('load events (t ms):', x+6, ly); ly += 12;
