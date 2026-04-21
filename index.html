@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421232000;
+window.__BUILD_TS = 20260421232500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -870,7 +870,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@95b8b0b/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@489d4bd/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -2540,40 +2540,23 @@ const SKINS = {
     // rect 글로우 대신 radial(원형) glow — flower 뒤에 사각형 안 비치면서 "떨어지는 느낌" 유지.
     glowStyle: 'radial',
   },
-  // ★ 히트 이펙트 스킨 — 2048×2048 스프라이트 시트 (256×256 격자)
-  //   (Gemini 가 1024 요청했는데 2x 해상도로 줘서 실측 기준 2배 좌표 사용)
-  //   sprites 좌표는 시트 내 서브렉트. 렌더링은 renderBursts/renderParticles/
-  //   renderHoldGlows 에서 fx 장착 시 sprite 경로, 미장착 시 기존 canvas 경로.
+  // ★ 히트 이펙트 스킨 — 낱개 PNG 파일 방식 (시트 좌표 관리 오류 회피).
+  //   각 항목을 imagePaths 에 개별 등록 → _hitFxData 가 필요한 이미지만 조회해서
+  //   drawImage 전체 사용. 파일 누락 시 해당 요소는 fallback 으로 자동 전환.
   sakura_fx: {
     id: 'sakura_fx',
     name: '벚꽃 히트 이펙트',
     category: 'hit_effect',
     price: 1000,
     imagePaths: {
-      hit_effect: 'skins/neon/hit_effect/neon_hit_effect.png',
-    },
-    sprites: {
-      petal: [
-        [0,    0, 256, 256],
-        [256,  0, 256, 256],
-        [512,  0, 256, 256],
-        [768,  0, 256, 256],
-        [1024, 0, 256, 256],
-      ],
-      ringPink:     [0,   256, 512, 512],
-      ringGold:     [512, 256, 512, 512],
-      sparkle: [
-        [0,   768, 256, 256],
-        [256, 768, 256, 256],
-        [512, 768, 256, 256],
-      ],
-      coreFlash:    [768, 768, 256, 256],
-      holdLineGlow: [0,   1024, 1024, 256],
-      drift: [
-        [80,  1360, 96, 96],
-        [336, 1360, 96, 96],
-        [592, 1360, 96, 96],
-      ],
+      petal1:       'skins/neon/hit_effect/petal_01.png',
+      petal2:       'skins/neon/hit_effect/petal_02.png',
+      ringPink:     'skins/neon/hit_effect/ring_pink.png',
+      ringGold:     'skins/neon/hit_effect/ring_gold.png',
+      sparkle:      'skins/neon/hit_effect/sparkle.png',
+      coreFlash:    'skins/neon/hit_effect/core_flash.png',
+      holdLineGlow: 'skins/neon/hit_effect/hold_line_glow.png',
+      drift:        'skins/neon/hit_effect/drift.png',
     },
   },
 };
@@ -6388,7 +6371,7 @@ function spawnBurst(x, y, grade) {
         x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 100,
         life: 0.6 + Math.random()*0.5, maxLife: 1.1,
         color: '#fff', size: 30 + Math.random() * 28,
-        sprite: true, spriteSet: 'petal', spriteIdx: Math.floor(Math.random() * 5),
+        sprite: true, spriteKey: (Math.random() < 0.5 ? 'petal1' : 'petal2'),
         rot: Math.random() * Math.PI * 2, rotVel: (Math.random() - 0.5) * 6,
       });
     }
@@ -7470,7 +7453,7 @@ function update(dt) {
       const hw = (getLaneW() - 8) / 2;
       const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
       if (fxActive) {
-        // ★ 상승 꽃잎/빛 입자 sprite
+        // ★ 상승 drift 입자 — 전부 같은 sprite 재사용 (회전/크기만 랜덤)
         for (let i = 0; i < 3; i++) {
           const ox = (Math.random() - 0.5) * hw * 1.6;
           particles.push({
@@ -7478,7 +7461,7 @@ function update(dt) {
             vx: (Math.random()-0.5)*40, vy: -100 - Math.random()*220,
             life: 0.5 + Math.random()*0.5, maxLife: 1.0,
             color: '#fff', size: 18 + Math.random()*14,
-            sprite: true, spriteSet: 'drift', spriteIdx: Math.floor(Math.random()*3),
+            sprite: true, spriteKey: 'drift',
             rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*4,
           });
         }
@@ -8566,14 +8549,28 @@ function rrStroke(x,y,w,h,r) {
 
 function renderCharacter() {}
 
-// ★ 히트 이펙트 스킨 활성 여부 + 로드된 이미지 번들 반환 (없으면 null → 기존 canvas 렌더).
+// ★ 히트 이펙트 스킨 활성 여부 + 키별 로드된 이미지 맵 반환.
+//   낱개 PNG 방식 — skin.imagePaths 의 각 key 가 곧 이미지 식별자. 하나라도 로드되지
+//   않았으면 그 key 는 undefined 로 빠짐 → 렌더 쪽에서 optional chaining 으로 처리.
 function _hitFxData() {
   if (!currentHitFxSkin) return null;
   const s = SKINS[currentHitFxSkin];
-  if (!s || !s.imagePaths || !s.imagePaths.hit_effect) return null;
-  const img = skinImages[s.imagePaths.hit_effect];
-  if (!img || !img._ok) return null;
-  return { skin: s, img };
+  if (!s || !s.imagePaths) return null;
+  const imgs = {};
+  let anyLoaded = false;
+  for (const k in s.imagePaths) {
+    const img = skinImages[s.imagePaths[k]];
+    if (img && img._ok) { imgs[k] = img; anyLoaded = true; }
+  }
+  if (!anyLoaded) return null;
+  return { skin: s, imgs };
+}
+// ★ 부분 이미지 헬퍼 — key 찾고 있으면 drawImage 전체, 없으면 false
+function _hitFxDraw(fx, key, dx, dy, dw, dh) {
+  const img = fx && fx.imgs[key];
+  if (!img) return false;
+  ctx.drawImage(img, dx, dy, dw, dh);
+  return true;
 }
 
 function renderParticles() {
@@ -8581,14 +8578,14 @@ function renderParticles() {
   for (const p of particles) {
     const lifeRatio = Math.max(0, p.life/p.maxLife);
     ctx.globalAlpha = lifeRatio;
-    if (p.sprite && fx && fx.skin.sprites[p.spriteSet]) {
-      const rect = fx.skin.sprites[p.spriteSet][p.spriteIdx || 0];
-      if (rect) {
+    if (p.sprite && fx) {
+      const img = fx.imgs[p.spriteKey];
+      if (img) {
         const s = p.size * (0.6 + 0.4 * lifeRatio);
         ctx.save();
         ctx.translate(p.x, p.y);
         if (p.rotVel !== undefined) ctx.rotate((p.rot || 0) + p.rotVel * (p.maxLife - p.life));
-        ctx.drawImage(fx.img, rect[0], rect[1], rect[2], rect[3], -s/2, -s/2, s, s);
+        ctx.drawImage(img, -s/2, -s/2, s, s);
         ctx.restore();
         continue;
       }
@@ -8610,35 +8607,34 @@ function renderBursts() {
 
     if (fx) {
       // ★ 벚꽃 sprite 버스트 — 링 2개(핑크+금) + 코어 플래시 + 스파클 방사
+      //   각 key 이미지 없으면 해당 요소만 스킵 (일부만 올라와도 점진적 동작).
       for (let r = 0; r < 2; r++) {
         const delay = r * 0.1;
         const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
         if (rt <= 0 || rt >= 1) continue;
         const size = (80 + r * 50 + rt * 180) * b.size;
-        const ringRect = r === 0 ? fx.skin.sprites.ringPink : fx.skin.sprites.ringGold;
+        const ringImg = r === 0 ? fx.imgs.ringPink : fx.imgs.ringGold;
+        if (!ringImg) continue;
         ctx.globalAlpha = (1 - rt) * 0.9;
-        ctx.drawImage(fx.img, ringRect[0], ringRect[1], ringRect[2], ringRect[3],
-                      -size/2, -size/2, size, size);
+        ctx.drawImage(ringImg, -size/2, -size/2, size, size);
       }
-      if (t < 0.45) {
+      if (t < 0.45 && fx.imgs.coreFlash) {
         const ft = t / 0.45;
         const flashSize = (60 + ft * 140) * b.size;
-        const cf = fx.skin.sprites.coreFlash;
         ctx.globalAlpha = (1 - ft);
-        ctx.drawImage(fx.img, cf[0], cf[1], cf[2], cf[3],
-                      -flashSize/2, -flashSize/2, flashSize, flashSize);
+        ctx.drawImage(fx.imgs.coreFlash, -flashSize/2, -flashSize/2, flashSize, flashSize);
       }
-      const sparkCount = Math.max(4, Math.floor(b.sparks * 0.5));
-      for (let i = 0; i < sparkCount; i++) {
-        const a = Math.PI * 2 * i / sparkCount + t * 0.8;
-        const dist = (30 + 120 * t) * b.size;
-        const sx = Math.cos(a) * dist;
-        const sy = Math.sin(a) * dist;
-        const ss = (30 + (i * 7) % 18) * (1 - t) * b.size;
-        const sp = fx.skin.sprites.sparkle[i % 3];
-        ctx.globalAlpha = alpha * 0.95;
-        ctx.drawImage(fx.img, sp[0], sp[1], sp[2], sp[3],
-                      sx - ss/2, sy - ss/2, ss, ss);
+      if (fx.imgs.sparkle) {
+        const sparkCount = Math.max(4, Math.floor(b.sparks * 0.5));
+        for (let i = 0; i < sparkCount; i++) {
+          const a = Math.PI * 2 * i / sparkCount + t * 0.8;
+          const dist = (30 + 120 * t) * b.size;
+          const sx = Math.cos(a) * dist;
+          const sy = Math.sin(a) * dist;
+          const ss = (30 + (i * 7) % 18) * (1 - t) * b.size;
+          ctx.globalAlpha = alpha * 0.95;
+          ctx.drawImage(fx.imgs.sparkle, sx - ss/2, sy - ss/2, ss, ss);
+        }
       }
       ctx.restore();
       continue;
@@ -8714,14 +8710,12 @@ function renderHoldGlows() {
     ctx.save();
     ctx.translate(g.x, g.y);
 
-    if (fx) {
+    if (fx && fx.imgs.holdLineGlow) {
       // ★ 벚꽃 라인 글로우 sprite — 판정선 위에 소프트 빛 바
-      const glow = fx.skin.sprites.holdLineGlow;
       const w = hw * 2 * (1.4 + t * 0.9);
       const h = _s40 * (1 - t * 0.25);
       ctx.globalAlpha = alpha * 0.9;
-      ctx.drawImage(fx.img, glow[0], glow[1], glow[2], glow[3],
-                    -w/2, -h/2, w, h);
+      ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
       ctx.restore();
       continue;
     }
