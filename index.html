@@ -8612,7 +8612,8 @@ function renderBursts() {
         const delay = r * 0.1;
         const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
         if (rt <= 0 || rt >= 1) continue;
-        const size = (80 + r * 50 + rt * 180) * b.size;
+        // ★ 링 크기 축소 — 기존 (80+r*50+rt*180) 은 Perfect 피크 558px 로 과대. 반 정도로.
+        const size = (40 + r * 25 + rt * 90) * b.size;
         const ringImg = r === 0 ? fx.imgs.ringPink : fx.imgs.ringGold;
         if (!ringImg) continue;
         ctx.globalAlpha = (1 - rt) * 0.9;
@@ -8620,7 +8621,7 @@ function renderBursts() {
       }
       if (t < 0.45 && fx.imgs.coreFlash) {
         const ft = t / 0.45;
-        const flashSize = (60 + ft * 140) * b.size;
+        const flashSize = (40 + ft * 80) * b.size;
         ctx.globalAlpha = (1 - ft);
         ctx.drawImage(fx.imgs.coreFlash, -flashSize/2, -flashSize/2, flashSize, flashSize);
       }
@@ -8628,10 +8629,10 @@ function renderBursts() {
         const sparkCount = Math.max(4, Math.floor(b.sparks * 0.5));
         for (let i = 0; i < sparkCount; i++) {
           const a = Math.PI * 2 * i / sparkCount + t * 0.8;
-          const dist = (30 + 120 * t) * b.size;
+          const dist = (20 + 80 * t) * b.size;
           const sx = Math.cos(a) * dist;
           const sy = Math.sin(a) * dist;
-          const ss = (30 + (i * 7) % 18) * (1 - t) * b.size;
+          const ss = (22 + (i * 7) % 14) * (1 - t) * b.size;
           ctx.globalAlpha = alpha * 0.95;
           ctx.drawImage(fx.imgs.sparkle, sx - ss/2, sy - ss/2, ss, ss);
         }
