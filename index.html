@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421173000;
+window.__BUILD_TS = 20260421180000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -100,21 +100,19 @@ window._isVcEvent = function(e) {
       const border = isT ? '#00ff66' : '#3aa8ff';
       d.style.cssText =
         'position:absolute;' +
-        'left:' + (x - 40) + 'px;top:' + (y - 40) + 'px;' +
-        'width:80px;height:80px;border-radius:50%;' +
-        'background:' + bg + ';border:4px solid ' + border + ';' +
-        'box-shadow:0 0 0 2px rgba(0,0,0,0.7) inset, 0 0 12px ' + border + ';' +
-        'color:#fff;font:bold 12px sans-serif;text-align:center;line-height:72px;' +
+        'left:' + (x - 18) + 'px;top:' + (y - 18) + 'px;' +
+        'width:36px;height:36px;border-radius:50%;' +
+        'background:' + bg + ';border:2px solid ' + border + ';' +
+        'box-shadow:0 0 4px ' + border + ';' +
         'opacity:1;transform:scale(1);will-change:opacity,transform;';
-      d.textContent = src.toUpperCase();
       container.appendChild(d);
-      const start = performance.now(), DUR = 900;
+      const start = performance.now(), DUR = 300;
       (function tick(){
         const age = performance.now() - start;
         if (age >= DUR) { try { d.remove(); } catch(e){} return; }
         const p = age / DUR;
         d.style.opacity = String(1 - p);
-        d.style.transform = 'scale(' + (1 + p * 0.6) + ')';
+        d.style.transform = 'scale(' + (1 + p * 0.3) + ')';
         requestAnimationFrame(tick);
       })();
       try { console.log('%c[MARK] ' + src + ' @(' + Math.round(x) + ',' + Math.round(y) + ')', 'color:' + border + ';font-weight:bold'); } catch(e){}
@@ -951,35 +949,35 @@ function startPreview(idx) {
   previewActive = true;
   previewLoading = true;
   const song = songs[idx];
-  // metadata만 먼저 로드 — 스크롤 끊김 최소화
   const audio = new Audio();
+  // ★ abort flag — pending play promise / setTimeout / event 가 stop 이후 실행될 때
+  //   audio.play() 재호출 차단. iOS 에서 pause 후 비동기 play 해버리는 버그 대응.
+  audio._aborted = false;
   audio.preload = 'metadata';
   audio.src = assetUrl(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
-  // 로딩 완료 처리 — 여러 이벤트로 커버 (canplaythrough는 간헐적으로 안 뜸)
   const markReady = () => {
-    if (songPreviewAudio !== audio || !previewLoading) return;
+    if (audio._aborted || songPreviewAudio !== audio || !previewLoading) return;
     previewLoading = false;
     previewCycleStart = performance.now();
   };
   audio.addEventListener('canplay', markReady, { once: true });
   audio.addEventListener('loadeddata', markReady, { once: true });
   audio.addEventListener('playing', markReady, { once: true });
-  audio.play().then(markReady).catch(()=>{});
-  // 백그라운드 safety net: update 루프가 멈춰도 audio timeupdate 는 계속 발화.
-  // PREVIEW_DURATION 초과 시 하드 컷오프로 음원이 풀로 나오는 것 방지.
+  audio.play().then(() => { if (!audio._aborted) markReady(); }).catch(()=>{});
   audio.addEventListener('timeupdate', () => {
-    if (songPreviewAudio !== audio) return;  // 곡 전환으로 이 리스너는 무효
+    if (audio._aborted || songPreviewAudio !== audio) return;
     if (audio.currentTime >= PREVIEW_DURATION) {
       try { audio.pause(); audio.currentTime = 0; } catch(e) {}
     }
   });
-  // 타임아웃 폴백: 3초 내에 준비 못 하면 강제로 진행
-  setTimeout(() => {
+  // 타임아웃 폴백 handle 저장 — stop 시 clearTimeout 으로 확실히 취소.
+  audio._fallbackTimer = setTimeout(() => {
+    if (audio._aborted) return;
     if (songPreviewAudio === audio && previewLoading) {
       markReady();
-      audio.play().catch(()=>{});
+      if (!audio._aborted) audio.play().catch(()=>{});
     }
   }, 3000);
 }
@@ -989,7 +987,7 @@ function stopPreview() {
   stopSongPreview();
 }
 function schedulePreview() {
-  if (!previewActive || !songPreviewAudio || previewLoading) return;
+  if (!previewActive || !songPreviewAudio || previewLoading || songPreviewAudio._aborted) return;
   const elapsed = (performance.now() - previewCycleStart) / 1000;
   if (elapsed < PREVIEW_FADE_IN) {
     // 페이드인
@@ -1006,6 +1004,7 @@ function schedulePreview() {
     songPreviewAudio.volume = 0;
   } else {
     // 다시 처음부터
+    if (songPreviewAudio._aborted) return;
     songPreviewAudio.currentTime = 0;
     songPreviewAudio.play().catch(()=>{});
     previewCycleStart = performance.now();
@@ -2112,7 +2111,14 @@ function fadeOutSongAudio(duration) {
 }
 function stopSongPreview() {
   if (songPreviewAudio) {
-    songPreviewAudio.pause(); songPreviewAudio.currentTime = 0;
+    const a = songPreviewAudio;
+    a._aborted = true;  // pending promise / setTimeout / event 내부에서 play 재호출 차단
+    try { if (a._fallbackTimer) { clearTimeout(a._fallbackTimer); a._fallbackTimer = null; } } catch(e){}
+    try { a.pause(); } catch(e){}
+    try { a.currentTime = 0; } catch(e){}
+    // ★ iOS 에서 pause 후에도 pending play promise 가 resolve 되면 재생되는 버그.
+    //   src 비우고 load() 하면 decode pipeline 전부 halt → 확실한 정지.
+    try { a.removeAttribute('src'); a.load(); } catch(e){}
     songPreviewAudio = null;
   }
 }
@@ -3131,6 +3137,7 @@ function completeLogin(name, method) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
   // 계정 데이터 Firebase 동기화 (v16.1)
   loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();
+  try { loadClaimedMailIdsFromFirebase(); } catch(e) {}
   // 스킨 인벤토리/장착 상태 Firebase 동기화 (union merge) + 완료 후 currentSkin 재설정.
   try { _refreshActiveSkin(); } catch(e) {}
   try { loadSkinInvFromFirebase(); } catch(e) {}  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
@@ -3565,7 +3572,35 @@ function saveMailbox(arr) {
   saveMailboxToFirebase(arr);
 }
 function getUnreadMailCount() { return getMailbox().filter(m => !m.claimed).length; }
+// ★ 수령한 mail id 영구 기록 (Firebase) — mailbox 24h 만료와 무관하게 재지급 차단.
+//   localStorage 만으로는 다른 디바이스/캐시 클리어 시 재지급되던 버그 해결.
+function _claimedIdsKey() { return 'rhythm_claimedMailIds_' + (currentUser || 'guest'); }
+function getClaimedMailIds() {
+  try { return JSON.parse(safeGetItem(_claimedIdsKey()) || '[]'); } catch { return []; }
+}
+function addClaimedMailId(id) {
+  const ids = getClaimedMailIds();
+  if (ids.includes(id)) return;
+  ids.push(id);
+  safeSetItem(_claimedIdsKey(), JSON.stringify(ids));
+  if (currentUser && fbDb) { try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(ids); } catch(e) {} }
+}
+function loadClaimedMailIdsFromFirebase() {
+  if (!currentUser || !fbDb) return;
+  try {
+    fbDb.ref('settings/' + currentUser + '/claimedMails').once('value', snap => {
+      const raw = snap.val();
+      const fbIds = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+      const local = getClaimedMailIds();
+      const merged = Array.from(new Set([...local, ...fbIds.filter(x => typeof x === 'string')]));
+      safeSetItem(_claimedIdsKey(), JSON.stringify(merged));
+      try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(merged); } catch(e) {}
+    });
+  } catch(e) {}
+}
 function addMail(mail) {
+  // ★ 재지급 방어 — 이미 수령한 id 는 mailbox 에서 만료됐어도 다시 추가 안 함.
+  if (getClaimedMailIds().includes(mail.id)) return;
   const m = getMailbox();
   if (m.some(x => x.id === mail.id)) return; // 중복 방지
   m.unshift(mail);
@@ -3642,12 +3677,13 @@ function claimMail(mailId) {
   const idx = m.findIndex(x => x.id === mailId);
   if (idx < 0) return;
   const item = m[idx];
-  // ★ 중복 수령 방지 — splice 해버리면 Firebase union merge 에서 복구되어 재수령 가능.
-  //   claimed=true 플래그로 남겨두면 union 의 `claimed = cur || m` 규칙에 의해 영구 보호.
   if (item.claimed) return;
+  // ★ 이미 수령 이력이 Firebase 에 있으면 재수령 차단 (디바이스 간 동기화 race 방어)
+  if (getClaimedMailIds().includes(mailId)) { m[idx] = { ...item, claimed: true }; saveMailbox(m); return; }
   if (item.reward) addCoins(item.reward);
   m[idx] = { ...item, claimed: true };
   saveMailbox(m);
+  addClaimedMailId(mailId); // Firebase 영구 기록 — mailbox 만료되어도 재지급 차단
 }
 // 캔버스 텍스트 폭 기준 줄바꿈 (한글 캐릭터 단위 안전)
 function wrapTextToLines(text, maxWidth) {
