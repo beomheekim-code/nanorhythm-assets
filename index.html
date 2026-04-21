@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421090000;
+window.__BUILD_TS = 20260421100000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2053,9 +2053,46 @@ function getSkinsForCategory(cat) {
 function _invKey() { return 'rhythm_skinInv_' + (currentUser || '_guest'); }
 function _eqKey() { return 'rhythm_skinEq_' + (currentUser || '_guest'); }
 function _loadInv() { try { return JSON.parse(safeGetItem(_invKey()) || '{}'); } catch { return {}; } }
-function _saveInv(x) { safeSetItem(_invKey(), JSON.stringify(x)); }
+function _saveInv(x) {
+  safeSetItem(_invKey(), JSON.stringify(x));
+  if (currentUser && fbDb) {
+    try { fbDb.ref('settings/' + currentUser + '/skinInv').set(x); } catch(e) {}
+  }
+}
 function _loadEq() { try { return JSON.parse(safeGetItem(_eqKey()) || '{}'); } catch { return {}; } }
-function _saveEq(x) { safeSetItem(_eqKey(), JSON.stringify(x)); }
+function _saveEq(x) {
+  safeSetItem(_eqKey(), JSON.stringify(x));
+  if (currentUser && fbDb) {
+    try { fbDb.ref('settings/' + currentUser + '/skinEq').set(x); } catch(e) {}
+  }
+}
+// Firebase 에서 skin 인벤토리/장비 로드 — 로그인 시 호출. union merge (local∪remote, remote 우선).
+function loadSkinInvFromFirebase() {
+  if (!currentUser || !fbDb) return;
+  try {
+    fbDb.ref('settings/' + currentUser + '/skinInv').once('value', snap => {
+      const fbInv = snap.val() || {};
+      const localInv = _loadInv();
+      const merged = { ...localInv };
+      for (const cat in fbInv) {
+        const a = Array.isArray(localInv[cat]) ? localInv[cat] : [];
+        const b = Array.isArray(fbInv[cat]) ? fbInv[cat] : [];
+        merged[cat] = Array.from(new Set([...a, ...b]));
+      }
+      safeSetItem(_invKey(), JSON.stringify(merged));
+      // Firebase 도 merged 로 쓰기 (로컬에만 있던 거 올림)
+      try { fbDb.ref('settings/' + currentUser + '/skinInv').set(merged); } catch(e) {}
+    });
+    fbDb.ref('settings/' + currentUser + '/skinEq').once('value', snap => {
+      const fbEq = snap.val() || {};
+      // remote 있으면 remote 우선 (기기 간 장착 동기화)
+      const localEq = _loadEq();
+      const merged = Object.keys(fbEq).length > 0 ? { ...fbEq } : localEq;
+      safeSetItem(_eqKey(), JSON.stringify(merged));
+      _refreshActiveSkin();
+    });
+  } catch(e) {}
+}
 function ownsSkin(cat, id) { const i = _loadInv(); return !!(i[cat] && i[cat].includes(id)); }
 function getOwnedSkins(cat) { const i = _loadInv(); return (i[cat] || []).slice(); }
 function addOwnedSkin(cat, id) {
@@ -2077,6 +2114,13 @@ function setEquippedSkin(cat, id) {
   if (id) e[cat] = id; else delete e[cat];
   _saveEq(e);
   _refreshActiveSkin();
+  // 장착 시점에 sprite PNG 강제 preload — 인게임 진입 시점까지 로드 대기 시간 확보.
+  //   iOS 네트워크 불안정 시 첫 진입 때 sprite 가 안 떠서 fallback 으로 나오던 문제 완화.
+  if (id && SKINS[id] && SKINS[id].imagePaths) {
+    for (const k in SKINS[id].imagePaths) {
+      loadSkinImage(SKINS[id].imagePaths[k]);
+    }
+  }
 }
 // note 카테고리 장착 스킨이 legacy `currentSkin` 을 구동 (렌더 경로 호환).
 function _refreshActiveSkin() {
@@ -2092,7 +2136,7 @@ const skinImages = {};
 // ★ 로딩 실패 대응 — 곡 로딩 중 네트워크 경합/일시 지연으로 skin PNG 요청이 실패해도
 //   exponential backoff 로 최대 3회 재시도. 실패해도 drawSkinSprite 는 fallback(canvas)
 //   렌더링 하므로 게임 자체는 계속 돌아감. 재시도 성공 시 자동으로 skin 복구.
-const SKIN_LOAD_MAX_RETRY = 3;
+const SKIN_LOAD_MAX_RETRY = 6;  // iOS 네트워크 불안정 대응 (3 → 6 증가)
 function loadSkinImage(path, attempt = 0) {
   if (!path) return null;
   const existing = skinImages[path];
@@ -2857,8 +2901,9 @@ function completeLogin(name, method) {
   loadLaneCountFromFirebase(); loadKeymapFromFirebase(); loadVolFromFirebase(); loadDiffSpeedFromFirebase(); loadPassFromFirebase(); loadFavoritesFromFirebase();
   // 계정 데이터 Firebase 동기화 (v16.1)
   loadCoinsFromFirebase(); loadAchUnlockedFromFirebase(); loadAchClaimedFromFirebase(); loadMailboxFromFirebase(); loadFreeplaysFromFirebase();
-  // 스킨 장착 상태 (유저별 localStorage → currentSkin 재설정)
-  try { _refreshActiveSkin(); } catch(e) {}  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
+  // 스킨 인벤토리/장착 상태 Firebase 동기화 (union merge) + 완료 후 currentSkin 재설정.
+  try { _refreshActiveSkin(); } catch(e) {}
+  try { loadSkinInvFromFirebase(); } catch(e) {}  // 중복 로그인 킥 시스템 (v16.3): 활성 세션 점유 + 감시 시작
   if (pendingAuthUid) {
     _claimActiveSession(pendingAuthUid);
   } else if (window.kplay && window.kplay.user && window.kplay.user.userId) {
@@ -3367,8 +3412,11 @@ function claimMail(mailId) {
   const idx = m.findIndex(x => x.id === mailId);
   if (idx < 0) return;
   const item = m[idx];
+  // ★ 중복 수령 방지 — splice 해버리면 Firebase union merge 에서 복구되어 재수령 가능.
+  //   claimed=true 플래그로 남겨두면 union 의 `claimed = cur || m` 규칙에 의해 영구 보호.
+  if (item.claimed) return;
   if (item.reward) addCoins(item.reward);
-  m.splice(idx, 1);
+  m[idx] = { ...item, claimed: true };
   saveMailbox(m);
 }
 // 캔버스 텍스트 폭 기준 줄바꿈 (한글 캐릭터 단위 안전)
@@ -6009,6 +6057,17 @@ let stemOnsetCache = {};     // 스템별 onset 결과 캐시
 
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
+  // ★ 장착된 스킨 sprite 보강 preload — 로딩 화면 동안 네트워크가 불안정했어도
+  //   이 시점에 미리 재시도해서 인게임 진입 전 가능하면 로드 완료 상태로 만듦.
+  try {
+    const _eqMap = _loadEq();
+    for (const cat in _eqMap) {
+      const sid = _eqMap[cat];
+      if (sid && SKINS[sid] && SKINS[sid].imagePaths) {
+        for (const k in SKINS[sid].imagePaths) loadSkinImage(SKINS[sid].imagePaths[k]);
+      }
+    }
+  } catch(e) {}
   // ★ 인게임 중 Firebase 랭킹 리스너가 살아있으면 다른 유저 점수 제출 때마다
   //   메인 스레드에서 snapshot parse → iOS 가 rapid touch 드롭하는 원인.
   //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
@@ -7929,7 +7988,8 @@ function renderMailboxOverlay() {
   ctx.font = `bold ${sz(16)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillText('✕', xX + xW/2, xY + xH/2);
 
-  const mails = currentUser ? getMailbox() : [];
+  // claimed 된 메일은 UI 에서 숨김 (데이터는 중복 수령 방지용으로 남김)
+  const mails = currentUser ? getMailbox().filter(m => !m.claimed) : [];
   const listX = popX + sz(14), listW = popW - sz(28);
   const listY = popY + sz(56), listH = popH - sz(56) - sz(54);
   // 리스트 클립
@@ -8610,19 +8670,37 @@ let coinChargePopupOpen = false;
 let _coinChargeCtx = { need: 0, have: 0, label: '' };
 let _coinChargeBtnAreas = [];
 let _coinChargeCloseArea = null;
+// ★ 팝업 취소 후 짧은 시간 동안 buyXxx 재호출 차단 — iOS 의 touchend→mousedown
+//   compat 이벤트로 같은 탭이 두 번 처리되어 팝업이 즉시 재오픈되는 버그 방지.
+let _coinChargeSuppressUntil = 0;
+function isCoinChargeSuppressed() { return performance.now() < _coinChargeSuppressUntil; }
 function openCoinChargePopup(need, have, label) {
+  if (isCoinChargeSuppressed()) return;
   _coinChargeCtx = { need, have, label: label || '' };
   coinChargePopupOpen = true;
 }
-function closeCoinChargePopup() { coinChargePopupOpen = false; _coinChargeBtnAreas = []; _coinChargeCloseArea = null; }
+function closeCoinChargePopup() {
+  coinChargePopupOpen = false;
+  _coinChargeBtnAreas = [];
+  _coinChargeCloseArea = null;
+  _coinChargeSuppressUntil = performance.now() + 500;
+}
 
 function renderCoinChargePopup() {
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
-  const pw = Math.min(sz(340), W * 0.88), ph = sz(320);
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(300);
   const px = (W - pw) / 2, py = (H - ph) / 2;
   ctx.fillStyle = '#181825'; rrFill(px, py, pw, ph, sz(14));
   ctx.strokeStyle = 'rgba(255,215,0,0.35)'; ctx.lineWidth = 1; rrStroke(px, py, pw, ph, sz(14));
+  // X 닫기 버튼 (우상단)
+  const xS = sz(30), xX = px + pw - xS - sz(6), xY = py + sz(6);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)'; rrFill(xX, xY, xS, xS, sz(6));
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; rrStroke(xX, xY, xS, xS, sz(6));
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillText('✕', xX + xS/2, xY + xS/2);
+  _coinChargeCloseArea = { x: xX, y: xY, w: xS, h: xS };
+  // 타이틀
   ctx.font = `bold ${sz(16)}px sans-serif`; ctx.fillStyle = '#ffd700';
   ctx.fillText('♪  음표가 부족해요', W/2, py + sz(28));
   const { need, have, label } = _coinChargeCtx;
@@ -8652,12 +8730,6 @@ function renderCoinChargePopup() {
     _coinChargeBtnAreas.push({ amount: p.amount, credits: p.credits, itemId: p.itemId, x: bx, y: yCur, w: bw, h: bh });
     yCur += bh + sz(10);
   }
-  // 취소
-  yCur += sz(4);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.fillText('취소', W/2, yCur + sz(10));
-  _coinChargeCloseArea = { x: W/2 - sz(40), y: yCur, w: sz(80), h: sz(22) };
 }
 
 function handleCoinChargePopupClick(mx, my) {
@@ -8673,7 +8745,7 @@ function handleCoinChargePopupClick(mx, my) {
     }
   }
   // 바깥 탭 → 닫기
-  const pw = Math.min(sz(340), W * 0.88), ph = sz(320);
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(300);
   const px = (W - pw) / 2, py = (H - ph) / 2;
   if (!hitTest(mx, my, px, py, pw, ph)) closeCoinChargePopup();
 }
