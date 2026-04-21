@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421234500;
+window.__BUILD_TS = 20260421235000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2715,7 +2715,23 @@ function loadSkinImage(path, attempt = 0) {
   img._ok = null;      // null = loading, true = ok, false = failed
   img._attempt = attempt;
   img.onload = () => {
-    if (img.naturalWidth > 0) img._ok = true;
+    if (img.naturalWidth > 0) {
+      img._ok = true;
+      // ★ 디코드 + GPU 텍스처 워밍업 — 첫 drawImage 시 동기 디코드로 프레임 스파이크 발생하던 것.
+      //   decode() 로 비동기 디코드 완료 + 1×1 offscreen 에 한 번 drawImage 로 GPU 업로드 강제.
+      //   "강제 새로고침 직후 첫 곡에서 노트 떨어질 때 확 끊김" 원인 제거.
+      try {
+        const warm = () => {
+          try {
+            const tmp = document.createElement('canvas');
+            tmp.width = 1; tmp.height = 1;
+            tmp.getContext('2d').drawImage(img, 0, 0, 1, 1);
+          } catch (e) {}
+        };
+        if (img.decode) img.decode().then(warm).catch(warm);
+        else warm();
+      } catch (e) {}
+    }
     else { img._ok = false; _scheduleSkinRetry(path, attempt); }
   };
   img.onerror = () => { img._ok = false; _scheduleSkinRetry(path, attempt); };
@@ -9781,9 +9797,8 @@ function getShopItems() {
       price: '1000 ♪',
       priceType: 'coins',
       color: '#ff4d94', icon: '🌸',
-      // 스프라이트 시트 내 핑크 링 셀 (0,128,256,256) — 상점 아이콘용 컷
-      iconImage: 'skins/neon/hit_effect/neon_hit_effect.png',
-      iconSrc: [0, 128, 256, 256],
+      // 상점 아이콘 = petal_01 꽃잎 이미지 (전체 사용)
+      iconImage: 'skins/neon/hit_effect/petal_01.png',
       skinCategory: 'hit_effect', skinId: 'sakura_fx', coinCost: 1000,
       getStatus: () => ownsSkin('hit_effect', 'sakura_fx') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('hit_effect', 'sakura_fx'),
