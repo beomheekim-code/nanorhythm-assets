@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421160000;
+window.__BUILD_TS = 20260421161000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5204,7 +5204,13 @@ function _processPlayingTouch(t, src) {
 //   pointerdown 은 별도 파이프라인이라 덜 영향받아 방어 경로 역할.
 //   중복 호출은 handleLanePress 의 note.hit 플래그가 자연스럽게 흡수 (dedup 불필요).
 document.addEventListener('pointerdown', e => {
-  if (window._isVcEvent && window._isVcEvent(e)) return;  // vConsole 탭은 게임 입력 아님
+  if (window._isVcEvent && window._isVcEvent(e)) return;
+  // ★ debug: 모든 pointerdown 도착 로그 (씹힘 진단 — 이벤트 자체가 오는지 확인).
+  if (window._dbg && state === 'playing') {
+    _dbg.pdCount = (_dbg.pdCount || 0) + 1;
+    _dbg._pdLast = performance.now();
+    try { console.log('[PD] #' + _dbg.pdCount + ' x=' + Math.round(e.clientX) + ' y=' + Math.round(e.clientY) + ' type=' + e.pointerType + (gamePaused ? ' (paused)' : '')); } catch(ex){}
+  }
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   _inputEventTime = e.timeStamp || performance.now();
   const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null }, 'pointer');
@@ -5212,9 +5218,16 @@ document.addEventListener('pointerdown', e => {
   _inputEventTime = 0;
 }, { capture: true });
 document.addEventListener('touchstart', e => {
-  if (window._isVcEvent && window._isVcEvent(e)) return;  // vConsole 탭은 게임 입력 아님
+  if (window._isVcEvent && window._isVcEvent(e)) return;
+  // ★ debug: 모든 touchstart 도착 로그. pointerdown 과 timestamp 비교로 씹힘 탐지.
+  if (window._dbg && state === 'playing') {
+    _dbg.tsCount = (_dbg.tsCount || 0) + 1;
+    const nowT = performance.now();
+    const gapFromPd = _dbg._pdLast ? Math.round(nowT - _dbg._pdLast) : -1;
+    try { console.log('[TS] #' + _dbg.tsCount + ' touches=' + e.changedTouches.length + ' gapFromPD=' + gapFromPd + 'ms' + (gamePaused ? ' (paused)' : '')); } catch(ex){}
+    _dbg._tsLast = nowT;
+  }
   if (state !== 'playing' || gamePaused) return;
-  // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
     _processPlayingTouch(e.changedTouches[ti], 'touch');
@@ -5604,7 +5617,11 @@ document.addEventListener('touchmove', e => {
   }
 }, { passive: false });
 document.addEventListener('touchend', e => {
-  if (window._isVcEvent && window._isVcEvent(e)) return;  // vConsole 탭은 게임 입력 아님
+  if (window._isVcEvent && window._isVcEvent(e)) return;
+  if (window._dbg && state === 'playing') {
+    _dbg.teCount = (_dbg.teCount || 0) + 1;
+    try { console.log('[TE] #' + _dbg.teCount + ' changed=' + e.changedTouches.length + ' remain=' + e.touches.length); } catch(ex){}
+  }
   stopSelectArrowHold();
   stopSpeedHold();
   _pauseGestureAt = 0; // pause 제스처 종료 → 다음 탭은 즉시 resume 가능
@@ -7051,11 +7068,15 @@ function renderDebugOverlay() {
   ctx.fillStyle = '#0ff';
   const vcStatus = window._dbg._vcLoaded ? 'vConsole OK' : (window._dbg._vcError ? 'vConsole FAIL' : 'vConsole 로딩중');
   ctx.fillText('DEBUG — ' + vcStatus, x+6, ly); ly += 12;
-  // 환경 플래그 (치트 작동 확인용)
+  // 환경 플래그
   ctx.fillStyle = '#ffcc44';
   ctx.fillText('host=' + location.hostname.slice(0, 32), x+6, ly); ly += 11;
-  ctx.fillText('isLocalhost=' + isLocalhost + '  isTestEnv=' + isTestEnv, x+6, ly); ly += 11;
-  ctx.fillText('BUILD_TS=' + window.__BUILD_TS, x+6, ly); ly += 12;
+  ctx.fillText('BUILD_TS=' + window.__BUILD_TS + '  isTestEnv=' + isTestEnv, x+6, ly); ly += 11;
+  // 이벤트 카운터 — 씹힘 진단 (PD/TS/TE 불일치)
+  const pd = window._dbg.pdCount || 0, ts = window._dbg.tsCount || 0, te = window._dbg.teCount || 0;
+  const diff = pd - ts;
+  ctx.fillStyle = Math.abs(diff) > 2 ? '#ff6666' : '#8f8';
+  ctx.fillText('PD=' + pd + ' TS=' + ts + ' TE=' + te + '  (PD-TS=' + diff + ')', x+6, ly); ly += 12;
   ctx.fillStyle = '#fff';
   ctx.fillStyle = '#fff';
   // double hit counts
