@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421121000;
+window.__BUILD_TS = 20260421122000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1919,6 +1919,13 @@ function cancelPass() {
   if (currentUser && fbDb) try { fbDb.ref('settings/' + currentUser + '/passExpiry').remove(); } catch(e) {}
 }
 const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+// ★ 테스트 환경 판정 — 게스트 로그인 허용. kplay 실 프로덕션 도메인은 제외.
+//   raw.githack(HTML CDN), github.io(Pages), LAN IP 모두 포함.
+const isTestEnv = isLocalhost
+  || /^(raw\.githack\.com|rawcdn\.githack\.com)$/.test(location.hostname)
+  || /\.github\.io$/.test(location.hostname)
+  || /^192\.168\./.test(location.hostname)
+  || /^10\./.test(location.hostname);
 let devInvincible = false; // 로컬 테스트용 HP 무적
 
 // ===== COVER IMAGE (LAZY LOAD + LRU) =====
@@ -9849,8 +9856,8 @@ function renderTitle() {
     ctx.fillText('Kplay \uB85C\uADF8\uC778', btnStartX + btnW / 2 + iconPad / 4, by + btnH / 2);
     ctx.textBaseline = 'alphabetic';
 
-    // 로컬 전용: 게스트 로그인 버튼
-    if (isLocalhost) {
+    // 테스트 환경 전용: 게스트 로그인 버튼 (localhost/githack/github.io/LAN)
+    if (isTestEnv) {
       const gY = by + btnH + sz(10);
       loginBtnAreas.push({ x: btnStartX, y: gY, w: btnW, h: btnH, type: 'guest' });
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
@@ -11060,8 +11067,8 @@ function renderLogin() {
   ctx.fillText('Kplay \uB85C\uADF8\uC778', startX + btnW / 2 + iconPad / 3, by + btnH / 2);
   ctx.textBaseline = 'alphabetic';
 
-  // 로컬 전용: 게스트 로그인 버튼 (Kplay 버튼 아래)
-  if (isLocalhost) {
+  // 테스트 환경 전용: 게스트 로그인 버튼 (Kplay 버튼 아래)
+  if (isTestEnv) {
     const gY = by + btnH + sz(12);
     loginBtnAreas.push({ x: startX, y: gY, w: btnW, h: btnH, type: 'guest' });
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
