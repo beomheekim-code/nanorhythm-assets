@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421152000;
+window.__BUILD_TS = 20260421160000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5167,7 +5167,7 @@ function _gestureAlreadyHandled(x, y) {
 // ★ 탭 이벤트 실제 발생 시각 (DOMHighResTimeStamp) — 이벤트 핸들러 진입 시 세팅.
 //   렌더 프레임이 느려서 이벤트 dispatch 가 지연된 경우 handleLanePress 가 이 값으로 보정.
 let _inputEventTime = 0;
-function _processPlayingTouch(t) {
+function _processPlayingTouch(t, src) {
   const x = t.clientX, y = t.clientY - safeTop;
   const lw = _fLw || getLaneW(), lsx = _fLsx || getLaneStartX();
   if (y < sz(40) && x > W - sz(52)) {
@@ -5193,7 +5193,7 @@ function _processPlayingTouch(t) {
   //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
   //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
-  if (_canHit) handleLanePress(i, 'touch');
+  if (_canHit) handleLanePress(i, src || 'touch');
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
   //   _processPlayingTouch 리팩토링 시 빠뜨렸던 것. iOS 에서 카운트다운 중 무음 regression 원인.
   else if (!songLoading && countdownTime > 0) playEmptyPressSfx(i);
@@ -5207,7 +5207,7 @@ document.addEventListener('pointerdown', e => {
   if (window._isVcEvent && window._isVcEvent(e)) return;  // vConsole 탭은 게임 입력 아님
   if (state !== 'playing' || gamePaused || e.pointerType === 'mouse') return;
   _inputEventTime = e.timeStamp || performance.now();
-  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null });
+  const lane = _processPlayingTouch({ clientX: e.clientX, clientY: e.clientY, identifier: null }, 'pointer');
   if (lane >= 0) _pointerLaneMap.set(e.pointerId, { lane, x: e.clientX, y: e.clientY, t: performance.now() });
   _inputEventTime = 0;
 }, { capture: true });
@@ -5217,7 +5217,7 @@ document.addEventListener('touchstart', e => {
   // ★ passive: true — preventDefault 제거. touch-action:none 으로 기본동작 이미 차단됨.
   _inputEventTime = e.timeStamp || performance.now();
   for (let ti = 0; ti < e.changedTouches.length; ti++) {
-    _processPlayingTouch(e.changedTouches[ti]);
+    _processPlayingTouch(e.changedTouches[ti], 'touch');
   }
   _inputEventTime = 0;
 }, { passive: true, capture: true });
@@ -5689,25 +5689,33 @@ document.addEventListener('touchcancel', e => {
 
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
+// ★ lane dedup 테이블 — 같은 lane 에 30ms 미만 연속 press 는 iOS 의 touchstart+pointerdown
+//   compat 중복 발사로 간주하고 skip. 정상 빠른 탭도 50ms+ 간격이라 30ms 는 안전.
+const _laneLastPressAt = {};
+const LANE_DEDUP_MS = 30;
 function handleLanePress(lane, src) {
-  // ★ debug: lane 누름 트레이스 (?debug=1). 같은 lane 100ms 내 2회 이상 호출되면 더블 판정 의심.
+  const nowT = performance.now();
+  const lastAt = _laneLastPressAt[lane] || 0;
+  const gap = nowT - lastAt;
+  // ★ debug 로그 — dedup 결정 전에 먼저 기록 (중복 발사 자체를 관찰하려면 skip 된 것도 보여야 함).
   if (window._dbg) {
-    const nowT = performance.now();
-    const last = _dbg.lastLanePressAt[lane] || 0;
-    const gap = nowT - last;
     const srcTag = src || '?';
     _dbg.lastLanePressAt[lane] = nowT;
     _dbg.lanePressLog.push({ lane, gapMs: Math.round(gap), t: Math.round(nowT), src: srcTag });
     if (_dbg.lanePressLog.length > 40) _dbg.lanePressLog.shift();
     if (gap > 0 && gap < 100) {
       _dbg.doubleHitCount[lane] = (_dbg.doubleHitCount[lane] || 0) + 1;
-      // Log 탭(console.log)에 찍어서 vConsole 기본 탭에서 바로 확인 가능.
       try { console.log('%c[DBL_HIT] lane=' + lane + ' gap=' + Math.round(gap) + 'ms  src: ' + (_dbg.lastSrc || '?') + ' → ' + srcTag, 'color:#ff3366;font-weight:bold'); } catch(e){}
     }
-    // 모든 lane press 기록 (연속성 파악)
     try { console.log('[LP] L' + lane + ' gap=' + Math.round(gap) + 'ms src=' + srcTag); } catch(e){}
     _dbg.lastSrc = srcTag;
   }
+  // ★ DEDUP — 30ms 이내 동일 lane 재호출은 iOS pointer+touch 중복 발사로 간주, 노트 판정 skip.
+  if (lastAt > 0 && gap < LANE_DEDUP_MS) {
+    if (window._dbg) { try { console.log('%c[DEDUP] lane=' + lane + ' skipped gap=' + Math.round(gap) + 'ms src=' + (src||'?'), 'color:#4488ff'); } catch(e){} }
+    return;
+  }
+  _laneLastPressAt[lane] = nowT;
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
