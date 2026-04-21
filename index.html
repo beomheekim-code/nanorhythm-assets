@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421215000;
+window.__BUILD_TS = 20260421220000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6148,6 +6148,7 @@ let _lastEmptyFlash = new Float64Array(8);
 // ★ lane dedup 테이블 — 같은 lane 에 30ms 미만 연속 press 는 iOS 의 touchstart+pointerdown
 //   compat 중복 발사로 간주하고 skip. 정상 빠른 탭도 50ms+ 간격이라 30ms 는 안전.
 const _laneLastPressAt = {};
+const _laneLastSrc = {};
 const LANE_DEDUP_MS = 30;
 function handleLanePress(lane, src) {
   const nowT = performance.now();
@@ -6167,12 +6168,16 @@ function handleLanePress(lane, src) {
     try { console.log('[LP] L' + lane + ' gap=' + Math.round(gap) + 'ms src=' + srcTag); } catch(e){}
     _dbg.lastSrc = srcTag;
   }
-  // ★ DEDUP — 30ms 이내 동일 lane 재호출은 iOS pointer+touch 중복 발사로 간주, 노트 판정 skip.
-  if (lastAt > 0 && gap < LANE_DEDUP_MS) {
-    if (window._dbg) { try { console.log('%c[DEDUP] lane=' + lane + ' skipped gap=' + Math.round(gap) + 'ms src=' + (src||'?'), 'color:#4488ff'); } catch(e){} }
+  // ★ DEDUP — iOS pointerdown + touchstart compat 중복만 흡수.
+  //   **같은 src** 연속 (pointer→pointer 또는 touch→touch) 은 **진짜 연타** 로 간주 통과.
+  //   다른 src (pointer→touch 또는 touch→pointer) 에서 30ms 이내일 때만 dedup.
+  const prevSrc = _laneLastSrc[lane];
+  if (lastAt > 0 && gap < LANE_DEDUP_MS && prevSrc && prevSrc !== src) {
+    if (window._dbg) { try { console.log('%c[DEDUP] lane=' + lane + ' skipped gap=' + Math.round(gap) + 'ms ' + prevSrc + '→' + (src||'?'), 'color:#4488ff'); } catch(e){} }
     return;
   }
   _laneLastPressAt[lane] = nowT;
+  _laneLastSrc[lane] = src;
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
