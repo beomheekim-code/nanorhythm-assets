@@ -9667,7 +9667,7 @@ function closeCoinChargePopup() {
 
 function renderCoinChargePopup() {
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
-  const pw = Math.min(sz(340), W * 0.88), ph = sz(300);
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(190);
   const px = (W - pw) / 2, py = (H - ph) / 2;
   ctx.fillStyle = '#181825'; rrFill(px, py, pw, ph, sz(14));
   ctx.strokeStyle = 'rgba(255,215,0,0.35)'; ctx.lineWidth = 1; rrStroke(px, py, pw, ph, sz(14));
@@ -9681,34 +9681,21 @@ function renderCoinChargePopup() {
   _coinChargeCloseArea = { x: xX, y: xY, w: xS, h: xS };
   // 타이틀
   ctx.font = `bold ${sz(16)}px sans-serif`; ctx.fillStyle = '#ffd700';
-  ctx.fillText('♪  음표가 부족해요', W/2, py + sz(28));
+  ctx.fillText('♪  음표가 부족해요', W/2, py + sz(34));
   const { need, have, label } = _coinChargeCtx;
   ctx.font = `${sz(12)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.65)';
   const subtitle = (label ? label + ' — ' : '') + '보유 ' + have + ' / 필요 ' + need + ' ♪';
-  ctx.fillText(subtitle, W/2, py + sz(52));
-  // 음표 팩 3종
-  const packs = [
-    { amount: 100,  credits: 10, itemId: 'coins100' },
-    { amount: 500,  credits: 45, itemId: 'coins500' },
-    { amount: 1000, credits: 80, itemId: 'coins1000' },
-  ];
+  ctx.fillText(subtitle, W/2, py + sz(60));
+  // 단일 "음표 구매하기" 버튼 — 상점 음표 섹션으로 이동
   _coinChargeBtnAreas = [];
-  const bw = pw * 0.82, bh = sz(46);
-  const bx = (W - bw) / 2;
-  let yCur = py + sz(78);
-  for (const p of packs) {
-    ctx.fillStyle = 'rgba(255,215,0,0.14)'; rrFill(bx, yCur, bw, bh, sz(8));
-    ctx.strokeStyle = 'rgba(255,215,0,0.55)'; ctx.lineWidth = 1.2; rrStroke(bx, yCur, bw, bh, sz(8));
-    ctx.textBaseline = 'middle';
-    ctx.font = `bold ${sz(14)}px sans-serif`; ctx.fillStyle = '#ffd700';
-    ctx.textAlign = 'left';
-    ctx.fillText('♪ ' + p.amount.toLocaleString(), bx + sz(14), yCur + bh/2);
-    ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = '#fff';
-    ctx.textAlign = 'right';
-    ctx.fillText(p.credits + ' Credits', bx + bw - sz(14), yCur + bh/2);
-    _coinChargeBtnAreas.push({ amount: p.amount, credits: p.credits, itemId: p.itemId, x: bx, y: yCur, w: bw, h: bh });
-    yCur += bh + sz(10);
-  }
+  const bw = pw * 0.82, bh = sz(52);
+  const bx = (W - bw) / 2, by = py + ph - bh - sz(22);
+  ctx.fillStyle = 'rgba(255,215,0,0.18)'; rrFill(bx, by, bw, bh, sz(10));
+  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.5; rrStroke(bx, by, bw, bh, sz(10));
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  ctx.font = `bold ${sz(15)}px sans-serif`; ctx.fillStyle = '#ffd700';
+  ctx.fillText('♪ 음표 구매하기', W/2, by + bh/2);
+  _coinChargeBtnAreas.push({ action: 'goShop', x: bx, y: by, w: bw, h: bh });
 }
 
 function handleCoinChargePopupClick(mx, my) {
@@ -9719,12 +9706,18 @@ function handleCoinChargePopupClick(mx, my) {
     if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
       playScrollTick();
       closeCoinChargePopup();
-      buyCoinsPack(b.amount, b.credits, b.itemId);
+      if (b.action === 'goShop') {
+        // 이미 상점 안이면 이동 불필요. 아니면 상점으로 전환 + 음표 섹션 스크롤.
+        shopScroll = 0;
+        stopPreview();
+        startShopBgm();
+        if (state !== 'shop') transitionTo('shop');
+      }
       return;
     }
   }
   // 바깥 탭 → 닫기
-  const pw = Math.min(sz(340), W * 0.88), ph = sz(300);
+  const pw = Math.min(sz(340), W * 0.88), ph = sz(190);
   const px = (W - pw) / 2, py = (H - ph) / 2;
   if (!hitTest(mx, my, px, py, pw, ph)) closeCoinChargePopup();
 }
