@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421231000;
+window.__BUILD_TS = 20260421231500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -870,7 +870,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@7e1e586/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@58c9fb1/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -2680,8 +2680,27 @@ function setEquippedSkin(cat, id) {
     }
   }
 }
+// ★ Dangling equipped 정리 — 인벤토리에 없는 장착 상태는 자동 해제.
+//   Firebase skinEq 에만 남은 과거 테스트 잔여물이나 로컬 skinEq 에 박힌 phantom
+//   을 모두 잡기 위한 자가 치유. setEquippedSkin/로그인 sync 외에도 모듈 로드 시
+//   자동 호출해 phantom 스킨이 첫 프레임부터 새는 일 방지.
+function _cleanDanglingEquips() {
+  try {
+    const e = _loadEq();
+    const inv = _loadInv();
+    let dirty = false;
+    for (const cat in e) {
+      const id = e[cat];
+      if (id && !(inv[cat] && inv[cat].includes(id))) {
+        delete e[cat]; dirty = true;
+      }
+    }
+    if (dirty) _saveEq(e);
+  } catch(err) {}
+}
 // note 카테고리 장착 스킨이 legacy `currentSkin` 을 구동 (렌더 경로 호환).
 function _refreshActiveSkin() {
+  _cleanDanglingEquips();
   currentSkin = getEquippedSkin('note');
   if (currentSkin) preloadSkin(currentSkin);
   currentHitFxSkin = getEquippedSkin('hit_effect');
@@ -2761,6 +2780,11 @@ function preloadSkin(id) {
     for (const k in s.imagePaths) loadSkinImage(s.imagePaths[k]);
   }
 }
+// ★ 모듈 로드 시점 한 번 더 dangling 정리 — getEquippedSkin 초기값 읽기 전에 세팅 안 됨.
+//   아래 재로드는 안전하게 정리된 skinEq 기준으로 currentSkin/currentHitFxSkin 재산출.
+_cleanDanglingEquips();
+currentSkin = getEquippedSkin('note');
+currentHitFxSkin = getEquippedSkin('hit_effect');
 if (currentSkin) preloadSkin(currentSkin);
 if (currentHitFxSkin) preloadSkin(currentHitFxSkin);
 function skinPaletteIdx(id, lc, lane) {
