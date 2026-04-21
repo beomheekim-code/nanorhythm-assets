@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421231500;
+window.__BUILD_TS = 20260421232000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -870,7 +870,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@58c9fb1/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@95b8b0b/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -2725,9 +2725,9 @@ function loadSkinImage(path, attempt = 0) {
   // 성공했거나 로딩 중이면 그대로 반환 (ok === false 만 재시도 대상)
   if (existing && existing._ok !== false) return existing;
   const img = new Image();
-  // ★ BUILD_TS 기반 캐시 부스트 — PNG 파일이 자주 바뀌는데 브라우저는 기본 캐시함.
-  //   유저가 hard refresh 안 해도 새 이미지 즉시 반영 (인덱스 HTML 의 _v= 와 동일 전략).
-  const bust = window.__BUILD_TS ? ('?_v=' + window.__BUILD_TS) : '';
+  // ★ 캐시 부스트 제거 — CDN_BASE 에 commit 해시가 pin 되어 있어 파일 바뀌면 URL 자체가 변경됨.
+  //   BUILD_TS 기반 bust 는 HTML 업데이트마다 (내용 안 바뀐 PNG 까지) cache miss 유발 →
+  //   재장착 해야 반영되는 버그 원인이었음. 순수 경로만 사용해 브라우저 캐시 최대 활용.
   img._path = path;
   img._ok = null;      // null = loading, true = ok, false = failed
   img._attempt = attempt;
@@ -2737,7 +2737,7 @@ function loadSkinImage(path, attempt = 0) {
   };
   img.onerror = () => { img._ok = false; _scheduleSkinRetry(path, attempt); };
   // CDN 경유 — 상대경로는 localhost 만 동작하고 프로덕션(kplay)에선 404. assetUrl 로 CDN URL 붙임.
-  img.src = assetUrl(path) + bust;
+  img.src = assetUrl(path);
   skinImages[path] = img;
   return img;
 }
