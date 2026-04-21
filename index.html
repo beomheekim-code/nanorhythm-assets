@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421234000;
+window.__BUILD_TS = 20260421234500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8612,8 +8612,10 @@ function renderBursts() {
         const delay = r * 0.1;
         const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
         if (rt <= 0 || rt >= 1) continue;
-        // ★ 링 크기 축소 — 기존 558px → 279px → 180px 로 단계적 축소 (유저 "뭉개진다" 피드백).
-        const size = (25 + r * 15 + rt * 60) * b.size;
+        // ★ 링 크기 대폭 축소 — 558 → 279 → 180 → 100 (유저 뭉개짐 지속 피드백).
+        //   Gemini 링 PNG 가 본래 두껍게 그려져 크게 렌더할수록 핑크 블롭 처럼 뭉개짐.
+        //   작게 그리면 얇은 링 느낌이 살아남.
+        const size = (14 + r * 8 + rt * 32) * b.size;
         const ringImg = r === 0 ? fx.imgs.ringPink : fx.imgs.ringGold;
         if (!ringImg) continue;
         ctx.globalAlpha = (1 - rt) * 0.9;
