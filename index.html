@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260421100000;
+window.__BUILD_TS = 20260421110000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -22,6 +22,32 @@ window.addEventListener('unhandledrejection', (e) => {
   const msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason || '');
   if (msg === 'disconnect' || msg.toLowerCase().includes('disconnect')) e.preventDefault();
 });
+// ★ Debug mode — URL 에 ?debug=1 있으면 활성화. iOS 에서 lane 더블탭/로딩 지연 같은 버그를
+//   스크린샷으로 잡아낼 수 있도록 화면 상단에 오버레이 + vConsole 로드 (원격 console).
+(function(){
+  try {
+    const p = new URLSearchParams(location.search);
+    if (p.get('debug') === '1') {
+      window._dbg = {
+        lastLanePressAt: {},
+        lanePressLog: [],   // 최근 40개
+        doubleHitCount: {}, // lane → count (100ms 내 재호출 수)
+        loadEvents: [],     // { t, label }
+        notes: [],          // 사용자 표시용 요약
+      };
+      window._dbgLog = function(label) {
+        if (!window._dbg) return;
+        _dbg.loadEvents.push({ t: Math.round(performance.now()), label });
+        if (_dbg.loadEvents.length > 50) _dbg.loadEvents.shift();
+      };
+      // vConsole 원격 로그
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js';
+      s.onload = () => { try { window._vc = new window.VConsole(); } catch(e){} };
+      document.head.appendChild(s);
+    }
+  } catch(e) {}
+})();
 // ★ resumeAudio 탭당 오버헤드 제거 — audioSession 재설정 skip, applyBgmVol 변경시만
 (function(){
   try {
@@ -463,9 +489,9 @@ function saveVolSettings() {
 }
 function applyBgmVol() {
   titleBgm.volume = 0.55 * volBgm;
-  rankingBgm.volume = 0.55 * volBgm;
-  shopBgm.volume = 0.55 * volBgm;
-  if (typeof achievementBgm !== 'undefined') achievementBgm.volume = 0.55 * volBgm;
+  if (rankingBgm) rankingBgm.volume = 0.55 * volBgm;
+  if (shopBgm) shopBgm.volume = 0.55 * volBgm;
+  if (achievementBgm) achievementBgm.volume = 0.55 * volBgm;
   if (masterGain) masterGain.gain.value = 0.6 * volBgm;
 }
 function applySfxVol() {
@@ -505,39 +531,66 @@ function updateTitleBgmFade() {
   }
 }
 
-const rankingBgm = new Audio(assetUrl('ranking_bgm.ogg'));
-rankingBgm.loop = true;
-rankingBgm.volume = 0.55;
+// ★ ranking/achievement/shop BGM 은 lazy init — 타이틀 진입 시점에 안 받음.
+//   업데이트 후 cache miss 때 3개 파일(~4MB) eager fetch 제거 → 타이틀 로딩 시간 단축.
+//   각 화면 진입 직전 start*Bgm → ensure*Bgm() 이 필요 시 Audio 생성.
+let rankingBgm = null;
 let rankingBgmPlaying = false;
+function ensureRankingBgm() {
+  if (!rankingBgm) {
+    rankingBgm = new Audio(assetUrl('ranking_bgm.ogg'));
+    rankingBgm.loop = true;
+    rankingBgm.volume = 0.55 * volBgm;
+  }
+  return rankingBgm;
+}
 function startRankingBgm() {
-  if (!rankingBgmPlaying) { rankingBgm.currentTime = 0; rankingBgm.play().catch(()=>{}); rankingBgmPlaying = true; }
+  if (rankingBgmPlaying) return;
+  const a = ensureRankingBgm();
+  a.currentTime = 0; a.play().catch(()=>{}); rankingBgmPlaying = true;
 }
 function stopRankingBgm() {
-  if (rankingBgmPlaying) { rankingBgm.pause(); rankingBgmPlaying = false; }
+  if (rankingBgmPlaying && rankingBgm) { rankingBgm.pause(); rankingBgmPlaying = false; }
 }
 
-// Achievement BGM
-const achievementBgm = new Audio(assetUrl('Music/Heart_On_The_Line.ogg'));
-achievementBgm.loop = true;
-achievementBgm.volume = 0.55;
+// Achievement BGM (lazy)
+let achievementBgm = null;
 let achievementBgmPlaying = false;
+function ensureAchievementBgm() {
+  if (!achievementBgm) {
+    achievementBgm = new Audio(assetUrl('Music/Heart_On_The_Line.ogg'));
+    achievementBgm.loop = true;
+    achievementBgm.volume = 0.55 * volBgm;
+  }
+  return achievementBgm;
+}
 function startAchievementBgm() {
-  if (!achievementBgmPlaying) { achievementBgm.currentTime = 0; achievementBgm.play().catch(()=>{}); achievementBgmPlaying = true; }
+  if (achievementBgmPlaying) return;
+  const a = ensureAchievementBgm();
+  a.currentTime = 0; a.play().catch(()=>{}); achievementBgmPlaying = true;
 }
 function stopAchievementBgm() {
-  if (achievementBgmPlaying) { achievementBgm.pause(); achievementBgmPlaying = false; }
+  if (achievementBgmPlaying && achievementBgm) { achievementBgm.pause(); achievementBgmPlaying = false; }
 }
 
-// Shop BGM
-const shopBgm = new Audio(assetUrl("Music/Let's_Go_Shopping!.ogg"));
-shopBgm.loop = true;
-shopBgm.volume = 0.55;
+// Shop BGM (lazy)
+let shopBgm = null;
 let shopBgmPlaying = false;
+function ensureShopBgm() {
+  if (!shopBgm) {
+    shopBgm = new Audio(assetUrl("Music/Let's_Go_Shopping!.ogg"));
+    shopBgm.loop = true;
+    shopBgm.volume = 0.55 * volBgm;
+  }
+  return shopBgm;
+}
 function startShopBgm() {
-  if (!shopBgmPlaying) { shopBgm.currentTime = 0; shopBgm.volume = 0.55 * volBgm; shopBgm.play().catch(()=>{}); shopBgmPlaying = true; }
+  if (shopBgmPlaying) return;
+  const a = ensureShopBgm();
+  a.currentTime = 0; a.volume = 0.55 * volBgm; a.play().catch(()=>{}); shopBgmPlaying = true;
 }
 function stopShopBgm() {
-  if (shopBgmPlaying) { shopBgm.pause(); shopBgmPlaying = false; }
+  if (shopBgmPlaying && shopBgm) { shopBgm.pause(); shopBgmPlaying = false; }
 }
 
 function startTitleBgm() {
@@ -5138,9 +5191,9 @@ document.addEventListener('touchstart', e => {
     _bgmNeedsResume = false;
     if (state === 'title' && titleBgmPlaying) titleBgm.play().catch(()=>{});
     if (state === 'select' && songPreviewAudio && previewActive) { try { songPreviewAudio.currentTime = 0; songPreviewAudio.play().catch(()=>{}); } catch(e){} }
-    if (state === 'ranking' && rankingBgmPlaying) rankingBgm.play().catch(()=>{});
-    if (state === 'shop' && shopBgmPlaying) shopBgm.play().catch(()=>{});
-    if (state === 'achievement' && achievementBgmPlaying) achievementBgm.play().catch(()=>{});
+    if (state === 'ranking' && rankingBgmPlaying && rankingBgm) rankingBgm.play().catch(()=>{});
+    if (state === 'shop' && shopBgmPlaying && shopBgm) shopBgm.play().catch(()=>{});
+    if (state === 'achievement' && achievementBgmPlaying && achievementBgm) achievementBgm.play().catch(()=>{});
   }
   // 중복 로그인 킥 팝업 최우선 처리
   if (_kickedPopupOpen) {
@@ -5533,6 +5586,18 @@ document.addEventListener('touchcancel', e => {
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
 function handleLanePress(lane) {
+  // ★ debug: lane 누름 트레이스 (?debug=1). 같은 lane 100ms 내 2회 이상 호출되면 더블 판정 의심.
+  if (window._dbg) {
+    const nowT = performance.now();
+    const last = _dbg.lastLanePressAt[lane] || 0;
+    const gap = nowT - last;
+    _dbg.lastLanePressAt[lane] = nowT;
+    _dbg.lanePressLog.push({ lane, gapMs: Math.round(gap), t: Math.round(nowT) });
+    if (_dbg.lanePressLog.length > 40) _dbg.lanePressLog.shift();
+    if (gap > 0 && gap < 100) {
+      _dbg.doubleHitCount[lane] = (_dbg.doubleHitCount[lane] || 0) + 1;
+    }
+  }
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
@@ -6846,6 +6911,42 @@ function update(dt) {
 }
 
 // ===== RENDER =====
+// ★ Debug overlay — ?debug=1 전용. lane 누름 gap/더블히트 카운터 + 로딩 이벤트 타임라인.
+function renderDebugOverlay() {
+  if (!window._dbg) return;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);  // dpr 무시, raw pixel
+  const panelW = Math.min(320, window.innerWidth * 0.6);
+  const panelH = 180;
+  const x = window.innerWidth - panelW - 6, y = 6;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(x, y, panelW, panelH);
+  ctx.strokeStyle = '#0ff'; ctx.lineWidth = 1;
+  ctx.strokeRect(x+0.5, y+0.5, panelW-1, panelH-1);
+  ctx.font = '10px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  let ly = y + 6;
+  ctx.fillStyle = '#0ff'; ctx.fillText('DEBUG ?debug=1', x+6, ly); ly += 12;
+  ctx.fillStyle = '#fff';
+  // double hit counts
+  const dh = window._dbg.doubleHitCount;
+  const dhParts = Object.keys(dh).map(k => `L${k}:${dh[k]}`).join(' ');
+  ctx.fillText('dblHit(<100ms): ' + (dhParts || '—'), x+6, ly); ly += 12;
+  // recent lane press log (last 8)
+  ctx.fillStyle = '#ffd';
+  ctx.fillText('recent lane press (gapMs):', x+6, ly); ly += 12;
+  const log = window._dbg.lanePressLog.slice(-8).reverse();
+  for (const e of log) {
+    ctx.fillText(`  L${e.lane}  +${e.gapMs}ms`, x+6, ly); ly += 11;
+  }
+  // load events (last 6)
+  ctx.fillStyle = '#fcf';
+  ctx.fillText('load events (t ms):', x+6, ly); ly += 12;
+  const le = window._dbg.loadEvents.slice(-6);
+  for (const e of le) {
+    ctx.fillText(`  ${e.t}  ${e.label}`.slice(0, 48), x+6, ly); ly += 11;
+  }
+  ctx.restore();
+}
 function render() {
   const dpr = window.devicePixelRatio || 1;
   ctx.setTransform(dpr, 0, 0, dpr, 0, safeTop * dpr);
@@ -11401,9 +11502,9 @@ document.addEventListener('visibilitychange', () => {
     // 모든 오디오 일시정지 (백그라운드/최소화)
     bgAudioState = { titleBgm: titleBgmPlaying, rankingBgm: rankingBgmPlaying, shopBgm: shopBgmPlaying, achievementBgm: achievementBgmPlaying, preview: !!songPreviewAudio && !songPreviewAudio.paused };
     if (titleBgmPlaying) titleBgm.pause();
-    if (rankingBgmPlaying) rankingBgm.pause();
-    if (shopBgmPlaying) shopBgm.pause();
-    if (achievementBgmPlaying) achievementBgm.pause();
+    if (rankingBgmPlaying && rankingBgm) rankingBgm.pause();
+    if (shopBgmPlaying && shopBgm) shopBgm.pause();
+    if (achievementBgmPlaying && achievementBgm) achievementBgm.pause();
     if (songPreviewAudio && !songPreviewAudio.paused) songPreviewAudio.pause();
     // 인게임 오디오
     if (state === 'playing') {
@@ -11414,9 +11515,9 @@ document.addEventListener('visibilitychange', () => {
     lastTime = 0;
     // 복귀 시: 인게임이 아닌 오디오만 자동 복원 (인게임은 resumeGame으로 처리)
     if (bgAudioState.titleBgm && state !== 'playing') { titleBgm.play().catch(()=>{}); }
-    if (bgAudioState.rankingBgm && state === 'ranking') { rankingBgm.play().catch(()=>{}); }
-    if (bgAudioState.shopBgm && state === 'shop') { shopBgm.play().catch(()=>{}); }
-    if (bgAudioState.achievementBgm && state === 'achievement') { achievementBgm.play().catch(()=>{}); }
+    if (bgAudioState.rankingBgm && state === 'ranking' && rankingBgm) { rankingBgm.play().catch(()=>{}); }
+    if (bgAudioState.shopBgm && state === 'shop' && shopBgm) { shopBgm.play().catch(()=>{}); }
+    if (bgAudioState.achievementBgm && state === 'achievement' && achievementBgm) { achievementBgm.play().catch(()=>{}); }
     if (bgAudioState.preview && state === 'select' && songPreviewAudio) {
       // Preview 복귀 시 사이클 완전 리셋 — 백그라운드 중 어긋난 타이밍 정정
       try {
@@ -11622,6 +11723,7 @@ function loop(time) {
   if (!gamePaused) { update(dt); }
   updateFade(dt);
   render();
+  if (window._dbg) renderDebugOverlay();
   // 일시정지 오버레이
   if (gamePaused && state === 'playing') {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
