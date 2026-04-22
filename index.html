@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422032000;
+window.__BUILD_TS = 20260422033000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2891,6 +2891,7 @@ let settingsBindingLane = -1;
 let settingsDupWarnLane = -1; // 중복키 경고 표시 레인
 let settingsDupWarnTime = 0;  // 경고 표시 시작 시각
 let settingsDragging = ''; // 'bgm' | 'sfx' | ''
+let _pauseVolDrag = ''; // 'bgm' | 'sfx' | '' — 일시정지 화면 볼륨 슬라이더 드래그
 let lastScrollSong = -1; // 스크롤 사운드용
 
 const clickSfx = new Audio(assetUrl('click.ogg'));
@@ -5506,7 +5507,20 @@ addEventListener('mousedown', e => {
   if (state === 'playing' && gamePaused) {
     // ★ vConsole 탭은 무시 — 일시정지 상태에서 콘솔 조작 허용 (pause 풀림 방지).
     if (window._isVcEvent && window._isVcEvent(e)) return;
-    // 일시정지 오버레이: 나가기 버튼 확인
+    // 일시정지 오버레이: 볼륨 슬라이더 확인 (tap to set)
+    if (window._pauseVolHits) {
+      const vh = window._pauseVolHits;
+      const _mx = e.clientX, _my = gameY(e.clientY);
+      const hitBgm = vh.bgm && hitTest(_mx, _my, vh.bgm.x, vh.bgm.y, vh.bgm.w, vh.bgm.h);
+      const hitSfx = vh.sfx && hitTest(_mx, _my, vh.sfx.x, vh.sfx.y, vh.sfx.w, vh.sfx.h);
+      if (hitBgm || hitSfx) {
+        const v = Math.max(0, Math.min(1, (_mx - vh.sldX) / vh.sldW));
+        if (hitBgm) { volBgm = v; applyBgmVol(); saveVolSettings(); _pauseVolDrag = 'bgm'; }
+        else { volSfx = v; applySfxVol(); saveVolSettings(); _pauseVolDrag = 'sfx'; }
+        return;
+      }
+    }
+    // 나가기 버튼 확인
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
       if (hitTest(e.clientX, gameY(e.clientY), eb.x, eb.y, eb.w, eb.h)) {
@@ -5618,9 +5632,16 @@ addEventListener('mousemove', e => {
     if (settingsDragging === 'bgm') { volBgm = val; applyBgmVol(); }
     else if (settingsDragging === 'sfx') { volSfx = val; applySfxVol(); }
   }
+  if (_pauseVolDrag && gamePaused && window._pauseVolHits) {
+    const vh = window._pauseVolHits;
+    const val = Math.max(0, Math.min(1, (e.clientX - vh.sldX) / vh.sldW));
+    if (_pauseVolDrag === 'bgm') { volBgm = val; applyBgmVol(); }
+    else if (_pauseVolDrag === 'sfx') { volSfx = val; applySfxVol(); }
+  }
 });
 addEventListener('mouseup', () => {
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
+  if (_pauseVolDrag) { saveVolSettings(); _pauseVolDrag = ''; }
   stopSelectArrowHold();
   stopSpeedHold();
 });
@@ -5839,6 +5860,20 @@ document.addEventListener('touchstart', e => {
     // pointerdown이 방금 일으킨 pause 제스처는 resume으로 이어지지 않도록 차단
     if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) return;
     const t0 = e.changedTouches[0];
+    // 볼륨 슬라이더 확인 (touch)
+    if (window._pauseVolHits) {
+      const vh = window._pauseVolHits;
+      const _mx = t0.clientX, _my = gameY(t0.clientY);
+      const hitBgm = vh.bgm && hitTest(_mx, _my, vh.bgm.x, vh.bgm.y, vh.bgm.w, vh.bgm.h);
+      const hitSfx = vh.sfx && hitTest(_mx, _my, vh.sfx.x, vh.sfx.y, vh.sfx.w, vh.sfx.h);
+      if (hitBgm || hitSfx) {
+        const v = Math.max(0, Math.min(1, (_mx - vh.sldX) / vh.sldW));
+        if (hitBgm) { volBgm = v; applyBgmVol(); saveVolSettings(); _pauseVolDrag = 'bgm'; }
+        else { volSfx = v; applySfxVol(); saveVolSettings(); _pauseVolDrag = 'sfx'; }
+        e.preventDefault();
+        return;
+      }
+    }
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
       if (hitTest(t0.clientX, gameY(t0.clientY), eb.x, eb.y, eb.w, eb.h)) {
@@ -6165,6 +6200,16 @@ document.addEventListener('touchmove', e => {
     else if (settingsDragging === 'sfx') { volSfx = val; applySfxVol(); }
     return;
   }
+  // 일시정지 화면 볼륨 슬라이더 드래그 (터치)
+  if (_pauseVolDrag && gamePaused && window._pauseVolHits) {
+    const t = e.changedTouches[0];
+    const vh = window._pauseVolHits;
+    const val = Math.max(0, Math.min(1, (t.clientX - vh.sldX) / vh.sldW));
+    if (_pauseVolDrag === 'bgm') { volBgm = val; applyBgmVol(); }
+    else if (_pauseVolDrag === 'sfx') { volSfx = val; applySfxVol(); }
+    e.preventDefault();
+    return;
+  }
   if (state === 'select' && selectDragX >= 0) {
     const t = e.changedTouches[0];
     selectDragDist = Math.max(selectDragDist, Math.abs(t.clientX - selectDragStartX));
@@ -6202,6 +6247,7 @@ document.addEventListener('touchend', e => {
   const _wasShopDrag = _listTouchMode === 'shop' && _listTouchMaxDelta > 8;
   _listTouchMode = '';
   if (settingsDragging) { saveVolSettings(); settingsDragging = ''; }
+  if (_pauseVolDrag) { saveVolSettings(); _pauseVolDrag = ''; }
   // 해제된 터치의 레인만 keyHeld 해제 (다른 손가락 + pointer 트래킹은 유지)
   for (const touch of e.changedTouches) {
     const lane = touchLaneMap.get(touch.identifier);
@@ -8271,16 +8317,25 @@ function renderBackplate() {
   const outerY = laneTop + sz(2);
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
   const outerW = outerR - outerX;
-  // 하단: 탭 버튼 bottom + 여백 sz(10) → 차콜 margin 또렷이
-  const outerB = Math.min(H + safeBottom - sz(1), btnY + btnH + sz(10));
+  // 하단 — 화면 끝까지 확장 (하단 테두리 없애고 사이드만 내려감)
+  const outerB = H + safeBottom;
   const outerH = outerB - outerY;
   const cornerR = sz(10);
 
   if (outerW <= sz(40) || outerH <= sz(60)) { ctx.restore(); return; }
 
-  // 1) 솔리드 차콜 몸체 (프레임 안쪽은 일단 다 덮음)
+  // 1) 솔리드 차콜 몸체 — 상단만 rounded, 하단은 직각 (화면 끝까지 확장)
   ctx.fillStyle = 'rgba(28,28,34,0.96)';
-  rrFill(outerX, outerY, outerW, outerH, cornerR);
+  ctx.beginPath();
+  ctx.moveTo(outerX + cornerR, outerY);
+  ctx.lineTo(outerX + outerW - cornerR, outerY);
+  ctx.quadraticCurveTo(outerX + outerW, outerY, outerX + outerW, outerY + cornerR);
+  ctx.lineTo(outerX + outerW, outerB);
+  ctx.lineTo(outerX, outerB);
+  ctx.lineTo(outerX, outerY + cornerR);
+  ctx.quadraticCurveTo(outerX, outerY, outerX + cornerR, outerY);
+  ctx.closePath();
+  ctx.fill();
 
   // 2) 레인 채널만 게임 BG 그라데이션으로 되살리기 — destination-out 은 투명 구멍을
   //    만들어 게임 BG 까지 날림. 대신 song BG 그라데이션을 다시 fill.
@@ -8314,7 +8369,7 @@ function renderBackplateBorder() {
   const outerY = laneTop + sz(2);
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
   const outerW = outerR - outerX;
-  const outerB = Math.min(H + safeBottom - sz(1), btnY + btnH + sz(10));
+  const outerB = H + safeBottom;
   const outerH = outerB - outerY;
   const cornerR = sz(10);
   if (outerW <= sz(40) || outerH <= sz(60)) return;
@@ -8339,46 +8394,50 @@ function renderBackplateBorder() {
   const _hasOverlap = (playMode === 'normal' || playMode !== 'normal') && _contBotY > _contTopY;
 
   ctx.save();
-  // 두꺼운 segment: top → top-right corner → right → bottom-right corner → bottom
+  ctx.lineCap = 'square';
+  ctx.lineJoin = 'miter';
+  // 상단 세그먼트: top-left corner → top → top-right corner → right (화면 끝까지)
+  //   하단 테두리/코너는 생략 — 사이드만 내려가 화면 끝과 만남.
   ctx.beginPath();
   ctx.moveTo(outerX + cornerR, outerY);
   ctx.lineTo(outerX + outerW - cornerR, outerY);
   ctx.quadraticCurveTo(outerX + outerW, outerY, outerX + outerW, outerY + cornerR);
-  ctx.lineTo(outerX + outerW, outerY + outerH - cornerR);
-  ctx.quadraticCurveTo(outerX + outerW, outerY + outerH, outerX + outerW - cornerR, outerY + outerH);
-  ctx.lineTo(outerX + cornerR, outerY + outerH);
+  ctx.lineTo(outerX + outerW, outerB);
   ctx.strokeStyle = pal.border;
   ctx.lineWidth = sz(7);
   ctx.stroke();
 
   if (_hasOverlap) {
-    // 하단 좌 corner + 좌측 아래 segment (HP 컨테이너 bottom 까지)
+    // 좌측 아래 segment (HP 컨테이너 bottom → 화면 bottom)
     ctx.beginPath();
-    ctx.moveTo(outerX + cornerR, outerY + outerH);
-    ctx.quadraticCurveTo(outerX, outerY + outerH, outerX, outerY + outerH - cornerR);
-    ctx.lineTo(outerX, _contBotY);
+    ctx.moveTo(outerX, _contBotY);
+    ctx.lineTo(outerX, outerB);
     ctx.stroke();
-    // 좌측 위 segment (HP 컨테이너 top → top-left corner)
+    // 좌측 위 segment (top-left corner → HP 컨테이너 top)
     ctx.beginPath();
-    ctx.moveTo(outerX, _contTopY);
-    ctx.lineTo(outerX, outerY + cornerR);
-    ctx.quadraticCurveTo(outerX, outerY, outerX + cornerR, outerY);
+    ctx.moveTo(outerX + cornerR, outerY);
+    ctx.quadraticCurveTo(outerX, outerY, outerX, outerY + cornerR);
+    ctx.lineTo(outerX, _contTopY);
     ctx.stroke();
     // ★ 중간 공유 구간(HP 컨테이너 Y 범위) 은 stroke 제거 — body 색 차이로만 경계 구분.
   } else {
-    // 겹치는 구간 없음 — 좌측 전체 두껍게.
+    // 겹치는 구간 없음 — 좌측 전체 두껍게 (top-left corner → 화면 bottom)
     ctx.beginPath();
-    ctx.moveTo(outerX + cornerR, outerY + outerH);
-    ctx.quadraticCurveTo(outerX, outerY + outerH, outerX, outerY + outerH - cornerR);
-    ctx.lineTo(outerX, outerY + cornerR);
-    ctx.quadraticCurveTo(outerX, outerY, outerX + cornerR, outerY);
+    ctx.moveTo(outerX + cornerR, outerY);
+    ctx.quadraticCurveTo(outerX, outerY, outerX, outerY + cornerR);
+    ctx.lineTo(outerX, outerB);
     ctx.stroke();
   }
 
-  // 안쪽 1px 하이라이트
+  // 안쪽 1px 하이라이트 — 상단/좌우만, 하단 skip
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
   ctx.lineWidth = 1;
-  rrStroke(outerX + sz(3), outerY + sz(3), outerW - sz(6), outerH - sz(6), Math.max(1, cornerR - sz(3)));
+  ctx.beginPath();
+  ctx.moveTo(outerX + sz(3) + (cornerR - sz(3)), outerY + sz(3));
+  ctx.lineTo(outerX + outerW - sz(3) - (cornerR - sz(3)), outerY + sz(3));
+  ctx.quadraticCurveTo(outerX + outerW - sz(3), outerY + sz(3), outerX + outerW - sz(3), outerY + sz(3) + (cornerR - sz(3)));
+  ctx.lineTo(outerX + outerW - sz(3), outerB);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -9069,6 +9128,10 @@ function renderUI() {
     ctx.fill();
     // ★ 테두리: 우측 수직(외곽 프레임과 공유 구간) 제외하고 나머지만 sz(7) 두껍게.
     //   공유 엣지는 stroke 생략 — body 색 차이로만 경계.
+    //   lineCap='square' 로 엔드포인트를 외곽 프레임 stroke 와 seamless overlap.
+    ctx.save();
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
     ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
     ctx.lineWidth = sz(7);
     ctx.beginPath();
@@ -9079,6 +9142,7 @@ function renderUI() {
     ctx.lineTo(_contCx - _capHalfL, _contTopY);
     ctx.lineTo(_rightEdgeX, _contTopY);
     ctx.stroke();
+    ctx.restore();
   }
 
   // === HP 캡슐 (normal 모드 only) — 컨테이너 내부에 rainbow capsule ===
@@ -12942,10 +13006,50 @@ function loop(time) {
     ctx.textAlign = 'center';
     ctx.font = `bold ${sz(36)}px sans-serif`;
     ctx.fillStyle = '#fff';
-    ctx.fillText('PAUSED', W/2, H/2 - sz(60));
+    ctx.fillText('PAUSED', W/2, H/2 - sz(130));
+
+    // === BGM / SFX 볼륨 슬라이더 ===
+    const _sldW = Math.min(sz(220), W - sz(60));
+    const _sldH = sz(6);
+    const _knobR = sz(10);
+    const _sldX = (W - _sldW) / 2;
+    const _bgmLabelY = H/2 - sz(82);
+    const _bgmSldY = H/2 - sz(65);
+    const _sfxLabelY = H/2 - sz(30);
+    const _sfxSldY = H/2 - sz(13);
+
+    const drawSlider = (label, y, val, key) => {
+      // 라벨 + 퍼센트
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.font = `bold ${sz(13)}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText(label, _sldX, y - sz(6));
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText(Math.round(val * 100) + '%', _sldX + _sldW, y - sz(6));
+      // 트랙
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      rrFill(_sldX, y, _sldW, _sldH, _sldH/2);
+      // 필드
+      ctx.fillStyle = '#9f7fff';
+      rrFill(_sldX, y, _sldW * val, _sldH, _sldH/2);
+      // 노브
+      const _knobX = _sldX + _sldW * val;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(_knobX, y + _sldH/2, _knobR, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,120,255,0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(_knobX, y + _sldH/2, _knobR, 0, Math.PI*2); ctx.stroke();
+      // hit area (넓게 — 노브 상하로 sz(18) 여유)
+      return { key, x: _sldX, y: y - sz(18), w: _sldW, h: _sldH + sz(36) };
+    };
+    const _bgmHit = drawSlider('BGM', _bgmSldY, Math.max(0, Math.min(1, volBgm)), 'bgm');
+    const _sfxHit = drawSlider('효과음', _sfxSldY, Math.max(0, Math.min(1, volSfx)), 'sfx');
+    window._pauseVolHits = { bgm: _bgmHit, sfx: _sfxHit, sldX: _sldX, sldW: _sldW };
+
     // 재개 버튼
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     const rbW = sz(160), rbH = sz(40);
-    const rbX = (W-rbW)/2, rbY = H/2 - sz(10);
+    const rbX = (W-rbW)/2, rbY = H/2 + sz(20);
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrFill(rbX, rbY, rbW, rbH, sz(10));
     ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
     rrStroke(rbX, rbY, rbW, rbH, sz(10));
@@ -12962,6 +13066,8 @@ function loop(time) {
     ctx.fillStyle = 'rgba(255,120,120,0.9)';
     ctx.fillText('나가기', W/2, exBY + exBH*0.65);
     window._pausedExitBtn = { x: exBX, y: exBY, w: exBW, h: exBH };
+  } else {
+    window._pauseVolHits = null;
   }
   // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
   //   유저 강제로 닫기 버튼 누르게 해서 window.close() + 재로드 시도.
