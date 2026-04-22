@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422065000;
+window.__BUILD_TS = 20260422066000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8111,7 +8111,7 @@ function render() {
         size: 2 + Math.random()*3, life: 1, decay: 0.006 + Math.random()*0.005,
         color: songCol, kind: 'streak'
       });
-    } else if (type < 0.6) {
+    } else if (type < 0.575) {
       // Floating orbs (상승) — 화면 바닥 전체에서 위로 drift.
       gameParticles.push({
         x: Math.random()*W, y: H+_s10,
@@ -8120,12 +8120,11 @@ function render() {
         color: songCol, kind: 'orb'
       });
     } else if (type < 0.8) {
-      // ★ Descending orbs (하강) — 화면 상단에서 아래로 서서히 내려옴.
-      //   상단 이펙트 커버리지 향상. 기존 'orb' kind 재사용.
+      // ★ Descending orbs (하강) — 상단에서 아래로 drift. 하단과 동일 속도/크기/수명.
       gameParticles.push({
         x: Math.random()*W, y: -_s5 + Math.random()*_s15,
-        vx: (Math.random()-0.5)*0.4, vy: 0.15 + Math.random()*0.35,
-        size: 3+Math.random()*5, life: 1, decay: 0.0015 + Math.random()*0.0015,
+        vx: (Math.random()-0.5)*0.5, vy: 0.18+Math.random()*0.45,
+        size: 4+Math.random()*7, life: 1, decay: 0.0015 + Math.random()*0.0015,
         color: songCol, kind: 'orb'
       });
     } else {
@@ -8870,6 +8869,13 @@ function renderButtons() {
       // 테두리
       ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2;
       rrStroke(x, y, w, h, _r);
+      // ★ 눌림 상태에도 센서 점 유지 (더 밝게 빛남)
+      const _dcxH = bx + lw/2, _dcyH = by + Math.min(bh * 0.55, sz(44));
+      const _drH = sz(4);
+      ctx.fillStyle = col + '66';
+      ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH + sz(3), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH, 0, Math.PI*2); ctx.fill();
     } else {
       // ===== 대기 — 신디사이저 키보드 느낌 =====
       // 1) Key body: 상단 밝고 하단 어두운 메탈릭 그라데이션
@@ -8920,12 +8926,12 @@ function renderButtons() {
       rrStroke(x, y, w, h, _r);
     }
 
-    // Label — PC 만
+    // Label — PC 만. 센서 점 아래쪽으로 이동 (겹침 방지).
     if (!isMobile) {
-      ctx.font = `bold ${sz(16)}px sans-serif`;
+      ctx.font = `bold ${sz(14)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = held ? '#fff' : col + '55';
-      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh / 2);
+      ctx.fillStyle = held ? '#fff' : col + '88';
+      ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
     }
   }
 }
