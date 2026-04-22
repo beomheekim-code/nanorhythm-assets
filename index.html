@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422056000;
+window.__BUILD_TS = 20260422057000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8098,8 +8098,9 @@ function render() {
       ctx.restore();
     }
   } catch(e) {}
-  // Spawn various types
-  if (gameParticles.length < 25) {
+  // Spawn various types — cap: desktop 50, mobile 30
+  const _particleCap = isMobile ? 30 : 50;
+  if (gameParticles.length < _particleCap) {
     const type = Math.random();
     if (type < 0.5) {
       // Side streaks - shoot up from edges
@@ -8127,6 +8128,39 @@ function render() {
         size: 1+Math.random()*1.5, life: 1, decay: 0.02+Math.random()*0.02,
         color: '#fff', kind: 'sparkle'
       });
+    }
+  }
+
+  // ★ 간헐 폭죽 (PC/넓은 화면만) — 5~10초 주기로 레일 양옆 빈 공간에서 방사형 터짐.
+  //   15~20 particles × gameParticles 재사용 (pool). 평균 초당 3~4 particles 추가, 영향 미미.
+  if (!isMobile && state === 'playing' && gameParticles.length < _particleCap) {
+    if (!window._nextFireworkAt) window._nextFireworkAt = _fNow + 5000 + Math.random()*5000;
+    if (_fNow >= window._nextFireworkAt) {
+      window._nextFireworkAt = _fNow + 5000 + Math.random()*5000;
+      // 좌/우 사이드 중 공간 있는 쪽 랜덤 선택
+      const _sideW_L = lsx - sz(30);
+      const _sideW_R = W - (lsx + totalLW) - sz(30);
+      if (_sideW_L > sz(40) || _sideW_R > sz(40)) {
+        const _leftSide = (_sideW_L > sz(40)) && (_sideW_R <= sz(40) || Math.random() < 0.5);
+        const _fx = _leftSide ? (sz(20) + Math.random() * (_sideW_L - sz(20)))
+                              : (lsx + totalLW + sz(20) + Math.random() * (_sideW_R - sz(20)));
+        const _fy = H * (0.25 + Math.random() * 0.5);
+        const _hue = (_fNow * 0.1) % 360;
+        const _fcol = `hsl(${_hue},90%,65%)`;
+        const _count = 16 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < _count && gameParticles.length < _particleCap; i++) {
+          const _a = (i / _count) * Math.PI * 2 + Math.random() * 0.3;
+          const _sp = 1.5 + Math.random() * 2.5;
+          gameParticles.push({
+            x: _fx, y: _fy,
+            vx: Math.cos(_a) * _sp,
+            vy: Math.sin(_a) * _sp,
+            size: 2 + Math.random() * 2.5,
+            life: 1, decay: 0.012 + Math.random() * 0.01,
+            color: _fcol, kind: 'orb'
+          });
+        }
+      }
     }
   }
   for (let i = gameParticles.length-1; i >= 0; i--) {
