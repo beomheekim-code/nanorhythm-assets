@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422019000;
+window.__BUILD_TS = 20260422020000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9008,29 +9008,27 @@ function renderUI() {
   const gy = _colTop + Math.max(0, (_colH - _stackH) / 2);
   const _spBlockTop = gy + gh + _gapHpSp;
   const _spBlockBottom = _spBlockTop + _spBlockH;
-  // === HP + 배속 공유 육각형 컨테이너 (위/아래 사다리꼴 캡) + HP 캡슐 ===
+  // === HP + 배속 공유 반-육각형 컨테이너 (왼쪽만 사다리꼴 캡, 오른쪽 직선) + HP 캡슐 ===
   if (playMode === 'normal') {
     const _bpPal = _backplatePalette();
-    // 육각형 컨테이너 — HP 바 위, 배속 + 버튼 아래가 사다리꼴로 좁아지는 모양.
+    // 왼쪽만 상/하단에 사다리꼴 캡으로 좁아짐. 오른쪽은 레인 프레임과 flush 직선 + 테두리.
     const _contPad = sz(5);
-    const _capH = sz(10);                              // 위/아래 사다리꼴 캡 높이
+    const _capH = sz(10);
     const _contCx = _gcx;
     const _bodyHalf = Math.max(gw, _spBtnSz) / 2 + _contPad;
-    const _capHalf = _bodyHalf - sz(5);                // 캡 끝은 body 보다 좁음
-    const _bodyTopY = gy - _contPad;                   // 캡이 body 로 flare 되는 지점 (HP 상단)
-    const _bodyBotY = _spBlockBottom + _contPad;       // body 에서 하단 캡으로 수렴 시작점
-    const _contTopY = _bodyTopY - _capH;               // 맨 위 (캡 꼭대기)
-    const _contBotY = _bodyBotY + _capH;               // 맨 아래 (캡 바닥)
-    // 육각 path (시계방향)
+    const _capHalfL = _bodyHalf - sz(5);               // 왼쪽 캡 좁은 지점 (center 기준)
+    const _bodyTopY = gy - _contPad;
+    const _bodyBotY = _spBlockBottom + _contPad;
+    const _contTopY = _bodyTopY - _capH;
+    const _contBotY = _bodyBotY + _capH;
+    // path: 좌상 캡 → 우상(직각) → 우하(직각) → 좌하 캡 → 좌측 body
     ctx.beginPath();
-    ctx.moveTo(_contCx - _capHalf, _contTopY);
-    ctx.lineTo(_contCx + _capHalf, _contTopY);
-    ctx.lineTo(_contCx + _bodyHalf, _bodyTopY);
-    ctx.lineTo(_contCx + _bodyHalf, _bodyBotY);
-    ctx.lineTo(_contCx + _capHalf, _contBotY);
-    ctx.lineTo(_contCx - _capHalf, _contBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
+    ctx.moveTo(_contCx - _capHalfL, _contTopY);        // 좌상 캡 top
+    ctx.lineTo(_contCx + _bodyHalf, _contTopY);        // 우상 (직선) — 상단 오른쪽 끝까지 수평
+    ctx.lineTo(_contCx + _bodyHalf, _contBotY);        // 우하 (직선) — 오른쪽 세로 직선
+    ctx.lineTo(_contCx - _capHalfL, _contBotY);        // 좌하 캡 bottom
+    ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);        // 좌 body 하단 (flare in)
+    ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);        // 좌 body 상단 (수직)
     ctx.closePath();
     ctx.fillStyle = 'rgba(12,12,16,0.85)';
     ctx.fill();
