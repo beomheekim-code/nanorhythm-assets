@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422115620;
+window.__BUILD_TS = 20260422115840;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6562,13 +6562,14 @@ function spawnBurst(x, y, grade) {
   const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
   if (fxActive) {
     const petalCount = Math.floor(conf.sparks * 0.9);
+    const _mobHF = isMobile ? 0.65 : 1.0;
     for (let i = 0; i < petalCount; i++) {
       const a = Math.PI * 2 * i / petalCount + (Math.random() - 0.5) * 0.4;
-      const sp = (140 + Math.random() * 240) * conf.size;
+      const sp = (140 + Math.random() * 240) * conf.size * _mobHF;
       particles.push({
-        x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 100,
+        x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 100 * _mobHF,
         life: 0.6 + Math.random()*0.5, maxLife: 1.1,
-        color: '#fff', size: 30 + Math.random() * 28,
+        color: '#fff', size: (30 + Math.random() * 28) * _mobHF,
         sprite: true, spriteKey: (Math.random() < 0.5 ? 'petal1' : 'petal2'),
         rot: Math.random() * Math.PI * 2, rotVel: (Math.random() - 0.5) * 6,
       });
@@ -9113,37 +9114,43 @@ function renderButtons() {
     if (_sakuraMode) {
       const tinted = _getTintedKeyCanvas(col);
       if (tinted) {
-        // 내부 버튼 rect(x,y,w,h) 에 drawImage — bbox crop 된 캔버스라 여백 없음
-        ctx.drawImage(tinted, x, y, w, h);
-        // LED 좌표 — PNG 상 LED 위치(세로 약 20%, 가로 중앙) 반영
-        const _dcx = bx + lw/2, _dcy = by + Math.min(bh * 0.55, sz(44));
+        // 레인 크기 대비 1.2x 스케일 — PNG 내부 장식(코너 블라썸/만다라)이 outline 밖에 있어
+        //   bbox 가 버튼 outline 보다 크므로, 이를 보정해 실제 버튼을 레인 크기로 맞춤.
+        //   살짝 overflow 되지만 시각상 기본 버튼과 동일 사이즈로 보임.
+        const _sScl = 1.2;
+        const _skW = lw * _sScl, _skH = bh * _sScl;
+        const _skX = bx - (_skW - lw) / 2;
+        const _skY = by - (_skH - bh) / 2;
+        ctx.drawImage(tinted, _skX, _skY, _skW, _skH);
+        // LED 좌표 — PNG 측정값 기반: bbox 의 x=47.6%, y=23.6% (scaled 영역 기준)
+        const _dcx = _skX + _skW * 0.476;
+        const _dcy = _skY + _skH * 0.236;
+        const _glowR = Math.min(_skW, _skH) * 0.22;
         if (held) {
-          // 눌림: LED 주변 강한 발광 (composite lighter)
-          const _glowR = Math.min(w, h) * 0.38;
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
           const _glowG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR);
-          _glowG.addColorStop(0, col + 'dd');
-          _glowG.addColorStop(0.4, col + '66');
+          _glowG.addColorStop(0, col + 'ee');
+          _glowG.addColorStop(0.4, col + '77');
           _glowG.addColorStop(1, col + '00');
           ctx.fillStyle = _glowG;
           ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR, 0, Math.PI*2); ctx.fill();
-          // 중심 흰 하이라이트
-          const _wG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR*0.25);
-          _wG.addColorStop(0, 'rgba(255,255,255,0.9)');
+          // 중심 흰 highlight
+          const _wG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR*0.3);
+          _wG.addColorStop(0, 'rgba(255,255,255,0.95)');
           _wG.addColorStop(1, 'rgba(255,255,255,0)');
           ctx.fillStyle = _wG;
-          ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR*0.25, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR*0.3, 0, Math.PI*2); ctx.fill();
           ctx.restore();
         }
-        // 빈 입력 플래시
+        // 빈 입력 플래시 — 풀 레인 사이즈에 맞춤
         const _efAgeS = performance.now() - _lastEmptyFlash[i];
         if (_efAgeS < 200) {
           const _efAS = 0.6 * (1 - _efAgeS / 200);
           ctx.fillStyle = `rgba(255,50,50,${_efAS})`;
-          rrFill(x, y, w, h, _r);
+          rrFill(bx, by, lw, bh, _r);
           ctx.strokeStyle = `rgba(255,80,80,${_efAS})`; ctx.lineWidth = 2;
-          rrStroke(x, y, w, h, _r);
+          rrStroke(bx, by, lw, bh, _r);
         }
         // PC 라벨
         if (!isMobile) {
@@ -9428,8 +9435,9 @@ function renderHoldGlows() {
 
     if (fx && fx.imgs.holdLineGlow) {
       // ★ 벚꽃 라인 글로우 sprite — 판정선 위에 소프트 빛 바
-      const w = hw * 2 * (1.4 + t * 0.9);
-      const h = _s40 * (1 - t * 0.25);
+      const _mobG = isMobile ? 0.65 : 1.0;
+      const w = hw * 2 * (1.4 + t * 0.9) * _mobG;
+      const h = _s40 * (1 - t * 0.25) * _mobG;
       ctx.globalAlpha = alpha * 0.9;
       ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
       ctx.restore();
