@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422066000;
+window.__BUILD_TS = 20260422067000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2587,13 +2587,53 @@ const SKINS = {
       drift:        'skins/neon/hit_effect/drift.png',
     },
   },
+  // ★ 벚꽃 UI 팩 — 하나의 상품으로 HP바/배속 버튼/스코어/콤보/탭 버튼 전체를 벚꽃 테마로.
+  //   폴더: skins/sakura_ui/ — 필요 시 PNG 오버라이드, 없으면 palette 기반 프로시저럴 렌더.
+  sakura_ui: {
+    id: 'sakura_ui',
+    name: '벚꽃 UI 팩',
+    category: 'ui_pack',
+    price: 3000,
+    // 팔레트 — 모든 벚꽃 UI 요소에서 공유.
+    palette: {
+      // HP 바: 바닥 진한 핑크 → 꼭대기 매우 연한 살구 (벚꽃 그라데이션)
+      hpFill0: '#ff4d8e',   // 하단
+      hpFill1: '#ffa0c4',   // 중간
+      hpFill2: '#ffd9e3',   // 상단
+      // 컨테이너 body (HP 감싸는 어두운 영역)
+      containerFill: 'rgba(54,24,40,0.88)',
+      containerBorder: 'rgba(255,140,180,0.95)',
+      // 스코어/콤보 텍스트
+      scoreText:  '#ffecf3',       // 거의 흰 살구
+      comboText:  '#ff6fa3',       // 핫 핑크
+      labelText:  'rgba(255,200,220,0.7)',
+      // 탭 버튼
+      keyBody0:   '#3a1f2e',       // 상단 진한 와인
+      keyBody1:   '#28121f',       // 하단 어두움
+      keyHL:      'rgba(255,220,235,0.22)',  // 상단 반사
+      keyAccent:  '#ff7aa8',       // 컬러 액센트 스트라이프 (레인색 대신 고정)
+      // 배속 버튼
+      spBtnBg:    'rgba(255,150,190,0.10)',
+      spBtnBorder:'rgba(255,140,180,0.5)',
+      spLabel:    '#ffb8d4',
+      // 백판 (hit 라인 밑)
+      deckBase:   'rgba(30,10,20,0.96)',
+      deckAccent: '#ff8ab5',
+    },
+    imagePaths: {
+      // 향후 커스텀 PNG 오버라이드용 (현재 폴더 비워둠 — 프로시저럴 fallback)
+      // petal:       'skins/sakura_ui/petal.png',
+      // keyBg:       'skins/sakura_ui/key_bg.png',
+    },
+  },
 };
 // ===== 스킨 인벤토리/장비 시스템 =====
 // 카테고리별 소유/장착 독립. 장착 안 된 카테고리는 default (fallback canvas 렌더).
-const SKIN_CATEGORIES = ['note','key','score_text','judgment_text','combo_text','hit_effect','hp_bar','backplate','lane','judge_line'];
+const SKIN_CATEGORIES = ['note','key','score_text','judgment_text','combo_text','hit_effect','hp_bar','backplate','lane','judge_line','ui_pack'];
 const SKIN_CATEGORY_LABELS = {
   note:'노트', key:'키', score_text:'점수', judgment_text:'판정',
-  combo_text:'콤보', hit_effect:'이펙트', hp_bar:'HP바', backplate:'기기판', lane:'레일', judge_line:'판정선'
+  combo_text:'콤보', hit_effect:'이펙트', hp_bar:'HP바', backplate:'기기판', lane:'레일', judge_line:'판정선',
+  ui_pack:'UI 팩'
 };
 // 카테고리별 스킨 카탈로그 (구매 가능한 스킨) — SKINS 레지스트리에서 파생
 //   skin 의 category 필드로 어느 카테고리에 속하는지 선언 (기본 'note')
@@ -8308,6 +8348,14 @@ function render() {
 //   좌/우 수직 레일 + 하단 덱을 그려 아케이드 리듬게임 느낌의 본체 프레임을 형성.
 //   좌 레일 안에 HP 바가 박혀 "하나의 기기"로 보이도록 설계 (HP 바 BG 는 renderUI 에서 얇게 처리).
 //   스킨 확장: SKINS[id] 에 backplate: { imagePaths:{panel:...}, slice:{t,r,b,l}, palette:{...} } 추가 예정.
+// ★ UI 팩 — 하나의 상품이 HP 바/배속/스코어/콤보/탭 버튼 palette 전체 덮어씀.
+//   nothing equipped: null 반환 → 기존 기본 팔레트 유지.
+function _getUiPack() {
+  const sid = getEquippedSkin('ui_pack');
+  if (!sid) return null;
+  const s = SKINS[sid];
+  return s && s.palette ? s.palette : null;
+}
 function _backplatePalette() {
   const sid = getEquippedSkin('backplate');
   const s = sid && SKINS[sid];
@@ -9237,7 +9285,11 @@ function renderUI() {
     const _wedgeH = sz(14);
     const _topWedgeY = _contTopY - _wedgeH;
     const _botWedgeY = _contBotY + _wedgeH;
-    // HP 컨테이너 본체 (변경 없음)
+    // UI 팩 테마 — 컨테이너 body / 테두리 색 오버라이드
+    const _ui = _getUiPack();
+    const _contFill = _ui ? (_ui.containerFill || 'rgba(12,12,16,0.85)') : 'rgba(12,12,16,0.85)';
+    const _contBorder = _ui ? (_ui.containerBorder || _bpPal.border) : _bpPal.border;
+    // HP 컨테이너 본체
     ctx.beginPath();
     ctx.moveTo(_contCx - _capHalfL, _contTopY);
     ctx.lineTo(_rightEdgeX, _contTopY);
@@ -9246,10 +9298,10 @@ function renderUI() {
     ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
     ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(12,12,16,0.85)';
+    ctx.fillStyle = _contFill;
     ctx.fill();
-    // 상단/하단 wedge — HP 컨테이너 body 와 동일 색 (검정 톤) 으로 fill
-    ctx.fillStyle = 'rgba(12,12,16,0.85)';
+    // 상단/하단 wedge — HP 컨테이너 body 와 동일 색
+    ctx.fillStyle = _contFill;
     ctx.beginPath();
     ctx.moveTo(_contCx - _capHalfL, _contTopY);
     ctx.lineTo(_rightEdgeX, _topWedgeY);
@@ -9310,7 +9362,17 @@ function renderUI() {
       ctx.quadraticCurveTo(gx, gy, gx + _r, gy);
       ctx.closePath();
       ctx.clip();
-      ctx.fillStyle = '#00dd6a'; // 초록 단색
+      // UI 팩 테마 적용 — 벚꽃이면 핑크 그라데이션, 기본이면 초록 단색.
+      const _ui = _getUiPack();
+      if (_ui) {
+        const _hpg = ctx.createLinearGradient(0, gy + gh, 0, gy);
+        _hpg.addColorStop(0, _ui.hpFill0 || '#ff4d8e');
+        _hpg.addColorStop(0.55, _ui.hpFill1 || '#ffa0c4');
+        _hpg.addColorStop(1, _ui.hpFill2 || '#ffd9e3');
+        ctx.fillStyle = _hpg;
+      } else {
+        ctx.fillStyle = '#00dd6a'; // 초록 단색 (기본)
+      }
       ctx.fillRect(gx, gy + gh - _fillH, gw, _fillH);
       ctx.restore();
     }
