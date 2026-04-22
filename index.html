@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422007000;
+window.__BUILD_TS = 20260422008000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5531,12 +5531,10 @@ addEventListener('mousedown', e => {
       }
     }
     // Speed control buttons (above note buttons, 반응형) — renderUI 와 같은 좌표 공식
-    const _lgap = getLaneStartX() - sz(3);
-    const _gw = Math.min(sz(18), Math.max(sz(8), _lgap - sz(8)));
-    const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+    const _spBtn = sz(28), _spGap = sz(4), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
     const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(3) - _spBtn/2);
-    const _spBlockTop = getBtnY() - sz(6) - _spBlockH;
+    const _spBlockTop = getBtnY() - sz(4) - _spBlockH;
     const _spCx = _gcx;
     const _spBaseY = _spBlockTop + _spPad;
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
@@ -5736,9 +5734,9 @@ function _processPlayingTouch(t, src) {
     pauseGame(); return -1;
   }
   if (x < lsx) {
-    const _spBtn = sz(30), _spGap = sz(5), _spPad = sz(4);
+    const _spBtn = sz(28), _spGap = sz(4), _spPad = sz(3);
     const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _spTop = getBtnY() - sz(6) - _spH;
+    const _spTop = getBtnY() - sz(4) - _spH;
     if (y >= _spTop && y < _spTop + _spH) {
       const _spMid = _spTop + _spPad + _spBtn + _spGap;
       if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
@@ -6863,8 +6861,44 @@ let stemFirstSoundTime = {}; // 스템별 첫 소리 위치 (초)
 let stemAudioBuffers = {};   // 스템별 디코딩된 AudioBuffer (곡 끝 빈노트용)
 let stemOnsetCache = {};     // 스템별 onset 결과 캐시
 
+// ★ 피버 GPU/텍스트/그라데이션 파이프라인 프리웜 — 첫 피버 activation 에서 발생하는
+//   createLinearGradient/createRadialGradient + 새 폰트 사이즈(FEVER! text) + shadowBlur
+//   조합의 shader JIT 컴파일 비용을 숨김 canvas 에서 미리 지불해 인게임 프레임 드롭 방지.
+//   한 번만 실행 (_feverWarmedUp 플래그), 비용 ~5ms, 유저 체감 0.
+let _feverWarmedUp = false;
+function _warmupFeverGpu() {
+  if (_feverWarmedUp) return;
+  _feverWarmedUp = true;
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = 64; cv.height = 64;
+    const c = cv.getContext('2d');
+    // 1) linear gradient — 피버 레일/스트릭/텍스트 용 파이프라인 warm
+    const lg = c.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, 'hsl(0,100%,65%)');
+    lg.addColorStop(0.5, 'hsl(60,100%,70%)');
+    lg.addColorStop(1, 'hsl(120,100%,65%)');
+    c.fillStyle = lg; c.fillRect(0, 0, 64, 64);
+    // 2) radial gradient — flower 스킨 fever 노트 glow 용
+    const rg = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(255,100,0,0.5)');
+    rg.addColorStop(1, 'rgba(255,100,0,0)');
+    c.fillStyle = rg; c.fillRect(0, 0, 64, 64);
+    // 3) FEVER! 텍스트 — 폰트 메트릭 캐시 + shadowBlur shader JIT
+    c.shadowColor = 'hsl(30,80%,40%)'; c.shadowBlur = 6;
+    c.font = `bold ${sz(44)}px sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'top';
+    c.fillStyle = lg;
+    c.fillText('FEVER!', 32, 0);
+    c.shadowBlur = 0;
+  } catch(e) {}
+}
+
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
+  // ★ 피버 파이프라인 프리웜 — 첫 피버 activation 시 gradient/text/shadow JIT 로 발생하는
+  //   1회성 버벅임 방지. 로딩 시작 시점에 오프스크린 canvas 에서 미리 처리.
+  _warmupFeverGpu();
   // ★ 장착된 스킨 sprite 보강 preload — 로딩 화면 동안 네트워크가 불안정했어도
   //   이 시점에 미리 재시도해서 인게임 진입 전 가능하면 로드 완료 상태로 만듦.
   try {
@@ -8942,46 +8976,50 @@ function renderJudgment() {
 function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
-  // HP바/속도 컨트롤: 레인 왼쪽에 배치 — 레인 프레임에 flush (sz(3) gap)
-  const _laneGap = getLaneStartX() - sz(3);
-  const gw = Math.min(sz(18), Math.max(sz(8), _laneGap - sz(8)));
-  const _spBtnSz = sz(30), _spGapSz = sz(5), _spPadSz = sz(4);
+  // HP바/속도 컨트롤: 레인 왼쪽, 레인 프레임에 flush. 슈퍼스타 레퍼런스 — 얇고 길게.
+  const gw = sz(10); // 얇은 HP 바 (레퍼런스)
+  const _spBtnSz = sz(28), _spGapSz = sz(4), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
   // ★ 배속 버튼 중심선 — 레인 프레임 좌 엣지에 flush (sz(3) gap)
   const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(3) - _spBtnSz/2);
-  // HP 바는 우측 정렬로 레인 프레임 좌 엣지에 flush
-  const gx = Math.max(sz(2), getLaneStartX() - sz(3) - gw);
-  // 배속 버튼을 노트 입력 버튼 바로 위에 배치
-  const _spBlockBottom = getBtnY() - sz(6);
+  // HP 바는 배속 버튼과 같은 중심선 — 그 밑에 배속 버튼이 바로 붙는 구성
+  const gx = _gcx - gw/2;
+  // 배속 버튼 — 노트 버튼 바로 위
+  const _spBlockBottom = getBtnY() - sz(4);
   const _spBlockTop = _spBlockBottom - _spBlockH;
-  // ★ HP 바 길이 — 상단부터 배속 블록 위까지, 여백만 빼고 최대한 활용. sz(240) 캡.
-  const gy = -safeTop + sz(10);
-  const gh = Math.max(sz(100), Math.min(sz(240), _spBlockTop - gy - sz(16)));
-  // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
+  // ★ HP 바 — 상단부터 배속 블록 바로 위까지 꽉 채움 (gap sz(4))
+  const gy = -safeTop + sz(6);
+  const gh = Math.max(sz(80), _spBlockTop - gy - sz(4));
+  // Gauge bar (left side, vertical, thin+long) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
-    // ★ backplate 좌 레일 안쪽에 박힌 형태 — 본체 프레임은 renderBackplate 가 그리므로
-    //   여기선 "인셋 홈통(notch)" 만 그려 시각적으로 기기판과 한 몸으로 보이게 함.
+    // ★ HP 바 — 슈퍼스타 스타일. 얇고 길게 + 레인보우 그라데이션 고정 (HP 수치로 색 안 바꿈).
+    //   단, gauge 낮으면 상단부터 깎여 내려가며 색감으로 위급 상황 전달.
     const _bpPal = _backplatePalette();
-    ctx.fillStyle = _bpPal.railInner || 'rgba(0,0,0,0.28)';
-    rrFill(gx-1, gy-1, gw+2, gh+2, 6);
-    // Fill (bottom-up)
-    const fillH = gh * gauge;
-    const gCol = gauge > 0.5 ? '#00ff88' : gauge > 0.25 ? '#ffaa00' : '#ff3333';
-    const gGrad = ctx.createLinearGradient(0, gy+gh-fillH, 0, gy+gh);
-    gGrad.addColorStop(0, gCol); gGrad.addColorStop(1, gCol+'66');
-    ctx.fillStyle = gGrad;
-    rrFill(gx, gy + gh - fillH, gw, fillH, 5);
-    // Inner highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    rrFill(gx+1, gy + gh - fillH, gw/3, fillH, 3);
+    // 배경 홈통
+    ctx.fillStyle = _bpPal.railInner || 'rgba(0,0,0,0.35)';
+    rrFill(gx-1, gy-1, gw+2, gh+2, gw/2 + 1);
+    // Fill (bottom-up) — 전체 HP 바 영역을 rainbow 로 깔되, 상단 (1-gauge) 비율만큼을 덮어 가림
+    const _rainbow = ctx.createLinearGradient(0, gy+gh, 0, gy);
+    _rainbow.addColorStop(0.00, '#00ff88'); // bottom — 초록
+    _rainbow.addColorStop(0.40, '#00c8ff'); // 청록
+    _rainbow.addColorStop(0.70, '#aa66ff'); // 보라
+    _rainbow.addColorStop(1.00, '#ff4488'); // top — 핑크
+    ctx.fillStyle = _rainbow;
+    rrFill(gx, gy, gw, gh, gw/2);
+    // 상단 (1-gauge) 만큼 홈통 색으로 마스킹 — gauge 내려가면 위부터 꺼지는 느낌
+    const _dimH = gh * (1 - gauge);
+    if (_dimH > 0) {
+      ctx.fillStyle = _bpPal.railInner || 'rgba(0,0,0,0.78)';
+      rrFill(gx, gy, gw, _dimH, gw/2);
+    }
     // Border — backplate 테두리와 톤을 맞춘 실버 프레임
-    ctx.strokeStyle = _bpPal.border || 'rgba(170,195,235,0.35)'; ctx.lineWidth = 1.2;
-    rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
+    ctx.strokeStyle = _bpPal.border || 'rgba(170,195,235,0.55)'; ctx.lineWidth = 1.2;
+    rrStroke(gx-1, gy-1, gw+2, gh+2, gw/2 + 1);
     // Glow when low
     if (gauge < 0.3) {
       if (!isMobile) { ctx.shadowColor = '#ff3333'; ctx.shadowBlur = 10 + Math.sin(Date.now()*0.008)*5; }
-      rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
+      rrStroke(gx-1, gy-1, gw+2, gh+2, gw/2 + 1);
       ctx.shadowBlur = 0;
     }
   }
@@ -10474,6 +10512,8 @@ function _getSkinPreview(id) {
   const s = SKINS[id];
   if (!s) return null;
   if (id === 'neon') return { path: 'skins/neon/note/neon_note.png', src: [2800, 0, 400, 400] };
+  // 벚꽃 히트 이펙트 — 상점 아이콘(petal_01) 과 동일하게 표시
+  if (id === 'sakura_fx') return { path: 'skins/neon/hit_effect/petal_01.png', src: null };
   // 기본: atlas 첫 셀
   const p = s.imagePaths?.note;
   if (p) return { path: p, src: [0, 0, 400, 400] };
