@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422071000;
+window.__BUILD_TS = 20260422072000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2622,7 +2622,11 @@ const SKINS = {
       // 판정선 (hit line) — 흰색 대신 따뜻한 살구+핑크 glow
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#ff7aa8',      // 밑 glow (진한 핑크)
-      hitLineGrad:   'rgba(255,170,200,0.12)', // 상단 소프트 그라데이션
+      hitLineGrad:   'rgba(255,170,200,0.12)',
+      // 외곽 레일 프레임 — 차콜 대신 와인 + 핑크 이중 stroke
+      frameBorder:    '#5a2340',     // 메인 stroke (진한 와인)
+      frameInner:     '#ff89a7',     // 안쪽 얇은 하이라이트 (핑크)
+      frameGlow:      'rgba(255,120,170,0.35)', // 프레임 주변 소프트 glow
     },
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
@@ -8619,32 +8623,44 @@ function renderBackplateBorder() {
   ctx.save();
   ctx.lineCap = 'square';
   ctx.lineJoin = 'miter';
+
+  // UI 팩 테마 — 외곽 프레임 이중 stroke (와인 메인 + 안쪽 핑크 하이라이트 + 외부 glow).
+  const _ui = _getUiPack();
+  const _mainColor = _ui ? (_ui.frameBorder || pal.border) : pal.border;
+  const _innerColor = _ui ? (_ui.frameInner || null) : null;
+  const _glowColor = _ui ? (_ui.frameGlow || null) : null;
+
+  // 헬퍼: 수직 segment 그리기 (메인 두꺼운 stroke + 안쪽 얇은 하이라이트 + 외부 glow)
+  const _drawVSeg = (x, y0, y1) => {
+    // Outer glow (UI 팩 전용)
+    if (_glowColor) {
+      ctx.strokeStyle = _glowColor;
+      ctx.lineWidth = sz(13);
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    }
+    // Main 두꺼운 stroke
+    ctx.strokeStyle = _mainColor;
+    ctx.lineWidth = sz(7);
+    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    // 안쪽 얇은 하이라이트 (UI 팩 전용)
+    if (_innerColor) {
+      ctx.strokeStyle = _innerColor;
+      ctx.lineWidth = sz(2);
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    }
+  };
+
   // 우측 수직: 화면 상단 ~ 하단
-  ctx.strokeStyle = pal.border;
-  ctx.lineWidth = sz(7);
-  ctx.beginPath();
-  ctx.moveTo(outerX + outerW, outerY);
-  ctx.lineTo(outerX + outerW, outerB);
-  ctx.stroke();
+  _drawVSeg(outerX + outerW, outerY, outerB);
 
   if (_hasOverlap) {
     // 좌측 아래 segment (HP 컨테이너 bottom → 화면 bottom)
-    ctx.beginPath();
-    ctx.moveTo(outerX, _contBotY);
-    ctx.lineTo(outerX, outerB);
-    ctx.stroke();
+    _drawVSeg(outerX, _contBotY, outerB);
     // 좌측 위 segment (화면 top → HP 컨테이너 top)
-    ctx.beginPath();
-    ctx.moveTo(outerX, outerY);
-    ctx.lineTo(outerX, _contTopY);
-    ctx.stroke();
-    // ★ 중간 공유 구간(HP 컨테이너 Y 범위) 은 stroke 제거 — body 색 차이로만 경계 구분.
+    _drawVSeg(outerX, outerY, _contTopY);
+    // ★ 중간 공유 구간(HP 컨테이너 Y 범위) 은 stroke 제거.
   } else {
-    // 겹치는 구간 없음 — 좌측 전체 수직 (화면 top → 화면 bottom)
-    ctx.beginPath();
-    ctx.moveTo(outerX, outerY);
-    ctx.lineTo(outerX, outerB);
-    ctx.stroke();
+    _drawVSeg(outerX, outerY, outerB);
   }
 
   ctx.restore();
