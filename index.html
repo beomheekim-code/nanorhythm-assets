@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422025000;
+window.__BUILD_TS = 20260422026000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8990,17 +8990,18 @@ function renderUI() {
   const _hpMaxBot = _spBlockTop - _gapHpSp;
   const gh = Math.max(sz(100), Math.min(sz(300), _hpMaxBot - _colTop));
   const gy = _hpMaxBot - gh;  // HP 바가 배속 블록 바로 위에 딱 붙음
-  // === HP(선택) + 배속 공유 컨테이너 — 왼쪽만 사다리꼴 캡, 오른쪽 직선+테두리 ===
+  // === HP(선택) + 배속 공유 컨테이너 — 왼쪽만 사다리꼴 캡, 오른쪽은 외곽 프레임 좌측 선과 공유 ===
   //   프리스타일: HP 없음 → 컨테이너는 배속 블록만 감쌈. 외곽 프레임과 동일한 sz(7) 테두리.
+  //   ★ 우측 path 를 outerX 에 명시 고정 → _gcx 가 모바일에서 왼쪽 clamp 에 걸려도 레일과 항상 flush.
   {
     const _bpPal = _backplatePalette();
-    // ★ 배속 버튼 sz(26) + 차콜 stroke sz(7) 반인 sz(3.5) 가 내부로 먹히므로,
-    //   시각적 margin 확보 위해 _contPadX = sz(7) 로 증가. 우측 path 가 정확히 outerX 에 일치.
-    const _contPadX = sz(7);
+    const _contPadX = sz(3); // 왼쪽 body 쪽 여백만 (우측은 outerX 로 고정)
     const _capH = sz(10);
     const _contCx = _gcx;
     const _bodyHalf = Math.max(gw, _spBtnSz) / 2 + _contPadX;
     const _capHalfL = _bodyHalf - sz(5);
+    // 외곽 프레임 좌측 path x — renderBackplate 와 동일 산식 (완전 일치 필수).
+    const _rightEdgeX = Math.max(sz(3), getLaneStartX() - sz(6));
     // 모드별 body 범위: normal=HP 상단~배속 하단 / freestyle=배속 상단~배속 하단.
     const _bodyTopY = (playMode === 'normal') ? gy : _spBlockTop;
     const _bodyBotY = _spBlockBottom;
@@ -9008,15 +9009,14 @@ function renderUI() {
     const _contBotY = _bodyBotY + _capH;
     ctx.beginPath();
     ctx.moveTo(_contCx - _capHalfL, _contTopY);
-    ctx.lineTo(_contCx + _bodyHalf, _contTopY);
-    ctx.lineTo(_contCx + _bodyHalf, _contBotY);
+    ctx.lineTo(_rightEdgeX, _contTopY);
+    ctx.lineTo(_rightEdgeX, _contBotY);
     ctx.lineTo(_contCx - _capHalfL, _contBotY);
     ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
     ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
     ctx.closePath();
     ctx.fillStyle = 'rgba(12,12,16,0.85)';
     ctx.fill();
-    // 외곽 프레임과 동일 두께 sz(7) 차콜 테두리
     ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
     ctx.lineWidth = sz(7);
     ctx.stroke();
