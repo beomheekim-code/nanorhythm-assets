@@ -12,8 +12,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from PIL import Image
 import numpy as np
 
-SRC = 'D:/nanorhythm-assets/nanorhythm-assets/skins/neon/hit_effect/Gemini_Generated_Image_2vjdn02vjdn02vjd.png'
-DST = 'D:/nanorhythm-assets/nanorhythm-assets/skins/neon/hit_effect/_neon_ring_clean.png'
+import sys as _sys
+SRC = _sys.argv[1] if len(_sys.argv) > 1 else 'D:/nanorhythm-assets/nanorhythm-assets/skins/neon/hit_effect/Gemini_Generated_Image_2vjdn02vjdn02vjd.png'
+DST = _sys.argv[2] if len(_sys.argv) > 2 else 'D:/nanorhythm-assets/nanorhythm-assets/skins/neon/hit_effect/_neon_ring_clean.png'
 
 
 def process():
@@ -26,16 +27,18 @@ def process():
     brightness = r + g + b
     chroma = r - g
 
-    # Pass 1: 어두운 체커 킬 — 아예 밝기 150 미만 전부 제거
-    alpha[brightness < 150] = 0
+    # Pass 1: 어두운 영역 킬 — R < 170 이면 모두 제거 (링 어두운 안쪽 포함)
+    # 진짜 밝은 핑크만 살림
+    alpha[r < 170] = 0
 
     # Pass 2: 중간 밝기(150~250) 도 chroma 낮으면 제거
     mid_low_chroma = (brightness >= 150) & (brightness < 250) & (chroma < 50)
     alpha[mid_low_chroma] = 0
 
-    # Pass 3: 비핑크(G 또는 B dominant) 킬
-    not_pink = (r < g + 10) | (r < b - 5)
-    alpha[not_pink] = 0
+    # Pass 3: 파란 톤(checker) 킬 — 블루 도미넌트 제거
+    #   핑크(R>G) 와 골드(R>=G, G>>B) 모두 유지되는 조건: B < R AND B < G + 20
+    cold = (b > r) | (b > g + 20)
+    alpha[cold] = 0
 
     # Pass 4: 우하단 워터마크 마스크 (250x250)
     wm_size = 250
