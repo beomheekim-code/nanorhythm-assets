@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422029000;
+window.__BUILD_TS = 20260422030000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5533,7 +5533,7 @@ addEventListener('mousedown', e => {
     // Speed control buttons (세로 중앙 정렬, renderUI 와 동일 공식)
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(16) - _spBtn/2);
+    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(14) - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
     const _colH_ht = _colBot_ht - _colTop_ht;
@@ -8299,7 +8299,8 @@ function renderBackplate() {
   // 테두리 stroke 는 renderBackplateBorder() 에서 판정선 위에 그림
 }
 
-// 외곽 프레임 테두리 — 판정선/노트/히트 이펙트 위에 렌더되어야 하므로 별도 함수로 분리.
+// 외곽 프레임 테두리 — 판정선/노트/히트 이펙트 위에 렌더. 좌측(= HP 컨테이너 우측과 공유) 은
+// sz(2) 로 얇게, 나머지(top/right/bottom + 좌상/좌하 코너) 는 sz(7) 두껍게.
 function renderBackplateBorder() {
   if (state !== 'playing') return;
   const lsx = _fLsx || getLaneStartX();
@@ -8319,9 +8320,27 @@ function renderBackplateBorder() {
   if (outerW <= sz(40) || outerH <= sz(60)) return;
   const pal = _backplatePalette();
   ctx.save();
+  // 두꺼운 segment: top → top-right corner → right → bottom-right corner → bottom
+  //   (좌측 vertical + 좌상/좌하 corner 제외)
+  ctx.beginPath();
+  ctx.moveTo(outerX + cornerR, outerY);
+  ctx.lineTo(outerX + outerW - cornerR, outerY);
+  ctx.quadraticCurveTo(outerX + outerW, outerY, outerX + outerW, outerY + cornerR);
+  ctx.lineTo(outerX + outerW, outerY + outerH - cornerR);
+  ctx.quadraticCurveTo(outerX + outerW, outerY + outerH, outerX + outerW - cornerR, outerY + outerH);
+  ctx.lineTo(outerX + cornerR, outerY + outerH);
   ctx.strokeStyle = pal.border;
   ctx.lineWidth = sz(7);
-  rrStroke(outerX, outerY, outerW, outerH, cornerR);
+  ctx.stroke();
+  // 얇은 좌측 segment: bottom-left corner → left → top-left corner
+  ctx.beginPath();
+  ctx.moveTo(outerX + cornerR, outerY + outerH);
+  ctx.quadraticCurveTo(outerX, outerY + outerH, outerX, outerY + outerH - cornerR);
+  ctx.lineTo(outerX, outerY + cornerR);
+  ctx.quadraticCurveTo(outerX, outerY, outerX + cornerR, outerY);
+  ctx.lineWidth = sz(2);
+  ctx.stroke();
+  // 안쪽 1px 하이라이트
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
   ctx.lineWidth = 1;
   rrStroke(outerX + sz(3), outerY + sz(3), outerW - sz(6), outerH - sz(6), Math.max(1, cornerR - sz(3)));
@@ -8332,10 +8351,10 @@ function renderLanes() {
   const lw = getLaneW(), lsx = getLaneStartX(), hitY = getHitY();
   const laneTop = -safeTop; // 안전영역 위쪽부터 시작
 
-  // Lane backgrounds
+  // Lane backgrounds — 불투명 차콜 (교대 약간 명도차)
   for (let i = 0; i < laneCount; i++) {
     const x = lsx + i * lw;
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.08)';
+    ctx.fillStyle = i % 2 === 0 ? '#16161c' : '#1c1c22';
     ctx.fillRect(x, laneTop, lw, hitY + _s10 - laneTop);
 
     // Vertical lane dividers
@@ -8972,7 +8991,7 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(16) - _spBtnSz/2);
+  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(14) - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack — 사용 가능 세로 범위 = 상단 여유 ~ 판정선 위.
   const _colTop = -safeTop + sz(14);
@@ -9013,8 +9032,22 @@ function renderUI() {
     ctx.closePath();
     ctx.fillStyle = 'rgba(12,12,16,0.85)';
     ctx.fill();
+    // ★ 두꺼운 테두리: 우측 수직 (공유 엣지) 제외한 모든 segment.
     ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
     ctx.lineWidth = sz(7);
+    ctx.beginPath();
+    ctx.moveTo(_rightEdgeX, _contBotY);
+    ctx.lineTo(_contCx - _capHalfL, _contBotY);
+    ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
+    ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
+    ctx.lineTo(_contCx - _capHalfL, _contTopY);
+    ctx.lineTo(_rightEdgeX, _contTopY);
+    ctx.stroke();
+    // 얇은 테두리: 우측 수직 (외곽 프레임 좌측과 공유 → 한 선).
+    ctx.lineWidth = sz(2);
+    ctx.beginPath();
+    ctx.moveTo(_rightEdgeX, _contTopY);
+    ctx.lineTo(_rightEdgeX, _contBotY);
     ctx.stroke();
   }
 
