@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422093450;
+window.__BUILD_TS = 20260422094120;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2631,18 +2631,10 @@ const SKINS = {
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
     imagePaths: {
-      // ★ 탭 버튼 — 레인 8색 variant + 눌림 글로우
-      //   renderButtons 가 ui_pack 장착 + 해당 이미지 로드 완료 시 procedural 대신 PNG 사용
-      key0:         'skins/neon/key/key_0.png',  // 체리 핑크
-      key1:         'skins/neon/key/key_1.png',  // 플럼 퍼플
-      key2:         'skins/neon/key/key_2.png',  // 라벤더 모브
-      key3:         'skins/neon/key/key_3.png',  // 딥 마젠타
-      key4:         'skins/neon/key/key_4.png',  // 블러시 핑크
-      key5:         'skins/neon/key/key_5.png',  // 코랄 살몬
-      key6:         'skins/neon/key/key_6.png',  // 로즈 골드
-      key7:         'skins/neon/key/key_7.png',  // 피치
-      keyPressGlow: 'skins/neon/key/key_press_glow.png',
-      hpBar:        'skins/neon/hp_bar/hp_bar.png',
+      // ★ 탭 버튼 — 단일 베이스 PNG + 런타임 hue-rotate 로 LANE_COLORS 맞춤 tint
+      //   renderButtons 가 ui_pack 장착 + 베이스 로드 완료 시 procedural 대신 tinted canvas 사용
+      keyBase: 'skins/neon/key/key.png',
+      hpBar:   'skins/neon/hp_bar/hp_bar.png',
     },
   },
 };
@@ -2777,6 +2769,8 @@ function _refreshActiveSkin() {
   if (typeof laneCount !== 'undefined' && typeof skinPalette === 'function') {
     LANE_COLORS = skinPalette(currentSkin, laneCount) || [...KEY_MODES[laneCount].colors];
   }
+  // ★ tinted key 캐시 무효화 — 스킨/레인색 바뀌면 재tint 필요
+  if (typeof _invalidateTintedKeyCache === 'function') _invalidateTintedKeyCache();
 }
 // 초기값: 장착된 note 스킨 (null 이면 default 렌더). 아래 preloadSkin 호출 이후에 안전.
 let currentSkin = getEquippedSkin('note'); // null 가능 (= 기본 스킨)
@@ -2937,6 +2931,8 @@ function setLaneMode(n) {
   laneCount = n;
   LANE_COLORS = skinPalette(currentSkin, n) || [...KEY_MODES[n].colors];
   LANE_SEQ = [...KEY_MODES[n].seq];
+  // ★ tinted key 캐시 무효화 (레인색 바뀜)
+  if (typeof _invalidateTintedKeyCache === 'function') _invalidateTintedKeyCache();
   // 키 수 바뀌면 레인 폭 바뀜 → 기존 pre-baked sprite 캐시 무효 (사이즈 miss). 메모리 정리.
   skinSpriteBakery.clear();
   loadKeymap();
@@ -8474,6 +8470,55 @@ function _getUiPackSkin() {
   if (!sid) return null;
   return SKINS[sid] || null;
 }
+// ★ 탭 버튼 베이스 PNG 를 LANE_COLORS 별로 hue-rotate tint 해서 캐시
+//   캐시 키: colorHex. 색상 바뀌면 자동 재생성.
+const _tintedKeyCache = {};
+function _hexToHueAngle(hex) {
+  if (!hex || hex.length < 7) return 340;
+  const r = parseInt(hex.slice(1,3),16)/255;
+  const g = parseInt(hex.slice(3,5),16)/255;
+  const b = parseInt(hex.slice(5,7),16)/255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), df = mx - mn;
+  let h = 0;
+  if (df < 1e-6) return 0;
+  if (mx === r) h = (((g-b)/df) % 6) * 60;
+  else if (mx === g) h = (((b-r)/df) + 2) * 60;
+  else h = (((r-g)/df) + 4) * 60;
+  if (h < 0) h += 360;
+  return h;
+}
+function _getTintedKeyCanvas(colorHex) {
+  if (_tintedKeyCache[colorHex]) return _tintedKeyCache[colorHex];
+  const uiSkin = _getUiPackSkin();
+  const basePath = uiSkin && uiSkin.imagePaths && uiSkin.imagePaths.keyBase;
+  if (!basePath) return null;
+  const base = skinImages[basePath];
+  if (!base || !base.complete || !base.naturalWidth) return null;
+  // 다운스케일 (퍼포먼스): 세로 384 기준, 가로는 비율 유지
+  const targetH = 384;
+  const targetW = Math.max(1, Math.round(targetH * (base.naturalWidth / base.naturalHeight)));
+  const cv = document.createElement('canvas');
+  cv.width = targetW; cv.height = targetH;
+  const c = cv.getContext('2d');
+  // 베이스 hue ≈ 340° (딥 와인/핑크). 타겟 hue 로 회전.
+  const targetHue = _hexToHueAngle(colorHex);
+  const baseHue = 340;
+  const rotation = ((targetHue - baseHue) % 360 + 360) % 360;
+  // ctx.filter 는 Safari 15+/Chrome 76+ 지원. 미지원 브라우저는 기본 색 유지.
+  try {
+    c.filter = `hue-rotate(${rotation}deg) saturate(1.1)`;
+    c.drawImage(base, 0, 0, targetW, targetH);
+    c.filter = 'none';
+  } catch(e) {
+    c.drawImage(base, 0, 0, targetW, targetH);
+  }
+  _tintedKeyCache[colorHex] = cv;
+  return cv;
+}
+// 스킨/레인색 변경 시 캐시 무효화 용 (외부에서 호출)
+function _invalidateTintedKeyCache() {
+  for (const k in _tintedKeyCache) delete _tintedKeyCache[k];
+}
 function _backplatePalette() {
   const sid = getEquippedSkin('backplate');
   const s = sid && SKINS[sid];
@@ -9031,16 +9076,12 @@ function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
   const _pad = sz(3), _r = sz(6);
 
-  // ★ UI 팩 PNG 오버라이드 — sakura_ui 장착 + key0~key7 이미지 로드 완료 시
+  // ★ UI 팩 PNG 오버라이드 — sakura_ui 장착 + keyBase 이미지 로드 완료 시
   const _uiSkin = _getUiPackSkin();
   const _uiImgs = _uiSkin && _uiSkin.imagePaths;
-  const _pngMode = !!_uiImgs && _uiImgs.key0 && (() => {
-    // 첫 레인 이미지 하나라도 준비됐으면 PNG 모드 진입 (나머지는 순차 로드)
-    const im = skinImages[_uiImgs.key0];
-    return im && im.complete && im.naturalWidth > 0;
-  })();
-  const _glowImg = _pngMode && _uiImgs.keyPressGlow ? skinImages[_uiImgs.keyPressGlow] : null;
-  const _glowReady = _glowImg && _glowImg.complete && _glowImg.naturalWidth > 0;
+  const _keyBasePath = _uiImgs && _uiImgs.keyBase;
+  const _keyBaseImg = _keyBasePath ? skinImages[_keyBasePath] : null;
+  const _pngMode = !!(_keyBaseImg && _keyBaseImg.complete && _keyBaseImg.naturalWidth > 0);
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
@@ -9048,25 +9089,21 @@ function renderButtons() {
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
 
-    // ─── PNG 모드: 레인별 key PNG drawImage ───
+    // ─── PNG 모드: 베이스 + LANE_COLORS hue-tint drawImage ───
     if (_pngMode) {
-      const keyPath = _uiImgs['key' + i];
-      const keyImg = keyPath ? skinImages[keyPath] : null;
-      if (keyImg && keyImg.complete && keyImg.naturalWidth > 0) {
-        // 버튼 전체 영역에 aspect 유지 drawImage
-        ctx.drawImage(keyImg, x, y, w, h);
-        // 눌림 상태: press glow 오버레이 + 살짝 어둡게
+      const tinted = _getTintedKeyCanvas(col);
+      if (tinted) {
+        // 레인 전체 영역에 drawImage (기본 procedural 버튼과 동일 사이즈)
+        ctx.drawImage(tinted, bx, by, lw, bh);
+        // 눌림 상태: 기본 신디 버튼처럼 어두운 오버레이 + 상단 컬러 스트라이프
         if (held) {
-          if (_glowReady) {
-            // glow 는 LED 주변에 얹음 (버튼 중앙 약간 위, bh*0.55)
-            const _gcx = bx + lw/2, _gcy = by + Math.min(bh * 0.55, sz(44));
-            const _gw = w * 1.1, _gh = _gw * (_glowImg.naturalHeight / _glowImg.naturalWidth);
-            ctx.drawImage(_glowImg, _gcx - _gw/2, _gcy - _gh/2, _gw, _gh);
-          } else {
-            // 글로우 아직 로드 안됨 → 반투명 흰 오버레이로 fallback
-            ctx.fillStyle = 'rgba(255,255,255,0.25)';
-            rrFill(x, y, w, h, _r);
-          }
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          rrFill(x, y, w, h, _r);
+          ctx.fillStyle = col + 'dd';
+          ctx.fillRect(x + _r, y, w - _r*2, sz(4));
+          // 살짝 들어간 듯한 얇은 어두운 줄
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
         }
         // 빈 입력 플래시 유지
         const _efAgeP = performance.now() - _lastEmptyFlash[i];
@@ -9075,16 +9112,16 @@ function renderButtons() {
           ctx.fillStyle = `rgba(255,50,50,${_efAP})`;
           rrFill(x, y, w, h, _r);
         }
-        // PC 라벨 유지 (버튼 하단)
+        // PC 라벨 유지
         if (!isMobile) {
           ctx.font = `bold ${sz(14)}px sans-serif`;
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillStyle = held ? '#fff' : 'rgba(255,200,220,0.6)';
+          ctx.fillStyle = held ? '#fff' : 'rgba(255,235,245,0.65)';
           ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
         }
-        continue; // 다음 레인
+        continue;
       }
-      // 이미지 로드 안됐으면 fall-through → procedural 렌더
+      // tinted 캔버스 생성 실패 → procedural fallback
     }
 
     if (held) {
