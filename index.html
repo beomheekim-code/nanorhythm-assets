@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422070000;
+window.__BUILD_TS = 20260422071000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4699,20 +4699,32 @@ const FEVER_DURATION = 8; // seconds
 
 let feverFlash = 0; // bright flash on activation
 let feverParticles = [];
+let _nextFeverBurstAt = 0; // 다음 주기 burst 시각 (performance.now)
 
 function checkFeverActivate() {
   if (!fever && combo >= FEVER_COMBO) {
     fever = true; feverTimer = FEVER_DURATION;
-    feverFlash = 0.6;
-    // Explosion of particles from center
-    for (let i = 0; i < 15; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = 150 + Math.random() * 400;
+    feverFlash = 1.0;  // ★ 플래시 강도 ↑ (0.6 → 1.0)
+    _nextFeverBurstAt = performance.now() + 1500;
+    // Explosion of particles from center — 갯수 ↑ + 속도 다양화
+    const _burstCount = isMobile ? 24 : 36;
+    for (let i = 0; i < _burstCount; i++) {
+      const a = (i / _burstCount) * Math.PI * 2 + Math.random() * 0.2;
+      const sp = 200 + Math.random() * 500;
       const col = `hsl(${Math.random()*60 + 30},100%,${60+Math.random()*30}%)`;
       particles.push({ x: W/2, y: H/2, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
-        life: 0.6+Math.random()*0.6, maxLife: 1.2, color: col, size: 5+Math.random()*10 });
+        life: 0.8+Math.random()*0.8, maxLife: 1.6, color: col, size: 5+Math.random()*12 });
     }
-    // Persistent fever side particles
+    // 추가: 판정선 높이에서 가로 전체 폭으로 shockwave 파티클
+    const _hy = getHitY();
+    const _shockCount = isMobile ? 10 : 16;
+    for (let i = 0; i < _shockCount; i++) {
+      const side = i < _shockCount/2 ? -1 : 1;
+      const sp = 400 + Math.random() * 300;
+      particles.push({ x: W/2, y: _hy, vx: side * sp, vy: (Math.random()-0.5)*50,
+        life: 0.5+Math.random()*0.3, maxLife: 1.0,
+        color: `hsl(${20+Math.random()*40},100%,70%)`, size: 4+Math.random()*6 });
+    }
     feverParticles = [];
   }
 }
@@ -7046,6 +7058,36 @@ function startSong(idx) {
       }
     }
   } catch(e) {}
+  // ★ 메인 canvas 도 pre-warm — offscreen warmup 은 main canvas 의 shader JIT 를 커버 못함.
+  //   alpha 0 + 화면 밖 좌표로 1 프레임 dummy 렌더 → 첫 실제 프레임 때 stutter 방지.
+  try {
+    if (ctx) {
+      ctx.save();
+      ctx.globalAlpha = 0;
+      // arc
+      ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.arc(-100, -100, 10, 0, Math.PI*2); ctx.fill();
+      // rounded rect path
+      ctx.beginPath();
+      ctx.moveTo(-110, -110); ctx.lineTo(-90, -110); ctx.quadraticCurveTo(-80, -110, -80, -100);
+      ctx.lineTo(-80, -80); ctx.quadraticCurveTo(-80, -70, -90, -70);
+      ctx.lineTo(-110, -70); ctx.quadraticCurveTo(-120, -70, -120, -80);
+      ctx.lineTo(-120, -100); ctx.quadraticCurveTo(-120, -110, -110, -110);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // linear gradient
+      const _wg = ctx.createLinearGradient(-100, -100, -100, -50);
+      _wg.addColorStop(0, '#fff'); _wg.addColorStop(1, '#000');
+      ctx.fillStyle = _wg; ctx.fillRect(-100, -100, 50, 50);
+      // radial gradient + shadow + text
+      const _wr = ctx.createRadialGradient(-100, -100, 0, -100, -100, 30);
+      _wr.addColorStop(0, '#fff'); _wr.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = _wr; ctx.fillRect(-130, -130, 60, 60);
+      ctx.shadowColor = '#f08'; ctx.shadowBlur = 6;
+      ctx.font = `bold ${sz(44)}px sans-serif`;
+      ctx.fillStyle = '#fff'; ctx.fillText('W', -100, -100);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+  } catch(e) {}
   // ★ 인게임 중 Firebase 랭킹 리스너가 살아있으면 다른 유저 점수 제출 때마다
   //   메인 스레드에서 snapshot parse → iOS 가 rapid touch 드롭하는 원인.
   //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
@@ -7432,6 +7474,24 @@ function update(dt) {
         vx: (side === 0 ? 1 : -1) * (20+Math.random()*40), vy: -40-Math.random()*80,
         life: 0.5+Math.random()*0.5, maxLife: 1.0, color: col, size: 4+Math.random()*8 });
     }
+  }
+  // ★ 주기적 피버 burst (1.5초마다) — 레인 중심에서 방사형 퍼짐, 모바일/PC 모두.
+  if (fever && performance.now() >= _nextFeverBurstAt) {
+    _nextFeverBurstAt = performance.now() + 1500;
+    const _lsxF = _fLsx || getLaneStartX();
+    const _lwF = _fLw || getLaneW();
+    const _cx = _lsxF + _lwF * laneCount / 2;
+    const _cy = H * 0.5;
+    const _bCount = isMobile ? 14 : 22;
+    for (let i = 0; i < _bCount; i++) {
+      const a = (i / _bCount) * Math.PI * 2 + Math.random() * 0.15;
+      const sp = 180 + Math.random() * 320;
+      const col = `hsl(${Math.random()*50 + 20},100%,${65+Math.random()*25}%)`;
+      particles.push({ x: _cx, y: _cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+        life: 0.5+Math.random()*0.5, maxLife: 1.0, color: col, size: 3+Math.random()*6 });
+    }
+    // 플래시 pulse (약하게)
+    feverFlash = Math.max(feverFlash, 0.35);
   }
   if (feverFlash > 0) feverFlash -= dt * 1.5;
   // Update fever particles
