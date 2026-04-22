@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422063000;
+window.__BUILD_TS = 20260422065000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8089,37 +8089,49 @@ function render() {
   const songCol = curSong ? curSong.color : '#fff';
 
   // (판정선 밑 전체 폭 차콜 판 은 renderBackplate 로 이동 — 파티클 위에 그려지도록.)
-  // Spawn various types — cap: desktop 80, mobile 45. 빈 공간 풍성하게 채움.
+  // Spawn various types — 화면 전체 고루 분포 (상/하 균등). cap: desktop 80, mobile 45.
   const _particleCap = isMobile ? 45 : 80;
-  // PC 에선 사이드 공간 있을 때 streak 스폰 비율 상향 (0.5 → 0.7) — 사이드 빈 공간 대상.
   const _sideSpace = (lsx > sz(80)) || (W - lsx - totalLW > sz(80));
-  const _streakBias = (!isMobile && _sideSpace) ? 0.7 : 0.5;
-  // 프레임당 최대 2회 spawn 시도 (cap 에 빠르게 도달)
   for (let _sp = 0; _sp < 2 && gameParticles.length < _particleCap; _sp++) {
     const type = Math.random();
-    if (type < _streakBias) {
-      // Side streaks — shoot up from edges. 사이드 공간 넓을 때 더 멀리 spawn.
-      const side = Math.random() > 0.5;
-      const _sideOffset = _sideSpace ? (_s30 + Math.random()*_s60) : (_s15 + Math.random()*_s30);
+    if (type < 0.35) {
+      // Streaks — 위로 쏘아올림. 사이드 공간 넓으면 사이드에 bias.
+      const _sideRoll = _sideSpace ? Math.random() : 1;
+      let _sx;
+      if (_sideRoll < 0.55) {
+        const side = Math.random() > 0.5;
+        const _sideOffset = _s15 + Math.random() * Math.max(_s30, Math.min(W/3, lsx));
+        _sx = side ? Math.max(sz(6), lsx - _sideOffset) : Math.min(W - sz(6), lsx + totalLW + _sideOffset);
+      } else {
+        _sx = Math.random() * W;
+      }
       gameParticles.push({
-        x: side ? lsx - _sideOffset : lsx + totalLW + _sideOffset,
-        y: H * (0.4 + Math.random()*0.6),
-        vx: (side ? 0.4 : -0.4) * Math.random(), vy: -(1.8 + Math.random()*2.8),
-        size: 2 + Math.random()*3, life: 1, decay: 0.006 + Math.random()*0.005,  // 더 크고 오래감
+        x: _sx, y: H * (0.3 + Math.random()*0.7),
+        vx: (Math.random()-0.5)*0.8, vy: -(1.8 + Math.random()*2.8),
+        size: 2 + Math.random()*3, life: 1, decay: 0.006 + Math.random()*0.005,
         color: songCol, kind: 'streak'
       });
-    } else if (type < _streakBias + 0.25) {
-      // Floating orbs — slow drift. 크기 ↑ 수명 ↑ glow 느낌.
+    } else if (type < 0.6) {
+      // Floating orbs (상승) — 화면 바닥 전체에서 위로 drift.
       gameParticles.push({
         x: Math.random()*W, y: H+_s10,
-        vx: (Math.random()-0.5)*0.3, vy: -(0.18+Math.random()*0.4),
-        size: 4+Math.random()*6, life: 1, decay: 0.0015 + Math.random()*0.0015, // 오래감
+        vx: (Math.random()-0.5)*0.5, vy: -(0.18+Math.random()*0.45),
+        size: 4+Math.random()*7, life: 1, decay: 0.0015 + Math.random()*0.0015,
+        color: songCol, kind: 'orb'
+      });
+    } else if (type < 0.8) {
+      // ★ Descending orbs (하강) — 화면 상단에서 아래로 서서히 내려옴.
+      //   상단 이펙트 커버리지 향상. 기존 'orb' kind 재사용.
+      gameParticles.push({
+        x: Math.random()*W, y: -_s5 + Math.random()*_s15,
+        vx: (Math.random()-0.5)*0.4, vy: 0.15 + Math.random()*0.35,
+        size: 3+Math.random()*5, life: 1, decay: 0.0015 + Math.random()*0.0015,
         color: songCol, kind: 'orb'
       });
     } else {
-      // Sparkle — 레인 안쪽 트윙클러.
+      // Sparkle — 화면 전체 트윙클.
       gameParticles.push({
-        x: lsx + Math.random()*totalLW, y: Math.random()*H,
+        x: Math.random()*W, y: Math.random()*H,
         vx: 0, vy: 0,
         size: 1.2+Math.random()*1.8, life: 1, decay: 0.018+Math.random()*0.02,
         color: '#fff', kind: 'sparkle'
@@ -8131,7 +8143,7 @@ function render() {
     gp.x += gp.vx; gp.y += gp.vy; gp.life -= gp.decay;
     if (gp.kind === 'orb') gp.vx += (Math.random()-0.5)*0.02;
     if (gp.kind === 'streak') gp.vy *= 0.995;
-    if (gp.life <= 0 || gp.y < -_s20) { gameParticles.splice(i,1); continue; }
+    if (gp.life <= 0 || gp.y < -_s20 || gp.y > H + _s20) { gameParticles.splice(i,1); continue; }
     if (gp.kind === 'sparkle') {
       const flicker = Math.sin(_fNow*0.02+i*7)*0.5+0.5;
       ctx.globalAlpha = gp.life * flicker * 0.7;
@@ -8413,23 +8425,19 @@ function renderBackplatePostNotes() {
     // 1) 베이스 불투명 차콜
     ctx.fillStyle = 'rgba(28,28,34,0.96)';
     ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
-    // 2) 상단 → 하단 서브틀 수직 그라데이션 (입체감)
+    // 2) 상단→하단 서브틀 수직 그라데이션 (입체감) — 캐시 불가지만 경량.
     const _g = ctx.createLinearGradient(0, hitY + sz(2), 0, outerB);
     _g.addColorStop(0, 'rgba(60,60,72,0.25)');
     _g.addColorStop(0.5, 'rgba(20,20,26,0)');
     _g.addColorStop(1, 'rgba(0,0,0,0.35)');
     ctx.fillStyle = _g;
     ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
-    // 3) 수평 스캔 라인 패턴 (리듬게임 deck 느낌) — 4px 간격, 매우 얇게
-    ctx.fillStyle = 'rgba(255,255,255,0.025)';
-    for (let y = hitY + sz(6); y < outerB - sz(2); y += sz(4)) {
-      ctx.fillRect(outerX + sz(4), y, outerR - outerX - sz(8), 1);
-    }
-    // 4) 좌/우 끝 세로 액센트 바 (곡 컬러 톤)
+    // 3) 좌/우 세로 액센트 바 (곡 컬러)
     const _sc = curSong && curSong.color ? curSong.color : '#ffffff';
     ctx.fillStyle = _sc + '22';
     ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
     ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
+    // (수평 스캔 라인 제거 — 모바일/저사양 기기 버벅임 원인)
   }
 }
 
@@ -8837,8 +8845,7 @@ function renderNotes() {
 
 function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
-  // 테두리/이미지 겹침 방지 — 레인 간 padding sz(3) 으로 늘려 버튼과 외곽 프레임/레인 divider 사이 여백 확보.
-  const _pad = sz(3), _r = sz(8);
+  const _pad = sz(3), _r = sz(6);
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
@@ -8846,35 +8853,61 @@ function renderButtons() {
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
 
-    // 불투명 어두운 배경 (공통)
-    ctx.fillStyle = 'rgba(8,6,18,0.95)';
-    rrFill(x, y, w, h, _r);
-
     if (held) {
-      // ===== 눌림 — PC/모바일 통일 (모바일 디자인) =====
-      ctx.fillStyle = col + '44';
+      // ===== 눌림 — 키가 살짝 들어간 느낌 (어두워지고 색 포화) =====
+      const _pgrad = ctx.createLinearGradient(0, y, 0, y + h);
+      _pgrad.addColorStop(0, col + '66');
+      _pgrad.addColorStop(0.5, col + '33');
+      _pgrad.addColorStop(1, col + '11');
+      ctx.fillStyle = _pgrad;
       rrFill(x, y, w, h, _r);
-      ctx.fillStyle = col + 'cc';
-      ctx.fillRect(x + _r, y, w - _r*2, sz(3));
-      ctx.strokeStyle = col + 'bb'; ctx.lineWidth = 2;
+      // 상단 컬러 스트라이프 (눌렸을 때 강하게 빛남)
+      ctx.fillStyle = col + 'dd';
+      ctx.fillRect(x + _r, y, w - _r*2, sz(4));
+      // 인셋 어두운 효과 (들어간 느낌)
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
+      // 테두리
+      ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2;
       rrStroke(x, y, w, h, _r);
     } else {
-      // ===== 기본 (대기) — PC/모바일 통일 (모바일 디자인) =====
-      ctx.fillStyle = col + '55';
+      // ===== 대기 — 신디사이저 키보드 느낌 =====
+      // 1) Key body: 상단 밝고 하단 어두운 메탈릭 그라데이션
+      const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
+      _kgrad.addColorStop(0,    '#3a3a44');
+      _kgrad.addColorStop(0.35, '#26262e');
+      _kgrad.addColorStop(1,    '#12121a');
+      ctx.fillStyle = _kgrad;
+      rrFill(x, y, w, h, _r);
+      // 2) 상단 엣지 하이라이트 (금속 반사)
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-      rrStroke(x, y, w, h, _r);
-      // 중앙 다이아몬드 아이콘 — PC/모바일 모두 표시
-      const dcx = bx + lw/2, dcy = by + Math.min(bh * 0.35, sz(30));
-      const ds = sz(5);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x + _r, y + sz(3), w - _r*2, 1);
+      // 3) 컬러 액센트 스트라이프 (키보드 상단 표시등 같은 느낌)
+      ctx.fillStyle = col + '99';
+      ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
       ctx.fillStyle = col + '44';
-      ctx.beginPath();
-      ctx.moveTo(dcx, dcy - ds);
-      ctx.lineTo(dcx + ds, dcy);
-      ctx.lineTo(dcx, dcy + ds);
-      ctx.lineTo(dcx - ds, dcy);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
+      // 4) 하단 그림자 (키가 올라와있는 느낌)
+      const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
+      _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
+      _sgrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+      ctx.fillStyle = _sgrad;
+      ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
+      // 5) 테두리 — 차콜 메탈
+      ctx.strokeStyle = 'rgba(85,85,95,0.7)'; ctx.lineWidth = 1;
+      rrStroke(x, y, w, h, _r);
+      // 6) 중앙 원형 "키캡 센서" 점 — 레인 색
+      const _dcx = bx + lw/2, _dcy = by + Math.min(bh * 0.55, sz(44));
+      const _dr = sz(4);
+      ctx.fillStyle = col + '33';
+      ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr + sz(2), 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = col + 'bb';
+      ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr, 0, Math.PI*2); ctx.fill();
+      // 중심 밝은 하이라이트
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.arc(_dcx - _dr*0.3, _dcy - _dr*0.3, _dr*0.35, 0, Math.PI*2); ctx.fill();
     }
 
     // 빈 입력 플래시 (노트 없이 눌렸을 때 빨간 깜박)
