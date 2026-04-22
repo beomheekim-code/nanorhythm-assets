@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422024000;
+window.__BUILD_TS = 20260422025000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5533,17 +5533,14 @@ addEventListener('mousedown', e => {
     // Speed control buttons (stack 중앙 배치, renderUI 와 동일 공식)
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(20) - _spBtn/2);
-    // HP + 배속 stack: 프레임 중앙 정렬. renderUI 와 완전 동일 산식.
-    const _hpGw = sz(12);
-    const _colTop_ht = -safeTop + sz(14);
-    const _colBot_ht = getHitY() - sz(8);
-    const _colH_ht = _colBot_ht - _colTop_ht;
-    const _gapHpSp_ht = sz(6);
-    const _gh_ht = Math.max(sz(120), Math.min(sz(260), (_colH_ht - _spBlockH - _gapHpSp_ht) * 0.75));
-    const _stackH_ht = _gh_ht + _gapHpSp_ht + _spBlockH;
-    const _gy_ht = _colTop_ht + Math.max(0, (_colH_ht - _stackH_ht) / 2);
-    const _spBlockTop = _gy_ht + _gh_ht + _gapHpSp_ht;
+    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(13) - _spBtn/2);
+    // HP + 배속 stack: 외곽 프레임 하단 정렬. renderUI 와 완전 동일 산식.
+    const _btnYL_ht = getBtnY();
+    const _btnHL_ht = getBtnH();
+    const _outerBL_ht = Math.min(H + safeBottom - sz(1), _btnYL_ht + _btnHL_ht + sz(10));
+    const _capHL_ht = sz(10);
+    const _spBlockBottomL_ht = _outerBL_ht - _capHL_ht;
+    const _spBlockTop = _spBlockBottomL_ht - _spBlockH;
     const _spCx = _gcx;
     const _spBaseY = _spBlockTop + _spPad;
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
@@ -5745,16 +5742,13 @@ function _processPlayingTouch(t, src) {
   if (x < lsx) {
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
-    // renderUI 와 동일한 중앙 stack 산식
-    const _hpGw = sz(12);
-    const _colTop_ht = -safeTop + sz(14);
-    const _colBot_ht = getHitY() - sz(8);
-    const _colH_ht = _colBot_ht - _colTop_ht;
-    const _gapHpSp_ht = sz(6);
-    const _gh_ht = Math.max(sz(120), Math.min(sz(260), (_colH_ht - _spH - _gapHpSp_ht) * 0.75));
-    const _stackH_ht = _gh_ht + _gapHpSp_ht + _spH;
-    const _gy_ht = _colTop_ht + Math.max(0, (_colH_ht - _stackH_ht) / 2);
-    const _spTop = _gy_ht + _gh_ht + _gapHpSp_ht;
+    // renderUI 와 동일한 하단 정렬 stack 산식 (외곽 프레임 bottom 기준).
+    const _btnYL = getBtnY();
+    const _btnHL = getBtnH();
+    const _outerBL = Math.min(H + safeBottom - sz(1), _btnYL + _btnHL + sz(10));
+    const _capHL = sz(10);
+    const _spBlockBottomL = _outerBL - _capHL;
+    const _spTop = _spBlockBottomL - _spH;
     if (y >= _spTop && y < _spTop + _spH) {
       const _spMid = _spTop + _spPad + _spBtn + _spGap;
       if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
@@ -7254,14 +7248,25 @@ function update(dt) {
   if (state === 'playing' && actx) {
     const _curActxState = actx.state;
     if (!gamePaused) {
-      // running → suspended/interrupted 전환 시 1회 pause
+      // running → suspended/interrupted 전환 — 바로 pause 하지 말고 500ms 디바운스 후 pause.
+      //   모바일 회전(orientationchange) 시 actx 가 순간 suspend 됐다 즉시 복귀하는 경우가 있어서
+      //   즉시 pause 하면 노트가 멈춘 것처럼 보임. 500ms 넘게 suspend 이면 진짜 인터럽트로 처리.
       if ((_curActxState === 'suspended' || _curActxState === 'interrupted') && _prevActxState === 'running') {
+        _suspendStartAt = performance.now();
+      }
+      if ((_curActxState === 'suspended' || _curActxState === 'interrupted') && _suspendStartAt > 0 && performance.now() - _suspendStartAt > 500) {
+        _audioInterrupted = true;
         pauseGame();
+        _suspendStartAt = 0;
       }
-      // suspended/interrupted → running 전환 시 (이어폰 재연결 등) 오디오 재시작
-      if (_curActxState === 'running' && _prevActxState && _prevActxState !== 'running') {
-        _restartAudioAfterContextResume();
+      if (_curActxState === 'running') {
+        _suspendStartAt = 0;
       }
+    }
+    // suspended/interrupted → running 전환 시 (이어폰 재연결/회전 완료 등) 오디오 재시작 + 자동 resume
+    if (_curActxState === 'running' && _prevActxState && _prevActxState !== 'running') {
+      if (!gamePaused) _restartAudioAfterContextResume();
+      else if (_audioInterrupted) { _audioInterrupted = false; resumeGame(); }
     }
     _prevActxState = _curActxState;
   }
@@ -8666,64 +8671,19 @@ function renderButtons() {
     rrFill(x, y, w, h, _r);
 
     if (held) {
-      // ===== 눌림 =====
-      if (isMobile) {
-        ctx.fillStyle = col + '44';
-        rrFill(x, y, w, h, _r);
-        ctx.fillStyle = col + 'cc';
-        ctx.fillRect(x + _r, y, w - _r*2, sz(3));
-        ctx.strokeStyle = col + 'bb'; ctx.lineWidth = 2;
-        rrStroke(x, y, w, h, _r);
-      } else {
-        const pg = ctx.createLinearGradient(x, y, x, y + h);
-        pg.addColorStop(0, col + '88');
-        pg.addColorStop(0.3, col + '44');
-        pg.addColorStop(1, col + '11');
-        ctx.fillStyle = pg;
-        rrFill(x, y, w, h, _r);
-        ctx.shadowColor = col; ctx.shadowBlur = 16;
-        ctx.fillStyle = col + 'cc';
-        ctx.fillRect(x + _r, y, w - _r*2, sz(3));
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = col + 'bb'; ctx.lineWidth = 2;
-        rrStroke(x, y, w, h, _r);
-      }
+      // ===== 눌림 — PC/모바일 통일 (모바일 디자인) =====
+      ctx.fillStyle = col + '44';
+      rrFill(x, y, w, h, _r);
+      ctx.fillStyle = col + 'cc';
+      ctx.fillRect(x + _r, y, w - _r*2, sz(3));
+      ctx.strokeStyle = col + 'bb'; ctx.lineWidth = 2;
+      rrStroke(x, y, w, h, _r);
     } else {
-      // ===== 기본 (대기) =====
-      if (isMobile) {
-        ctx.fillStyle = col + '55';
-        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-        rrStroke(x, y, w, h, _r);
-      } else {
-        const hg = ctx.createLinearGradient(x, y, x, y + h * 0.4);
-        hg.addColorStop(0, 'rgba(255,255,255,0.07)');
-        hg.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = hg;
-        rrFill(x, y, w, h * 0.4, _r);
-        ctx.fillStyle = col + '55';
-        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-        const bg = ctx.createLinearGradient(x, y + h - sz(20), x, y + h);
-        bg.addColorStop(0, 'transparent');
-        bg.addColorStop(1, col + '18');
-        ctx.fillStyle = bg;
-        rrFill(x, y + h - sz(20), w, sz(20), _r);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
-        rrStroke(x, y, w, h, _r);
-      }
-      // 중앙 다이아몬드 아이콘 (터치 포인트 인지)
-      if (isMobile) {
-        const dcx = bx + lw/2, dcy = by + Math.min(bh * 0.35, sz(30));
-        const ds = sz(5);
-        ctx.fillStyle = col + '44';
-        ctx.beginPath();
-        ctx.moveTo(dcx, dcy - ds);
-        ctx.lineTo(dcx + ds, dcy);
-        ctx.lineTo(dcx, dcy + ds);
-        ctx.lineTo(dcx - ds, dcy);
-        ctx.closePath();
-        ctx.fill();
-      }
+      // ===== 기본 (대기) — PC/모바일 통일 (모바일 디자인) =====
+      ctx.fillStyle = col + '55';
+      ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+      rrStroke(x, y, w, h, _r);
     }
 
     // 빈 입력 플래시 (노트 없이 눌렸을 때 빨간 깜박)
@@ -9005,35 +8965,38 @@ function renderJudgment() {
 function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
-  // HP바/속도 컨트롤: 레인 왼쪽 컬럼 중앙에 stack 배치 (HP 위, 배속 바로 밑).
-  const gw = sz(12); // HP 바 두께 조금 더 두껍게
+  // HP바/속도 컨트롤: 레인 왼쪽 컬럼에 stack 배치. 외곽 프레임 하단에 HP 컨테이너 붙임.
+  const gw = sz(12);
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // ★ 외곽 프레임 좌측 테두리와 겹치지 않도록 sz(3) → sz(20) 로 더 왼쪽으로.
-  //   HP 컨테이너 우측 테두리 (stroke sz(7)) 와 외곽 프레임 좌측 테두리 (stroke sz(7)) 사이에
-  //   시각적 gap 확보.
-  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(20) - _spBtnSz/2);
-  // HP 바는 배속 버튼과 같은 중심선
+  // ★ HP 컨테이너 우측 테두리가 외곽 프레임 좌측 테두리와 "한 선"으로 공유되도록
+  //   _gcx 를 lsx - sz(13) - _spBtn/2 로 배치. 배속 버튼 사이즈/여백 계산하면 컨테이너
+  //   우측 path 가 정확히 outerX (lsx - sz(6)) 와 일치.
+  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(13) - _spBtnSz/2);
   const gx = _gcx - gw/2;
-  // ★ HP + 배속 블록을 프레임 세로 중앙에 stack 배치.
-  //   사용 가능 세로 범위 = 프레임 상단 ~ 판정선
-  const _colTop = -safeTop + sz(14);
-  const _colBot = getHitY() - sz(8);
-  const _colH = _colBot - _colTop;
+  // 외곽 프레임 하단 좌표 (renderBackplate outerB 공식과 동일).
+  //   container 의 bottom cap top = _spBlockBottom 이 outerB - sz(10) 에 맞춰야
+  //   container 외곽 bottom path 가 outerB 와 일치.
+  const _btnYLocal = getBtnY();
+  const _btnHLocal = getBtnH();
+  const _outerBLocal = Math.min(H + safeBottom - sz(1), _btnYLocal + _btnHLocal + sz(10));
+  const _capHLocal = sz(10);
+  const _spBlockBottom = _outerBLocal - _capHLocal;  // 하단 캡 시작 = 외곽 bottom 에서 cap 위
+  const _spBlockTop = _spBlockBottom - _spBlockH;
   const _gapHpSp = sz(6);
-  // HP 길이: 중앙 영역의 대략 45% (사용 가능 공간에 비례), 최소 sz(120), 최대 sz(260)
-  const gh = Math.max(sz(120), Math.min(sz(260), (_colH - _spBlockH - _gapHpSp) * 0.75));
-  const _stackH = gh + _gapHpSp + _spBlockH;
-  // stack 의 세로 중앙 정렬
-  const gy = _colTop + Math.max(0, (_colH - _stackH) / 2);
-  const _spBlockTop = gy + gh + _gapHpSp;
-  const _spBlockBottom = _spBlockTop + _spBlockH;
+  // HP 바 — 상단 여유 두고 배속 위 까지
+  const _colTop = -safeTop + sz(14);
+  const _hpMaxBot = _spBlockTop - _gapHpSp;
+  const gh = Math.max(sz(100), Math.min(sz(300), _hpMaxBot - _colTop));
+  const gy = _hpMaxBot - gh;  // HP 바가 배속 블록 바로 위에 딱 붙음
   // === HP(선택) + 배속 공유 컨테이너 — 왼쪽만 사다리꼴 캡, 오른쪽 직선+테두리 ===
   //   프리스타일: HP 없음 → 컨테이너는 배속 블록만 감쌈. 외곽 프레임과 동일한 sz(7) 테두리.
   {
     const _bpPal = _backplatePalette();
-    const _contPadX = sz(4);
+    // ★ 배속 버튼 sz(26) + 차콜 stroke sz(7) 반인 sz(3.5) 가 내부로 먹히므로,
+    //   시각적 margin 확보 위해 _contPadX = sz(7) 로 증가. 우측 path 가 정확히 outerX 에 일치.
+    const _contPadX = sz(7);
     const _capH = sz(10);
     const _contCx = _gcx;
     const _bodyHalf = Math.max(gw, _spBtnSz) / 2 + _contPadX;
@@ -12725,6 +12688,7 @@ let _prevActxState = ''; // actx 상태 전환 감지용
 let _bgmNeedsResume = false;
 let _audioInterrupted = false;
 let _suspendPauseTimer = null; // transient suspended blip 무시용 디바운스
+let _suspendStartAt = 0; // update() 내 actx suspend 디바운스용 — 500ms 넘으면 pause
 // iOS 오디오 인터럽트 복구 (알람/전화 후)
 // ★ iOS 오디오 컨텍스트는 노드 생성/SFX 재생 등으로 짧게 suspended 됐다가 즉시 running 복귀하는 경우 있음.
 //   이걸 즉시 pauseGame 하면 MISS/따닥 시 flash 없이 게임이 일시 정지 → 다음 탭으로 자동 resume 되는
