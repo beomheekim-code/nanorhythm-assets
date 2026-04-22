@@ -27,12 +27,13 @@ def process():
     brightness = r + g + b
     chroma = r - g
 
-    # Pass 1: 어두운 영역 킬 — R < 170 이면 모두 제거 (링 어두운 안쪽 포함)
-    # 진짜 밝은 핑크만 살림
-    alpha[r < 170] = 0
+    # Pass 1: 어두운 중성 체커만 kill (R ≈ G ≈ B 근처 회색 + 어두움)
+    # 골드 링 내부 디테일 보존 위해 R<170 일괄 kill 은 제거
+    neutral_ch = np.abs(r - g) + np.abs(r - b) + np.abs(g - b)
+    alpha[(brightness < 150) & (neutral_ch < 30)] = 0
 
-    # Pass 2: 중간 밝기(150~250) 도 chroma 낮으면 제거
-    mid_low_chroma = (brightness >= 150) & (brightness < 250) & (chroma < 50)
+    # Pass 2: 중간 밝기 + 저채도 (그라데이션 배경)
+    mid_low_chroma = (brightness >= 150) & (brightness < 250) & (neutral_ch < 30)
     alpha[mid_low_chroma] = 0
 
     # Pass 3: 파란 톤(checker) 킬 — 블루 도미넌트 제거
