@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422012000;
+window.__BUILD_TS = 20260422013000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5530,11 +5530,20 @@ addEventListener('mousedown', e => {
         devInvincible = !devInvincible; return;
       }
     }
-    // Speed control buttons (above note buttons, 반응형) — renderUI 와 같은 좌표 공식
-    const _spBtn = sz(28), _spGap = sz(4), _spPad = sz(3);
+    // Speed control buttons (stack 중앙 배치, renderUI 와 동일 공식)
+    const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
     const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(3) - _spBtn/2);
-    const _spBlockTop = getBtnY() - sz(4) - _spBlockH;
+    // HP + 배속 stack: 프레임 중앙 정렬. renderUI 와 완전 동일 산식.
+    const _hpGw = sz(12);
+    const _colTop_ht = -safeTop + sz(14);
+    const _colBot_ht = getHitY() - sz(8);
+    const _colH_ht = _colBot_ht - _colTop_ht;
+    const _gapHpSp_ht = sz(6);
+    const _gh_ht = Math.max(sz(120), Math.min(sz(260), (_colH_ht - _spBlockH - _gapHpSp_ht) * 0.75));
+    const _stackH_ht = _gh_ht + _gapHpSp_ht + _spBlockH;
+    const _gy_ht = _colTop_ht + Math.max(0, (_colH_ht - _stackH_ht) / 2);
+    const _spBlockTop = _gy_ht + _gh_ht + _gapHpSp_ht;
     const _spCx = _gcx;
     const _spBaseY = _spBlockTop + _spPad;
     const _spMinusX = _spCx - _spBtn/2, _spMinusY = _spBaseY;
@@ -5734,9 +5743,18 @@ function _processPlayingTouch(t, src) {
     pauseGame(); return -1;
   }
   if (x < lsx) {
-    const _spBtn = sz(28), _spGap = sz(4), _spPad = sz(3);
+    const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _spTop = getBtnY() - sz(4) - _spH;
+    // renderUI 와 동일한 중앙 stack 산식
+    const _hpGw = sz(12);
+    const _colTop_ht = -safeTop + sz(14);
+    const _colBot_ht = getHitY() - sz(8);
+    const _colH_ht = _colBot_ht - _colTop_ht;
+    const _gapHpSp_ht = sz(6);
+    const _gh_ht = Math.max(sz(120), Math.min(sz(260), (_colH_ht - _spH - _gapHpSp_ht) * 0.75));
+    const _stackH_ht = _gh_ht + _gapHpSp_ht + _spH;
+    const _gy_ht = _colTop_ht + Math.max(0, (_colH_ht - _stackH_ht) / 2);
+    const _spTop = _gy_ht + _gh_ht + _gapHpSp_ht;
     if (y >= _spTop && y < _spTop + _spH) {
       const _spMid = _spTop + _spPad + _spBtn + _spGap;
       if (y < _spMid) { playScrollTick(); speedDown(); noteSpeed = calcNoteSpeed(curSong.bpm, selectedSpeed); startSpeedHold(-1); }
@@ -8236,35 +8254,43 @@ function renderBackplate() {
   //   HP 바/배속 버튼 컨테이너는 각자의 rounded 캡슐로 렌더 (renderUI / Speed 섹션).
   ctx.save();
 
-  // === ONE BIG OUTER FRAME ===
-  //   60.png 레퍼런스: 화면 전체를 감싸는 하나의 굵은 차콜 프레임. 좌우 비대칭 — 좌측은
-  //   HP/배속 컬럼이 들어갈 여유 있게 lsx 왼쪽까지 확장, 우측은 레인 끝(lsx+totalLW) 에
-  //   바짝 + 작은 margin. 상하도 화면 가장자리에 작은 margin 만 두고 전체 wrap.
-  //   내부에 HP 바/배속 컨테이너/레인/탭 버튼이 전부 들어가는 구조.
+  // === ONE BIG OUTER FRAME (차콜 솔리드 판넬 + 레인 채널 cutout) ===
+  //   60.png 레퍼런스: 솔리드 차콜 몸체. 레인(노트 떨어지는 세로 통로)만 투명하게
+  //   잘라내서 게임 BG 보이게. 판정선 밑 + 버튼 사이 간격 + HP 컬럼 옆은 자동으로
+  //   차콜 패널 유지. 좌우 비대칭(좌=HP 여유, 우=레인에 타이트), 탭 버튼 내부 포함.
   const pad = sz(3);
   const outerX = pad;
   const outerY = laneTop + sz(2);
-  // 우측 가장자리: 레인 끝 + 약간 margin (레퍼런스는 오른쪽이 타이트)
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
   const outerW = outerR - outerX;
-  // 하단: 탭 버튼 아래 포함 — btnY + btnH + 약간
   const outerB = Math.min(H + safeBottom - sz(1), btnY + btnH + sz(3));
   const outerH = outerB - outerY;
   const cornerR = sz(10);
 
-  if (outerW > sz(40) && outerH > sz(60)) {
-    // 내부 어두운 틴트
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    rrFill(outerX, outerY, outerW, outerH, cornerR);
-    // 두꺼운 차콜 외곽 테두리
-    ctx.strokeStyle = pal.border;
-    ctx.lineWidth = sz(7);
-    rrStroke(outerX, outerY, outerW, outerH, cornerR);
-    // 안쪽 얇은 하이라이트 (메탈 광택)
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1;
-    rrStroke(outerX + sz(3), outerY + sz(3), outerW - sz(6), outerH - sz(6), Math.max(1, cornerR - sz(3)));
+  if (outerW <= sz(40) || outerH <= sz(60)) { ctx.restore(); return; }
+
+  // 1) 솔리드 차콜 몸체
+  ctx.fillStyle = 'rgba(28,28,34,0.96)';
+  rrFill(outerX, outerY, outerW, outerH, cornerR);
+
+  // 2) 레인 채널 cutout — 각 레인 세로 통로를 투명하게 (top ~ 판정선)
+  //    lane divider 용으로 각 레인 좌우에 sz(2) margin 남겨 charcoal 유지.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < laneCount; i++) {
+    const laneX = lsx + i * lw;
+    ctx.fillRect(laneX + sz(2), outerY + sz(4), lw - sz(4), hitY - outerY - sz(4));
   }
+  ctx.restore();
+
+  // 3) 두꺼운 차콜 외곽 테두리
+  ctx.strokeStyle = pal.border;
+  ctx.lineWidth = sz(7);
+  rrStroke(outerX, outerY, outerW, outerH, cornerR);
+  // 안쪽 1px 하이라이트 (메탈 광택)
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  rrStroke(outerX + sz(3), outerY + sz(3), outerW - sz(6), outerH - sz(6), Math.max(1, cornerR - sz(3)));
   ctx.restore();
 }
 
@@ -8951,22 +8977,28 @@ function renderJudgment() {
 function renderUI() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
-  // HP바/속도 컨트롤: 레인 왼쪽, 레인 프레임에 flush. 슈퍼스타 레퍼런스 — 짧은 볼록 캡슐.
-  const gw = sz(10); // 얇은 HP 바 (레퍼런스)
-  const _spBtnSz = sz(28), _spGapSz = sz(4), _spPadSz = sz(3);
+  // HP바/속도 컨트롤: 레인 왼쪽 컬럼 중앙에 stack 배치 (HP 위, 배속 바로 밑).
+  const gw = sz(12); // HP 바 두께 조금 더 두껍게
+  const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // ★ 배속 버튼 중심선 — 레인 프레임 좌 엣지에 flush (sz(3) gap)
+  // 배속 버튼 중심선 — 레인 프레임 좌 엣지에 flush
   const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(3) - _spBtnSz/2);
-  // HP 바는 배속 버튼과 같은 중심선 — 그 밑에 배속 버튼이 바로 붙는 구성
+  // HP 바는 배속 버튼과 같은 중심선
   const gx = _gcx - gw/2;
-  // 배속 버튼 — 노트 버튼 바로 위
-  const _spBlockBottom = getBtnY() - sz(4);
-  const _spBlockTop = _spBlockBottom - _spBlockH;
-  // ★ HP 바 — 상단에 여유 두고 배속 블록 바로 위까지 (레퍼런스 볼록 캡슐 느낌).
-  //   위는 레인 프레임 상단에서 ~sz(40) 내려온 자리, 아래는 배속 위 sz(4) gap.
-  const gy = -safeTop + sz(40);
-  const gh = Math.max(sz(80), Math.min(sz(220), _spBlockTop - gy - sz(4)));
+  // ★ HP + 배속 블록을 프레임 세로 중앙에 stack 배치.
+  //   사용 가능 세로 범위 = 프레임 상단 ~ 판정선
+  const _colTop = -safeTop + sz(14);
+  const _colBot = getHitY() - sz(8);
+  const _colH = _colBot - _colTop;
+  const _gapHpSp = sz(6);
+  // HP 길이: 중앙 영역의 대략 45% (사용 가능 공간에 비례), 최소 sz(120), 최대 sz(260)
+  const gh = Math.max(sz(120), Math.min(sz(260), (_colH - _spBlockH - _gapHpSp) * 0.75));
+  const _stackH = gh + _gapHpSp + _spBlockH;
+  // stack 의 세로 중앙 정렬
+  const gy = _colTop + Math.max(0, (_colH - _stackH) / 2);
+  const _spBlockTop = gy + gh + _gapHpSp;
+  const _spBlockBottom = _spBlockTop + _spBlockH;
   // Gauge bar (left side, vertical, thin+long) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
     // ★ HP 바 — 슈퍼스타 스타일. 얇고 길게 + 레인보우 그라데이션 고정 (HP 수치로 색 안 바꿈).
