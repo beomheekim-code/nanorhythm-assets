@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422094120;
+window.__BUILD_TS = 20260422094830;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8487,6 +8487,31 @@ function _hexToHueAngle(hex) {
   if (h < 0) h += 360;
   return h;
 }
+// ★ 베이스 PNG 의 opaque bbox 한번만 측정 (투명 여백 crop 용)
+let _keyBaseBBox = null; // { x, y, w, h } in base PNG 픽셀 좌표
+function _measureKeyBBox(base) {
+  if (_keyBaseBBox) return _keyBaseBBox;
+  try {
+    const tcv = document.createElement('canvas');
+    tcv.width = base.naturalWidth; tcv.height = base.naturalHeight;
+    const tc = tcv.getContext('2d');
+    tc.drawImage(base, 0, 0);
+    const dat = tc.getImageData(0, 0, tcv.width, tcv.height).data;
+    let x0=tcv.width, x1=0, y0=tcv.height, y1=0;
+    for (let y=0; y<tcv.height; y+=4) {
+      for (let x=0; x<tcv.width; x+=4) {
+        if (dat[(y*tcv.width+x)*4+3] > 20) {
+          if (x<x0) x0=x; if (x>x1) x1=x;
+          if (y<y0) y0=y; if (y>y1) y1=y;
+        }
+      }
+    }
+    _keyBaseBBox = { x:x0, y:y0, w:x1-x0+1, h:y1-y0+1 };
+  } catch(e) {
+    _keyBaseBBox = { x:0, y:0, w:base.naturalWidth, h:base.naturalHeight };
+  }
+  return _keyBaseBBox;
+}
 function _getTintedKeyCanvas(colorHex) {
   if (_tintedKeyCache[colorHex]) return _tintedKeyCache[colorHex];
   const uiSkin = _getUiPackSkin();
@@ -8494,9 +8519,11 @@ function _getTintedKeyCanvas(colorHex) {
   if (!basePath) return null;
   const base = skinImages[basePath];
   if (!base || !base.complete || !base.naturalWidth) return null;
-  // 다운스케일 (퍼포먼스): 세로 384 기준, 가로는 비율 유지
+  // 투명 여백 자동 crop
+  const bbox = _measureKeyBBox(base);
+  // 다운스케일 + crop — 세로 384 기준, 가로는 bbox 비율 유지
   const targetH = 384;
-  const targetW = Math.max(1, Math.round(targetH * (base.naturalWidth / base.naturalHeight)));
+  const targetW = Math.max(1, Math.round(targetH * (bbox.w / bbox.h)));
   const cv = document.createElement('canvas');
   cv.width = targetW; cv.height = targetH;
   const c = cv.getContext('2d');
@@ -8504,13 +8531,12 @@ function _getTintedKeyCanvas(colorHex) {
   const targetHue = _hexToHueAngle(colorHex);
   const baseHue = 340;
   const rotation = ((targetHue - baseHue) % 360 + 360) % 360;
-  // ctx.filter 는 Safari 15+/Chrome 76+ 지원. 미지원 브라우저는 기본 색 유지.
   try {
-    c.filter = `hue-rotate(${rotation}deg) saturate(1.1)`;
-    c.drawImage(base, 0, 0, targetW, targetH);
+    c.filter = `hue-rotate(${rotation}deg) saturate(1.15) brightness(1.05)`;
+    c.drawImage(base, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, targetW, targetH);
     c.filter = 'none';
   } catch(e) {
-    c.drawImage(base, 0, 0, targetW, targetH);
+    c.drawImage(base, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, targetW, targetH);
   }
   _tintedKeyCache[colorHex] = cv;
   return cv;
@@ -9093,17 +9119,31 @@ function renderButtons() {
     if (_pngMode) {
       const tinted = _getTintedKeyCanvas(col);
       if (tinted) {
-        // 레인 전체 영역에 drawImage (기본 procedural 버튼과 동일 사이즈)
-        ctx.drawImage(tinted, bx, by, lw, bh);
-        // 눌림 상태: 기본 신디 버튼처럼 어두운 오버레이 + 상단 컬러 스트라이프
+        // 내부 버튼 영역(x,y,w,h) 에 정확히 fit — crop 된 bbox 라 여백 없음
+        //  (같은 사이즈로 빈 입력 빨간 플래시 및 기본 receptor 와 동일)
+        ctx.drawImage(tinted, x, y, w, h);
         if (held) {
-          ctx.fillStyle = 'rgba(0,0,0,0.35)';
-          rrFill(x, y, w, h, _r);
-          ctx.fillStyle = col + 'dd';
-          ctx.fillRect(x + _r, y, w - _r*2, sz(4));
-          // 살짝 들어간 듯한 얇은 어두운 줄
-          ctx.fillStyle = 'rgba(0,0,0,0.5)';
-          ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
+          // 눌림: LED 위치에 밝은 글로우 발광 (composite 'lighter' 로 가산)
+          const _gcx = bx + lw/2, _gcy = by + Math.min(bh * 0.55, sz(44));
+          const _gR = Math.min(w, h) * 0.45;
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const _grad = ctx.createRadialGradient(_gcx, _gcy, 0, _gcx, _gcy, _gR);
+          _grad.addColorStop(0, col + 'cc');       // 강한 레인색 코어
+          _grad.addColorStop(0.35, col + '66');
+          _grad.addColorStop(1, col + '00');
+          ctx.fillStyle = _grad;
+          ctx.beginPath(); ctx.arc(_gcx, _gcy, _gR, 0, Math.PI*2); ctx.fill();
+          // 중심 흰 highlight
+          const _wG = ctx.createRadialGradient(_gcx, _gcy, 0, _gcx, _gcy, _gR*0.35);
+          _wG.addColorStop(0, 'rgba(255,255,255,0.85)');
+          _wG.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = _wG;
+          ctx.beginPath(); ctx.arc(_gcx, _gcy, _gR*0.35, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          // 상단 컬러 스트라이프 — 눌림 신호
+          ctx.fillStyle = col + 'ee';
+          ctx.fillRect(x + _r, y, w - _r*2, sz(3));
         }
         // 빈 입력 플래시 유지
         const _efAgeP = performance.now() - _lastEmptyFlash[i];
