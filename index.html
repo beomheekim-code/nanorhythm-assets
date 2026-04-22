@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422069000;
+window.__BUILD_TS = 20260422070000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6985,26 +6985,48 @@ function _warmupFeverGpu() {
   _feverWarmedUp = true;
   try {
     const cv = document.createElement('canvas');
-    cv.width = 64; cv.height = 64;
+    cv.width = 128; cv.height = 128;
     const c = cv.getContext('2d');
-    // 1) linear gradient — 피버 레일/스트릭/텍스트 용 파이프라인 warm
-    const lg = c.createLinearGradient(0, 0, 0, 64);
+    // 1) linear gradient vertical + horizontal — 피버/HP/빽판 용 파이프라인
+    const lg = c.createLinearGradient(0, 0, 0, 128);
     lg.addColorStop(0, 'hsl(0,100%,65%)');
     lg.addColorStop(0.5, 'hsl(60,100%,70%)');
     lg.addColorStop(1, 'hsl(120,100%,65%)');
-    c.fillStyle = lg; c.fillRect(0, 0, 64, 64);
-    // 2) radial gradient — flower 스킨 fever 노트 glow 용
-    const rg = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    c.fillStyle = lg; c.fillRect(0, 0, 128, 128);
+    const lgH = c.createLinearGradient(0, 0, 128, 0);
+    lgH.addColorStop(0, '#ff4d8e'); lgH.addColorStop(1, '#ffd9e3');
+    c.fillStyle = lgH; c.fillRect(0, 0, 128, 64);
+    // 2) radial gradient — fever note glow / burst
+    const rg = c.createRadialGradient(64, 64, 0, 64, 64, 64);
     rg.addColorStop(0, 'rgba(255,100,0,0.5)');
     rg.addColorStop(1, 'rgba(255,100,0,0)');
-    c.fillStyle = rg; c.fillRect(0, 0, 64, 64);
-    // 3) FEVER! 텍스트 — 폰트 메트릭 캐시 + shadowBlur shader JIT
+    c.fillStyle = rg; c.fillRect(0, 0, 128, 128);
+    // 3) arc (circle) — tap 버튼 센서, 파티클 orb, 피버 burst
+    c.fillStyle = '#ff88cc';
+    c.beginPath(); c.arc(64, 64, 30, 0, Math.PI*2); c.fill();
+    c.strokeStyle = '#fff'; c.lineWidth = 2;
+    c.beginPath(); c.arc(64, 64, 20, 0, Math.PI*2); c.stroke();
+    // 4) shadowBlur 다중 색상 — 피버 텍스트 + 낮은 HP glow 2가지 모두
     c.shadowColor = 'hsl(30,80%,40%)'; c.shadowBlur = 6;
     c.font = `bold ${sz(44)}px sans-serif`;
     c.textAlign = 'center'; c.textBaseline = 'top';
     c.fillStyle = lg;
-    c.fillText('FEVER!', 32, 0);
+    c.fillText('FEVER!', 64, 0);
+    c.shadowColor = '#ff3333'; c.shadowBlur = 12;
+    c.beginPath(); c.arc(64, 100, 15, 0, Math.PI*2); c.fill();
     c.shadowBlur = 0;
+    // 5) rounded rect (rrFill/rrStroke 패턴 — fillStyle + beginPath + quadraticCurveTo)
+    c.beginPath();
+    c.moveTo(10, 10); c.lineTo(100, 10); c.quadraticCurveTo(110, 10, 110, 20);
+    c.lineTo(110, 80); c.quadraticCurveTo(110, 90, 100, 90);
+    c.lineTo(10, 90); c.quadraticCurveTo(0, 90, 0, 80);
+    c.lineTo(0, 20); c.quadraticCurveTo(0, 10, 10, 10);
+    c.closePath();
+    c.fillStyle = 'rgba(12,12,16,0.85)'; c.fill();
+    c.strokeStyle = 'rgba(85,85,95,0.98)'; c.lineWidth = 7; c.stroke();
+    // 6) HSL 색상 string 사용 warm
+    c.fillStyle = `hsl(${(Date.now()*0.1)%360},90%,65%)`;
+    c.fillRect(10, 10, 20, 20);
   } catch(e) {}
 }
 
