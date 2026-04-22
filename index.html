@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260422002000;
+window.__BUILD_TS = 20260422003000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2590,10 +2590,10 @@ const SKINS = {
 };
 // ===== 스킨 인벤토리/장비 시스템 =====
 // 카테고리별 소유/장착 독립. 장착 안 된 카테고리는 default (fallback canvas 렌더).
-const SKIN_CATEGORIES = ['note','key','score_text','judgment_text','combo_text','hit_effect','hp_bar','lane','judge_line'];
+const SKIN_CATEGORIES = ['note','key','score_text','judgment_text','combo_text','hit_effect','hp_bar','backplate','lane','judge_line'];
 const SKIN_CATEGORY_LABELS = {
   note:'노트', key:'키', score_text:'점수', judgment_text:'판정',
-  combo_text:'콤보', hit_effect:'이펙트', hp_bar:'HP바', lane:'레일', judge_line:'판정선'
+  combo_text:'콤보', hit_effect:'이펙트', hp_bar:'HP바', backplate:'기기판', lane:'레일', judge_line:'판정선'
 };
 // 카테고리별 스킨 카탈로그 (구매 가능한 스킨) — SKINS 레지스트리에서 파생
 //   skin 의 category 필드로 어느 카테고리에 속하는지 선언 (기본 'note')
@@ -8029,6 +8029,7 @@ function render() {
 
   // 디버그: 구간별 타이밍 (window._measure 존재 시). 프로덕션 영향 0.
   if (window._measure) {
+    _measure('renderBackplate', () => renderBackplate());
     _measure('renderLanes', () => renderLanes());
     _measure('renderNotes', () => renderNotes());
     _measure('renderHitLine', () => renderHitLine());
@@ -8040,6 +8041,7 @@ function render() {
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
   } else {
+    renderBackplate();
     renderLanes();
     renderNotes();
     renderHitLine();
@@ -8164,6 +8166,83 @@ function render() {
       ctx.shadowBlur=0; ctx.globalAlpha=1; ctx.restore();
     }
   }
+  ctx.restore();
+}
+
+// ===== BACKPLATE (기기판) =====
+//   좌/우 수직 레일 + 하단 덱을 그려 아케이드 리듬게임 느낌의 본체 프레임을 형성.
+//   좌 레일 안에 HP 바가 박혀 "하나의 기기"로 보이도록 설계 (HP 바 BG 는 renderUI 에서 얇게 처리).
+//   스킨 확장: SKINS[id] 에 backplate: { imagePaths:{panel:...}, slice:{t,r,b,l}, palette:{...} } 추가 예정.
+function _backplatePalette() {
+  const sid = getEquippedSkin('backplate');
+  const s = sid && SKINS[sid];
+  if (s && s.palette) return s.palette;
+  // 기본 스킨 — 다크 메탈릭 + 은은한 실버 테두리
+  return {
+    fill:      'rgba(14,18,28,0.58)',
+    border:    'rgba(170,195,235,0.22)',
+    highlight: 'rgba(255,255,255,0.07)',
+    railInner: 'rgba(0,0,0,0.20)',
+  };
+}
+function renderBackplate() {
+  if (state !== 'playing') return;
+  const lsx = _fLsx || getLaneStartX();
+  const lw  = _fLw  || getLaneW();
+  const totalLW = lw * laneCount;
+  const btnY = getBtnY();
+  const btnH = getBtnH();
+  const laneTop = -safeTop;
+  const deckBottom = H + safeBottom;
+
+  // ★ 레일은 "HP/배속 컬럼" 주위를 감싸도록 배치 — PC 처럼 레인이 중앙 정렬되어
+  //   양쪽에 여백이 커도 레일은 컬럼 폭(~sz(40))만 커버. 넓은 여백에 레일이 비대하게
+  //   뻗어 HP 가 한쪽에 쏠려 보이는 현상 방지. 우측은 심미적 대칭용으로 동일 폭.
+  const pad = sz(2);
+  const _hpColGw = Math.min(sz(18), Math.max(sz(8), (lsx - sz(6)) - sz(8)));
+  const _spBtn = sz(30);
+  const _colCx = Math.max(pad + _hpColGw/2, lsx - sz(6) - Math.max(_hpColGw, _spBtn)/2);
+  const _colHalf = Math.max(_hpColGw, _spBtn) / 2 + sz(6); // 패딩 포함 half-width
+  const railL_x = Math.max(pad, _colCx - _colHalf);
+  const railL_w = Math.min(lsx - pad - railL_x, _colHalf * 2);
+  // 우측은 좌측 폭을 미러링 — 화면 오른쪽 가장자리에 flush 정렬
+  const railR_w = railL_w;
+  const railR_x = W - pad - railR_w;
+  const railTop = laneTop + sz(2);
+  const railH   = btnY - sz(4) - railTop;
+  // ★ 너무 좁은 레일(랜드스케이프 극단 케이스) 은 그리지 않음 — 얇은 띠가 어색함.
+  const MIN_RAIL_W = sz(14);
+  const drawL = railL_w >= MIN_RAIL_W && railH > sz(20);
+  const drawR = railR_w >= MIN_RAIL_W && railH > sz(20) && (railR_x >= lsx + totalLW + pad);
+  // 레인 영역과 안 겹치는지 보장 — 랜드스케이프에서 레일이 레인 위에 올라오면 skip
+  const drawL_safe = drawL && (railL_x + railL_w <= lsx - pad);
+  // radius 는 레일 폭/높이의 절반을 넘지 않게 클램프
+  const radius = Math.min(sz(6), Math.max(sz(2), Math.min(railL_w, railH) / 2));
+
+  const pal = _backplatePalette();
+
+  ctx.save();
+  // 본체 채움
+  ctx.fillStyle = pal.fill;
+  if (drawL_safe) rrFill(railL_x, railTop, railL_w, railH, radius);
+  if (drawR) rrFill(railR_x, railTop, railR_w, railH, radius);
+  // 하단 덱 — 버튼이 앉는 본체 (버튼은 renderButtons 에서 위에 레이어됨)
+  const deckY = btnY - sz(2);
+  const deckH = deckBottom - deckY - sz(1);
+  const deckR = Math.min(sz(8), deckH / 2);
+  if (deckH > sz(4)) rrFill(sz(1), deckY, W - sz(2), deckH, deckR);
+
+  // 테두리
+  ctx.strokeStyle = pal.border;
+  ctx.lineWidth = 1.2;
+  if (drawL_safe) rrStroke(railL_x, railTop, railL_w, railH, radius);
+  if (drawR) rrStroke(railR_x, railTop, railR_w, railH, radius);
+  if (deckH > sz(4)) rrStroke(sz(1), deckY, W - sz(2), deckH, deckR);
+
+  // 레일 상단 하이라이트 스트라이프 — 메탈 광택 느낌
+  ctx.fillStyle = pal.highlight;
+  if (drawL_safe) rrFill(railL_x + sz(2), railTop + sz(2), railL_w - sz(4), sz(2), sz(1));
+  if (drawR) rrFill(railR_x + sz(2), railTop + sz(2), railR_w - sz(4), sz(2), sz(1));
   ctx.restore();
 }
 
@@ -8864,8 +8943,10 @@ function renderUI() {
   const gy = -safeTop + sz(6), gh = Math.max(sz(40), _spBlockTop - gy - sz(16));
   // Gauge bar (left side, vertical, thick) — 프리스타일 모드에서는 숨김
   if (playMode === 'normal') {
-    // BG
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    // ★ backplate 좌 레일 안쪽에 박힌 형태 — 본체 프레임은 renderBackplate 가 그리므로
+    //   여기선 "인셋 홈통(notch)" 만 그려 시각적으로 기기판과 한 몸으로 보이게 함.
+    const _bpPal = _backplatePalette();
+    ctx.fillStyle = _bpPal.railInner || 'rgba(0,0,0,0.28)';
     rrFill(gx-1, gy-1, gw+2, gh+2, 6);
     // Fill (bottom-up)
     const fillH = gh * gauge;
@@ -8877,8 +8958,8 @@ function renderUI() {
     // Inner highlight
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     rrFill(gx+1, gy + gh - fillH, gw/3, fillH, 3);
-    // Border
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
+    // Border — backplate 테두리와 톤을 맞춘 실버 프레임
+    ctx.strokeStyle = _bpPal.border || 'rgba(170,195,235,0.35)'; ctx.lineWidth = 1.2;
     rrStroke(gx-1, gy-1, gw+2, gh+2, 6);
     // Glow when low
     if (gauge < 0.3) {
