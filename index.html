@@ -9771,18 +9771,33 @@ function renderUI() {
       ctx.quadraticCurveTo(gx, gy, gx + _r, gy);
       ctx.closePath();
       ctx.clip();
-      // UI 팩 테마 적용 — 벚꽃이면 핑크 그라데이션, 기본이면 초록 단색.
-      const _ui = _getUiPack();
-      if (_ui) {
-        const _hpg = ctx.createLinearGradient(0, gy + gh, 0, gy);
-        _hpg.addColorStop(0, _ui.hpFill0 || '#ff4d8e');
-        _hpg.addColorStop(0.55, _ui.hpFill1 || '#ffa0c4');
-        _hpg.addColorStop(1, _ui.hpFill2 || '#ffd9e3');
-        ctx.fillStyle = _hpg;
+      // UI 팩 PNG 오버라이드 — hp_bar PNG 를 캡슐 전체 사이즈로 그리고,
+      //   하단 _fillH 만큼만 노출 (추가 rect clip).
+      const _uiHpSk = _getUiPackSkin();
+      const _hpPath = _uiHpSk && _uiHpSk.imagePaths && _uiHpSk.imagePaths.hpBar;
+      const _hpImg = _hpPath ? skinImages[_hpPath] : null;
+      const _hpReady = _hpImg && _hpImg._ok === true;
+      if (_hpReady) {
+        try {
+          ctx.beginPath();
+          ctx.rect(gx, gy + gh - _fillH, gw, _fillH);
+          ctx.clip();
+          ctx.drawImage(_hpImg, gx, gy, gw, gh);
+        } catch(e) {}
       } else {
-        ctx.fillStyle = '#00dd6a'; // 초록 단색 (기본)
+        // UI 팩 팔레트 / 기본 — procedural gradient fallback.
+        const _ui = _getUiPack();
+        if (_ui) {
+          const _hpg = ctx.createLinearGradient(0, gy + gh, 0, gy);
+          _hpg.addColorStop(0, _ui.hpFill0 || '#ff4d8e');
+          _hpg.addColorStop(0.55, _ui.hpFill1 || '#ffa0c4');
+          _hpg.addColorStop(1, _ui.hpFill2 || '#ffd9e3');
+          ctx.fillStyle = _hpg;
+        } else {
+          ctx.fillStyle = '#00dd6a'; // 초록 단색 (기본)
+        }
+        ctx.fillRect(gx, gy + gh - _fillH, gw, _fillH);
       }
-      ctx.fillRect(gx, gy + gh - _fillH, gw, _fillH);
       ctx.restore();
     }
     // ★ 캡슐 외곽선 제거 — 빈 영역이 HP 컨테이너 body 와 완전히 seamless 로 보이도록.
