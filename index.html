@@ -2635,6 +2635,8 @@ const SKINS = {
       //   (8색 variant 파일 따로 안 뽑음)
       keyBase: 'skins/neon/key/key.png',
       hpBar:   'skins/neon/hp_bar/hp_bar.png',
+      // ★ HP+배속 감싸는 컨테이너 body (세로 stretch). wine body + 핑크 stroke + glow.
+      containerBody: 'skins/neon/container/container_body.png',
     },
   },
 };
@@ -9576,18 +9578,13 @@ function renderUI() {
     const _ui = _getUiPack();
     const _contFill = _ui ? (_ui.containerFill || 'rgba(12,12,16,0.85)') : 'rgba(12,12,16,0.85)';
     const _contBorder = _ui ? (_ui.containerBorder || _bpPal.border) : _bpPal.border;
-    // HP 컨테이너 본체
-    ctx.beginPath();
-    ctx.moveTo(_contCx - _capHalfL, _contTopY);
-    ctx.lineTo(_rightEdgeX, _contTopY);
-    ctx.lineTo(_rightEdgeX, _contBotY);
-    ctx.lineTo(_contCx - _capHalfL, _contBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
-    ctx.closePath();
-    ctx.fillStyle = _contFill;
-    ctx.fill();
-    // 상단/하단 wedge — HP 컨테이너 body 와 동일 색
+    // ★ UI 팩 장착 + container_body PNG 로드 시 → PNG drawImage 로 교체
+    const _uiSkin = _getUiPackSkin();
+    const _contBodyPath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.containerBody;
+    const _contBodyImg = _contBodyPath ? skinImages[_contBodyPath] : null;
+    const _contBodyReady = _contBodyImg && _contBodyImg.complete && _contBodyImg.naturalWidth > 0;
+    // 상/하 wedge(삼각형) + 우측 strip — backplate evenodd cutout 을 wine 으로 메우는 역할.
+    // PNG 모드에서도 cutout 위치는 동일하므로 이 fill 은 공통 유지.
     ctx.fillStyle = _contFill;
     ctx.beginPath();
     ctx.moveTo(_contCx - _capHalfL, _contTopY);
@@ -9601,31 +9598,50 @@ function renderUI() {
     ctx.lineTo(_rightEdgeX, _contBotY);
     ctx.closePath();
     ctx.fill();
-    // ★ HP wedge Y 범위에만 strip — renderBackplate 에서 이 영역을 evenodd cutout 으로
-    //   비워둔 상태이므로 song BG 위에 HP body 색 fill → HP 컨테이너 body 와 시각적으로 동일.
-    //   우측 경계는 레일 테두리 inner edge (outerX + sz(3.5)) 까지만, lsx 를 넘지 않음.
     const _stripR = _rightEdgeX + sz(3.5);
     if (_stripR > _rightEdgeX) {
-      ctx.fillStyle = 'rgba(12,12,16,0.85)'; // HP 컨테이너 body 와 동일
+      ctx.fillStyle = 'rgba(12,12,16,0.85)';
       ctx.fillRect(_rightEdgeX, _topWedgeY, _stripR - _rightEdgeX, _botWedgeY - _topWedgeY);
     }
-    // ★ 테두리: 우측 수직(외곽 프레임과 공유 구간) 제외.
-    //   cap vertex 에서 outerX (wedge 끝점) 로 이어지는 대각선 포함.
-    ctx.save();
-    ctx.lineCap = 'square';
-    ctx.lineJoin = 'miter';
-    ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
-    ctx.lineWidth = sz(7);
-    // 하단: outerX(botWedge) → cap vertex (B) 대각선 → body → body → cap vertex (A) → outerX(topWedge) 대각선
-    ctx.beginPath();
-    ctx.moveTo(_rightEdgeX, _botWedgeY);
-    ctx.lineTo(_contCx - _capHalfL, _contBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-    ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
-    ctx.lineTo(_contCx - _capHalfL, _contTopY);
-    ctx.lineTo(_rightEdgeX, _topWedgeY);
-    ctx.stroke();
-    ctx.restore();
+    if (_contBodyReady) {
+      // PNG 모드 — body 영역은 PNG, 오른쪽 filler 는 wine fill 로 레일까지 연결.
+      // body 오른쪽 ~ _rightEdgeX 영역을 wine 으로 먼저 메우고 PNG 를 그 위에 덮음.
+      const _fillerL = _contCx + _bodyHalf;
+      if (_rightEdgeX > _fillerL) {
+        ctx.fillStyle = _contFill;
+        ctx.fillRect(_fillerL, _contTopY, _rightEdgeX - _fillerL, _contBotY - _contTopY);
+      }
+      // 왼쪽 body 영역에 PNG 세로 stretch (대칭)
+      ctx.drawImage(_contBodyImg,
+        _contCx - _bodyHalf, _contTopY,
+        _bodyHalf * 2, _contBotY - _contTopY);
+    } else {
+      // Procedural path (fallback) — 기존 6점 폴리곤 body + 외곽 stroke
+      ctx.beginPath();
+      ctx.moveTo(_contCx - _capHalfL, _contTopY);
+      ctx.lineTo(_rightEdgeX, _contTopY);
+      ctx.lineTo(_rightEdgeX, _contBotY);
+      ctx.lineTo(_contCx - _capHalfL, _contBotY);
+      ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
+      ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
+      ctx.closePath();
+      ctx.fillStyle = _contFill;
+      ctx.fill();
+      ctx.save();
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
+      ctx.lineWidth = sz(7);
+      ctx.beginPath();
+      ctx.moveTo(_rightEdgeX, _botWedgeY);
+      ctx.lineTo(_contCx - _capHalfL, _contBotY);
+      ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
+      ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
+      ctx.lineTo(_contCx - _capHalfL, _contTopY);
+      ctx.lineTo(_rightEdgeX, _topWedgeY);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // === HP 캡슐 (normal 모드 only) — 컨테이너 내부, 초록 단색 fill ===
