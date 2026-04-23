@@ -2623,12 +2623,11 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#ff7aa8',      // 밑 glow (진한 핑크)
       hitLineGrad:   'rgba(255,170,200,0.12)',
-      // 외곽 레일 프레임 — HP 컨테이너 PNG 와 구조 통일
-      //   HP 컨테이너 = 다크 와인 몸통(#29101b) + 얇은 pink 엣지(#fa5a81)
-      //   ★ glow 제거 (유저 요청: 그라데이션 X, solid stroke 만).
-      frameBorder:    '#29101b',     // 메인 stroke (다크 와인 — HP 몸통 톤)
-      frameInner:     '#fa5a81',     // 안쪽 얇은 하이라이트 (pink — HP 엣지 톤)
-      frameGlow:      null,          // 소프트 glow 제거 — solid 두꺼운 stroke 만.
+      // 외곽 레일 프레임 — 전체 pink solid (유저 요청: 메인을 분홍선 색으로).
+      //   분홍선 = #fa5a81 (HP 컨테이너 PNG 의 pink 엣지와 동일).
+      frameBorder:    '#fa5a81',     // 메인 stroke — pink solid
+      frameInner:     null,          // 내부 하이라이트 제거 (단순화).
+      frameGlow:      null,          // 소프트 glow 제거.
     },
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
@@ -9707,15 +9706,19 @@ function renderUI() {
       ctx.beginPath();
       ctx.rect(0, -safeTop, _railLeftOuter, H + safeTop + safeBottom);
       ctx.clip();
+      // ★ source-crop 으로 PNG 좌측 pink 엣지 제외 (container 테두리 제거 요청).
+      //   좌측 4% 자르고 나머지 96% 를 full width 로 stretch.
+      //   우측 pink 엣지는 위 clip 이 어차피 잘라냄.
+      const _pngW = _contBodyImg.naturalWidth;
+      const _pngH = _contBodyImg.naturalHeight;
+      const _cropL = _pngW * 0.04;
       ctx.drawImage(_contBodyImg,
+        _cropL, 0, _pngW - _cropL, _pngH,
         _contCx - _bodyHalf, _topWedgeY,
         _bodyHalf * 2, _botWedgeY - _topWedgeY);
       ctx.restore();
-      // ★ 컷아웃 + rail 갭 + wedge 전체 메우기 —
-      //   Y: _topWedgeY ~ _botWedgeY (container PNG 전체 Y 범위).
-      //   X: _railLeftOuter ~ _rightEdgeX + railMainW/2 (rail 전체 두께 덮음).
-      //   rail 이 있는 범위도 덮지만 color 동일 (#29101b) 이라 overlap 무해.
-      ctx.fillStyle = '#29101b';
+      // ★ rail 갭 구간 pink 로 메우기 — rail 과 동일 color 로 seamless.
+      ctx.fillStyle = '#fa5a81';
       ctx.fillRect(
         _railLeftOuter,
         _topWedgeY - 1,
