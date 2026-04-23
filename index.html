@@ -9711,16 +9711,16 @@ function renderUI() {
         _contCx - _bodyHalf, _topWedgeY,
         _bodyHalf * 2, _botWedgeY - _topWedgeY);
       ctx.restore();
-      // ★ 컷아웃 + rail 갭 구간 메우기 — container 우측 clip 과 rail 사이 여백 (+ cutout 투과) 채움.
-      //   Y: _contTopY ~ _botWedgeY (실제 rail 갭 범위 = wedge 포함).
-      //   X: _railLeftOuter ~ _rightEdgeX + sz(main/2) (rail 전체 두께 덮음, 실금 방지).
-      //   상하 1px overlap 으로 pixel rounding 실금 방지.
+      // ★ 컷아웃 + rail 갭 + wedge 전체 메우기 —
+      //   Y: _topWedgeY ~ _botWedgeY (container PNG 전체 Y 범위).
+      //   X: _railLeftOuter ~ _rightEdgeX + railMainW/2 (rail 전체 두께 덮음).
+      //   rail 이 있는 범위도 덮지만 color 동일 (#29101b) 이라 overlap 무해.
       ctx.fillStyle = '#29101b';
       ctx.fillRect(
         _railLeftOuter,
-        _contTopY - 1,
+        _topWedgeY - 1,
         (_rightEdgeX + _railMainW / 2) - _railLeftOuter,
-        (_botWedgeY + 1) - (_contTopY - 1)
+        (_botWedgeY + 1) - (_topWedgeY - 1)
       );
     } else {
       // Procedural path (fallback) — wedge fill + strip + 6점 폴리곤 body + 외곽 stroke
