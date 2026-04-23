@@ -2639,6 +2639,7 @@ const SKINS = {
       containerBody: 'skins/neon/container/container_body.png',
       speedMinus: 'skins/neon/speed/speed_minus.png',
       speedPlus:  'skins/neon/speed/speed_plus.png',
+      judgeLine:  'skins/neon/judge_line/judge_line.png',
     },
   },
 };
@@ -8828,6 +8829,18 @@ function renderHitLine() {
   const _glowCol  = _ui ? (_ui.hitLineGlow  || (curSong.color + '44')) : (curSong.color + '44');
   const _shadowCol = _ui ? (_ui.hitLineGlow || curSong.color) : curSong.color;
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
+
+  // PNG 판정선 오버라이드
+  const _uiSkinJL = _getUiPackSkin();
+  const _jlPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLine;
+  const _jlImg = _jlPath ? skinImages[_jlPath] : null;
+  const _jlReady = _jlImg && _jlImg.complete && _jlImg.naturalWidth > 0;
+  if (_jlReady) {
+    const _jlAspect = _jlImg.naturalHeight / _jlImg.naturalWidth;
+    const _jlH = tw * _jlAspect;
+    ctx.drawImage(_jlImg, lsx, hitY - _jlH / 2, tw, _jlH);
+    return;
+  }
 
   // Glow line — 레인 영역에만 그려 프레임 테두리 밖으로 넘치지 않게 (왼쪽 extension 제거)
   if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
