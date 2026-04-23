@@ -7125,6 +7125,26 @@ function startSong(idx) {
           }
         }
       } catch(e) {}
+      // ★ 판정선 PNG 들 — 실제 렌더 사이즈로 한번 더 워밍업 (작은 10x10 만으로 부족).
+      //   GPU 가 실제 스케일에서 텍스처 샘플링을 pre-cache 하도록 유도.
+      try {
+        const _uiPS = _getUiPackSkin && _getUiPackSkin();
+        if (_uiPS && _uiPS.imagePaths) {
+          const _tw = getLaneW() * laneCount;
+          const _warmRects = [
+            [_uiPS.imagePaths.judgeLineBar, _tw, sz(16)],
+            [_uiPS.imagePaths.judgeLineDecoLeft, sz(44), sz(44)],
+            [_uiPS.imagePaths.judgeLineDecoRight, sz(44), sz(44)],
+          ];
+          for (const [p, ww, hh] of _warmRects) {
+            if (!p) continue;
+            const im = skinImages[p];
+            if (im && im.complete && im.naturalWidth > 0) {
+              ctx.drawImage(im, -ww - 200, -hh - 200, ww, hh);
+            }
+          }
+        }
+      } catch(e) {}
       ctx.restore();
     }
   } catch(e) {}

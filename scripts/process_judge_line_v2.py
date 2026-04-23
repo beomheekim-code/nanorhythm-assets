@@ -34,11 +34,16 @@ img = Image.open(BACKUP).convert('RGBA')  # raw 는 항상 backup 에서 읽기
 print(f'src: {img.size}, {os.path.getsize(BACKUP)/1024:.1f}KB')
 
 # Gemini 워터마크 제거 — 우하단 200x200
+# + PNG 상하좌우 엣지 5px (Gemini 출력물의 엣지 artifact 방지)
 arr = np.array(img)
 h, w = arr.shape[:2]
 arr[h-200:h, w-200:w, 3] = 0
+arr[0:5, :, 3] = 0
+arr[h-5:h, :, 3] = 0
+arr[:, 0:5, 3] = 0
+arr[:, w-5:w, 3] = 0
 img = Image.fromarray(arr, 'RGBA')
-print('watermark corner cleared')
+print('watermark + edges cleared')
 
 # 초록 크로마키 제거
 arr = np.array(img)
