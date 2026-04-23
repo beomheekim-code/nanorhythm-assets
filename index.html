@@ -8831,8 +8831,9 @@ function renderHitLine() {
   // UI 팩 테마 — 벚꽃이면 핑크/살구 판정선.
   const _ui = _getUiPack();
   const _mainCol  = _ui ? (_ui.hitLineMain  || 'rgba(255,255,255,0.8)') : 'rgba(255,255,255,0.8)';
-  const _glowCol  = _ui ? (_ui.hitLineGlow  || (curSong.color + '44')) : (curSong.color + '44');
-  const _shadowCol = _ui ? (_ui.hitLineGlow || curSong.color) : curSong.color;
+  // 기본 스킨: 흰색 고정 (곡마다 색 변동 제거 — 유저 요청).
+  const _glowCol  = _ui ? (_ui.hitLineGlow  || 'rgba(255,255,255,0.25)') : 'rgba(255,255,255,0.25)';
+  const _shadowCol = _ui ? (_ui.hitLineGlow || '#ffffff') : '#ffffff';
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
 
   // PNG 판정선 오버라이드 — 바 + 좌/우 데코 3분할
