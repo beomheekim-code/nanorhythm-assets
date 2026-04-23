@@ -9810,6 +9810,20 @@ function renderUI() {
       ctx.fillRect(gx, gy + gh - _fillH, gw, _fillH);
       ctx.restore();
     }
+    // ★ HP 바 위에 hp_bar.png 장식 오버레이 — capsule clip 바깥, 자연 비율 유지.
+    //   PNG 영역은 HP 바 영역보다 넓을 수 있음 (꽃 문양이 capsule 옆으로 뻗어도 OK).
+    const _hpSk = _getUiPackSkin();
+    const _hpDecoPath = _hpSk && _hpSk.imagePaths && _hpSk.imagePaths.hpBar;
+    const _hpDecoImg = _hpDecoPath ? skinImages[_hpDecoPath] : null;
+    if (_hpDecoImg && _hpDecoImg._ok === true) {
+      try {
+        const _hpAsp = _hpDecoImg.naturalWidth / _hpDecoImg.naturalHeight;
+        const _decoH = gh;
+        const _decoW = _decoH * _hpAsp;
+        const _decoX = gx + gw/2 - _decoW/2;
+        ctx.drawImage(_hpDecoImg, _decoX, gy, _decoW, _decoH);
+      } catch(e) {}
+    }
     // ★ 캡슐 외곽선 제거 — 빈 영역이 HP 컨테이너 body 와 완전히 seamless 로 보이도록.
     //   저 HP 위급 빨간 글로우만 유지 (외곽선 없이 shadow 로).
     if (gauge < 0.3) {
