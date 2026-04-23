@@ -2643,6 +2643,8 @@ const SKINS = {
       judgeLineBar:       'skins/neon/judge_line/judge_line_bar.png',
       judgeLineDecoLeft:  'skins/neon/judge_line/judge_line_deco_left.png',
       judgeLineDecoRight: 'skins/neon/judge_line/judge_line_deco_right.png',
+      // 판정선 밑 점수 패널 배경 (MAX COMBO / SCORE 텍스트의 배경판)
+      deckBase: 'skins/neon/backplate/deck_base.png',
     },
   },
 };
@@ -8708,6 +8710,19 @@ function renderBackplatePostNotes() {
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
   const outerB = H + safeBottom;
   if (hitY + sz(2) < outerB) {
+    // sakura_ui PNG 오버라이드
+    const _uiSk = _getUiPackSkin();
+    const _dbPath = _uiSk && _uiSk.imagePaths && _uiSk.imagePaths.deckBase;
+    const _dbImg = _dbPath ? skinImages[_dbPath] : null;
+    const _dbReady = _dbImg && _dbImg._ok === true;
+    if (_dbReady) {
+      try {
+        ctx.drawImage(_dbImg, outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
+      } catch(e) {}
+      // PNG 에 세로 액센트/상단 라인이 이미 있으므로 procedural 생략.
+      return;
+    }
+    // Procedural fallback
     // 1) 베이스 불투명 차콜
     ctx.fillStyle = 'rgba(28,28,34,0.96)';
     ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
@@ -9795,13 +9810,20 @@ function renderUI() {
 
     // 상단 액센트 glow 라인 — 판정선 바로 밑 (UI 팩 장착 시 팔레트 색, 기본은 흰색).
     //   기존 curSong.color 사용 → 곡마다 색 변동 → "판정선 두 개" 오인 유발 (유저 요청으로 고정).
+    //   ★ deck_base PNG 활성 시엔 PNG 에 이미 상단 핑크 라인이 있어 procedural 생략.
     const _uiAc = _getUiPack();
-    const _accentCol = _uiAc && _uiAc.deckAccent ? _uiAc.deckAccent : '#ffffff';
-    const _accentGrad = ctx.createLinearGradient(0, _panelTop, 0, _panelTop + sz(4));
-    _accentGrad.addColorStop(0, _accentCol + 'cc');
-    _accentGrad.addColorStop(1, _accentCol + '00');
-    ctx.fillStyle = _accentGrad;
-    ctx.fillRect(_lsxUI, _panelTop, _twUI, sz(4));
+    const _uiAcSk = _getUiPackSkin();
+    const _dbActive = _uiAcSk && _uiAcSk.imagePaths && _uiAcSk.imagePaths.deckBase &&
+                       skinImages[_uiAcSk.imagePaths.deckBase] &&
+                       skinImages[_uiAcSk.imagePaths.deckBase]._ok === true;
+    if (!_dbActive) {
+      const _accentCol = _uiAc && _uiAc.deckAccent ? _uiAc.deckAccent : '#ffffff';
+      const _accentGrad = ctx.createLinearGradient(0, _panelTop, 0, _panelTop + sz(4));
+      _accentGrad.addColorStop(0, _accentCol + 'cc');
+      _accentGrad.addColorStop(1, _accentCol + '00');
+      ctx.fillStyle = _accentGrad;
+      ctx.fillRect(_lsxUI, _panelTop, _twUI, sz(4));
+    }
 
     // 하단 얇은 액센트 라인
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
