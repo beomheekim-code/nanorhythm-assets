@@ -8837,9 +8837,15 @@ function renderHitLine() {
   const _jlReady = _jlImg && _jlImg._ok === true;
   if (_jlReady) {
     try {
+      // 바(사각형) 부분: PNG 가로 91% (좌 4.7% / 우 4.3% 꽃 마진), 세로 26% (중심 52%).
+      // 바 폭 = tw (레인 폭), 바 높이 = sz(8) 기준으로 전체 렌더 크기 역산.
+      // 꽃 문양은 레인 좌우로 약 5% 씩 침범.
+      const _jlBarFracW = 0.91;
+      const _jlLeftMargin = 0.047;
       const _jlBarH = sz(8);
       const _jlTotalH = _jlBarH / 0.26;
-      ctx.drawImage(_jlImg, 0, hitY - 0.52 * _jlTotalH, W, _jlTotalH);
+      const _jlTotalW = tw / _jlBarFracW;
+      ctx.drawImage(_jlImg, lsx - _jlLeftMargin * _jlTotalW, hitY - 0.52 * _jlTotalH, _jlTotalW, _jlTotalH);
     } catch(e) {}
   }
 
