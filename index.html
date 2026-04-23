@@ -2625,9 +2625,10 @@ const SKINS = {
       hitLineGrad:   'rgba(255,170,200,0.12)',
       // 외곽 레일 프레임 — HP 컨테이너 PNG 와 구조 통일
       //   HP 컨테이너 = 다크 와인 몸통(#29101b) + 얇은 pink 엣지(#fa5a81)
+      //   ★ glow 제거 (유저 요청: 그라데이션 X, solid stroke 만).
       frameBorder:    '#29101b',     // 메인 stroke (다크 와인 — HP 몸통 톤)
       frameInner:     '#fa5a81',     // 안쪽 얇은 하이라이트 (pink — HP 엣지 톤)
-      frameGlow:      'rgba(255,120,170,0.35)', // 프레임 주변 소프트 glow
+      frameGlow:      null,          // 소프트 glow 제거 — solid 두꺼운 stroke 만.
     },
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
@@ -5636,7 +5637,7 @@ addEventListener('mousedown', e => {
     // Speed control — renderUI 와 동일한 중앙 정렬 stack 산식 (HP 위, 배속 아래).
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(9) - _spBtn/2);
+    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(14) - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
     const _colH_ht = _colBot_ht - _colTop_ht;
@@ -8796,9 +8797,9 @@ function renderBackplateBorder() {
   // 헬퍼: 수직 segment 그리기 (메인 stroke + 안쪽 얇은 하이라이트 + 외부 glow)
   //   UI 팩 장착 시: HP 컨테이너 PNG 엣지와 톤/굵기 일치 (얇게).
   const _uiThin = !!_ui;
-  const _mainW  = _uiThin ? sz(5) : sz(7);
-  const _glowW  = _uiThin ? sz(10) : sz(13);
-  const _innerW = _uiThin ? sz(1.5) : sz(2);
+  const _mainW  = _uiThin ? sz(9) : sz(7);
+  const _glowW  = _uiThin ? sz(14) : sz(13);
+  const _innerW = _uiThin ? sz(2) : sz(2);
   const _drawVSeg = (x, y0, y1) => {
     // Outer glow (UI 팩 전용)
     if (_glowColor) {
@@ -9645,7 +9646,7 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(9) - _spBtnSz/2);
+  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(14) - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack (HP 위, 배속 아래 — 원래 레이아웃).
   const _colTop = -safeTop + sz(14);
