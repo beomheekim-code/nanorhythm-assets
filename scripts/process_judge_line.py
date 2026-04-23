@@ -33,5 +33,11 @@ arr[edge, 1] = np.minimum(arr[edge, 0], arr[edge, 2])
 img = Image.fromarray(arr, 'RGBA')
 print('chroma removed')
 
+# 리사이즈 — 1024px 폭으로 (매 프레임 drawImage 부하 절감)
+TARGET_W = 1024
+aspect = img.size[1] / img.size[0]
+img = img.resize((TARGET_W, int(TARGET_W * aspect)), Image.LANCZOS)
+print(f'resized: {img.size}')
+
 img.save(DST, optimize=True, compress_level=9)
 print(f'dst: {img.size}, {os.path.getsize(DST)/1024:.1f}KB')
