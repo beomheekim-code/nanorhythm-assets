@@ -8836,9 +8836,12 @@ function renderHitLine() {
   const _jlImg = _jlPath ? skinImages[_jlPath] : null;
   const _jlReady = _jlImg && _jlImg.complete && _jlImg.naturalWidth > 0;
   if (_jlReady) {
-    const _jlAspect = _jlImg.naturalHeight / _jlImg.naturalWidth;
-    const _jlH = tw * _jlAspect;
-    ctx.drawImage(_jlImg, lsx, hitY - _jlH / 2, tw, _jlH);
+    // 바(사각형) 부분이 PNG 세로의 ~26%, 중심이 위에서 52% 위치.
+    // 바 높이 = sz(8) 기준으로 전체 PNG 높이 산출 → 꽃 문양은 상하로 침범.
+    const _jlBarH = sz(8);
+    const _jlTotalH = _jlBarH / 0.26;
+    const _jlBarCenterFrac = 0.52;
+    ctx.drawImage(_jlImg, lsx, hitY - _jlBarCenterFrac * _jlTotalH, tw, _jlTotalH);
     return;
   }
 
