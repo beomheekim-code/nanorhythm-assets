@@ -2639,7 +2639,10 @@ const SKINS = {
       containerBody: 'skins/neon/container/container_body.png',
       speedMinus: 'skins/neon/speed/speed_minus.png',
       speedPlus:  'skins/neon/speed/speed_plus.png',
-      judgeLine:  'skins/neon/judge_line/judge_line.png',
+      // 판정선 3분할: 바 + 좌 데코 + 우 데코 (데코는 고정 크기, 바만 레인 폭 stretch)
+      judgeLineBar:       'skins/neon/judge_line/judge_line_bar.png',
+      judgeLineDecoLeft:  'skins/neon/judge_line/judge_line_deco_left.png',
+      judgeLineDecoRight: 'skins/neon/judge_line/judge_line_deco_right.png',
     },
   },
 };
@@ -8830,34 +8833,56 @@ function renderHitLine() {
   const _shadowCol = _ui ? (_ui.hitLineGlow || curSong.color) : curSong.color;
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
 
-  // PNG 판정선 오버라이드
+  // PNG 판정선 오버라이드 — 바 + 좌/우 데코 3분할
   const _uiSkinJL = _getUiPackSkin();
-  const _jlPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLine;
-  const _jlImg = _jlPath ? skinImages[_jlPath] : null;
-  const _jlReady = _jlImg && _jlImg._ok === true;
-  if (_jlReady) {
+  const _jlBarPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineBar;
+  const _jlBarImg = _jlBarPath ? skinImages[_jlBarPath] : null;
+  const _jlBarReady = _jlBarImg && _jlBarImg._ok === true;
+  const _jlLPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineDecoLeft;
+  const _jlLImg = _jlLPath ? skinImages[_jlLPath] : null;
+  const _jlLReady = _jlLImg && _jlLImg._ok === true;
+  const _jlRPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineDecoRight;
+  const _jlRImg = _jlRPath ? skinImages[_jlRPath] : null;
+  const _jlRReady = _jlRImg && _jlRImg._ok === true;
+
+  if (_jlBarReady) {
+    // 바: 레인 폭 전체에 가로 stretch, 세로는 sz(16) 고정. 얇은 선이라 stretch 티 안남.
     try {
-      // 바(사각형) 부분: PNG 가로 91% (좌 4.7% / 우 4.3% 꽃 마진), 세로 26% (중심 52%).
-      // 바 폭 = tw (레인 폭), 바 높이 = sz(8) 기준으로 전체 렌더 크기 역산.
-      // 꽃 문양은 레인 좌우로 약 5% 씩 침범.
-      const _jlBarFracW = 0.91;
-      const _jlLeftMargin = 0.047;
-      const _jlBarH = sz(8);
-      const _jlTotalH = _jlBarH / 0.26;
-      const _jlTotalW = tw / _jlBarFracW;
-      ctx.drawImage(_jlImg, lsx - _jlLeftMargin * _jlTotalW, hitY - 0.52 * _jlTotalH, _jlTotalW, _jlTotalH);
+      const _jlBarH = sz(16);
+      ctx.drawImage(_jlBarImg, lsx, hitY - _jlBarH / 2, tw, _jlBarH);
     } catch(e) {}
+  } else {
+    // Procedural fallback — 기본 라인 + glow
+    if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
+    ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = _glowCol.length === 7 ? (_glowCol + '44') : _glowCol;
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
   }
 
-  // Glow line — 레인 영역에만 그려 프레임 테두리 밖으로 넘치지 않게 (왼쪽 extension 제거)
-  if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
-  ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
-  ctx.shadowBlur = 0;
-  // Secondary color glow underneath
-  ctx.strokeStyle = _glowCol.length === 7 ? (_glowCol + '44') : _glowCol;
-  ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
+  // 좌/우 데코 — 자연 비율 유지, 고정 크기. 바의 양 끝에 배치.
+  //   데코 크기 = sz(44). 키 수 무관하게 동일 크기 → 뭉개짐 없음.
+  //   좌: 오른쪽 가장자리가 lsx 에 닿음 (살짝 왼쪽으로 overflow OK).
+  //   우: 왼쪽 가장자리가 lsx+tw 에 닿음.
+  if (_jlLReady || _jlRReady) {
+    const _decoSize = sz(44);
+    if (_jlLReady) {
+      try {
+        const _aR = _jlLImg.naturalHeight / _jlLImg.naturalWidth;
+        const _dw = _decoSize, _dh = _decoSize * _aR;
+        ctx.drawImage(_jlLImg, lsx - _dw * 0.7, hitY - _dh / 2, _dw, _dh);
+      } catch(e) {}
+    }
+    if (_jlRReady) {
+      try {
+        const _aR = _jlRImg.naturalHeight / _jlRImg.naturalWidth;
+        const _dw = _decoSize, _dh = _decoSize * _aR;
+        ctx.drawImage(_jlRImg, lsx + tw - _dw * 0.3, hitY - _dh / 2, _dw, _dh);
+      } catch(e) {}
+    }
+  }
 
   // Subtle gradient above hit line
   const grad = ctx.createLinearGradient(0, hitY-_s60, 0, hitY);
