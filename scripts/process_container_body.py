@@ -17,6 +17,13 @@ DST = os.path.join(ROOT, 'skins/neon/container/container_body.png')
 img = Image.open(SRC).convert('RGBA')
 print(f'src: {img.size}, {os.path.getsize(SRC)/1024:.1f}KB')
 
+# Gemini 워터마크 제거 — 우하단 코너 200x200
+arr = np.array(img)
+h, w = arr.shape[:2]
+arr[h-200:h, w-200:w, 3] = 0
+img = Image.fromarray(arr, 'RGBA')
+print('watermark corner cleared')
+
 # 초록 크로마키 제거
 arr = np.array(img)
 mask = (arr[:, :, 1] > 150) & (arr[:, :, 0] < 120) & (arr[:, :, 2] < 120)
