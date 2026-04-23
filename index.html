@@ -5637,9 +5637,7 @@ addEventListener('mousedown', e => {
     // Speed control — renderUI 와 동일한 중앙 정렬 stack 산식 (HP 위, 배속 아래).
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcxUiShift2 = _getUiPack() ? sz(20) : sz(9);
-    const _gcxClamp2 = _getUiPack() ? sz(1) : sz(2);
-    const _gcx = Math.max(_gcxClamp2 + _spBtn/2, getLaneStartX() - _gcxUiShift2 - _spBtn/2);
+    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(9) - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
     const _colH_ht = _colBot_ht - _colTop_ht;
@@ -9648,10 +9646,8 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // UI 팩 장착 시만 컨테이너 왼쪽으로 shift (기본 스킨 레이아웃 보존).
-  const _gcxUiShift = _getUiPack() ? sz(20) : sz(9);
-  const _gcxClamp = _getUiPack() ? sz(1) : sz(2);
-  const _gcx = Math.max(_gcxClamp + _spBtnSz/2, getLaneStartX() - _gcxUiShift - _spBtnSz/2);
+  // UI 팩 / 기본 스킨 공통 offset. UI 팩은 clip 으로 우측 엣지를 레일 왼쪽에서 끊음.
+  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(9) - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack (HP 위, 배속 아래 — 원래 레이아웃).
   const _colTop = -safeTop + sz(14);
@@ -9701,10 +9697,13 @@ function renderUI() {
       // PNG 모드 — wedge/strip/filler 모두 제거. PNG 가 backplate cutout 전체 덮음.
       //   Y 범위: _topWedgeY ~ _botWedgeY (cutout 끝까지)
       //   X 범위: _contCx - _bodyHalf ~ _contCx + _bodyHalf (대칭 stretch)
-      //   오른쪽 엣지는 외곽 stroke 안쪽 edge(_rightEdgeX + sz(3.5)) 까지 clip → 레인 침범 방지.
+      //   ★ 우측 clip 을 레일 outer left edge (outerX - sz(main/2)) 까지로 축소
+      //     → container 우측 엣지 아예 안 보이게 하고 레일 자체가 경계선 역할.
+      const _railMainW = _getUiPack() ? sz(9) : sz(7);
+      const _railLeftOuter = _rightEdgeX - _railMainW / 2;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, -safeTop, _rightEdgeX + sz(3.5), H + safeTop + safeBottom);
+      ctx.rect(0, -safeTop, _railLeftOuter, H + safeTop + safeBottom);
       ctx.clip();
       ctx.drawImage(_contBodyImg,
         _contCx - _bodyHalf, _topWedgeY,
