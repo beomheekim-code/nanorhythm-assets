@@ -8798,8 +8798,8 @@ function renderBackplateBorder() {
   // 헬퍼: 수직 segment 그리기 (메인 stroke + 안쪽 얇은 하이라이트 + 외부 glow)
   //   UI 팩 장착 시: HP 컨테이너 PNG 엣지와 톤/굵기 일치 (얇게).
   const _uiThin = !!_ui;
-  const _mainW  = _uiThin ? sz(9) : sz(7);
-  const _glowW  = _uiThin ? sz(14) : sz(13);
+  const _mainW  = _uiThin ? sz(12) : sz(7);
+  const _glowW  = _uiThin ? sz(16) : sz(13);
   const _innerW = _uiThin ? sz(2) : sz(2);
   const _drawVSeg = (x, y0, y1) => {
     // Outer glow (UI 팩 전용)
@@ -9701,7 +9701,7 @@ function renderUI() {
       //   X 범위: _contCx - _bodyHalf ~ _contCx + _bodyHalf (대칭 stretch)
       //   ★ 우측 clip 을 레일 outer left edge (outerX - sz(main/2)) 까지로 축소
       //     → container 우측 엣지 아예 안 보이게 하고 레일 자체가 경계선 역할.
-      const _railMainW = _getUiPack() ? sz(9) : sz(7);
+      const _railMainW = _getUiPack() ? sz(12) : sz(7);
       const _railLeftOuter = _rightEdgeX - _railMainW / 2;
       ctx.save();
       ctx.beginPath();
@@ -9711,10 +9711,17 @@ function renderUI() {
         _contCx - _bodyHalf, _topWedgeY,
         _bodyHalf * 2, _botWedgeY - _topWedgeY);
       ctx.restore();
-      // ★ 컷아웃 + rail 갭 구간 메우기 — container 우측 clip 과 cutout 사이에 song BG 가
-      //   비쳐보이던 여백을 container 본체 색(다크 와인) 으로 채움. 레일 갭 Y 범위만 적용.
+      // ★ 컷아웃 + rail 갭 구간 메우기 — container 우측 clip 과 rail 사이 여백 (+ cutout 투과) 채움.
+      //   Y: _contTopY ~ _botWedgeY (실제 rail 갭 범위 = wedge 포함).
+      //   X: _railLeftOuter ~ _rightEdgeX + sz(main/2) (rail 전체 두께 덮음, 실금 방지).
+      //   상하 1px overlap 으로 pixel rounding 실금 방지.
       ctx.fillStyle = '#29101b';
-      ctx.fillRect(_railLeftOuter, _contTopY, (_rightEdgeX + sz(3.5)) - _railLeftOuter, _contBotY - _contTopY);
+      ctx.fillRect(
+        _railLeftOuter,
+        _contTopY - 1,
+        (_rightEdgeX + _railMainW / 2) - _railLeftOuter,
+        (_botWedgeY + 1) - (_contTopY - 1)
+      );
     } else {
       // Procedural path (fallback) — wedge fill + strip + 6점 폴리곤 body + 외곽 stroke
       ctx.fillStyle = _contFill;
