@@ -8344,6 +8344,7 @@ function render() {
     _measure('renderParticles', () => renderParticles());
     _measure('renderBursts', () => renderBursts());
     _measure('renderHoldGlows', () => renderHoldGlows());
+    _measure('renderJudgeLineDecos', () => renderJudgeLineDecos());
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
   } else {
@@ -8358,6 +8359,7 @@ function render() {
     renderParticles();
     renderBursts();
     renderHoldGlows();
+    renderJudgeLineDecos();
     renderJudgment();
     renderUI();
   }
@@ -8862,27 +8864,7 @@ function renderHitLine() {
     ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
   }
 
-  // 좌/우 데코 — 자연 비율 유지, 고정 크기. 바의 양 끝에 배치.
-  //   데코 크기 = sz(44). 키 수 무관하게 동일 크기 → 뭉개짐 없음.
-  //   좌: 오른쪽 가장자리가 lsx 에 닿음 (살짝 왼쪽으로 overflow OK).
-  //   우: 왼쪽 가장자리가 lsx+tw 에 닿음.
-  if (_jlLReady || _jlRReady) {
-    const _decoSize = sz(44);
-    if (_jlLReady) {
-      try {
-        const _aR = _jlLImg.naturalHeight / _jlLImg.naturalWidth;
-        const _dw = _decoSize, _dh = _decoSize * _aR;
-        ctx.drawImage(_jlLImg, lsx - _dw * 0.7, hitY - _dh / 2, _dw, _dh);
-      } catch(e) {}
-    }
-    if (_jlRReady) {
-      try {
-        const _aR = _jlRImg.naturalHeight / _jlRImg.naturalWidth;
-        const _dw = _decoSize, _dh = _decoSize * _aR;
-        ctx.drawImage(_jlRImg, lsx + tw - _dw * 0.3, hitY - _dh / 2, _dw, _dh);
-      } catch(e) {}
-    }
-  }
+  // ※ 판정선 좌/우 데코는 renderJudgeLineDecos() 에서 뎁스 위로 올려서 렌더.
 
   // Subtle gradient above hit line
   const grad = ctx.createLinearGradient(0, hitY-_s60, 0, hitY);
@@ -8924,6 +8906,36 @@ function renderHitLine() {
       }
       ctx.strokeStyle = LANE_COLORS[i] + (held ? 'ee' : '55'); ctx.lineWidth = 2.5; ctx.strokeRect(cx-rw/2, hitY-rh/2, rw, rh);
     }
+  }
+}
+
+// 판정선 좌/우 데코 — renderHitLine 보다 늦은 뎁스로 렌더 (노트/파티클/버튼 위).
+//   뭉개짐 방지용 고정 크기. 키 수 상관없이 동일 사이즈.
+function renderJudgeLineDecos() {
+  const _uiSkin = _getUiPackSkin();
+  if (!_uiSkin || !_uiSkin.imagePaths) return;
+  const _lPath = _uiSkin.imagePaths.judgeLineDecoLeft;
+  const _rPath = _uiSkin.imagePaths.judgeLineDecoRight;
+  const _lImg = _lPath ? skinImages[_lPath] : null;
+  const _rImg = _rPath ? skinImages[_rPath] : null;
+  const _lReady = _lImg && _lImg._ok === true;
+  const _rReady = _rImg && _rImg._ok === true;
+  if (!_lReady && !_rReady) return;
+  const lsx = getLaneStartX(), tw = getLaneW() * laneCount, hitY = getHitY();
+  const _decoSize = sz(44);
+  if (_lReady) {
+    try {
+      const _aR = _lImg.naturalHeight / _lImg.naturalWidth;
+      const _dw = _decoSize, _dh = _decoSize * _aR;
+      ctx.drawImage(_lImg, lsx - _dw * 0.7, hitY - _dh / 2, _dw, _dh);
+    } catch(e) {}
+  }
+  if (_rReady) {
+    try {
+      const _aR = _rImg.naturalHeight / _rImg.naturalWidth;
+      const _dw = _decoSize, _dh = _decoSize * _aR;
+      ctx.drawImage(_rImg, lsx + tw - _dw * 0.3, hitY - _dh / 2, _dw, _dh);
+    } catch(e) {}
   }
 }
 
