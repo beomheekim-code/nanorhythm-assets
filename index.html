@@ -8692,8 +8692,9 @@ function renderBackplatePostNotes() {
     _g.addColorStop(1, 'rgba(0,0,0,0.35)');
     ctx.fillStyle = _g;
     ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
-    // 3) 좌/우 세로 액센트 바 (곡 컬러)
-    const _sc = curSong && curSong.color ? curSong.color : '#ffffff';
+    // 3) 좌/우 세로 액센트 바 (UI 팩 장착 시 팔레트, 기본은 흰색 — 곡 색 변동 제거)
+    const _uiBP = _getUiPack();
+    const _sc = _uiBP && _uiBP.deckAccent ? _uiBP.deckAccent : '#ffffff';
     ctx.fillStyle = _sc + '22';
     ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
     ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
@@ -9766,11 +9767,13 @@ function renderUI() {
     const _labelSize = isMobile ? sz(8) : sz(10);
     const _valueSize = isMobile ? sz(16) : sz(22);
 
-    // 상단 액센트 glow 라인 — 곡 컬러 (백판 시각 포인트)
-    const _songCol2 = curSong && curSong.color ? curSong.color : '#ffffff';
+    // 상단 액센트 glow 라인 — 판정선 바로 밑 (UI 팩 장착 시 팔레트 색, 기본은 흰색).
+    //   기존 curSong.color 사용 → 곡마다 색 변동 → "판정선 두 개" 오인 유발 (유저 요청으로 고정).
+    const _uiAc = _getUiPack();
+    const _accentCol = _uiAc && _uiAc.deckAccent ? _uiAc.deckAccent : '#ffffff';
     const _accentGrad = ctx.createLinearGradient(0, _panelTop, 0, _panelTop + sz(4));
-    _accentGrad.addColorStop(0, _songCol2 + 'cc');
-    _accentGrad.addColorStop(1, _songCol2 + '00');
+    _accentGrad.addColorStop(0, _accentCol + 'cc');
+    _accentGrad.addColorStop(1, _accentCol + '00');
     ctx.fillStyle = _accentGrad;
     ctx.fillRect(_lsxUI, _panelTop, _twUI, sz(4));
 
