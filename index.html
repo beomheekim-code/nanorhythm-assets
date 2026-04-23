@@ -2637,6 +2637,8 @@ const SKINS = {
       hpBar:   'skins/neon/hp_bar/hp_bar.png',
       // ★ HP+배속 감싸는 컨테이너 body (세로 stretch). wine body + 핑크 stroke + glow.
       containerBody: 'skins/neon/container/container_body.png',
+      speedMinus: 'skins/neon/speed/speed_minus.png',
+      speedPlus:  'skins/neon/speed/speed_plus.png',
     },
   },
 };
@@ -9796,15 +9798,22 @@ function renderUI() {
   // ★ 배속 컨테이너 frame 제거 — HP 사다리꼴 컨테이너가 HP+배속 전체를 감쌈. 중복 방지.
   // Minus button
   const spMinusX = spCx - spBtn/2, spMinusY = spBaseY;
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  rrFill(spMinusX, spMinusY, spBtn, spBtn, sz(5));
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
-  rrStroke(spMinusX, spMinusY, spBtn, spBtn, sz(5));
-  ctx.textAlign = 'center'; ctx.font = `bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle = selectedSpeed > SPEED_MIN ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('−', spCx, spMinusY + spBtn/2);
-  ctx.textBaseline = 'alphabetic';
+  const _spMinusPath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.speedMinus;
+  const _spMinusImg = _spMinusPath ? skinImages[_spMinusPath] : null;
+  const _spMinusReady = _spMinusImg && _spMinusImg.complete && _spMinusImg.naturalWidth > 0;
+  if (_spMinusReady) {
+    ctx.drawImage(_spMinusImg, spMinusX, spMinusY, spBtn, spBtn);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(spMinusX, spMinusY, spBtn, spBtn, sz(5));
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+    rrStroke(spMinusX, spMinusY, spBtn, spBtn, sz(5));
+    ctx.textAlign = 'center'; ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.fillStyle = selectedSpeed > SPEED_MIN ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('−', spCx, spMinusY + spBtn/2);
+    ctx.textBaseline = 'alphabetic';
+  }
   // Speed label (same size as buttons, centered)
   const spLabelY = spMinusY + spBtn + spGap;
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -9818,15 +9827,22 @@ function renderUI() {
   ctx.shadowBlur = 0;
   // Plus button
   const spPlusY = spLabelY + spBtn + spGap;
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  rrFill(spMinusX, spPlusY, spBtn, spBtn, sz(5));
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
-  rrStroke(spMinusX, spPlusY, spBtn, spBtn, sz(5));
-  ctx.font = `bold ${sz(14)}px sans-serif`;
-  ctx.fillStyle = selectedSpeed < SPEED_MAX ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('+', spCx, spPlusY + spBtn/2);
-  ctx.textBaseline = 'alphabetic';
+  const _spPlusPath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.speedPlus;
+  const _spPlusImg = _spPlusPath ? skinImages[_spPlusPath] : null;
+  const _spPlusReady = _spPlusImg && _spPlusImg.complete && _spPlusImg.naturalWidth > 0;
+  if (_spPlusReady) {
+    ctx.drawImage(_spPlusImg, spMinusX, spPlusY, spBtn, spBtn);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    rrFill(spMinusX, spPlusY, spBtn, spBtn, sz(5));
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+    rrStroke(spMinusX, spPlusY, spBtn, spBtn, sz(5));
+    ctx.font = `bold ${sz(14)}px sans-serif`;
+    ctx.fillStyle = selectedSpeed < SPEED_MAX ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('+', spCx, spPlusY + spBtn/2);
+    ctx.textBaseline = 'alphabetic';
+  }
   // (키보드 힌트 '[ ]' 제거)
 
   // Pause button — 우상단 (레인 영역 밖)

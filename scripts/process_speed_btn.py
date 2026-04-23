@@ -1,18 +1,18 @@
 """
-container_body PNG 후처리 (초록 크로마키 배경 버전)
-- 초록(#00ff00) 크로마키 제거
-- 외곽 투명 여백 crop
-- RGB 48-color quantize + alpha threshold
-- optimize + max compression
+speed_minus / speed_plus PNG 후처리 (초록 크로마키 배경 버전)
+Usage: python process_speed_btn.py <minus|plus>
 """
 import os
+import sys
 import numpy as np
 from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
-SRC = os.path.join(ROOT, 'versions/container_raw_v1/container.png')
-DST = os.path.join(ROOT, 'skins/neon/container/container_body.png')
+
+variant = sys.argv[1] if len(sys.argv) > 1 else 'minus'
+SRC = os.path.join(ROOT, f'versions/speed_raw_v1/speed_{variant}.png')
+DST = os.path.join(ROOT, f'skins/neon/speed/speed_{variant}.png')
 
 img = Image.open(SRC).convert('RGBA')
 print(f'src: {img.size}, {os.path.getsize(SRC)/1024:.1f}KB')
@@ -21,29 +21,24 @@ print(f'src: {img.size}, {os.path.getsize(SRC)/1024:.1f}KB')
 arr = np.array(img)
 mask = (arr[:, :, 1] > 150) & (arr[:, :, 0] < 120) & (arr[:, :, 2] < 120)
 arr[mask, 3] = 0
-# edge desaturation: 남은 초록 fringe 억제
 edge = ~mask & (arr[:, :, 1] > arr[:, :, 0]) & (arr[:, :, 1] > arr[:, :, 2])
 arr[edge, 1] = np.minimum(arr[edge, 0], arr[edge, 2])
 img = Image.fromarray(arr, 'RGBA')
-print(f'chroma removed')
+print('chroma removed')
 
 bbox = img.getbbox()
 if bbox:
     img = img.crop(bbox)
     print(f'cropped: {img.size}')
 
-# 다운샘플링
-TARGET_W = 400
-aspect = img.size[1] / img.size[0]
-target_h = int(TARGET_W * aspect)
-img = img.resize((TARGET_W, target_h), Image.LANCZOS)
+# 버튼은 정사각 유지, 200px (2x retina 충분)
+TARGET = 200
+img = img.resize((TARGET, TARGET), Image.LANCZOS)
 print(f'resized: {img.size}')
 
 arr = np.array(img)
 a = arr[:, :, 3].astype(np.int32)
-a_new = np.where(a < 60, 0, a)
-mask_mid = (a_new >= 60) & (a_new < 180)
-a_new[mask_mid] = ((a_new[mask_mid] - 60) * 255 // 120).clip(0, 255)
+a_new = np.where(a < 40, 0, a)
 arr[:, :, 3] = a_new.astype(np.uint8)
 img = Image.fromarray(arr, 'RGBA')
 
