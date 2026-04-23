@@ -5637,7 +5637,8 @@ addEventListener('mousedown', e => {
     // Speed control — renderUI 와 동일한 중앙 정렬 stack 산식 (HP 위, 배속 아래).
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - sz(9) - _spBtn/2);
+    const _gcxUiShift2 = _getUiPack() ? sz(5) : sz(9);
+    const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - _gcxUiShift2 - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
     const _colH_ht = _colBot_ht - _colTop_ht;
@@ -9646,8 +9647,9 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // UI 팩 / 기본 스킨 공통 offset. UI 팩은 clip 으로 우측 엣지를 레일 왼쪽에서 끊음.
-  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - sz(9) - _spBtnSz/2);
+  // UI 팩: offset 줄여서 컨테이너 오른쪽으로 붙임 (clip 이 레일 엣지에서 잘라줌).
+  const _gcxUiShift = _getUiPack() ? sz(5) : sz(9);
+  const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - _gcxUiShift - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack (HP 위, 배속 아래 — 원래 레이아웃).
   const _colTop = -safeTop + sz(14);
