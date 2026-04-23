@@ -8797,8 +8797,8 @@ function renderBackplateBorder() {
   // 헬퍼: 수직 segment 그리기 (메인 stroke + 안쪽 얇은 하이라이트 + 외부 glow)
   //   UI 팩 장착 시: HP 컨테이너 PNG 엣지와 톤/굵기 일치 (얇게).
   const _uiThin = !!_ui;
-  const _mainW  = _uiThin ? sz(12) : sz(7);
-  const _glowW  = _uiThin ? sz(16) : sz(13);
+  const _mainW  = _uiThin ? sz(9) : sz(7);
+  const _glowW  = _uiThin ? sz(12) : sz(13);
   const _innerW = _uiThin ? sz(2) : sz(2);
   const _drawVSeg = (x, y0, y1) => {
     // Outer glow (UI 팩 전용)
@@ -9227,11 +9227,13 @@ function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
   const _pad = sz(3), _r = sz(6);
 
-  // ★ sakura_ui 장착 + key.png 로드 완료 시 PNG + LANE_COLORS hue-tint 모드
+  // ★ sakura_ui 장착 + key.png 로드 완료 시 PNG + 단일 색 모드 (레인별 색 구분 X)
   const _uiSkin = _getUiPackSkin();
   const _keyBasePath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.keyBase;
   const _keyBaseImg = _keyBasePath ? skinImages[_keyBasePath] : null;
   const _sakuraMode = !!(_keyBaseImg && _keyBaseImg.complete && _keyBaseImg.naturalWidth > 0);
+  // 키 색상: 8키 모두 동일 (deck_base wine 톤과 조화되는 medium pink).
+  const _sakuraKeyColor = '#ff89a7';
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
@@ -9239,9 +9241,9 @@ function renderButtons() {
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
 
-    // ─── 사카라 모드: key.png + hue-rotate 런타임 tint ───
+    // ─── 사카라 모드: key.png + 단일 색 tint (레인 색 무관) ───
     if (_sakuraMode) {
-      const tinted = _getTintedKeyCanvas(col);
+      const tinted = _getTintedKeyCanvas(_sakuraKeyColor);
       if (tinted) {
         // 레인 크기 대비 1.2x 스케일 — PNG 내부 장식(코너 블라썸/만다라)이 outline 밖에 있어
         //   bbox 가 버튼 outline 보다 크므로, 이를 보정해 실제 버튼을 레인 크기로 맞춤.
@@ -9700,20 +9702,21 @@ function renderUI() {
       //   X 범위: _contCx - _bodyHalf ~ _contCx + _bodyHalf (대칭 stretch)
       //   ★ 우측 clip 을 레일 outer left edge (outerX - sz(main/2)) 까지로 축소
       //     → container 우측 엣지 아예 안 보이게 하고 레일 자체가 경계선 역할.
-      const _railMainW = _getUiPack() ? sz(12) : sz(7);
+      const _railMainW = _getUiPack() ? sz(9) : sz(7);
       const _railLeftOuter = _rightEdgeX - _railMainW / 2;
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, -safeTop, _railLeftOuter, H + safeTop + safeBottom);
       ctx.clip();
-      // ★ source-crop 으로 PNG 좌측 pink 엣지 제외 (container 테두리 제거 요청).
-      //   좌측 4% 자르고 나머지 96% 를 full width 로 stretch.
+      // ★ source-crop — PNG 좌/상/하 pink 엣지 모두 제외 (container 테두리 제거).
       //   우측 pink 엣지는 위 clip 이 어차피 잘라냄.
       const _pngW = _contBodyImg.naturalWidth;
       const _pngH = _contBodyImg.naturalHeight;
       const _cropL = _pngW * 0.04;
+      const _cropT = _pngH * 0.015;
+      const _cropB = _pngH * 0.015;
       ctx.drawImage(_contBodyImg,
-        _cropL, 0, _pngW - _cropL, _pngH,
+        _cropL, _cropT, _pngW - _cropL, _pngH - _cropT - _cropB,
         _contCx - _bodyHalf, _topWedgeY,
         _bodyHalf * 2, _botWedgeY - _topWedgeY);
       ctx.restore();
@@ -9810,18 +9813,19 @@ function renderUI() {
       ctx.fillRect(gx, gy + gh - _fillH, gw, _fillH);
       ctx.restore();
     }
-    // ★ HP 바 위에 hp_bar.png 장식 오버레이 — capsule clip 바깥, 자연 비율 유지.
-    //   PNG 영역은 HP 바 영역보다 넓을 수 있음 (꽃 문양이 capsule 옆으로 뻗어도 OK).
+    // ★ HP 바 상단(위쪽) 에 hp_bar.png 장식 PNG 붙임 — HP 바 본체와 별개 영역.
+    //   Y 범위: _topWedgeY ~ gy (top cap + wedge 영역).
+    //   자연 비율 유지, HP 바 X 중심 정렬.
     const _hpSk = _getUiPackSkin();
     const _hpDecoPath = _hpSk && _hpSk.imagePaths && _hpSk.imagePaths.hpBar;
     const _hpDecoImg = _hpDecoPath ? skinImages[_hpDecoPath] : null;
     if (_hpDecoImg && _hpDecoImg._ok === true) {
       try {
         const _hpAsp = _hpDecoImg.naturalWidth / _hpDecoImg.naturalHeight;
-        const _decoH = gh;
+        const _decoH = gy - _topWedgeY;  // HP 바 위쪽 공간 높이
         const _decoW = _decoH * _hpAsp;
         const _decoX = gx + gw/2 - _decoW/2;
-        ctx.drawImage(_hpDecoImg, _decoX, gy, _decoW, _decoH);
+        ctx.drawImage(_hpDecoImg, _decoX, _topWedgeY, _decoW, _decoH);
       } catch(e) {}
     }
     // ★ 캡슐 외곽선 제거 — 빈 영역이 HP 컨테이너 body 와 완전히 seamless 로 보이도록.
