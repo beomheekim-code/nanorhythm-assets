@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424185117;
+window.__BUILD_TS = 20260424190826;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7016,44 +7016,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
     }
 
-    // ===== Dominant stem gating — 버킷별 최강 스템의 ~30% 미만인 onset drop =====
-    // 드럼 주도 구간 → 드럼 onset 주로, 피아노 주도 → 피아노 주로.
-    // 0.3 은 관대 (bass/drum 같이 30%+ 인 rhythmic 스템 공존 허용). 리듬 뼈대 보존.
-    // 수동 intro 노트(_forceHold/_forceTap)는 예외.
-    if (Object.keys(stemBucketRms).length >= 2) {
-      const DOMINANT_RATIO = 0.3;
-      const MIN_DOMINANT_RMS = 0.03; // 이 이하 버킷은 전체 조용 → gating skip
-      const dominant = new Float32Array(maxBuckets);
-      for (let b = 0; b < maxBuckets; b++) {
-        let mx = 0;
-        for (const si of MUSICAL_STEMS) {
-          const arr = stemBucketRms[si];
-          if (arr && b < arr.length && arr[b] > mx) mx = arr[b];
-        }
-        dominant[b] = mx;
-      }
-      const beforeD = allOnsets.length;
-      allOnsets = allOnsets.filter(o => {
-        if (o._forceHold || o._forceTap) return true;
-        const relT = o.time - bgmDelay;
-        // vocal ranges 안은 gating skip (보컬-only 구간 유지)
-        if (vocalRanges.length > 0) {
-          for (let vi = 0; vi < vocalRanges.length; vi++) {
-            if (relT >= vocalRanges[vi][0] && relT <= vocalRanges[vi][1]) return true;
-          }
-        }
-        const bi = Math.floor(relT / BUCKET_SEC);
-        if (bi < 0 || bi >= dominant.length) return true;
-        if (dominant[bi] < MIN_DOMINANT_RMS) return true;
-        const stemArr = stemBucketRms[o.stem];
-        if (!stemArr) return true; // MUSICAL 아닌 스템 (예: vocals=2, other=6) 통과
-        const myRms = bi < stemArr.length ? stemArr[bi] : 0;
-        return myRms >= dominant[bi] * DOMINANT_RATIO;
-      });
-      if (beforeD !== allOnsets.length) {
-        console.log('[dominant-gate] ' + (beforeD - allOnsets.length) + ' subordinate onsets dropped');
-      }
-    }
   }
 
   // ===== endCutoff (opt-in) — 곡 페이드아웃/끝 이후 phantom onset drop =====
@@ -7190,93 +7152,31 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
-  // ===== 쓰잘데 없는 노트 감소 (주력 박자 집중) =====
-  // 1) 약한 에너지 drop — filtered 의 에너지 중앙값 * 0.6 미만인 slot peak 은 drop.
-  //    조용한 구간의 자잘한 배경 onset 제거.
-  if (filtered.length >= 20) {
-    const _es = filtered.map(x => x.energy || 0).sort((a, b) => a - b);
-    const _med = _es[Math.floor(_es.length / 2)];
-    const _thr = _med * 0.6;
-    const _beforeE = filtered.length;
-    const _strong = filtered.filter(o => o._forceHold || o._forceTap || (o.energy || 0) >= _thr);
-    // 안전장치: 50% 이상은 살려둬야 너무 많이 drop 안 함
-    if (_strong.length >= filtered.length * 0.5) {
-      filtered.splice(0, filtered.length, ..._strong);
-      if (_beforeE !== filtered.length) console.log('[energyFilter] ' + (_beforeE - filtered.length) + ' weak onsets dropped (thr=' + _thr.toFixed(3) + ')');
-    }
-  }
-
-  // 2) 인접 peak dedup — minGap * 0.6 이내 인접 peak 중 약한 쪽 drop.
-  //    "뿌쓖쓖쓖" → "뿌 슈 욱" 효과. slot 경계에 몰린 쌍 제거.
+  // ===== "따단" 패턴 복구 (815d64e 원본 방식, 매우 엄격) =====
+  // 버려진 onset 중 선택된 노트와 90~120ms + 에너지 100%+ (전혀 약하지 않은 것)
+  // 복구 상한: filtered 전체의 1% 이하
   {
-    const _keep = [];
-    for (const o of filtered) {
-      if (_keep.length > 0) {
-        const _prev = _keep[_keep.length - 1];
-        const _dt = o.time - _prev.time;
-        const _isManual = o._forceHold || o._forceTap || _prev._forceHold || _prev._forceTap;
-        if (!_isManual && _dt < minGap * 0.6) {
-          // 현재가 15%+ 강하면 교체, 아니면 현재 drop
-          if ((o.energy || 0) > (_prev.energy || 0) * 1.15) {
-            _keep[_keep.length - 1] = o;
-          }
-          continue;
-        }
-      }
-      _keep.push(o);
-    }
-    if (_keep.length < filtered.length) {
-      console.log('[adjDedup] ' + (filtered.length - _keep.length) + ' close peaks merged');
-      filtered.splice(0, filtered.length, ..._keep);
-    }
-  }
-
-  // ===== Rhythmic burst rescue — "따단/따랄란" 같은 특징적 구간만 노트 밀도 올림 =====
-  // 500ms 윈도우에 onset 이 4개+ 몰린 구간 = 드럼 롤 / 트레몰로 / 16분 연타 burst
-  // 그 구간에서만 filtered 아닌 peak 1개 추가 복구. 평상시엔 영향 없음.
-  // 총량 상한 5% (남발 방지).
-  {
-    const WIN = 0.5;
-    const MIN_BURST = 4;
-    const MAX_RESCUE_RATIO = 0.05;
+    const PAIR_MIN = 0.09;
+    const PAIR_MAX = 0.12;
+    const ENERGY_RATIO = 1.2;
+    const MAX_RESCUE_RATIO = 0.01;
     const maxRescue = Math.floor(filtered.length * MAX_RESCUE_RATIO);
     const filteredSet = new Set(filtered);
-    const rescuedSet = new Set();
     const rescued = [];
-    let i = 0;
-    while (i < nonSilent.length && rescued.length < maxRescue) {
-      // 윈도우 [i, j) 안의 onset 카운트
-      let j = i;
-      while (j < nonSilent.length && nonSilent[j].time < nonSilent[i].time + WIN) j++;
-      const count = j - i;
-      if (count >= MIN_BURST) {
-        // burst 안에서 filtered/rescued 아닌 에너지 최강 onset 1개 rescue
-        let best = null, bestE = -1;
-        for (let k = i; k < j; k++) {
-          const o = nonSilent[k];
-          if (filteredSet.has(o) || rescuedSet.has(o)) continue;
-          if (o.energy > bestE) { best = o; bestE = o.energy; }
-        }
-        if (best) {
-          // 인접 filtered 와 minGap * 0.4 이내면 skip (겹침 방지)
-          let tooClose = false;
-          for (const f of filtered) {
-            if (Math.abs(f.time - best.time) < minGap * 0.4) { tooClose = true; break; }
-          }
-          if (!tooClose) {
-            rescued.push(best);
-            rescuedSet.add(best);
-          }
-        }
-        // 이 burst 건너뛰고 다음 burst 로
-        i = j;
-      } else {
-        i++;
+    for (const f of filtered) {
+      if (rescued.length >= maxRescue) break;
+      for (const o of nonSilent) {
+        if (filteredSet.has(o)) continue;
+        const dt = o.time - f.time;
+        if (dt < PAIR_MIN || dt > PAIR_MAX) continue;
+        if (o.energy < f.energy * ENERGY_RATIO) continue;
+        if (rescued.includes(o)) continue;
+        rescued.push(o);
+        break;
       }
     }
     filtered.push(...rescued);
     filtered.sort((a, b) => a.time - b.time);
-    if (rescued.length > 0) console.log('[burstRescue] ' + rescued.length + ' rhythmic burst onsets restored');
   }
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
@@ -7296,8 +7196,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevLane = -1;
   let prevTime = -1;
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
-  const _recentLanes = [{lane: -1, time: -999}, {lane: -1, time: -999}]; // 최근 2개 사용 레인 + 시각
-  const _RECENT_WINDOW = 0.3; // 0.3s 이내 사용된 레인만 회피 (너무 길면 느린 곡에서 부자연스러움)
 
   let _lastChordTime = 0;
   for (const o of filtered) {
@@ -7308,25 +7206,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     // stem 기반 + 시드 RNG 오프셋 (815d64e 원본 방식. seeded라 결정론.)
     let lane = (base + Math.floor(rng() * lc)) % lc;
 
-    // 최근 0.6s 내 쓰인 레인 피하기 (다양성 — a>s>d>f 스타일, a>s>a>s 반복 억제)
-    const avoid = new Set();
-    for (const r of _recentLanes) {
-      if (r.lane >= 0 && (o.time - r.time) < _RECENT_WINDOW) avoid.add(r.lane);
-    }
-    if (lc > avoid.size) {
-      let tries = 0;
-      while (tries < lc && avoid.has(lane)) {
-        lane = (lane + 1) % lc;
-        tries++;
-      }
-    }
-    // 같은 레인 + 0.3s 미만 = 시각적 overlap → 한 번 더 시프트 보장
+    // 같은 레인 + 0.3s 미만 = 시각적 overlap → 시프트
+    // 0.3s 이상 떨어졌으면 그대로 (연타 허용)
     if (lane === prevLane && lc > 1 && (o.time - prevTime) < SAME_LANE_MIN_GAP) {
       lane = (lane + 1) % lc;
     }
 
-    _recentLanes.unshift({lane, time: o.time});
-    _recentLanes.length = 2;
     prevLane = lane;
     prevTime = o.time;
     const nd = {
@@ -9332,34 +9217,20 @@ function renderBackplate() {
       // 수직 그라데이션 (상단 캐노피 핑크 힌트 → 중간 bark 갈색 → 하단 진한 trunk)
       // 테두리만 딱딱한 선이 아니라 은은한 그라데이션으로 자연스러움
       const g = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-      g.addColorStop(0, 'rgba(92,46,62,0.78)');   // 캐노피 쪽 — 따뜻한 로즈브라운
-      g.addColorStop(0.35, 'rgba(76,40,30,0.82)'); // bark
-      g.addColorStop(0.7, 'rgba(58,32,24,0.88)');  // 중간
-      g.addColorStop(1, 'rgba(34,18,14,0.92)');    // 아래
+      // 벚꽃 테마 풀 pink-rose gradient — 기존 단조 갈색 대신 캐노피 로즈 → bark
+      g.addColorStop(0, 'rgba(220,135,170,0.72)');   // 상단 연한 벚꽃 로즈 (캐노피)
+      g.addColorStop(0.3, 'rgba(175,90,95,0.78)');   // 중상 rose-bark
+      g.addColorStop(0.6, 'rgba(125,62,50,0.85)');   // 중하 bark
+      g.addColorStop(1, 'rgba(60,28,22,0.9)');       // 하단 진한 trunk
       window._barkGradCache = { g, _h: _vh, _t: safeTop };
     }
     ctx.fillStyle = window._barkGradCache.g;
-    // 외곽 (화면 가장자리 ~ outerX/outerR) 채움
-    if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
-    if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
-    // ★ 레일-테두리 갭 (outerX ~ lsx, lsx+totalLW ~ outerR) — bark 말고 벚꽃 accent 로 채움.
-    //    solid body skip 으로 비어있던 gap. 단색 테두리 대신 로즈-핑크 수직 그라데이션 stripe
-    //    으로 트리 캐노피와 톤 연결. 시각적으로 또렷하게 "꽃 띠" 느낌.
-    const _gapL = lsx - outerX;
-    const _gapR = outerR - (lsx + totalLW);
-    if (_gapL > 0 || _gapR > 0) {
-      if (!window._sakuraGapGradCache || window._sakuraGapGradCache._h !== _vh) {
-        const gg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-        gg.addColorStop(0, 'rgba(255,180,200,0.55)');   // 상단 연한 벚꽃 핑크
-        gg.addColorStop(0.35, 'rgba(210,110,140,0.6)'); // 중상 로즈
-        gg.addColorStop(0.7, 'rgba(138,69,53,0.75)');   // 중하 bark 로즈브라운 (frameBorder tone)
-        gg.addColorStop(1, 'rgba(80,35,30,0.85)');      // 하단 진한 trunk
-        window._sakuraGapGradCache = { g: gg, _h: _vh };
-      }
-      ctx.fillStyle = window._sakuraGapGradCache.g;
-      if (_gapL > 0) ctx.fillRect(outerX, -safeTop, _gapL, _vh);
-      if (_gapR > 0) ctx.fillRect(lsx + totalLW, -safeTop, _gapR, _vh);
-    }
+    // ★ bark gradient 를 [0, lsx] / [lsx+totalLW, W] 전체로 확장.
+    //    outerX 기준으로 나누지 않고 레일 시작/끝까지 쭉 칠해서 gap 없음.
+    //    frameBorder stroke 는 레일 바로 옆 (outerX + sz(6)) 에 그려지지만
+    //    그 양쪽 전부 bark gradient 깔려서 단절 없이 자연 연결.
+    if (lsx > 0) ctx.fillRect(0, -safeTop, lsx, _vh);
+    if (lsx + totalLW < W) ctx.fillRect(lsx + totalLW, -safeTop, W - lsx - totalLW, _vh);
 
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
