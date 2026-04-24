@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424049000;
+window.__BUILD_TS = 20260424050000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8923,6 +8923,92 @@ function _backplatePalette() {
     railInner: 'rgba(0,0,0,0.30)',
   };
 }
+// ★ bark 영역 ambient 벚꽃잎 파티클 — 좌/우 스트립에 천천히 떨어짐.
+//   sakura_fx 의 petal_01/petal_02 sprite 재사용, 없으면 procedural 핑크 도트.
+let _barkPetals = [];
+const _BARK_PETAL_COUNT_PC = 18;   // 한 쪽당
+const _BARK_PETAL_COUNT_MOBILE = 8;
+function _updateBarkPetals(vh) {
+  const targetCount = (isMobile ? _BARK_PETAL_COUNT_MOBILE : _BARK_PETAL_COUNT_PC) * 2;
+  // 레이지 초기화 / 크기 변경 시 재배치
+  if (_barkPetals.length !== targetCount || _barkPetals.__vh !== vh) {
+    _barkPetals = [];
+    const perSide = targetCount / 2;
+    const lsx = _fLsx || getLaneStartX();
+    const pad = sz(3);
+    const outerX = Math.max(pad, lsx - sz(6));
+    const totalLW = (_fLw || getLaneW()) * laneCount;
+    const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
+    for (let side = 0; side < 2; side++) {
+      const leftX = side === 0 ? 0 : outerR;
+      const rightX = side === 0 ? outerX : W;
+      const stripW = Math.max(1, rightX - leftX);
+      for (let i = 0; i < perSide; i++) {
+        _barkPetals.push({
+          side, x: leftX + Math.random() * stripW,
+          y: -safeTop + Math.random() * vh,
+          vy: 18 + Math.random() * 22,     // 매우 천천히 낙하
+          vx: (Math.random() - 0.5) * 8,
+          rot: Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 1.2,
+          size: sz(7) + Math.random() * sz(8),
+          spriteKey: Math.random() < 0.5 ? 'petal1' : 'petal2',
+        });
+      }
+    }
+    _barkPetals.__vh = vh;
+  }
+  // 운동 갱신 (프레임 dt 대신 고정 step — ambient 라 정밀 X)
+  const _dt = 0.016;
+  const lsx = _fLsx || getLaneStartX();
+  const pad = sz(3);
+  const outerX = Math.max(pad, lsx - sz(6));
+  const totalLW = (_fLw || getLaneW()) * laneCount;
+  const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
+  for (const p of _barkPetals) {
+    p.x += p.vx * _dt;
+    p.y += p.vy * _dt;
+    p.rot += p.rotV * _dt;
+    // 바닥 도달 시 꼭대기로 리사이클
+    if (p.y > H + safeBottom + sz(20)) {
+      p.y = -safeTop - sz(20);
+      const leftX = p.side === 0 ? 0 : outerR;
+      const rightX = p.side === 0 ? outerX : W;
+      const stripW = Math.max(1, rightX - leftX);
+      p.x = leftX + Math.random() * stripW;
+    }
+    // 좌우 경계 랩 (스트립 안쪽으로)
+    const leftBound = p.side === 0 ? 0 : outerR;
+    const rightBound = p.side === 0 ? outerX : W;
+    if (p.x < leftBound - sz(10)) p.x = rightBound;
+    if (p.x > rightBound + sz(10)) p.x = leftBound;
+  }
+}
+function _drawBarkPetals() {
+  if (_barkPetals.length === 0) return;
+  const fx = _hitFxData();
+  const img1 = fx && fx.imgs.petal1;
+  const img2 = fx && fx.imgs.petal2;
+  for (const p of _barkPetals) {
+    const img = p.spriteKey === 'petal1' ? img1 : img2;
+    if (img) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = 0.75;
+      ctx.drawImage(img, -p.size/2, -p.size/2, p.size, p.size);
+      ctx.restore();
+    } else {
+      // fallback — 작은 핑크 도트
+      ctx.fillStyle = 'rgba(255,180,200,0.6)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function renderBackplate() {
   if (state !== 'playing') return;
   const lsx = _fLsx || getLaneStartX();
@@ -8970,8 +9056,7 @@ function renderBackplate() {
     if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
 
-    // ★ 좌측 벚꽃 나무 — 트렁크 우측 엣지를 outerX 에 정렬, 높이는 화면 full.
-    //   자연 비율 유지, 폭이 bark 영역보다 크면 왼쪽 오버플로우 (영역 벗어나도 OK).
+    // ★ 좌측 벚꽃 나무
     const _tSk = _getUiPackSkin();
     const _tLPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeLeft;
     const _tLImg = _tLPath ? skinImages[_tLPath] : null;
@@ -8982,6 +9067,20 @@ function renderBackplate() {
         ctx.drawImage(_tLImg, outerX - _tW, -safeTop, _tW, _tH);
       } catch(e) {}
     }
+    // ★ 우측 벚꽃 나무 (선택, 이미지 있으면 — trunk left 기준 outerR 에 mirror 식 배치)
+    const _tRPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeRight;
+    const _tRImg = _tRPath ? skinImages[_tRPath] : null;
+    if (_tRImg && _tRImg._ok === true) {
+      try {
+        const _tH = _vh;
+        const _tW = _tH * (_tRImg.naturalWidth / _tRImg.naturalHeight);
+        ctx.drawImage(_tRImg, outerR, -safeTop, _tW, _tH);
+      } catch(e) {}
+    }
+
+    // ★ 벚꽃잎 ambient 파티클 — bark 영역(좌/우) 에 천천히 떨어짐. sakura_fx 의 petal sprite 재사용.
+    _updateBarkPetals(_vh);
+    _drawBarkPetals();
   }
 
   // ★ HP 컨테이너 wedge Y 범위 (renderUI 와 동일 중앙 정렬 산식).
