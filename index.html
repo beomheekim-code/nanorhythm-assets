@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424183811;
+window.__BUILD_TS = 20260424184414;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9294,12 +9294,24 @@ function renderBackplate() {
     // 외곽 (화면 가장자리 ~ outerX/outerR) 채움
     if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
-    // ★ 레일-테두리 갭 (outerX ~ lsx, lsx+totalLW ~ outerR) 도 같은 bark gradient 로 채움.
-    //    solid body 가 skip 되면서 비어있던 영역. 자연스러운 색 transition.
+    // ★ 레일-테두리 갭 (outerX ~ lsx, lsx+totalLW ~ outerR) — bark 말고 벚꽃 accent 로 채움.
+    //    solid body skip 으로 비어있던 gap. 단색 테두리 대신 로즈-핑크 수직 그라데이션 stripe
+    //    으로 트리 캐노피와 톤 연결. 시각적으로 또렷하게 "꽃 띠" 느낌.
     const _gapL = lsx - outerX;
     const _gapR = outerR - (lsx + totalLW);
-    if (_gapL > 0) ctx.fillRect(outerX, -safeTop, _gapL, _vh);
-    if (_gapR > 0) ctx.fillRect(lsx + totalLW, -safeTop, _gapR, _vh);
+    if (_gapL > 0 || _gapR > 0) {
+      if (!window._sakuraGapGradCache || window._sakuraGapGradCache._h !== _vh) {
+        const gg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+        gg.addColorStop(0, 'rgba(255,180,200,0.55)');   // 상단 연한 벚꽃 핑크
+        gg.addColorStop(0.35, 'rgba(210,110,140,0.6)'); // 중상 로즈
+        gg.addColorStop(0.7, 'rgba(138,69,53,0.75)');   // 중하 bark 로즈브라운 (frameBorder tone)
+        gg.addColorStop(1, 'rgba(80,35,30,0.85)');      // 하단 진한 trunk
+        window._sakuraGapGradCache = { g: gg, _h: _vh };
+      }
+      ctx.fillStyle = window._sakuraGapGradCache.g;
+      if (_gapL > 0) ctx.fillRect(outerX, -safeTop, _gapL, _vh);
+      if (_gapR > 0) ctx.fillRect(lsx + totalLW, -safeTop, _gapR, _vh);
+    }
 
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
@@ -9472,16 +9484,26 @@ function renderBackplateBorder() {
   ctx.lineCap = 'square';
   ctx.lineJoin = 'miter';
 
-  // UI 팩 테마 — 외곽 프레임 이중 stroke (와인 메인 + 안쪽 핑크 하이라이트 + 외부 glow).
+  // UI 팩 테마 — 벚꽃 모드에선 수직 그라데이션 stroke (캐노피 핑크 → bark 갈색).
   const _ui = _getUiPack();
   const _mainColor = _ui ? (_ui.frameBorder || pal.border) : pal.border;
   const _innerColor = _ui ? (_ui.frameInner || null) : null;
   const _glowColor = _ui ? (_ui.frameGlow || null) : null;
 
+  let _sakuraStrokeGrad = null;
+  if (_ui) {
+    // 수직 그라데이션 — 레일 양끝 라인에 자연 색 transition
+    _sakuraStrokeGrad = ctx.createLinearGradient(0, outerY, 0, outerB);
+    _sakuraStrokeGrad.addColorStop(0, '#d97a95');   // 상단 로즈 (캐노피)
+    _sakuraStrokeGrad.addColorStop(0.35, '#a8534a'); // 중상 rose-bark
+    _sakuraStrokeGrad.addColorStop(0.7, '#6b3027');  // 중하 진한 bark
+    _sakuraStrokeGrad.addColorStop(1, '#3d1a14');    // 하단 trunk
+  }
+
   // 헬퍼: 수직 segment — 단일 stroke (네온 glow 제거, 두께 축소).
   const _mainW  = _ui ? sz(2.5) : sz(7);
   const _drawVSeg = (x, y0, y1) => {
-    ctx.strokeStyle = _mainColor;
+    ctx.strokeStyle = _sakuraStrokeGrad || _mainColor;
     ctx.lineWidth = _mainW;
     ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
   };
