@@ -2769,6 +2769,8 @@ const SKINS = {
       // key PNG 삭제 (2026-04-24) — procedural 렌더 사용. 추후 유저가 재등록 예정.
       hpBar:   'skins/neon/hp_bar/hp_bar.png',
       // container_body PNG 삭제 (2026-04-24) — procedural 핑크 네온 렌더.
+      // sakura tree — preview (임시 container/ 경로, 추후 tree/ 로 이동 예정).
+      treeLeft: 'skins/neon/container/sakura_tree_left.png',
       speedMinus: 'skins/neon/speed/speed_minus.png',
       speedPlus:  'skins/neon/speed/speed_plus.png',
       // 판정선 — 바는 procedural (유저 요청, 2026-04-24), 좌/우 데코만 PNG.
@@ -8967,6 +8969,19 @@ function renderBackplate() {
     ctx.fillStyle = window._barkGradCache.g;
     if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
+
+    // ★ 좌측 벚꽃 나무 — 트렁크 우측 엣지를 outerX 에 정렬, 높이는 화면 full.
+    //   자연 비율 유지, 폭이 bark 영역보다 크면 왼쪽 오버플로우 (영역 벗어나도 OK).
+    const _tSk = _getUiPackSkin();
+    const _tLPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeLeft;
+    const _tLImg = _tLPath ? skinImages[_tLPath] : null;
+    if (_tLImg && _tLImg._ok === true) {
+      try {
+        const _tH = _vh;
+        const _tW = _tH * (_tLImg.naturalWidth / _tLImg.naturalHeight);
+        ctx.drawImage(_tLImg, outerX - _tW, -safeTop, _tW, _tH);
+      } catch(e) {}
+    }
   }
 
   // ★ HP 컨테이너 wedge Y 범위 (renderUI 와 동일 중앙 정렬 산식).
