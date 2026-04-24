@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424182155;
+window.__BUILD_TS = 20260424183234;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2809,8 +2809,9 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#d97aa0',      // 중간 band — 로즈 핑크 (컨테이너/레일과 톤 통일)
       hitLineGrad:   'rgba(217,122,160,0.12)',
-      // 외곽 레일 프레임 — 벚꽃 나뭇가지 데코 색 (hp_bar.png 샘플 median #6b3027).
-      frameBorder:    '#6b3027',                   // 진한 나뭇가지 브라운
+      // 외곽 레일 프레임 — 벚꽃 나뭇가지 + 캐노피 블렌드. 너무 진한 단색 라인 대신
+      // 약간 따뜻한 rose-bark. 게임 bg 위에서도 시인성 있음.
+      frameBorder:    '#8a4535',                   // 따뜻한 로즈 브라운 (기존 #6b3027 보다 밝고 채도 있음)
       frameInner:     null,
       frameGlow:      null,
     },
@@ -9056,8 +9057,8 @@ function _backplatePalette() {
 }
 // ★ bark 영역 ambient 벚꽃잎 파티클 — 트리 이미지에서 꽃잎 색 샘플링 → 팔레트 일치.
 let _barkPetals = [];
-const _BARK_PETAL_COUNT_PC = 18;
-const _BARK_PETAL_COUNT_MOBILE = 8;
+const _BARK_PETAL_COUNT_PC = 28;
+const _BARK_PETAL_COUNT_MOBILE = 12;
 // 트리 이미지의 pink 팔레트 (샘플링 결과 캐시). 기본값은 fallback.
 let _treePetalPalette = ['rgba(255,180,200,0.85)', 'rgba(255,140,170,0.85)', 'rgba(255,210,225,0.85)'];
 let _treePaletteSampled = null;  // 샘플링 완료된 image 객체 저장 (재샘플 방지)
@@ -9112,9 +9113,9 @@ function _updateBarkPetals(vh) {
   const _tHScale = (window._sakuraTreeHScale != null) ? window._sakuraTreeHScale : 1.25;
   const _tH = vh * _tHScale;
   const _canopyTop = -safeTop - (_tH - vh) * 0.6; // 상단 overflow 포함
-  // 캐노피 Y 범위: 트리 draw top 부터 트리 높이의 45% 까지 (잎파리 영역)
+  // 캐노피 Y 범위: 트리 draw top 부터 트리 높이의 60% 까지 (잎파리 영역 확장)
   const _canopyY0 = _canopyTop + _tH * 0.02;
-  const _canopyY1 = _canopyTop + _tH * 0.45;
+  const _canopyY1 = _canopyTop + _tH * 0.60;
   // 캐노피 X 범위: 각 트리 이미지 bounds
   let _zoneL0 = 0, _zoneL1 = outerX;
   let _zoneR0 = outerR, _zoneR1 = W;
@@ -9148,7 +9149,8 @@ function _updateBarkPetals(vh) {
           rotV: (Math.random() - 0.5) * 1.1,
           size: sz(5) + Math.random() * sz(6),
           colIdx: Math.floor(Math.random() * 3),
-          _maxY: _canopyY1 + _tH * 0.08, // 캐노피 끝 + 약간 여유
+          // maxY 확장 — 더 길게 떨어져 아래로 풍성하게 뿌려짐
+          _maxY: _canopyY1 + _tH * 0.25,
         });
       }
     }
@@ -9261,15 +9263,25 @@ function renderBackplate() {
   if (_getUiPack()) {
     const _vh = H + safeTop + safeBottom;
     if (!window._barkGradCache || window._barkGradCache._h !== _vh || window._barkGradCache._t !== safeTop) {
+      // 수직 그라데이션 (상단 캐노피 핑크 힌트 → 중간 bark 갈색 → 하단 진한 trunk)
+      // 테두리만 딱딱한 선이 아니라 은은한 그라데이션으로 자연스러움
       const g = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-      g.addColorStop(0, 'rgba(42,24,16,0.82)');
-      g.addColorStop(0.5, 'rgba(58,36,24,0.82)');
-      g.addColorStop(1, 'rgba(34,19,10,0.82)');
+      g.addColorStop(0, 'rgba(92,46,62,0.78)');   // 캐노피 쪽 — 따뜻한 로즈브라운
+      g.addColorStop(0.35, 'rgba(76,40,30,0.82)'); // bark
+      g.addColorStop(0.7, 'rgba(58,32,24,0.88)');  // 중간
+      g.addColorStop(1, 'rgba(34,18,14,0.92)');    // 아래
       window._barkGradCache = { g, _h: _vh, _t: safeTop };
     }
     ctx.fillStyle = window._barkGradCache.g;
+    // 외곽 (화면 가장자리 ~ outerX/outerR) 채움
     if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
+    // ★ 레일-테두리 갭 (outerX ~ lsx, lsx+totalLW ~ outerR) 도 같은 bark gradient 로 채움.
+    //    solid body 가 skip 되면서 비어있던 영역. 자연스러운 색 transition.
+    const _gapL = lsx - outerX;
+    const _gapR = outerR - (lsx + totalLW);
+    if (_gapL > 0) ctx.fillRect(outerX, -safeTop, _gapL, _vh);
+    if (_gapR > 0) ctx.fillRect(lsx + totalLW, -safeTop, _gapR, _vh);
 
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
