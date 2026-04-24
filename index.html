@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424015000;
+window.__BUILD_TS = 20260424016000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8482,6 +8482,7 @@ function render() {
     _measure('renderBackplateBorder', () => renderBackplateBorder());
     _measure('renderButtons', () => renderButtons());
     _measure('renderCharacter', () => renderCharacter());
+    _measure('renderSakuraHoldGlowBg', () => renderSakuraHoldGlowBg());
     _measure('renderParticles', () => renderParticles());
     _measure('renderBursts', () => renderBursts());
     _measure('renderHoldGlows', () => renderHoldGlows());
@@ -8497,6 +8498,7 @@ function render() {
     renderBackplateBorder();
     renderButtons();
     renderCharacter();
+    renderSakuraHoldGlowBg();
     renderParticles();
     renderBursts();
     renderHoldGlows();
@@ -9670,6 +9672,35 @@ function renderBursts() {
       ctx.restore();
     }
 
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ★ 벚꽃 홀드 글로우 배경 — 판정선 하단 핑크 radial glow.
+//   파티클(sparkle/drift/core_flash)보다 한 단계 아래 뎁스에 그려지도록 renderParticles 직전 호출.
+//   sakura_fx 장착 시만 활성. (non-sakura 는 renderHoldGlows 가 자체 radial 글로우 그림)
+function renderSakuraHoldGlowBg() {
+  const fx = _hitFxData();
+  if (!fx) return;
+  for (const g of holdGlows) {
+    const t = g.time / g.maxTime;
+    const alpha = (1 - t);
+    const hw = g.w / 2;
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    const _mobG = isMobile ? 0.7 : 1.0;
+    const glowH = _s80 * (0.45 + t * 0.55) * _mobG;
+    ctx.globalAlpha = alpha * 0.65;
+    const grd = ctx.createRadialGradient(0, glowH*0.1, 0, 0, glowH*0.15, hw * (1.3 + t * 0.8) * _mobG);
+    grd.addColorStop(0.0, '#ffe6f0');
+    grd.addColorStop(0.25, '#ff7aa8');
+    grd.addColorStop(0.65, 'rgba(255,90,140,0.5)');
+    grd.addColorStop(1.0, 'rgba(255,90,140,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.ellipse(0, glowH * 0.15, hw * (1.4 + t * 0.9) * _mobG, glowH, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
   ctx.globalAlpha = 1;
