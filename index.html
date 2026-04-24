@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424037100;
+window.__BUILD_TS = 20260424038000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2623,8 +2623,8 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#d97aa0',      // 중간 band — 로즈 핑크 (컨테이너/레일과 톤 통일)
       hitLineGrad:   'rgba(217,122,160,0.12)',
-      // 외곽 레일 프레임 — 벚꽃 나무 bark 톤 (유저 지시, 2026-04-24).
-      frameBorder:    '#8a5a42',                   // 메인 — 따뜻한 벚꽃나무 bark 브라운
+      // 외곽 레일 프레임 — 벚꽃 나뭇가지 데코 색 (hp_bar.png 샘플: median #6b3027 / light #985342).
+      frameBorder:    '#985342',                   // 나뭇가지 밝은 톤 (dark bg 대비 visible)
       frameInner:     null,
       frameGlow:      null,
     },
@@ -8955,12 +8955,12 @@ function renderBackplateBorder() {
     ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
   };
 
-  // 우측 수직: 화면 상단 ~ 하단
-  _drawVSeg(outerX + outerW, outerY, outerB);
-
-  // ★ UI 팩 (벚꽃): 좌측 레일 끊김 없이 통으로 연결 (유저 요청).
+  // ★ UI 팩 (벚꽃): 레일 상단~판정선까지만 (스코어 패널 영역 brown line 제거).
+  //   기본 스킨: 전구간.
+  const _hitYLim = _ui ? getHitY() : outerB;
+  _drawVSeg(outerX + outerW, outerY, _hitYLim);
   if (_ui) {
-    _drawVSeg(outerX, outerY, outerB);
+    _drawVSeg(outerX, outerY, _hitYLim);
   } else if (_hasOverlap) {
     _drawVSeg(outerX, _contBotY, outerB);
     _drawVSeg(outerX, outerY, _contTopY);
@@ -9934,7 +9934,7 @@ function renderUI() {
       ctx.fillStyle = _contFill;
       _buildPath();
       ctx.fill();
-      ctx.strokeStyle = '#d96a90';      // 더스티 로즈
+      ctx.strokeStyle = '#985342';      // 나뭇가지 톤 (rail 과 통일)
       ctx.lineWidth = sz(2);
       _buildPath();
       ctx.stroke();
