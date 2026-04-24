@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424012100;
+window.__BUILD_TS = 20260424013000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -14109,6 +14109,32 @@ function renderDimDebug() {
           ctx.restore();
         } catch(e) {}
         nodes.length = 0;
+      }
+      // ★ handleLanePress 실제 judge 경로 warm — 탭 순간 hit 분기(perfect/great/good),
+      //   hold 분기, spawnBurst, spawnParticles, combo/score update 까지 pre-JIT.
+      //   부작용: combo/score 일시 증가 → startSong 에서 초기화되므로 안전.
+      if (typeof handleLanePress === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
+        const _savedDiff = curDiff;
+        try {
+          // curDiff null 이면 hit 분기 throw → 필수 필드만 임시 세팅 (IIFE 내 let 재할당 OK)
+          if (!curDiff) curDiff = { hpGain: 0.01, hpDrain: 0.01, name: 'warm' };
+          const _tap = gameTime || 0;
+          nodes.push(
+            { type: 'tap',  lane: 0, time: _tap, hit: false, missed: false },
+            { type: 'tap',  lane: 1, time: _tap, hit: false, missed: false },
+            { type: 'hold', lane: 2, time: _tap, endTime: _tap + 0.5, hit: false, missed: false, holding: false }
+          );
+          handleLanePress(0, 'warmup');
+          handleLanePress(1, 'warmup');
+          handleLanePress(2, 'warmup');
+          // 빈 press (no match) 경로도
+          handleLanePress(3, 'warmup');
+        } catch(e) { console.warn('[prewarm tap] failed', e); }
+        // 정리
+        nodes.length = 0;
+        particles.length = 0; bursts.length = 0; holdGlows.length = 0;
+        curDiff = _savedDiff;
+        // combo/score 는 startSong 이 초기화함. 여기선 안 건드림.
       }
       // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부
       if (typeof skinImages === 'object' && skinImages) {
