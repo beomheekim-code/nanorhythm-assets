@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424003100;
+window.__BUILD_TS = 20260424004000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9565,62 +9565,20 @@ function renderHoldGlows() {
     ctx.translate(g.x, g.y);
 
     if (fx && fx.imgs.holdLineGlow) {
-      // ★ 벚꽃 라인 글로우 — 메인 라인 sprite + 아래 radial gradient (additive) + 스파클/꽃잎
-      //   기존: 두 번째 sprite 를 세로 stretch → 납작한 직사각 느낌 + 버튼과 깊이감 어색.
-      //   변경: radial gradient 로 소프트한 방사 글로우 만들고 'lighter' 블렌딩 → 버튼/백판과
-      //         자연스럽게 섞이고 "빛" 느낌이 살아남.
+      // ★ 벚꽃 라인 글로우 — 메인 sprite 1장 + 아래 보조 sprite 1장만 (경량).
+      //   과거: radial gradient + 스파클 5개 + 꽃잎 3개 → 홀드 중 매 프레임 비용 폭증으로 프리즈.
+      //   현재: drawImage 2회로 최소화. 충분히 풍성하면서 GC/경로 연산 없음.
       const _mobG = isMobile ? 0.65 : 0.85;
       // 1) 메인 라인 sprite (판정선 중앙)
       const w = hw * 2 * (1.6 + t * 1.0) * _mobG;
       const h = _s40 * (1 - t * 0.2) * _mobG;
       ctx.globalAlpha = alpha * 0.95;
       ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
-      // 2) 판정선 아래 방사 글로우 — additive 블렌딩으로 빛 느낌, 버튼 위에 떠보이게
-      const _prevComp = ctx.globalCompositeOperation;
-      ctx.globalCompositeOperation = 'lighter';
-      const gH = _s60 * (0.55 + t * 0.45) * _mobG;
-      const gW = hw * (1.5 + t * 0.7) * _mobG;
+      // 2) 아래 소프트 보조 — 같은 sprite 를 아래로 오프셋 + 작게 + 낮은 알파
+      const w2 = hw * 2 * (1.2 + t * 0.6) * _mobG;
+      const h2 = _s30 * (1 - t * 0.3) * _mobG;
       ctx.globalAlpha = alpha * 0.55;
-      const grdP = ctx.createRadialGradient(0, gH * 0.25, 0, 0, gH * 0.25, gW);
-      grdP.addColorStop(0.0, '#ffe4ef');
-      grdP.addColorStop(0.35, '#ff7aa8');
-      grdP.addColorStop(0.75, 'rgba(255,90,140,0.35)');
-      grdP.addColorStop(1.0, 'rgba(255,90,140,0)');
-      ctx.fillStyle = grdP;
-      ctx.beginPath();
-      ctx.ellipse(0, gH * 0.25, gW, gH, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // 3) 스파클 — 아래쪽 additive
-      if (fx.imgs.sparkle) {
-        const spN = 5;
-        for (let i = 0; i < spN; i++) {
-          const frac = (i + 0.5) / spN;
-          const sx = (frac - 0.5) * hw * 1.6 + Math.sin(i * 1.7 + g.time * 8) * _s8;
-          const sy = _s8 + (_s14 + _s20 * t) * (0.6 + 0.4 * Math.sin(i * 2.1 + g.time * 5));
-          const ss = (_s12 + (i * 5) % 6) * (1 - t * 0.6) * _mobG;
-          ctx.globalAlpha = alpha * 0.85;
-          ctx.drawImage(fx.imgs.sparkle, sx - ss/2, sy - ss/2, ss, ss);
-        }
-      }
-      ctx.globalCompositeOperation = _prevComp;
-      // 4) 꽃잎 — 일반 블렌딩 (빛이 아니라 물체)
-      const petalImg = fx.imgs.petal1 || fx.imgs.petal2;
-      if (petalImg) {
-        const pN = 3;
-        for (let i = 0; i < pN; i++) {
-          const frac = (i + 0.5) / pN;
-          const px = (frac - 0.5) * hw * 1.3 + Math.sin(i * 2.3 + g.time * 4) * _s10;
-          const py = _s18 + _s15 * t;
-          const pImg = (i % 2 === 0) ? petalImg : (fx.imgs.petal2 || petalImg);
-          const ps = _s14 * (1 - t * 0.3) * _mobG;
-          ctx.save();
-          ctx.translate(px, py);
-          ctx.rotate(i * 1.1 + g.time * 2);
-          ctx.globalAlpha = alpha * 0.8;
-          ctx.drawImage(pImg, -ps/2, -ps/2, ps, ps);
-          ctx.restore();
-        }
-      }
+      ctx.drawImage(fx.imgs.holdLineGlow, -w2/2, _s8, w2, h2);
       ctx.restore();
       continue;
     }
