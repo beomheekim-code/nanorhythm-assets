@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424028100;
+window.__BUILD_TS = 20260424029000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2623,11 +2623,10 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#ff7aa8',      // 밑 glow (진한 핑크)
       hitLineGrad:   'rgba(255,170,200,0.12)',
-      // 외곽 레일 프레임 — 전체 pink solid (유저 요청: 메인을 분홍선 색으로).
-      //   분홍선 = #fa5a81 (HP 컨테이너 PNG 의 pink 엣지와 동일).
-      frameBorder:    '#fa5a81',     // 메인 stroke — pink solid
-      frameInner:     null,          // 내부 하이라이트 제거 (단순화).
-      frameGlow:      null,          // 소프트 glow 제거.
+      // 외곽 레일 프레임 — 핑크 네온 3단 (유저 요청: 컨테이너와 동일 네온 톤).
+      frameBorder:    '#ff3d8a',                   // 메인 핑크 stroke
+      frameInner:     '#ffb0d0',                   // 안쪽 밝은 코어
+      frameGlow:      'rgba(255,61,138,0.35)',     // 바깥 soft glow
     },
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
@@ -8909,16 +8908,22 @@ function renderBackplateBorder() {
   const _glowW  = _uiThin ? sz(12) : sz(13);
   const _innerW = _uiThin ? sz(2) : sz(2);
   const _drawVSeg = (x, y0, y1) => {
-    // Outer glow (UI 팩 전용)
+    // Outer glow (UI 팩 전용) — PC shadowBlur 로 네온 느낌
     if (_glowColor) {
+      ctx.save();
+      if (!isMobile) { ctx.shadowColor = _mainColor; ctx.shadowBlur = 10; }
       ctx.strokeStyle = _glowColor;
       ctx.lineWidth = _glowW;
       ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      ctx.restore();
     }
-    // Main stroke
+    // Main stroke — PC 는 약한 shadowBlur 로 네온 유지
+    ctx.save();
+    if (_ui && !isMobile) { ctx.shadowColor = _mainColor; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainColor;
     ctx.lineWidth = _mainW;
     ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    ctx.restore();
     // 안쪽 얇은 하이라이트 (UI 팩 전용)
     if (_innerColor) {
       ctx.strokeStyle = _innerColor;
@@ -9881,24 +9886,19 @@ function renderUI() {
     const _contFill = _ui ? (_ui.containerFill || 'rgba(12,12,16,0.85)') : 'rgba(12,12,16,0.85)';
     const _contBorder = _ui ? (_ui.containerBorder || _bpPal.border) : _bpPal.border;
     const _uiSkin = _getUiPackSkin();
-    // ★ 벚꽃 스킨: procedural 핑크 네온 컨테이너. container_body.png 사용 안 함 (유저 삭제 요청).
-    //   fill: wine, stroke: 핑크 네온 2단 (바깥 shadowBlur glow + 안쪽 밝은 라인).
+    // ★ 벚꽃 스킨: 직사각형 컨테이너 + 핑크 네온 테두리 (레퍼런스 63.png 참고).
     if (_uiSkin) {
-      // wine body fill
+      const _rectX = _contCx - _bodyHalf;
+      const _rectY = _contTopY;
+      const _rectW = _rightEdgeX - _rectX;
+      const _rectH = _contBotY - _contTopY;
+      // wine body fill — 직사각형
       ctx.fillStyle = _contFill;
-      ctx.beginPath();
-      ctx.moveTo(_contCx - _capHalfL, _contTopY);
-      ctx.lineTo(_rightEdgeX, _topWedgeY);
-      ctx.lineTo(_rightEdgeX, _botWedgeY);
-      ctx.lineTo(_contCx - _capHalfL, _contBotY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
-      ctx.closePath();
-      ctx.fill();
-      // 핑크 네온 bottom band — wedge 쪽 gap 도 같이 메움
+      ctx.fillRect(_rectX, _rectY, _rectW, _rectH);
+      // 네온 테두리 2단
       const _neonPink = '#ff3d8a';
       const _neonBright = '#ffb0d0';
-      // ★ stroke pass 1 — 바깥 glow (PC 만 shadowBlur, 모바일은 굵은 반투명 stroke)
+      // pass 1 — 바깥 glow
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -9911,34 +9911,18 @@ function renderUI() {
         ctx.strokeStyle = 'rgba(255,61,138,0.5)';
         ctx.lineWidth = sz(6);
       }
-      ctx.beginPath();
-      ctx.moveTo(_rightEdgeX, _topWedgeY);
-      ctx.lineTo(_contCx - _capHalfL, _contTopY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-      ctx.lineTo(_contCx - _capHalfL, _contBotY);
-      ctx.lineTo(_rightEdgeX, _botWedgeY);
-      ctx.stroke();
+      ctx.strokeRect(_rectX, _rectY, _rectW, _rectH);
       ctx.restore();
-      // stroke pass 2 — 안쪽 밝은 얇은 라인 (코어)
+      // pass 2 — 안쪽 밝은 코어 라인
       ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
       ctx.strokeStyle = _neonBright;
       ctx.lineWidth = sz(1.5);
-      ctx.beginPath();
-      ctx.moveTo(_rightEdgeX, _topWedgeY);
-      ctx.lineTo(_contCx - _capHalfL, _contTopY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
-      ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
-      ctx.lineTo(_contCx - _capHalfL, _contBotY);
-      ctx.lineTo(_rightEdgeX, _botWedgeY);
-      ctx.stroke();
+      ctx.strokeRect(_rectX, _rectY, _rectW, _rectH);
       ctx.restore();
-      // 꼭짓점 핑크 다이아 작은 점 (레퍼런스 이미지의 코너 노드)
+      // 좌측 상/하 꼭짓점 작은 핑크 노드
       const _nodes = [
-        [_contCx - _bodyHalf, _bodyTopY],
-        [_contCx - _bodyHalf, _bodyBotY],
+        [_rectX, _rectY],
+        [_rectX, _rectY + _rectH],
       ];
       for (const [nx, ny] of _nodes) {
         ctx.save();
