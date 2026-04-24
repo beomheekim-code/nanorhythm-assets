@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424050100;
+window.__BUILD_TS = 20260424051000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4593,27 +4593,31 @@ function cleanupOldLogs() {
 function recordPlay(songIdx) {
   const key = 'song_' + songIdx;
   const now = Date.now();
-  // ★ 로컬 즉시 반영 — TOP 탭은 total, WEEKLY/DAILY 는 logs 를 보므로 둘 다 선반영.
-  //   Firebase transaction echo 가 startSong → goOffline 대기열에 묶여 지연되는 케이스에서
-  //   TOP 만 업데이트가 밀리던 현상 방지. Firebase 재연결 시 서버 값이 listener 로 들어와도
-  //   동일 결과라 중복 카운트 없음.
+  // ★ 로컬 즉시 반영 (optimistic)
   if (!fbPlayData[key]) fbPlayData[key] = { total: 0, logs: {} };
   fbPlayData[key].total = (fbPlayData[key].total || 0) + 1;
   if (!fbPlayData[key].logs) fbPlayData[key].logs = {};
   fbPlayData[key].logs['local_' + now + '_' + Math.random().toString(36).slice(2, 8)] = now;
-  chartLastUpdate = 0; // 다음 프레임에 차트 즉시 재계산
-  if (fbConnected) {
-    // Firebase에 직접 기록 (글로벌 공유)
-    try {
-      fbDb.ref('plays/' + key + '/logs').push(now);
-      fbDb.ref('plays/' + key + '/total').transaction(cur => (cur || 0) + 1);
-    } catch(e) {
-      saveLocalPlay(songIdx); // 실패 시 로컬에 보류
-    }
-  } else {
-    saveLocalPlay(songIdx); // 오프라인: 로컬에 보류
-  }
+  chartLastUpdate = 0;
   cleanupOldLogs();
+  // ★ 로컬 보류 큐 에도 저장 — Firebase 전송 실패 / 큐 유실 대비.
+  //   성공적으로 Firebase 에 올라가면 listener echo 로 서버값 받아오고, 로컬 큐 는
+  //   다음 flushLocalPlaysToFb 시점에 추가 증가하지 않도록 _fbConfirmed 체크 없으니
+  //   일단 saveLocalPlay 는 실패 경로에서만 호출.
+  if (!fbConnected) {
+    saveLocalPlay(songIdx);
+    return Promise.resolve();
+  }
+  // Firebase 쓰기 — promise 반환해서 caller 가 완료 대기 후 goOffline 하도록.
+  try {
+    const pPush = fbDb.ref('plays/' + key + '/logs').push(now);
+    const pTx = fbDb.ref('plays/' + key + '/total').transaction(cur => (cur || 0) + 1);
+    // push 는 thenable, transaction 은 Firebase RTDB v8 계열에서 promise 반환.
+    return Promise.all([pPush, pTx]).catch(() => { saveLocalPlay(songIdx); });
+  } catch(e) {
+    saveLocalPlay(songIdx);
+    return Promise.resolve();
+  }
 }
 
 // Firebase 글로벌 데이터 반환 (모든 유저 합산, 로컬 fallback)
@@ -7398,10 +7402,15 @@ function startSong(idx) {
   //   메인 스레드에서 snapshot parse → iOS 가 rapid touch 드롭하는 원인.
   //   게임 시작과 동시에 전부 해제. 랭킹 화면 복귀 시 재구독됨.
   unsubscribeAllFbRankings();
-  recordPlay(idx);
-  // ★ Firebase WebSocket 완전 해제 — WiFi 환경 heartbeat/auth 백그라운드 작업
-  //   메인 스레드 점유 방지. transitionTo 에서 goOnline 으로 재연결.
-  try { if (fbDb) fbDb.goOffline(); } catch(e) {}
+  // ★ recordPlay 는 비동기 Firebase 쓰기. goOffline 전에 완료 기회 줘야 카운트 유실 X.
+  //   2.5s 내에 완료 or 그냥 goOffline (게임 시작 지연 최소화).
+  const _recPromise = recordPlay(idx);
+  Promise.race([
+    _recPromise,
+    new Promise(r => setTimeout(r, 2500))
+  ]).finally(() => {
+    try { if (fbDb) fbDb.goOffline(); } catch(e) {}
+  });
   // ★ Wake Lock API — iOS 에게 "게임 중, 풀파워 유지" 선언. 화면 dimming/CPU throttling 방지.
   //   iOS 16.4+ 지원. 지원 안 하는 환경은 try/catch 로 무시됨.
   try {
