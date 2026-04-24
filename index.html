@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424014100;
+window.__BUILD_TS = 20260424015000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -14090,17 +14090,22 @@ function renderDimDebug() {
       for (const b of bursts) b.time += _dt;
       for (const g of holdGlows) g.time += _dt;
       ctx.save(); ctx.globalAlpha = 0;
-      // 2회 호출 — V8 baseline → optimized 전환 유도
-      renderParticles(); renderBursts(); renderHoldGlows();
-      renderParticles(); renderBursts(); renderHoldGlows();
+      // ★ V8 Turbofan 트리거 — baseline JIT 이상의 optimized compile 은 hot 함수 100+ 호출 필요.
+      //   각 render 함수 200회 반복. 한번 돌리고 버리는 cost (~50ms) > 첫 곡 stutter 방지 효과.
+      for (let _i = 0; _i < 200; _i++) { renderParticles(); renderBursts(); renderHoldGlows(); }
       ctx.restore();
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'perfect'); } catch(e) {}
-      try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'great'); } catch(e) {}
-      try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'good'); } catch(e) {}
-      try { if (typeof spawnParticles === 'function') spawnParticles(-500, -500, '#fff', 3); } catch(e) {}
+      // spawnBurst + spawnParticles 도 각각 여러 번 반복 — Turbofan 트리거
+      try {
+        if (typeof spawnBurst === 'function') {
+          for (let _i = 0; _i < 70; _i++) { spawnBurst(-500, -500, 'perfect'); spawnBurst(-500, -500, 'great'); spawnBurst(-500, -500, 'good'); }
+        }
+        if (typeof spawnParticles === 'function') {
+          for (let _i = 0; _i < 120; _i++) spawnParticles(-500, -500, '#fff', 3);
+        }
+      } catch(e) {}
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // renderNotes — dummy nodes
+      // renderNotes — dummy nodes + 200회
       if (typeof renderNotes === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
         try {
           nodes.push(
@@ -14108,36 +14113,37 @@ function renderDimDebug() {
             { type: 'hold', lane: 0, time: 999, endTime: 999.5, hit: false, missed: false, holding: false }
           );
           ctx.save(); ctx.globalAlpha = 0;
-          renderNotes(); renderNotes();
+          for (let _i = 0; _i < 200; _i++) renderNotes();
           ctx.restore();
         } catch(e) {}
         nodes.length = 0;
       }
-      // ★ handleLanePress 실제 judge 경로 warm — 탭 순간 hit 분기(perfect/great/good),
-      //   hold 분기, spawnBurst, spawnParticles, combo/score update 까지 pre-JIT.
-      //   부작용: combo/score 일시 증가 → startSong 에서 초기화되므로 안전.
+      // ★ handleLanePress — Turbofan 트리거용 대량 호출 (각 분기 100+ 회)
       if (typeof handleLanePress === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
         const _savedDiff = curDiff;
         try {
-          // curDiff null 이면 hit 분기 throw → 필수 필드만 임시 세팅 (IIFE 내 let 재할당 OK)
           if (!curDiff) curDiff = { hpGain: 0.01, hpDrain: 0.01, name: 'warm' };
           const _tap = gameTime || 0;
-          nodes.push(
-            { type: 'tap',  lane: 0, time: _tap, hit: false, missed: false },
-            { type: 'tap',  lane: 1, time: _tap, hit: false, missed: false },
-            { type: 'hold', lane: 2, time: _tap, endTime: _tap + 0.5, hit: false, missed: false, holding: false }
-          );
-          handleLanePress(0, 'warmup');
-          handleLanePress(1, 'warmup');
-          handleLanePress(2, 'warmup');
-          // 빈 press (no match) 경로도
-          handleLanePress(3, 'warmup');
+          // 각 lane 별로 매번 새 dummy 노드 push → handleLanePress 가 judge 후 node.hit=true 처리.
+          //   다음 호출 때 새 노드가 필요함. 한번에 많이 push 해두고 반복 호출.
+          for (let _i = 0; _i < 100; _i++) {
+            nodes.push({ type: 'tap', lane: _i % 4, time: _tap + _i * 0.001, hit: false, missed: false });
+          }
+          for (let _i = 0; _i < 100; _i++) handleLanePress(_i % 4, 'warmup');
+          // 홀드 start 분기도 다수 호출
+          nodes.length = 0;
+          for (let _i = 0; _i < 40; _i++) {
+            nodes.push({ type: 'hold', lane: _i % 4, time: _tap + _i * 0.001, endTime: _tap + 0.5 + _i * 0.001,
+                         hit: false, missed: false, holding: false });
+          }
+          for (let _i = 0; _i < 40; _i++) handleLanePress(_i % 4, 'warmup');
+          // 빈 press (no match) 도 반복
+          nodes.length = 0;
+          for (let _i = 0; _i < 50; _i++) handleLanePress(0, 'warmup');
         } catch(e) { console.warn('[prewarm tap] failed', e); }
-        // 정리
         nodes.length = 0;
         particles.length = 0; bursts.length = 0; holdGlows.length = 0;
         curDiff = _savedDiff;
-        // combo/score 는 startSong 이 초기화함. 여기선 안 건드림.
       }
       // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부
       if (typeof skinImages === 'object' && skinImages) {
