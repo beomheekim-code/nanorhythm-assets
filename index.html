@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424001000;
+window.__BUILD_TS = 20260424002000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9465,10 +9465,8 @@ function renderBursts() {
         const delay = r * 0.1;
         const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
         if (rt <= 0 || rt >= 1) continue;
-        // ★ 링 크기 대폭 축소 — 558 → 279 → 180 → 100 (유저 뭉개짐 지속 피드백).
-        //   Gemini 링 PNG 가 본래 두껍게 그려져 크게 렌더할수록 핑크 블롭 처럼 뭉개짐.
-        //   작게 그리면 얇은 링 느낌이 살아남.
-        const size = (14 + r * 8 + rt * 32) * b.size * _mobRF;
+        // ★ 링 크기 확대 — 유저 요청으로 다시 크게 (기존 100 → 약 180).
+        const size = (28 + r * 14 + rt * 58) * b.size * _mobRF;
         const ringImg = r === 0 ? fx.imgs.ringPink : fx.imgs.ringGold;
         if (!ringImg) continue;
         ctx.globalAlpha = (1 - rt) * 0.9 * _mobAF;
@@ -9476,7 +9474,7 @@ function renderBursts() {
       }
       if (t < 0.45 && fx.imgs.coreFlash) {
         const ft = t / 0.45;
-        const flashSize = (40 + ft * 80) * b.size * _mobRF;
+        const flashSize = (60 + ft * 120) * b.size * _mobRF;
         ctx.globalAlpha = (1 - ft) * _mobAF;
         ctx.drawImage(fx.imgs.coreFlash, -flashSize/2, -flashSize/2, flashSize, flashSize);
       }
@@ -9567,12 +9565,49 @@ function renderHoldGlows() {
     ctx.translate(g.x, g.y);
 
     if (fx && fx.imgs.holdLineGlow) {
-      // ★ 벚꽃 라인 글로우 sprite — 판정선 위에 소프트 빛 바
+      // ★ 벚꽃 라인 글로우 sprite — 판정선 소프트 빛 바 + 아래쪽 팬아웃 + 스파클/꽃잎
+      //   유저 피드백: 기본 스킨은 판정선 아래 이펙트가 있는데 벚꽃은 밋밋. → 아래 영역 확장.
       const _mobG = isMobile ? 0.65 : 0.85;
-      const w = hw * 2 * (1.4 + t * 0.9) * _mobG;
-      const h = _s40 * (1 - t * 0.25) * _mobG;
-      ctx.globalAlpha = alpha * 0.9;
+      // 1) 메인 라인 글로우 (판정선 중앙, 조금 더 크게)
+      const w = hw * 2 * (1.6 + t * 1.0) * _mobG;
+      const h = _s40 * (1 - t * 0.2) * _mobG;
+      ctx.globalAlpha = alpha * 0.95;
       ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
+      // 2) 아래로 퍼지는 팬 — 판정선 바로 아래에 stretch 된 글로우 한 겹
+      const fanW = hw * 2 * (1.3 + t * 0.7) * _mobG;
+      const fanH = _s55 * (0.8 + t * 0.5) * _mobG;
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.drawImage(fx.imgs.holdLineGlow, -fanW/2, _s5, fanW, fanH);
+      // 3) 아래 스파클 흩뿌리기 (가로 분산 + 세로 조금씩 흔들림)
+      if (fx.imgs.sparkle) {
+        const spN = 5;
+        for (let i = 0; i < spN; i++) {
+          const frac = (i + 0.5) / spN;
+          const sx = (frac - 0.5) * hw * 1.8 + Math.sin(i * 1.7 + g.time * 8) * _s8;
+          const sy = _s10 + (_s15 + _s20 * t) * (0.6 + 0.4 * Math.sin(i * 2.1 + g.time * 5));
+          const ss = (_s14 + (i * 5) % 6) * (1 - t * 0.6) * _mobG;
+          ctx.globalAlpha = alpha * 0.9;
+          ctx.drawImage(fx.imgs.sparkle, sx - ss/2, sy - ss/2, ss, ss);
+        }
+      }
+      // 4) 꽃잎 몇 장 아래로 흩날리기
+      const petalImg = fx.imgs.petal1 || fx.imgs.petal2;
+      if (petalImg) {
+        const pN = 3;
+        for (let i = 0; i < pN; i++) {
+          const frac = (i + 0.5) / pN;
+          const px = (frac - 0.5) * hw * 1.4 + Math.sin(i * 2.3 + g.time * 4) * _s10;
+          const py = _s20 + _s20 * t;
+          const pImg = (i % 2 === 0) ? petalImg : (fx.imgs.petal2 || petalImg);
+          const ps = _s15 * (1 - t * 0.3) * _mobG;
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(i * 1.1 + g.time * 2);
+          ctx.globalAlpha = alpha * 0.85;
+          ctx.drawImage(pImg, -ps/2, -ps/2, ps, ps);
+          ctx.restore();
+        }
+      }
       ctx.restore();
       continue;
     }
