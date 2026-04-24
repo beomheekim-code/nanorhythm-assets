@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424030000;
+window.__BUILD_TS = 20260424031000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5631,7 +5631,8 @@ addEventListener('mousedown', e => {
     // Speed control — renderUI 와 동일한 중앙 정렬 stack 산식 (HP 위, 배속 아래).
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    const _gcxUiShift2 = _getUiPack() ? sz(5) : sz(9);
+    // 벚꽃: 왼쪽으로 크게 이동 (레일 선과 겹침 해소)
+    const _gcxUiShift2 = _getUiPack() ? sz(22) : sz(9);
     const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - _gcxUiShift2 - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
@@ -8901,35 +8902,12 @@ function renderBackplateBorder() {
   const _innerColor = _ui ? (_ui.frameInner || null) : null;
   const _glowColor = _ui ? (_ui.frameGlow || null) : null;
 
-  // 헬퍼: 수직 segment 그리기 (메인 stroke + 안쪽 얇은 하이라이트 + 외부 glow)
-  //   UI 팩 장착 시: HP 컨테이너 PNG 엣지와 톤/굵기 일치 (얇게).
-  const _uiThin = !!_ui;
-  const _mainW  = _uiThin ? sz(9) : sz(7);
-  const _glowW  = _uiThin ? sz(12) : sz(13);
-  const _innerW = _uiThin ? sz(2) : sz(2);
+  // 헬퍼: 수직 segment — 단일 stroke (네온 glow 제거, 두께 축소).
+  const _mainW  = _ui ? sz(2.5) : sz(7);
   const _drawVSeg = (x, y0, y1) => {
-    // Outer glow (UI 팩 전용) — PC shadowBlur 로 네온 느낌
-    if (_glowColor) {
-      ctx.save();
-      if (!isMobile) { ctx.shadowColor = _mainColor; ctx.shadowBlur = 10; }
-      ctx.strokeStyle = _glowColor;
-      ctx.lineWidth = _glowW;
-      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-      ctx.restore();
-    }
-    // Main stroke — PC 는 약한 shadowBlur 로 네온 유지
-    ctx.save();
-    if (_ui && !isMobile) { ctx.shadowColor = _mainColor; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainColor;
     ctx.lineWidth = _mainW;
     ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-    ctx.restore();
-    // 안쪽 얇은 하이라이트 (UI 팩 전용)
-    if (_innerColor) {
-      ctx.strokeStyle = _innerColor;
-      ctx.lineWidth = _innerW;
-      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-    }
   };
 
   // 우측 수직: 화면 상단 ~ 하단
@@ -9842,8 +9820,8 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // UI 팩: offset 줄여서 컨테이너 오른쪽으로 붙임 (clip 이 레일 엣지에서 잘라줌).
-  const _gcxUiShift = _getUiPack() ? sz(5) : sz(9);
+  // UI 팩: 벚꽃은 왼쪽으로 크게 이동 (레일 선 겹침 해소).
+  const _gcxUiShift = _getUiPack() ? sz(22) : sz(9);
   const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - _gcxUiShift - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack (HP 위, 배속 아래 — 원래 레이아웃).
@@ -9886,53 +9864,18 @@ function renderUI() {
     const _contFill = _ui ? (_ui.containerFill || 'rgba(12,12,16,0.85)') : 'rgba(12,12,16,0.85)';
     const _contBorder = _ui ? (_ui.containerBorder || _bpPal.border) : _bpPal.border;
     const _uiSkin = _getUiPackSkin();
-    // ★ 벚꽃 스킨: 직사각형 컨테이너 + 핑크 네온 테두리 (레퍼런스 63.png 참고).
+    // ★ 벚꽃 스킨: 직사각형 컨테이너 — 단일 stroke (네온 glow 제거).
     if (_uiSkin) {
       const _rectX = _contCx - _bodyHalf;
       const _rectY = _contTopY;
       const _rectW = _rightEdgeX - _rectX;
       const _rectH = _contBotY - _contTopY;
-      // wine body fill — 직사각형
       ctx.fillStyle = _contFill;
       ctx.fillRect(_rectX, _rectY, _rectW, _rectH);
-      // 네온 테두리 2단
-      const _neonPink = '#ff3d8a';
-      const _neonBright = '#ffb0d0';
-      // pass 1 — 바깥 glow
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      if (!isMobile) {
-        ctx.shadowColor = _neonPink;
-        ctx.shadowBlur = 14;
-        ctx.strokeStyle = _neonPink;
-        ctx.lineWidth = sz(4);
-      } else {
-        ctx.strokeStyle = 'rgba(255,61,138,0.5)';
-        ctx.lineWidth = sz(6);
-      }
+      // 단일 핑크 stroke
+      ctx.strokeStyle = '#ff3d8a';
+      ctx.lineWidth = sz(2);
       ctx.strokeRect(_rectX, _rectY, _rectW, _rectH);
-      ctx.restore();
-      // pass 2 — 안쪽 밝은 코어 라인
-      ctx.save();
-      ctx.strokeStyle = _neonBright;
-      ctx.lineWidth = sz(1.5);
-      ctx.strokeRect(_rectX, _rectY, _rectW, _rectH);
-      ctx.restore();
-      // 좌측 상/하 꼭짓점 작은 핑크 노드
-      const _nodes = [
-        [_rectX, _rectY],
-        [_rectX, _rectY + _rectH],
-      ];
-      for (const [nx, ny] of _nodes) {
-        ctx.save();
-        if (!isMobile) { ctx.shadowColor = _neonBright; ctx.shadowBlur = 6; }
-        ctx.fillStyle = _neonBright;
-        ctx.beginPath();
-        ctx.arc(nx, ny, sz(2.5), 0, Math.PI*2);
-        ctx.fill();
-        ctx.restore();
-      }
     } else {
       // Procedural path (fallback) — wedge fill + strip + 6점 폴리곤 body + 외곽 stroke
       ctx.fillStyle = _contFill;
@@ -10055,7 +9998,7 @@ function renderUI() {
         ctx.restore();
       }
     }
-    // ★ hp_bar.png 장식 — 컨테이너 위쪽에 얹음 (bottom = 컨테이너 top). overflow OK.
+    // ★ hp_bar.png 장식 — 컨테이너 좌측 꼭지점에 배치.
     const _hpSk = _getUiPackSkin();
     const _hpDecoPath = _hpSk && _hpSk.imagePaths && _hpSk.imagePaths.hpBar;
     const _hpDecoImg = _hpDecoPath ? skinImages[_hpDecoPath] : null;
@@ -10064,9 +10007,14 @@ function renderUI() {
         const _hpAsp = _hpDecoImg.naturalWidth / _hpDecoImg.naturalHeight;
         const _decoW = gw * 3.2;
         const _decoH = _decoW / _hpAsp;
-        const _decoX = gx + gw/2 - _decoW/2;
-        // 더 밑으로 붙임 — bottom 이 HP 바 상단 살짝 안쪽까지 (gy + sz(6)).
-        const _decoY = gy + sz(6) - _decoH;
+        // 컨테이너 좌측 X / 상단 Y 재계산 (outer block 스코프 밖이라)
+        const _contPadXL = sz(10);
+        const _capHL = sz(10);
+        const _rectXL = _gcx - (Math.max(gw, _spBtnSz)/2 + _contPadXL);
+        const _rectYL = gy - _capHL;
+        // 이미지 bottom-left 을 container 좌측 꼭지점에 정렬
+        const _decoX = _rectXL;
+        const _decoY = _rectYL - _decoH;
         ctx.drawImage(_hpDecoImg, _decoX, _decoY, _decoW, _decoH);
       } catch(e) {}
     }
