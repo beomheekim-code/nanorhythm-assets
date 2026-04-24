@@ -9033,63 +9033,84 @@ function _sampleTreePalette(img) {
   } catch(e) { console.warn('[bark petals] palette sample failed', e); }
 }
 function _updateBarkPetals(vh) {
-  const targetCount = (isMobile ? _BARK_PETAL_COUNT_MOBILE : _BARK_PETAL_COUNT_PC) * 2;
-  if (_barkPetals.length !== targetCount || _barkPetals.__vh !== vh) {
-    _barkPetals = [];
-    const perSide = targetCount / 2;
-    const lsx = _fLsx || getLaneStartX();
-    const pad = sz(3);
-    const outerX = Math.max(pad, lsx - sz(6));
-    const totalLW = (_fLw || getLaneW()) * laneCount;
-    const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
-    for (let side = 0; side < 2; side++) {
-      const leftX = side === 0 ? 0 : outerR;
-      const rightX = side === 0 ? outerX : W;
-      const stripW = Math.max(1, rightX - leftX);
-      for (let i = 0; i < perSide; i++) {
-        // y 범위 — 상단 40% 근처 (캐노피 영역) 에서 시작해서 떨어지며 50% 이하로 사라짐.
-        //   vh 의 0~0.42 만 spawn zone. 그 후 낙하하며 페이드.
-        _barkPetals.push({
-          side, x: leftX + Math.random() * stripW,
-          y: -safeTop + Math.random() * (vh * 0.42),
-          vy: 18 + Math.random() * 22,
-          vx: (Math.random() - 0.5) * 8,
-          rot: Math.random() * Math.PI * 2,
-          rotV: (Math.random() - 0.5) * 1.2,
-          size: sz(6) + Math.random() * sz(7),
-          colIdx: Math.floor(Math.random() * 3),
-          // 사라지는 최대 y (vh * 0.55 아래로 내려가면 top 으로 재생성)
-          _maxY: -safeTop + vh * 0.55,
-        });
-      }
-    }
-    _barkPetals.__vh = vh;
-  }
-  // 운동 갱신 (프레임 dt 대신 고정 step — ambient 라 정밀 X)
-  const _dt = 0.016;
+  // ★ spawn zone = 트리 이미지 bounds × 캐노피 상단 45% 영역 (잎파리가 있는 곳에서만 흩날림)
+  const _tSk = _getUiPackSkin();
+  const _tLPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeLeft;
+  const _tRPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeRight;
+  const _tLImg = _tLPath ? skinImages[_tLPath] : null;
+  const _tRImg = _tRPath ? skinImages[_tRPath] : null;
   const lsx = _fLsx || getLaneStartX();
   const pad = sz(3);
   const outerX = Math.max(pad, lsx - sz(6));
   const totalLW = (_fLw || getLaneW()) * laneCount;
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
+  const _treeShift = sz(18);
+  // 트리 draw 위치와 동일 산식 (renderBackplate 와 싱크)
+  const _tHScale = (window._sakuraTreeHScale != null) ? window._sakuraTreeHScale : 1.25;
+  const _tH = vh * _tHScale;
+  const _canopyTop = -safeTop - (_tH - vh) * 0.6; // 상단 overflow 포함
+  // 캐노피 Y 범위: 트리 draw top 부터 트리 높이의 45% 까지 (잎파리 영역)
+  const _canopyY0 = _canopyTop + _tH * 0.02;
+  const _canopyY1 = _canopyTop + _tH * 0.45;
+  // 캐노피 X 범위: 각 트리 이미지 bounds
+  let _zoneL0 = 0, _zoneL1 = outerX;
+  let _zoneR0 = outerR, _zoneR1 = W;
+  if (_tLImg && _tLImg._ok === true) {
+    const _tW = vh * (_tLImg.naturalWidth / _tLImg.naturalHeight);
+    _zoneL0 = outerX - _tW + _treeShift;
+    _zoneL1 = outerX + _treeShift * 0.6;
+  }
+  if (_tRImg && _tRImg._ok === true) {
+    const _tW = vh * (_tRImg.naturalWidth / _tRImg.naturalHeight);
+    _zoneR0 = outerR - _treeShift * 0.6;
+    _zoneR1 = outerR + _tW - _treeShift;
+  }
+
+  const targetCount = (isMobile ? _BARK_PETAL_COUNT_MOBILE : _BARK_PETAL_COUNT_PC) * 2;
+  if (_barkPetals.length !== targetCount || _barkPetals.__vh !== vh || _barkPetals.__zL0 !== _zoneL0 || _barkPetals.__zR1 !== _zoneR1) {
+    _barkPetals = [];
+    const perSide = targetCount / 2;
+    for (let side = 0; side < 2; side++) {
+      const zx0 = side === 0 ? _zoneL0 : _zoneR0;
+      const zx1 = side === 0 ? _zoneL1 : _zoneR1;
+      const zxW = Math.max(1, zx1 - zx0);
+      for (let i = 0; i < perSide; i++) {
+        _barkPetals.push({
+          side,
+          x: zx0 + Math.random() * zxW,
+          y: _canopyY0 + Math.random() * (_canopyY1 - _canopyY0),
+          vy: 14 + Math.random() * 18,
+          vx: (Math.random() - 0.5) * 6,
+          rot: Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 1.1,
+          size: sz(5) + Math.random() * sz(6),
+          colIdx: Math.floor(Math.random() * 3),
+          _maxY: _canopyY1 + _tH * 0.08, // 캐노피 끝 + 약간 여유
+        });
+      }
+    }
+    _barkPetals.__vh = vh;
+    _barkPetals.__zL0 = _zoneL0;
+    _barkPetals.__zR1 = _zoneR1;
+  }
+
+  const _dt = 0.016;
   for (const p of _barkPetals) {
     p.x += p.vx * _dt;
     p.y += p.vy * _dt;
     p.rot += p.rotV * _dt;
-    // 캐노피 낙하 한계 벗어나면 꼭대기로 리사이클 (벚꽃잎이 캐노피 주변에서만 휘날림)
     const maxY = p._maxY != null ? p._maxY : (H + safeBottom);
     if (p.y > maxY) {
-      p.y = -safeTop - sz(10);
-      const leftX = p.side === 0 ? 0 : outerR;
-      const rightX = p.side === 0 ? outerX : W;
-      const stripW = Math.max(1, rightX - leftX);
-      p.x = leftX + Math.random() * stripW;
+      p.y = _canopyY0 - sz(4);
+      const zx0 = p.side === 0 ? _zoneL0 : _zoneR0;
+      const zx1 = p.side === 0 ? _zoneL1 : _zoneR1;
+      p.x = zx0 + Math.random() * Math.max(1, zx1 - zx0);
     }
-    // 좌우 경계 랩
-    const leftBound = p.side === 0 ? 0 : outerR;
-    const rightBound = p.side === 0 ? outerX : W;
-    if (p.x < leftBound - sz(10)) p.x = rightBound;
-    if (p.x > rightBound + sz(10)) p.x = leftBound;
+    // 캐노피 X 경계 wrap
+    const zx0 = p.side === 0 ? _zoneL0 : _zoneR0;
+    const zx1 = p.side === 0 ? _zoneL1 : _zoneR1;
+    if (p.x < zx0 - sz(8)) p.x = zx1;
+    if (p.x > zx1 + sz(8)) p.x = zx0;
   }
 }
 function _drawBarkPetals() {
@@ -9188,16 +9209,20 @@ function renderBackplate() {
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
 
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
+    //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
+    //   width 는 viewport 기준 유지 (레일 폭 침범 방지).
     const _tSk = _getUiPackSkin();
     const _treeShift = sz(18);   // 레일 안쪽으로 밀어넣는 offset
+    const _tHScale = (window._sakuraTreeHScale != null) ? window._sakuraTreeHScale : 1.25;
+    const _tH = _vh * _tHScale;
+    const _tYoff = -safeTop - (_tH - _vh) * 0.6; // 상단 overflow 비율 (0.6 = 60% 는 위로, 40% 는 아래로)
     const _tLPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeLeft;
     const _tLImg = _tLPath ? skinImages[_tLPath] : null;
     if (_tLImg && _tLImg._ok === true) {
       if (_treePaletteSampled !== _tLImg) _sampleTreePalette(_tLImg);
       try {
-        const _tH = _vh;
-        const _tW = _tH * (_tLImg.naturalWidth / _tLImg.naturalHeight);
-        ctx.drawImage(_tLImg, outerX - _tW + _treeShift, -safeTop, _tW, _tH);
+        const _tW = _vh * (_tLImg.naturalWidth / _tLImg.naturalHeight);
+        ctx.drawImage(_tLImg, outerX - _tW + _treeShift, _tYoff, _tW, _tH);
       } catch(e) {}
     }
     // ★ 우측 — 레일 쪽으로 shift (이미지 좌측 일부가 playfield 로 들어감)
@@ -9205,9 +9230,8 @@ function renderBackplate() {
     const _tRImg = _tRPath ? skinImages[_tRPath] : null;
     if (_tRImg && _tRImg._ok === true) {
       try {
-        const _tH = _vh;
-        const _tW = _tH * (_tRImg.naturalWidth / _tRImg.naturalHeight);
-        ctx.drawImage(_tRImg, outerR - _treeShift, -safeTop, _tW, _tH);
+        const _tW = _vh * (_tRImg.naturalWidth / _tRImg.naturalHeight);
+        ctx.drawImage(_tRImg, outerR - _treeShift, _tYoff, _tW, _tH);
       } catch(e) {}
     }
 
@@ -9237,22 +9261,25 @@ function renderBackplate() {
   const _cutX1 = outerX + sz(3.5); // stroke 안쪽 edge = 레일 테두리 inner 라인
 
   // 1) 솔리드 차콜 몸체 — 상단/하단 모두 직각 (테두리 없음), 사이드만 화면 끝~끝
-  ctx.fillStyle = 'rgba(28,28,34,0.96)';
-  ctx.beginPath();
-  ctx.moveTo(outerX, outerY);
-  ctx.lineTo(outerX + outerW, outerY);
-  ctx.lineTo(outerX + outerW, outerB);
-  ctx.lineTo(outerX, outerB);
-  ctx.closePath();
-  // strip cutout — 벚꽃 UI 는 컨테이너가 외곽으로 뚫고 들어오지 않으니 skip.
-  if (!_getUiPack() && _stripBotY > _stripTopY && _cutX1 > _cutX0) {
-    ctx.moveTo(_cutX0, _stripTopY);
-    ctx.lineTo(_cutX0, _stripBotY);
-    ctx.lineTo(_cutX1, _stripBotY);
-    ctx.lineTo(_cutX1, _stripTopY);
+  //    ★ 벚꽃 UI 는 solid body 완전 skip → 뒤의 gameParticles/별 등이 비쳐보임.
+  //       bark bg 스트립 + 트리 이미지가 이미 외곽을 채우므로 추가 커버 불필요.
+  if (!_getUiPack()) {
+    ctx.fillStyle = 'rgba(28,28,34,0.96)';
+    ctx.beginPath();
+    ctx.moveTo(outerX, outerY);
+    ctx.lineTo(outerX + outerW, outerY);
+    ctx.lineTo(outerX + outerW, outerB);
+    ctx.lineTo(outerX, outerB);
     ctx.closePath();
+    if (_stripBotY > _stripTopY && _cutX1 > _cutX0) {
+      ctx.moveTo(_cutX0, _stripTopY);
+      ctx.lineTo(_cutX0, _stripBotY);
+      ctx.lineTo(_cutX1, _stripBotY);
+      ctx.lineTo(_cutX1, _stripTopY);
+      ctx.closePath();
+    }
+    ctx.fill('evenodd');
   }
-  ctx.fill('evenodd');
 
   // 2) 레인 채널만 게임 BG 그라데이션으로 되살리기. ★ 채널 하단을 hitY 까지로 제한 →
   //    판정선 아래는 다시 outer frame 차콜(별도 백판) 이 보이게 됨.
