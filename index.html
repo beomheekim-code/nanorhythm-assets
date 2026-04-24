@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424031100;
+window.__BUILD_TS = 20260424032000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5631,8 +5631,10 @@ addEventListener('mousedown', e => {
     // Speed control — renderUI 와 동일한 중앙 정렬 stack 산식 (HP 위, 배속 아래).
     const _spBtn = sz(26), _spGap = sz(3), _spPad = sz(3);
     const _spBlockH = _spBtn*3 + _spGap*2 + _spPad*2;
-    // 벚꽃: 왼쪽으로 크게 이동 (레일 선과 겹침 해소)
-    const _gcxUiShift2 = _getUiPack() ? sz(22) : sz(9);
+    // 벚꽃: 컨테이너 중앙 정렬 — _gcx = _rightEdgeX - _bodyHalf 되도록 역산.
+    //   _bodyHalf = sz(13)(spBtn/2) + sz(10)(contPad) = sz(23). _rightEdgeX = lsx - sz(6).
+    //   _gcx = lsx - sz(6) - sz(23) = lsx - sz(29). shift 역산: sz(29) - sz(13) = sz(16).
+    const _gcxUiShift2 = _getUiPack() ? sz(16) : sz(9);
     const _gcx = Math.max(sz(2) + _spBtn/2, getLaneStartX() - _gcxUiShift2 - _spBtn/2);
     const _colTop_ht = -safeTop + sz(14);
     const _colBot_ht = getHitY() - sz(8);
@@ -8977,21 +8979,24 @@ function renderHitLine() {
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
 
   // 판정선 바 — procedural 핑크 네온 (sakura_ui) / 기본 흰 라인 (그 외).
-  //   PNG 은 불필요 (유저 요청, 2026-04-24) — drawImage + texture upload 제거로 더 빠름.
   const _uiSkinJL = _getUiPackSkin();
   if (_uiSkinJL) {
-    // ★ 두꺼운 핑크 네온 바 — 3단 band 로 glow 효과 (shadowBlur 는 PC 만).
-    if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 10; }
-    // 바깥 halo (넓고 투명)
+    // ★ 레일 thin 으로 생긴 좌우 empty gap (lsx~outerX, lsx+tw~outerR) 도 판정선 band 로 메움.
+    const _pad = sz(3);
+    const _outL = Math.max(_pad, lsx - sz(6));
+    const _outR = Math.min(W - _pad, lsx + tw + sz(6));
+    const _bandX = _outL;
+    const _bandW = _outR - _outL;
+    // 네온 제거 (유저 요청) — shadowBlur 안 씀.
+    // 바깥 halo
     ctx.fillStyle = 'rgba(255,122,168,0.25)';
-    ctx.fillRect(lsx, hitY - _s7, tw, _s14);
+    ctx.fillRect(_bandX, hitY - _s7, _bandW, _s14);
     // 중간 핑크 band
     ctx.fillStyle = _glowCol;
-    ctx.fillRect(lsx, hitY - _s3, tw, _s5);
-    // 코어 밝은 라인 (얇고 살구/흰)
+    ctx.fillRect(_bandX, hitY - _s3, _bandW, _s5);
+    // 코어 밝은 라인
     ctx.fillStyle = _mainCol;
-    ctx.fillRect(lsx, hitY - 1, tw, 2);
-    ctx.shadowBlur = 0;
+    ctx.fillRect(_bandX, hitY - 1, _bandW, 2);
   } else {
     // 기본 — 흰 라인 + soft glow
     if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
@@ -9820,8 +9825,8 @@ function renderUI() {
   const _spBtnSz = sz(26), _spGapSz = sz(3), _spPadSz = sz(3);
   const _spTotalH = _spBtnSz*3 + _spGapSz*2;
   const _spBlockH = _spTotalH + _spPadSz*2;
-  // UI 팩: 벚꽃은 왼쪽으로 크게 이동 (레일 선 겹침 해소).
-  const _gcxUiShift = _getUiPack() ? sz(22) : sz(9);
+  // UI 팩: 벚꽃은 컨테이너 중앙 정렬 (sz(16)).
+  const _gcxUiShift = _getUiPack() ? sz(16) : sz(9);
   const _gcx = Math.max(sz(2) + _spBtnSz/2, getLaneStartX() - _gcxUiShift - _spBtnSz/2);
   const gx = _gcx - gw/2;
   // 세로 중앙 정렬 stack (HP 위, 배속 아래 — 원래 레이아웃).
@@ -10012,9 +10017,9 @@ function renderUI() {
         const _capHL = sz(10);
         const _rectXL = _gcx - (Math.max(gw, _spBtnSz)/2 + _contPadXL);
         const _rectYL = gy - _capHL;
-        // 이미지 bottom-left 을 container 좌측 꼭지점에 정렬
+        // 이미지 top-left 을 container 좌측 상단 꼭지점에 정렬 (image 가 corner 에 얹힘)
         const _decoX = _rectXL;
-        const _decoY = _rectYL - _decoH;
+        const _decoY = _rectYL;
         ctx.drawImage(_hpDecoImg, _decoX, _decoY, _decoW, _decoH);
       } catch(e) {}
     }
