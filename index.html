@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424058000;
+window.__BUILD_TS = 20260424059000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2030,7 +2030,8 @@ const songs = [
     stemPrefix: 'PUNCH',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
-    excludeStems: [4], chordMode: true,
+    // other stem: 106s 에서 소리 끝나는데 onset 은 122s 까지 잡힘 (phantom) → 제외
+    excludeStems: [4, 6], chordMode: true,
   },
   {
     name: 'Soda Pop Crush', sub: 'BUBBLY POP', bpm: 112,
@@ -8989,16 +8990,19 @@ function _updateBarkPetals(vh) {
       const rightX = side === 0 ? outerX : W;
       const stripW = Math.max(1, rightX - leftX);
       for (let i = 0; i < perSide; i++) {
-        // 색 — 팔레트 인덱스 기반 (렌더 시 팔레트 배열에서 lookup, 샘플링 업데이트되면 자동 반영)
+        // y 범위 — 상단 40% 근처 (캐노피 영역) 에서 시작해서 떨어지며 50% 이하로 사라짐.
+        //   vh 의 0~0.42 만 spawn zone. 그 후 낙하하며 페이드.
         _barkPetals.push({
           side, x: leftX + Math.random() * stripW,
-          y: -safeTop + Math.random() * vh,
+          y: -safeTop + Math.random() * (vh * 0.42),
           vy: 18 + Math.random() * 22,
           vx: (Math.random() - 0.5) * 8,
           rot: Math.random() * Math.PI * 2,
           rotV: (Math.random() - 0.5) * 1.2,
           size: sz(6) + Math.random() * sz(7),
-          colIdx: Math.floor(Math.random() * 3),  // 0/1/2 — 팔레트 3톤
+          colIdx: Math.floor(Math.random() * 3),
+          // 사라지는 최대 y (vh * 0.55 아래로 내려가면 top 으로 재생성)
+          _maxY: -safeTop + vh * 0.55,
         });
       }
     }
@@ -9015,15 +9019,16 @@ function _updateBarkPetals(vh) {
     p.x += p.vx * _dt;
     p.y += p.vy * _dt;
     p.rot += p.rotV * _dt;
-    // 바닥 도달 시 꼭대기로 리사이클
-    if (p.y > H + safeBottom + sz(20)) {
-      p.y = -safeTop - sz(20);
+    // 캐노피 낙하 한계 벗어나면 꼭대기로 리사이클 (벚꽃잎이 캐노피 주변에서만 휘날림)
+    const maxY = p._maxY != null ? p._maxY : (H + safeBottom);
+    if (p.y > maxY) {
+      p.y = -safeTop - sz(10);
       const leftX = p.side === 0 ? 0 : outerR;
       const rightX = p.side === 0 ? outerX : W;
       const stripW = Math.max(1, rightX - leftX);
       p.x = leftX + Math.random() * stripW;
     }
-    // 좌우 경계 랩 (스트립 안쪽으로)
+    // 좌우 경계 랩
     const leftBound = p.side === 0 ? 0 : outerR;
     const rightBound = p.side === 0 ? outerX : W;
     if (p.x < leftBound - sz(10)) p.x = rightBound;
@@ -9037,13 +9042,23 @@ function _drawBarkPetals() {
   const img2 = fx && fx.imgs.petal2;
   const pal = _treePetalPalette;
   for (const p of _barkPetals) {
-    // sakura_fx sprite 우선 (기존 petal1/petal2 그대로 휘날림)
+    // 페이드 — maxY 근처 20% 에서 alpha 점진 감소 → 부드럽게 사라짐
+    let alpha = 0.78;
+    if (p._maxY != null) {
+      const range = p._maxY + safeTop;  // spawn 0 ~ maxY 전체 높이
+      const fadeStart = p._maxY - range * 0.25;  // 아래 25% 에서 페이드 시작
+      if (p.y > fadeStart) {
+        const t = (p.y - fadeStart) / (p._maxY - fadeStart);
+        alpha = 0.78 * Math.max(0, 1 - t);
+      }
+    }
+    // sakura_fx sprite 우선
     const img = (p.colIdx % 2 === 0) ? img1 : img2;
     if (img) {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
-      ctx.globalAlpha = 0.78;
+      ctx.globalAlpha = alpha;
       ctx.drawImage(img, -p.size/2, -p.size/2, p.size, p.size);
       ctx.restore();
     } else {
@@ -9101,14 +9116,14 @@ function renderBackplate() {
 
   if (outerW <= sz(40) || outerH <= sz(60)) { ctx.restore(); return; }
 
-  // ★ 벚꽃 UI: 레일 외곽 bark 배경. 그라데이션 캐싱 (매 프레임 생성 방지).
+  // ★ 벚꽃 UI: 레일 외곽 bark 배경. 반투명으로 깔아서 gameParticles(ambient) 가 뒤에서 비치도록.
   if (_getUiPack()) {
     const _vh = H + safeTop + safeBottom;
     if (!window._barkGradCache || window._barkGradCache._h !== _vh || window._barkGradCache._t !== safeTop) {
       const g = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-      g.addColorStop(0, '#2a1810');
-      g.addColorStop(0.5, '#3a2418');
-      g.addColorStop(1, '#22130a');
+      g.addColorStop(0, 'rgba(42,24,16,0.82)');
+      g.addColorStop(0.5, 'rgba(58,36,24,0.82)');
+      g.addColorStop(1, 'rgba(34,19,10,0.82)');
       window._barkGradCache = { g, _h: _vh, _t: safeTop };
     }
     ctx.fillStyle = window._barkGradCache.g;
