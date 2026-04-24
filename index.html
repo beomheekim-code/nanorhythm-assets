@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424009100;
+window.__BUILD_TS = 20260424010000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7915,9 +7915,8 @@ function update(dt) {
       holdGlows.push({ x: getLaneX(n.lane), y: getHitY(), time: 0, maxTime: 0.35,
         color: LANE_COLORS[n.lane], w: getLaneW() - 8 });
     }
-    // ★ 방울 분수 — sakura_fx 장착 시. 0.12s 느린 틱.
-    //   vy 음수로 위로 튀어오른 뒤 중력(p.vy += 250*dt) 으로 포물선 낙하하며 페이드아웃.
-    //   arc 가 끝까지 보이도록 life/maxLife 를 vy+중력 기반 최대 비행시간 이상으로 설정.
+    // ★ 방울 분수 (sparkle 스프라이트) — sakura_fx 장착 시. 0.12s 틱.
+    //   위로 튀어오름 → 중력 낙하 → 페이드아웃. 레인 경계 넘어가도 OK (vx 넓게).
     if (currentHitFxSkin && SKINS[currentHitFxSkin]) {
       if (!n._dropTimer) n._dropTimer = 0;
       n._dropTimer += dt;
@@ -7925,19 +7924,34 @@ function update(dt) {
         n._dropTimer = 0;
         const dhx = getLaneX(n.lane), dhy = getHitY();
         const dhw = (getLaneW() - 8) / 2;
-        const dsize = 2.5 + Math.random() * 6.5;  // 크기 랜덤 (방울방울)
         const ox = (Math.random() - 0.5) * dhw * 0.9;
-        // vy=-120 기준: peak 0.48s, 원점 0.96s, life 1.5s 면 판정선 아래 101px 까지 낙하하며 페이드.
-        // vx 넓게 ±75 — 포물선이 레인 경계 넘어가도 자연스럽게.
-        const vyInit = -90 - Math.random()*70;   // -90 ~ -160 위로 튀어오름
         particles.push({
           x: dhx + ox, y: dhy,
-          vx: (Math.random()-0.5)*150,           // ±75, 양옆으로 퍼짐
-          vy: vyInit,
+          vx: (Math.random()-0.5)*150,              // ±75, 양옆으로 퍼짐
+          vy: -90 - Math.random()*70,               // -90 ~ -160 위로 튀어오름
           life: 1.3 + Math.random()*0.35, maxLife: 1.65,
-          color: 'rgba(255,150,190,0.9)',
-          size: dsize,
-          kind: 'drop',
+          color: '#fff', size: 10 + Math.random()*10,
+          sprite: true, spriteKey: 'sparkle',
+          rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*2.5,
+        });
+      }
+      // ★ 조용히 아래로 새어나오는 leak — 별도 느린 틱 (0.35s). 작은 sparkle 가 살짝만 떨어짐.
+      //   arc 와 구분되게 vy 양수(작게) + 크기 작음 + 좌우 흔들림 미약.
+      if (!n._leakTimer) n._leakTimer = 0;
+      n._leakTimer += dt;
+      if (n._leakTimer >= 0.35 && particles.length < (isMobile ? 60 : 150)) {
+        n._leakTimer = 0;
+        const dhx2 = getLaneX(n.lane), dhy2 = getHitY();
+        const dhw2 = (getLaneW() - 8) / 2;
+        const ox2 = (Math.random() - 0.5) * dhw2 * 1.0;
+        particles.push({
+          x: dhx2 + ox2, y: dhy2 + 2,
+          vx: (Math.random()-0.5)*20,
+          vy: 40 + Math.random()*50,                // 40~90 천천히 내려감
+          life: 0.9 + Math.random()*0.3, maxLife: 1.2,
+          color: '#fff', size: 6 + Math.random()*5, // 작게
+          sprite: true, spriteKey: 'sparkle',
+          rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*1.5,
         });
       }
     }
@@ -14011,13 +14025,13 @@ function renderDimDebug() {
   ctx.fillText('canvas bottom (' + cH + ')', 10, cH - 20);
   ctx.restore();
 }
-// ★ 페이지 로드 직후 prewarmup — 업데이트 직후 첫 곡에서만 발생하는 stutter 방지.
-//   startSong 내부에도 같은 워밍업이 있지만, 그건 "곡 시작 시점" 이라 첫 곡은 이미 늦음.
-//   여기서 먼저 돌려두면 타이틀 → 첫 곡 시점엔 JIT/텍스처 이미 hot.
+// ★ 페이지 로드 직후 prewarmup — 업데이트 직후 첫 곡 stutter 방지. 타이틀 → 첫 곡 시점엔
+//   JIT/텍스처 이미 hot 상태가 되도록 사전 실행. 두 번에 나눠서 (1) 빠르게 핵심 JIT (2) 이미지 로드 대기 후 GPU.
 (() => {
-  const prewarm = () => {
-    if (window._prewarmDone) return;
-    window._prewarmDone = true;
+  // Stage 1 — 이미지 로드 안 기다리고 즉시 JIT 만. 함수 내부 코드 경로 pre-compile.
+  const warmJIT = () => {
+    if (window._prewarmJITDone) return;
+    window._prewarmJITDone = true;
     try {
       if (typeof renderBursts !== 'function') return;
       const _mk = (extras) => Object.assign({
@@ -14025,11 +14039,11 @@ function renderDimDebug() {
         color: 'rgba(255,255,255,0.9)', size: 5,
       }, extras);
       particles.push(
-        _mk({ sprite: true, spriteKey: 'drift',  rot: 0, rotVel: 1 }),
-        _mk({ sprite: true, spriteKey: 'petal1', rot: 0, rotVel: 1 }),
-        _mk({ sprite: true, spriteKey: 'petal2', rot: 0, rotVel: 1 }),
-        _mk({ kind: 'drop' }),
-        _mk({})
+        _mk({ sprite: true, spriteKey: 'drift',   rot: 0, rotVel: 1 }),
+        _mk({ sprite: true, spriteKey: 'petal1',  rot: 0, rotVel: 1 }),
+        _mk({ sprite: true, spriteKey: 'petal2',  rot: 0, rotVel: 1 }),
+        _mk({ sprite: true, spriteKey: 'sparkle', rot: 0, rotVel: 1 }),
+        _mk({})  // fallback fillRect
       );
       bursts.push({ x: -500, y: -500, time: 0.01, maxTime: 0.6,
         rings: 3, sparks: 14, size: 1.8, color1: '#ffd700', color2: '#fff', color3: '#f80' });
@@ -14043,11 +14057,32 @@ function renderDimDebug() {
       renderParticles(); renderBursts(); renderHoldGlows();
       ctx.restore();
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // spawnBurst / spawnParticles 함수 내부 loop + Math.cos/sin 도 warm
+      // spawnBurst / spawnParticles 내부 loop + Math.cos/sin JIT
       try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'perfect'); } catch(e) {}
+      try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'great'); } catch(e) {}
       try { if (typeof spawnParticles === 'function') spawnParticles(-500, -500, '#fff', 3); } catch(e) {}
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // 로드된 스킨 PNG 전부 offscreen drawImage → GPU 텍스처 업로드
+      // renderNotes 경로 — dummy nodes 로 in-game 노트 렌더 코드 JIT.
+      //   페이지 로드 시 nodes/gameTime/countdownTime 은 초기값이라 side-effect 없음.
+      if (typeof renderNotes === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
+        try {
+          nodes.push(
+            { type: 'tap',  lane: 0, time: 999, hit: false, missed: false },
+            { type: 'hold', lane: 0, time: 999, endTime: 999.5, hit: false, missed: false, holding: false }
+          );
+          ctx.save(); ctx.globalAlpha = 0;
+          renderNotes();
+          ctx.restore();
+        } catch(e) {}
+        nodes.length = 0;
+      }
+    } catch(e) { console.warn('[prewarm JIT] failed', e); }
+  };
+  // Stage 2 — 이미지 로드된 뒤 GPU 텍스처 업로드.
+  const warmGPU = () => {
+    if (window._prewarmGPUDone) return;
+    window._prewarmGPUDone = true;
+    try {
       if (typeof skinImages === 'object' && skinImages) {
         ctx.save(); ctx.globalAlpha = 0;
         for (const path in skinImages) {
@@ -14061,13 +14096,14 @@ function renderDimDebug() {
         }
         ctx.restore();
       }
-    } catch(e) { console.warn('[prewarm] failed', e); }
+    } catch(e) {}
   };
-  // 이미지 로드 여유 — idle 이면 그때, 아니면 2s 후 강제 실행.
+  // JIT 는 즉시, GPU 는 2s 후 (이미지 로드 대기).
+  setTimeout(warmJIT, 100);
   if (window.requestIdleCallback) {
-    window.requestIdleCallback(prewarm, { timeout: 2500 });
+    window.requestIdleCallback(warmGPU, { timeout: 2500 });
   } else {
-    setTimeout(prewarm, 2000);
+    setTimeout(warmGPU, 2000);
   }
 })();
 requestAnimationFrame(loop);
