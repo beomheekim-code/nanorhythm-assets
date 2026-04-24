@@ -22,7 +22,7 @@ MUSIC_DIR = os.path.join(ROOT, 'Music')
 INDEX_HTML = os.path.join(ROOT, 'index.html')
 
 BUCKET_SEC = 0.5
-ABS_FLOOR = 0.02
+ABS_FLOOR = 0.05  # 잔향/페이드 tail 을 nonmusical 로 판정 (인게임 ambient floor=0.02 보다 공격적)
 MUSICAL_NAMES = ['drums', 'bass', 'instrum', 'piano', 'guitar']
 
 
@@ -155,7 +155,8 @@ for block in song_entries:
         continue
     trail = file_dur - last_musical
     # endCutoff = last_musical + 0.3 (약간 여유)
-    cutoff = round(last_musical + 0.3, 2)
+    # margin 0 — ambient filter 의 padding 0.5s 까지 전부 drop
+    cutoff = round(last_musical, 2)
     results.append((name, file_dur, last_musical, cutoff, has_cutoff))
 
 # 결과 출력 (trail >= 0.8s 만 후보)

@@ -1,212 +1,217 @@
 [
   {
     "name": "Cherry Blossom",
-    "endCutoff": 111.3,
-    "has_field": false
+    "endCutoff": 109.5,
+    "has_field": true
   },
   {
     "name": "Insert Coin Go Hard",
-    "endCutoff": 154.3,
-    "has_field": false
+    "endCutoff": 154.0,
+    "has_field": true
   },
   {
     "name": "CLIMB TO THE CROWN",
-    "endCutoff": 108.8,
-    "has_field": false
+    "endCutoff": 107.0,
+    "has_field": true
   },
   {
     "name": "어깨 위에 내려앉은 봄",
-    "endCutoff": 176.8,
+    "endCutoff": 176.0,
+    "has_field": true
+  },
+  {
+    "name": "境界線を蹴り飛ばして",
+    "endCutoff": 115.5,
     "has_field": false
   },
   {
     "name": "The Clock Face Shakes",
-    "endCutoff": 117.8,
-    "has_field": false
+    "endCutoff": 117.5,
+    "has_field": true
   },
   {
     "name": "Breaking Gravity",
-    "endCutoff": 104.3,
-    "has_field": false
+    "endCutoff": 102.5,
+    "has_field": true
   },
   {
     "name": "손 끝 아래",
-    "endCutoff": 113.3,
-    "has_field": false
+    "endCutoff": 112.5,
+    "has_field": true
   },
   {
     "name": "멈춘 시계",
-    "endCutoff": 148.3,
-    "has_field": false
+    "endCutoff": 140.5,
+    "has_field": true
   },
   {
     "name": "SIDEWALK RUNWAY",
-    "endCutoff": 96.8,
-    "has_field": false
+    "endCutoff": 96.5,
+    "has_field": true
   },
   {
     "name": "Let's Go Shopping!",
-    "endCutoff": 78.3,
-    "has_field": false
+    "endCutoff": 77.5,
+    "has_field": true
   },
   {
     "name": "Glitch Heartbeat",
-    "endCutoff": 105.8,
-    "has_field": false
+    "endCutoff": 93.0,
+    "has_field": true
   },
   {
     "name": "Midnight Boulevard",
-    "endCutoff": 108.3,
-    "has_field": false
+    "endCutoff": 106.5,
+    "has_field": true
   },
   {
     "name": "Outrunning The Rain",
-    "endCutoff": 85.3,
-    "has_field": false
+    "endCutoff": 85.0,
+    "has_field": true
   },
   {
     "name": "Ten Thousand Taps",
-    "endCutoff": 110.8,
-    "has_field": false
+    "endCutoff": 110.5,
+    "has_field": true
   },
   {
     "name": "The Final Sprint",
-    "endCutoff": 107.3,
-    "has_field": false
+    "endCutoff": 106.0,
+    "has_field": true
   },
   {
     "name": "Heart On The Line",
-    "endCutoff": 106.3,
-    "has_field": false
+    "endCutoff": 106.0,
+    "has_field": true
   },
   {
     "name": "기억의 사물함",
-    "endCutoff": 106.8,
-    "has_field": false
+    "endCutoff": 105.0,
+    "has_field": true
   },
   {
     "name": "Black Out",
-    "endCutoff": 118.3,
-    "has_field": false
+    "endCutoff": 114.0,
+    "has_field": true
   },
   {
     "name": "Burn It All Down",
-    "endCutoff": 115.8,
-    "has_field": false
+    "endCutoff": 115.0,
+    "has_field": true
   },
   {
     "name": "No More Scripts",
-    "endCutoff": 108.3,
-    "has_field": false
+    "endCutoff": 107.5,
+    "has_field": true
   },
   {
     "name": "Polaroid In Bloom",
-    "endCutoff": 140.8,
-    "has_field": false
+    "endCutoff": 137.0,
+    "has_field": true
   },
   {
     "name": "RED TAPE",
-    "endCutoff": 157.8,
-    "has_field": false
+    "endCutoff": 157.5,
+    "has_field": true
   },
   {
     "name": "加速する鼓動",
-    "endCutoff": 113.3,
-    "has_field": false
+    "endCutoff": 113.0,
+    "has_field": true
   },
   {
     "name": "황덕구의 모험",
-    "endCutoff": 143.3,
-    "has_field": false
+    "endCutoff": 142.5,
+    "has_field": true
   },
   {
     "name": "Catch The Sky",
-    "endCutoff": 114.3,
-    "has_field": false
+    "endCutoff": 112.0,
+    "has_field": true
   },
   {
     "name": "Neon Light",
-    "endCutoff": 113.8,
-    "has_field": false
+    "endCutoff": 109.5,
+    "has_field": true
   },
   {
     "name": "Vincere Aut Mori",
-    "endCutoff": 116.8,
-    "has_field": false
+    "endCutoff": 116.0,
+    "has_field": true
   },
   {
     "name": "Let's Go Shopping!",
-    "endCutoff": 78.3,
-    "has_field": false
+    "endCutoff": 77.5,
+    "has_field": true
   },
   {
     "name": "Midnight Breeze",
-    "endCutoff": 114.8,
-    "has_field": false
+    "endCutoff": 114.5,
+    "has_field": true
   },
   {
     "name": "Pebbles To Granite",
-    "endCutoff": 114.3,
-    "has_field": false
+    "endCutoff": 111.5,
+    "has_field": true
   },
   {
     "name": "Velocity And Pride",
-    "endCutoff": 146.8,
-    "has_field": false
+    "endCutoff": 146.5,
+    "has_field": true
   },
   {
     "name": "靴紐を結び直して",
-    "endCutoff": 116.8,
-    "has_field": false
+    "endCutoff": 116.5,
+    "has_field": true
   },
   {
     "name": "기분 좋은 날",
-    "endCutoff": 131.3,
-    "has_field": false
+    "endCutoff": 130.5,
+    "has_field": true
   },
   {
     "name": "바람을 타고",
-    "endCutoff": 158.3,
-    "has_field": false
+    "endCutoff": 157.5,
+    "has_field": true
   },
   {
     "name": "밤하늘의 기적",
-    "endCutoff": 144.3,
-    "has_field": false
+    "endCutoff": 143.5,
+    "has_field": true
   },
   {
     "name": "별빛 아래의 약속",
-    "endCutoff": 169.8,
-    "has_field": false
+    "endCutoff": 169.0,
+    "has_field": true
   },
   {
     "name": "질주",
-    "endCutoff": 144.8,
-    "has_field": false
+    "endCutoff": 144.5,
+    "has_field": true
   },
   {
     "name": "Monoliths of Light",
-    "endCutoff": 112.3,
-    "has_field": false
+    "endCutoff": 111.5,
+    "has_field": true
   },
   {
     "name": "Poolside Punch",
-    "endCutoff": 115.8,
-    "has_field": false
+    "endCutoff": 115.0,
+    "has_field": true
   },
   {
     "name": "Soda Pop Crush",
-    "endCutoff": 168.3,
-    "has_field": false
+    "endCutoff": 167.5,
+    "has_field": true
   },
   {
     "name": "달의 파편",
-    "endCutoff": 154.3,
-    "has_field": false
+    "endCutoff": 154.0,
+    "has_field": true
   },
   {
     "name": "투명한 설렘",
-    "endCutoff": 146.3,
-    "has_field": false
+    "endCutoff": 145.5,
+    "has_field": true
   }
 ]

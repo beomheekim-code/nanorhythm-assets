@@ -72,11 +72,19 @@ for target in TARGETS:
         entry = next((e for e in entries if e['name'] == name), None)
         if entry is None:
             continue
-        # 이미 endCutoff 있으면 skip (멱등)
-        if re.search(r"\bendCutoff\s*:", block):
-            skipped += 1
-            continue
         cutoff = entry['endCutoff']
+        existing = re.search(r"(\bendCutoff\s*:\s*)([\d.]+)", block)
+        if existing:
+            # 값 업데이트
+            old_full = existing.group(0)
+            new_full = existing.group(1) + str(cutoff)
+            if old_full == new_full:
+                skipped += 1
+                continue
+            new_block = block[:existing.start()] + new_full + block[existing.end():]
+            songs_src = songs_src[:bs] + new_block + songs_src[be:]
+            updated += 1
+            continue
         # pattern: 라인 찾기 (들여쓰기 유지)
         pm = re.search(r"(\n[ \t]*)pattern\s*:", block)
         if pm:
