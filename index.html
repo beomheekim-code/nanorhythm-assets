@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424007100;
+window.__BUILD_TS = 20260424008000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7155,22 +7155,34 @@ function startSong(idx) {
           }
         }
       } catch(e) {}
-      // ★ 렌더 함수 JIT 워밍업 — renderBursts/renderHoldGlows/renderParticles 의
-      //   sakura_fx sprite 분기 / kind:'drop' 분기 등이 첫 호출 시 JIT 컴파일 되며
-      //   첫 노트 히트 프레임 stutter 유발. 더미 엔트리 + alpha=0 으로 1회 실행.
+      // ★ 렌더/업데이트 JIT 워밍업 — 첫 호출 시 JIT 컴파일 지연으로 첫 노트 프레임 stutter.
+      //   모든 파티클 경로(sprite:drift/petal1/petal2, kind:'drop', fallback fillRect) +
+      //   bursts + holdGlows 를 더미 데이터로 1회 실행. 업데이트 수식도 warm.
       try {
         if (typeof renderBursts === 'function' && typeof renderParticles === 'function'
             && typeof renderHoldGlows === 'function') {
+          const _mk = (extras) => Object.assign({
+            x: -500, y: -500, vx: 10, vy: 10, life: 1, maxLife: 1,
+            color: 'rgba(255,255,255,0.9)', size: 5,
+          }, extras);
           particles.push(
-            { x: -500, y: -500, vx: 0, vy: 0, life: 1, maxLife: 1,
-              color: '#fff', size: 5, sprite: true, spriteKey: 'drift', rot: 0, rotVel: 0 },
-            { x: -500, y: -500, vx: 0, vy: 0, life: 1, maxLife: 1,
-              color: 'rgba(255,150,190,0.85)', size: 5, kind: 'drop' }
+            _mk({ sprite: true, spriteKey: 'drift',  rot: 0, rotVel: 1 }),
+            _mk({ sprite: true, spriteKey: 'petal1', rot: 0, rotVel: 1 }),
+            _mk({ sprite: true, spriteKey: 'petal2', rot: 0, rotVel: 1 }),
+            _mk({ kind: 'drop' }),
+            _mk({})  // fallback fillRect 경로
           );
           bursts.push({ x: -500, y: -500, time: 0.01, maxTime: 0.6,
-            rings: 2, sparks: 10, size: 1, color1: '#fff', color2: '#fff' });
+            rings: 3, sparks: 14, size: 1.8, color1: '#ffd700', color2: '#fff', color3: '#f80' });
           holdGlows.push({ x: -500, y: -500, time: 0.01, maxTime: 0.35,
             color: '#fff', w: 80 });
+          // update 수식 (p.vy += 250*dt 등) 도 한 번 실행 — 첫 파티클 update 때 JIT 비용 제거
+          const _dt = 0.016;
+          for (const p of particles) {
+            p.x += p.vx*_dt; p.y += p.vy*_dt; p.vy += 250*_dt; p.life -= _dt;
+          }
+          for (const b of bursts) b.time += _dt;
+          for (const g of holdGlows) g.time += _dt;
           ctx.globalAlpha = 0;
           renderParticles();
           renderBursts();
@@ -7903,7 +7915,8 @@ function update(dt) {
       holdGlows.push({ x: getLaneX(n.lane), y: getHitY(), time: 0, maxTime: 0.35,
         color: LANE_COLORS[n.lane], w: getLaneW() - 8 });
     }
-    // ★ 방울 하강 — sakura_fx 장착 시에만. 0.12s 느린 틱 + 크기/속도 랜덤 → 살짝만 흘러내리는 느낌.
+    // ★ 방울 분수 — sakura_fx 장착 시. 0.12s 느린 틱.
+    //   초기 vy 음수(위로 튀어올라) + 중력(update 의 p.vy += 250*dt) → 포물선 낙하하며 페이드.
     if (currentHitFxSkin && SKINS[currentHitFxSkin]) {
       if (!n._dropTimer) n._dropTimer = 0;
       n._dropTimer += dt;
@@ -7911,14 +7924,14 @@ function update(dt) {
         n._dropTimer = 0;
         const dhx = getLaneX(n.lane), dhy = getHitY();
         const dhw = (getLaneW() - 8) / 2;
-        // 크기 3~9px 랜덤 (간혹 큰 방울도 섞여 "방울방울" 느낌)
-        const dsize = 2.5 + Math.random() * 6.5;
-        const ox = (Math.random() - 0.5) * dhw * 1.1;
+        const dsize = 2.5 + Math.random() * 6.5;  // 크기 랜덤 (방울방울)
+        const ox = (Math.random() - 0.5) * dhw * 0.9;
         particles.push({
-          x: dhx + ox, y: dhy + 4,
-          vx: (Math.random()-0.5)*18, vy: 70 + Math.random()*80,
-          life: 0.45 + Math.random()*0.3, maxLife: 0.75,
-          color: 'rgba(255,150,190,0.85)',
+          x: dhx + ox, y: dhy,
+          vx: (Math.random()-0.5)*30,
+          vy: -70 - Math.random()*80,            // 위로 튀어오름 (-70 ~ -150)
+          life: 0.7 + Math.random()*0.35, maxLife: 1.05,
+          color: 'rgba(255,150,190,0.9)',
           size: dsize,
           kind: 'drop',
         });
