@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424181119;
+window.__BUILD_TS = 20260424182155;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1546,7 +1546,7 @@ const songs = [
     stemDir: 'Music/Cherry Blossom/',
     stemPrefix: 'cherry blossom',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 109.5,
+    endCutoff: 109.2,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
   },
   {
@@ -1556,7 +1556,7 @@ const songs = [
     stemDir: 'Music/Insert_Coin_Go_Hard/',
     stemPrefix: 'insert_coin_go_hard',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 154.0,
+    endCutoff: 153.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
   },
   {
@@ -1566,7 +1566,7 @@ const songs = [
     stemDir: 'Music/CLIMB_TO_THE_CROWN/',
     stemPrefix: 'CLIMB_TO_THE_CROWN',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 107.0,
+    endCutoff: 106.7,
     pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0],
   },
   {
@@ -1576,7 +1576,7 @@ const songs = [
     stemDir: 'Music/어깨_위에_내려앉은_봄/',
     stemPrefix: '어깨_위에_내려앉은_봄',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 176.0,
+    endCutoff: 175.7,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
   },
   {
@@ -1604,7 +1604,7 @@ const songs = [
     stemDir: 'Music/境界線を蹴り飛ばして/',
     stemPrefix: '境界線を蹴り飛ばして',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 115.5,
+    endCutoff: 115.2,
     pattern: [1,1,0,1,0,1,1,0, 1,0,1,0,1,1,0,1],
   },
   {
@@ -1614,7 +1614,7 @@ const songs = [
     stemDir: 'Music/The_Clock_Face_Shakes/',
     stemPrefix: 'The_Clock_Face_Shakes',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 117.5,
+    endCutoff: 117.2,
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0],
   },
   {
@@ -1624,7 +1624,7 @@ const songs = [
     stemDir: 'Music/Breaking_Gravity/',
     stemPrefix: 'Breaking_Gravity',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 102.5,
+    endCutoff: 102.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
   },
   {
@@ -1634,7 +1634,7 @@ const songs = [
     stemDir: 'Music/손_끝_아래/',
     stemPrefix: '손_끝_아래',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 112.5,
+    endCutoff: 112.2,
     pattern: [1,0,0,1,0,1,0,1, 0,0,1,0,1,0,0,1],
   },
   {
@@ -1644,7 +1644,7 @@ const songs = [
     stemDir: 'Music/멈춘_시계/',
     stemPrefix: '멈춘_시계',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 140.5,
+    endCutoff: 140.2,
     pattern: [1,0,1,0,1,0,1,0, 0,1,0,1,0,1,0,1],
   },
   {
@@ -1654,7 +1654,7 @@ const songs = [
     stemDir: 'Music/SIDEWALK_RUNWAY/',
     stemPrefix: 'SIDEWALK_RUNWAY',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 96.5,
+    endCutoff: 96.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
   },
   {
@@ -1664,7 +1664,7 @@ const songs = [
     stemDir: "Music/Let's_Go_Shopping!/",
     stemPrefix: "Let's_Go_Shopping!",
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 77.5,
+    endCutoff: 77.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
   },
   {
@@ -1675,7 +1675,7 @@ const songs = [
     stemDir: 'Music/Glitch_Heartbeat/',
     stemPrefix: 'Glitch_Heartbeat',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 93.0,
+    endCutoff: 92.7,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0],
   },
   {
@@ -1686,7 +1686,7 @@ const songs = [
     stemDir: 'Music/Midnight_Boulevard/',
     stemPrefix: 'Midnight_Boulevard',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 106.5,
+    endCutoff: 106.2,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
   },
   {
@@ -1697,7 +1697,7 @@ const songs = [
     stemDir: 'Music/Outrunning_The_Rain/',
     stemPrefix: 'Outrunning_The_Rain',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 85.0,
+    endCutoff: 84.7,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,0,1,1,0],
   },
   {
@@ -1708,7 +1708,7 @@ const songs = [
     stemDir: 'Music/Ten_Thousand_Taps/',
     stemPrefix: 'Ten_Thousand_Taps',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 110.5,
+    endCutoff: 110.2,
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
   },
   {
@@ -1719,7 +1719,7 @@ const songs = [
     stemDir: 'Music/The_Final_Sprint/',
     stemPrefix: 'The_Final_Sprint',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 106.0,
+    endCutoff: 105.7,
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1],
   },
   {
@@ -1740,7 +1740,7 @@ const songs = [
     stemDir: 'Music/Heart_On_The_Line/',
     stemPrefix: 'Heart_on_the_Line',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 106.0,
+    endCutoff: 105.7,
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1],
   },
   {
@@ -1751,7 +1751,7 @@ const songs = [
     stemDir: 'Music/기억의_사물함/',
     stemPrefix: '기억의_사물함',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 105.0,
+    endCutoff: 104.7,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
     excludeStems: [0, 1, 5, 6], // drums/bass/guitar/other 제외 → instrum + piano만
   },
@@ -1763,7 +1763,7 @@ const songs = [
     stemDir: 'Music/Black_Out/',
     stemPrefix: 'Black_Out',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 114.0,
+    endCutoff: 113.7,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
   },
   {
@@ -1774,7 +1774,7 @@ const songs = [
     stemDir: 'Music/Burn_It_All_Down/',
     stemPrefix: 'Burn_It_All_Down',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 115.0,
+    endCutoff: 114.7,
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
   },
   {
@@ -1785,7 +1785,7 @@ const songs = [
     stemDir: 'Music/No_More_Scripts/',
     stemPrefix: 'No_More_Scripts',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 107.5,
+    endCutoff: 107.2,
     pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,1],
     // 'auto': 런타임에 스템 RMS 분석으로 보컬-only 구간 자동 감지 (인트로 + 중간 보컬 브레이크 전부)
     vocalIntroRange: 'auto',
@@ -1798,7 +1798,7 @@ const songs = [
     stemDir: 'Music/Polaroid_In_Bloom/',
     stemPrefix: 'Polaroid_In_Bloom',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 137.0,
+    endCutoff: 136.7,
     pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1],
   },
   {
@@ -1809,7 +1809,7 @@ const songs = [
     stemDir: 'Music/RED_TAPE/',
     stemPrefix: 'RED_TAPE',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 157.5,
+    endCutoff: 157.2,
     pattern: [1,0,1,1,0,1,0,1, 1,1,0,1,0,1,1,0],
     // piano RMS 0.0000 인데 onset 425 / other RMS 0.015 에 onset 310 — noise floor 허위 트리거.
     excludeStems: [4, 6],
@@ -1834,7 +1834,7 @@ const songs = [
     stemDir: 'Music/加速する鼓動/',
     stemPrefix: '加速する鼓動',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 113.0,
+    endCutoff: 112.7,
     pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0],
   },
   {
@@ -1845,7 +1845,7 @@ const songs = [
     stemDir: 'Music/황덕구의_모험/',
     stemPrefix: '황덕구의_모험',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 142.5,
+    endCutoff: 142.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
     excludeStems: [0, 1, 4, 5, 6], // instrum만 사용 (메인 트랙)
   },
@@ -1857,7 +1857,7 @@ const songs = [
     stemDir: 'Music/Catch_The_Sky/',
     stemPrefix: 'Catch_The_Sky',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 112.0,
+    endCutoff: 111.7,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
   },
   {
@@ -1868,7 +1868,7 @@ const songs = [
     stemDir: 'Music/Neon_Light/',
     stemPrefix: 'Neon_Light',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 109.5,
+    endCutoff: 109.2,
     pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0],
     excludeStems: [4, 5], // piano, guitar 빈 스템
   },
@@ -1880,7 +1880,7 @@ const songs = [
     stemDir: 'Music/Vincere_Aut_Mori/',
     stemPrefix: 'Vincere_Aut_Mori',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 116.0,
+    endCutoff: 115.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
     excludeStems: [1, 4], // bass, piano 빈 스템
   },
@@ -1892,7 +1892,7 @@ const songs = [
     stemDir: "Music/Let's_Go_Shopping!/",
     stemPrefix: "Let's_Go_Shopping!",
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 77.5,
+    endCutoff: 77.2,
     pattern: [1,0,1,0,1,0,1,0, 1,1,0,1,0,1,0,1],
     excludeStems: [4, 5], chordMode: true,
   },
@@ -1904,7 +1904,7 @@ const songs = [
     stemDir: 'Music/Midnight_Breeze/',
     stemPrefix: 'Midnight_Breeze',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 114.5,
+    endCutoff: 114.2,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
     excludeStems: [4, 5], chordMode: true,
   },
@@ -1916,7 +1916,7 @@ const songs = [
     stemDir: 'Music/Pebbles_To_Granite/',
     stemPrefix: 'Pebbles_To_Granite',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 111.5,
+    endCutoff: 111.2,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
     excludeStems: [5], chordMode: true,
   },
@@ -1939,7 +1939,7 @@ const songs = [
     stemDir: 'Music/Velocity_And_Pride/',
     stemPrefix: 'Velocity_And_Pride',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 146.5,
+    endCutoff: 146.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
     excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -1951,7 +1951,7 @@ const songs = [
     stemDir: 'Music/靴紐を結び直して/',
     stemPrefix: '靴紐を結び直して',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 116.5,
+    endCutoff: 116.2,
     pattern: [1,0,1,0,0,1,0,1, 0,1,0,1,0,0,1,0],
     vocalIntroRange: 'auto', chordMode: true,
   },
@@ -1963,7 +1963,7 @@ const songs = [
     stemDir: 'Music/기분_좋은_날/',
     stemPrefix: '기분_좋은_날',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 130.5,
+    endCutoff: 130.2,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
     excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -1975,7 +1975,7 @@ const songs = [
     stemDir: 'Music/바람을_타고/',
     stemPrefix: '바람을_타고',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 157.5,
+    endCutoff: 157.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
     excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -1998,7 +1998,7 @@ const songs = [
     stemDir: 'Music/밤하늘의_기적/',
     stemPrefix: '밤하늘의_기적',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 143.5,
+    endCutoff: 143.2,
     pattern: [1,0,0,1,1,0,1,0, 1,0,0,1,0,1,1,0],
     excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2010,7 +2010,7 @@ const songs = [
     stemDir: 'Music/별빛_아래의_약속/',
     stemPrefix: '별빛_아래의_약속',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 169.0,
+    endCutoff: 168.7,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
     vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2022,7 +2022,7 @@ const songs = [
     stemDir: 'Music/질주/',
     stemPrefix: '질주',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 144.5,
+    endCutoff: 144.2,
     pattern: [1,0,0,0,1,0,1,0, 1,0,0,1,0,1,0,1],
     excludeStems: [4, 6], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2034,6 +2034,7 @@ const songs = [
     stemDir: 'Music/Higher/',
     stemPrefix: 'Higher',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    endCutoff: 130.7,
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,0,1,0,1,1],
     excludeStems: [4, 6], chordMode: true,
   },
@@ -2045,7 +2046,7 @@ const songs = [
     stemDir: 'Music/Monoliths_of_Light/',
     stemPrefix: 'Monoliths_of_Light',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 111.5,
+    endCutoff: 111.2,
     pattern: [1,0,0,0,1,0,0,1, 1,0,0,1,0,0,1,0],
     excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2057,7 +2058,7 @@ const songs = [
     stemDir: 'Music/Poolside_Punch/',
     stemPrefix: 'Poolside_Punch',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 115.0,
+    endCutoff: 114.7,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
     excludeStems: [5],
     chordMode: true,
@@ -2070,6 +2071,7 @@ const songs = [
     stemDir: 'Music/PUNCH/',
     stemPrefix: 'PUNCH',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    endCutoff: 122.2,
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
     // other stem: 106s 에서 소리 끝나는데 onset 은 122s 까지 잡힘 (phantom) → 제외
     excludeStems: [4, 6], chordMode: true,
@@ -2082,7 +2084,7 @@ const songs = [
     stemDir: 'Music/Soda_Pop_Crush/',
     stemPrefix: 'Soda_Pop_Crush',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 167.5,
+    endCutoff: 167.2,
     pattern: [1,0,1,0,1,0,0,1, 1,1,0,1,0,1,0,1],
     excludeStems: [4],
     vocalIntroRange: 'auto', chordMode: true,
@@ -2095,6 +2097,7 @@ const songs = [
     stemDir: 'Music/T/',
     stemPrefix: 'T',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    endCutoff: 157.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
     excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2117,6 +2120,7 @@ const songs = [
     stemDir: 'Music/날개를_펼쳐/',
     stemPrefix: '날개를_펼쳐',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    endCutoff: 163.7,
     pattern: [1,0,0,1,1,0,0,1, 0,1,0,0,1,0,1,0],
     excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
   },
@@ -2128,7 +2132,7 @@ const songs = [
     stemDir: 'Music/달의_파편/',
     stemPrefix: '달의_파편',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 154.0,
+    endCutoff: 153.7,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,1],
     excludeStems: [5],
     vocalIntroRange: 'auto', chordMode: true,
@@ -2152,7 +2156,7 @@ const songs = [
     stemDir: 'Music/투명한_설렘/',
     stemPrefix: '투명한_설렘',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 145.5,
+    endCutoff: 145.2,
     pattern: [1,0,0,1,0,0,1,0, 1,0,0,1,0,1,0,1],
     vocalIntroRange: 'auto', chordMode: true,
   },
@@ -7011,6 +7015,44 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
     }
 
+    // ===== Dominant stem gating — 버킷별 최강 스템의 ~40% 미만인 onset drop =====
+    // 드럼 주도 구간 → 드럼 onset 만 살림. 피아노 주도 → 피아노만. 일렉(instrum) 주도 → instrum.
+    // 배경으로 깔리는 낮은 RMS 스템의 onset 은 노트로 안 찍힘 → 곡의 "현재 주인공" 리듬 반영.
+    // 수동 intro 노트(_forceHold/_forceTap)는 예외.
+    if (Object.keys(stemBucketRms).length >= 2) {
+      const DOMINANT_RATIO = 0.4;
+      const MIN_DOMINANT_RMS = 0.03; // 이 이하 버킷은 전체 조용 → gating skip
+      const dominant = new Float32Array(maxBuckets);
+      for (let b = 0; b < maxBuckets; b++) {
+        let mx = 0;
+        for (const si of MUSICAL_STEMS) {
+          const arr = stemBucketRms[si];
+          if (arr && b < arr.length && arr[b] > mx) mx = arr[b];
+        }
+        dominant[b] = mx;
+      }
+      const beforeD = allOnsets.length;
+      allOnsets = allOnsets.filter(o => {
+        if (o._forceHold || o._forceTap) return true;
+        const relT = o.time - bgmDelay;
+        // vocal ranges 안은 gating skip (보컬-only 구간 유지)
+        if (vocalRanges.length > 0) {
+          for (let vi = 0; vi < vocalRanges.length; vi++) {
+            if (relT >= vocalRanges[vi][0] && relT <= vocalRanges[vi][1]) return true;
+          }
+        }
+        const bi = Math.floor(relT / BUCKET_SEC);
+        if (bi < 0 || bi >= dominant.length) return true;
+        if (dominant[bi] < MIN_DOMINANT_RMS) return true;
+        const stemArr = stemBucketRms[o.stem];
+        if (!stemArr) return true; // MUSICAL 아닌 스템 (예: vocals=2, other=6) 통과
+        const myRms = bi < stemArr.length ? stemArr[bi] : 0;
+        return myRms >= dominant[bi] * DOMINANT_RATIO;
+      });
+      if (beforeD !== allOnsets.length) {
+        console.log('[dominant-gate] ' + (beforeD - allOnsets.length) + ' subordinate onsets dropped');
+      }
+    }
   }
 
   // ===== endCutoff (opt-in) — 곡 페이드아웃/끝 이후 phantom onset drop =====
@@ -7144,31 +7186,37 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
-  // ===== "따단" 패턴 복구 (매우 엄격) =====
-  // 버려진 onset 중 선택된 노트와 90~120ms + 에너지 100%+ (즉 전혀 약하지 않은 것)
-  // 복구 상한: filtered 전체의 5% 이하
+  // ===== "따닥/따라라락" 리듬 복구 (관대하게) =====
+  // density filter 에서 drop 됐지만 직전 kept 뒤 60~200ms + 에너지 >=50% 인 onset 복구.
+  // 빠른 연타 (16/32분음표 트레몰로, 드럼 롤, 스네어 플램) 리듬 살림.
+  // 한 kept 당 최대 3개 rescue (따라라락 4연타까지 커버), 총량 상한 20%.
   {
-    const PAIR_MIN = 0.09;
-    const PAIR_MAX = 0.12;
-    const ENERGY_RATIO = 1.2;
-    const MAX_RESCUE_RATIO = 0.01;
-    const maxRescue = Math.floor(filtered.length * MAX_RESCUE_RATIO);
+    const PAIR_MIN = 0.06;
+    const PAIR_MAX = 0.20;
+    const ENERGY_RATIO = 0.5;
+    const MAX_RESCUE_PER_KEPT = 3;
+    const MAX_TOTAL_RATIO = 0.20;
+    const maxTotal = Math.floor(filtered.length * MAX_TOTAL_RATIO);
     const filteredSet = new Set(filtered);
+    const rescuedSet = new Set();
     const rescued = [];
     for (const f of filtered) {
-      if (rescued.length >= maxRescue) break;
+      if (rescued.length >= maxTotal) break;
+      let countHere = 0;
       for (const o of nonSilent) {
-        if (filteredSet.has(o)) continue;
+        if (countHere >= MAX_RESCUE_PER_KEPT) break;
+        if (filteredSet.has(o) || rescuedSet.has(o)) continue;
         const dt = o.time - f.time;
         if (dt < PAIR_MIN || dt > PAIR_MAX) continue;
         if (o.energy < f.energy * ENERGY_RATIO) continue;
-        if (rescued.includes(o)) continue;
         rescued.push(o);
-        break;
+        rescuedSet.add(o);
+        countHere++;
       }
     }
     filtered.push(...rescued);
     filtered.sort((a, b) => a.time - b.time);
+    if (rescued.length > 0) console.log('[beatRescue] ' + rescued.length + ' follow-up onsets restored');
   }
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
@@ -7188,6 +7236,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevLane = -1;
   let prevTime = -1;
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
+  const _recentLanes = [{lane: -1, time: -999}, {lane: -1, time: -999}]; // 최근 2개 사용 레인 + 시각
+  const _RECENT_WINDOW = 0.6; // 0.6s 이내 사용된 레인 회피 (a>s>a>s 단조 패턴 방지)
 
   let _lastChordTime = 0;
   for (const o of filtered) {
@@ -7198,12 +7248,25 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     // stem 기반 + 시드 RNG 오프셋 (815d64e 원본 방식. seeded라 결정론.)
     let lane = (base + Math.floor(rng() * lc)) % lc;
 
-    // 같은 레인 + 0.3s 미만 = 시각적 overlap → 시프트
-    // 0.3s 이상 떨어졌으면 그대로 (연타 허용)
+    // 최근 0.6s 내 쓰인 레인 피하기 (다양성 — a>s>d>f 스타일, a>s>a>s 반복 억제)
+    const avoid = new Set();
+    for (const r of _recentLanes) {
+      if (r.lane >= 0 && (o.time - r.time) < _RECENT_WINDOW) avoid.add(r.lane);
+    }
+    if (lc > avoid.size) {
+      let tries = 0;
+      while (tries < lc && avoid.has(lane)) {
+        lane = (lane + 1) % lc;
+        tries++;
+      }
+    }
+    // 같은 레인 + 0.3s 미만 = 시각적 overlap → 한 번 더 시프트 보장
     if (lane === prevLane && lc > 1 && (o.time - prevTime) < SAME_LANE_MIN_GAP) {
       lane = (lane + 1) % lc;
     }
 
+    _recentLanes.unshift({lane, time: o.time});
+    _recentLanes.length = 2;
     prevLane = lane;
     prevTime = o.time;
     const nd = {

@@ -143,11 +143,18 @@ for block in song_entries:
     file_path = os.path.join(ROOT, file_rel.replace('/', os.sep))
     if not os.path.exists(file_path):
         continue
-    # 메인 파일 duration
+    # 메인 파일 duration (opus ogg 는 soundfile 실패 → librosa fallback)
+    file_dur = None
     try:
         info = sf.info(file_path)
         file_dur = info.frames / info.samplerate
     except Exception:
+        try:
+            import librosa
+            file_dur = librosa.get_duration(path=file_path)
+        except Exception:
+            pass
+    if file_dur is None:
         continue
     last_musical = last_musical_bucket(song_dir, stem_prefix, file_dur)
     if last_musical is None:
@@ -155,8 +162,9 @@ for block in song_entries:
         continue
     trail = file_dur - last_musical
     # endCutoff = last_musical + 0.3 (약간 여유)
-    # margin 0 — ambient filter 의 padding 0.5s 까지 전부 drop
-    cutoff = round(last_musical, 2)
+    # margin -0.3s: 마지막 musical 버킷 끝보다 0.3s 앞에서 cut
+    # ambient padding (0.5s) 까지 자르고 마지막 정상 노트도 살려야 하니 약간 -0.3s 가 sweet spot
+    cutoff = round(max(0.1, last_musical - 0.3), 2)
     results.append((name, file_dur, last_musical, cutoff, has_cutoff))
 
 # 결과 출력 (trail >= 0.8s 만 후보)
