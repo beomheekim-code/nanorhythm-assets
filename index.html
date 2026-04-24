@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424184414;
+window.__BUILD_TS = 20260424185117;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7190,6 +7190,47 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
+  // ===== 쓰잘데 없는 노트 감소 (주력 박자 집중) =====
+  // 1) 약한 에너지 drop — filtered 의 에너지 중앙값 * 0.6 미만인 slot peak 은 drop.
+  //    조용한 구간의 자잘한 배경 onset 제거.
+  if (filtered.length >= 20) {
+    const _es = filtered.map(x => x.energy || 0).sort((a, b) => a - b);
+    const _med = _es[Math.floor(_es.length / 2)];
+    const _thr = _med * 0.6;
+    const _beforeE = filtered.length;
+    const _strong = filtered.filter(o => o._forceHold || o._forceTap || (o.energy || 0) >= _thr);
+    // 안전장치: 50% 이상은 살려둬야 너무 많이 drop 안 함
+    if (_strong.length >= filtered.length * 0.5) {
+      filtered.splice(0, filtered.length, ..._strong);
+      if (_beforeE !== filtered.length) console.log('[energyFilter] ' + (_beforeE - filtered.length) + ' weak onsets dropped (thr=' + _thr.toFixed(3) + ')');
+    }
+  }
+
+  // 2) 인접 peak dedup — minGap * 0.6 이내 인접 peak 중 약한 쪽 drop.
+  //    "뿌쓖쓖쓖" → "뿌 슈 욱" 효과. slot 경계에 몰린 쌍 제거.
+  {
+    const _keep = [];
+    for (const o of filtered) {
+      if (_keep.length > 0) {
+        const _prev = _keep[_keep.length - 1];
+        const _dt = o.time - _prev.time;
+        const _isManual = o._forceHold || o._forceTap || _prev._forceHold || _prev._forceTap;
+        if (!_isManual && _dt < minGap * 0.6) {
+          // 현재가 15%+ 강하면 교체, 아니면 현재 drop
+          if ((o.energy || 0) > (_prev.energy || 0) * 1.15) {
+            _keep[_keep.length - 1] = o;
+          }
+          continue;
+        }
+      }
+      _keep.push(o);
+    }
+    if (_keep.length < filtered.length) {
+      console.log('[adjDedup] ' + (filtered.length - _keep.length) + ' close peaks merged');
+      filtered.splice(0, filtered.length, ..._keep);
+    }
+  }
+
   // ===== Rhythmic burst rescue — "따단/따랄란" 같은 특징적 구간만 노트 밀도 올림 =====
   // 500ms 윈도우에 onset 이 4개+ 몰린 구간 = 드럼 롤 / 트레몰로 / 16분 연타 burst
   // 그 구간에서만 filtered 아닌 peak 1개 추가 복구. 평상시엔 영향 없음.
@@ -7298,8 +7339,15 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       nd.type = 'hold';
       nd.endTime = nd.time + (o._holdDur || 1.2);
     } else if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
-      nd.type = 'hold';
-      nd.endTime = nd.time + (2 + Math.floor(rng() * 2)) * eighthDur;
+      const _hDur = (2 + Math.floor(rng() * 2)) * eighthDur;
+      const _hEnd = nd.time + _hDur;
+      // endCutoff 근처에서 hold 꼬리가 곡 끝을 넘으면 tap 으로 강등 (소리 안 들리는 구간에 hold 방지)
+      const _cutAbs = (typeof song.endCutoff === 'number') ? song.endCutoff + bgmDelay : Infinity;
+      if (_hEnd <= _cutAbs - 0.3) {
+        nd.type = 'hold';
+        nd.endTime = _hEnd;
+      }
+      // else: tap 유지 (hold 생성 skip)
     }
     nodes.push(nd);
     noteIdx++;
