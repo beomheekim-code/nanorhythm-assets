@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424036100;
+window.__BUILD_TS = 20260424037000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2623,9 +2623,9 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#d97aa0',      // 중간 band — 로즈 핑크 (컨테이너/레일과 톤 통일)
       hitLineGrad:   'rgba(217,122,160,0.12)',
-      // 외곽 레일 프레임 — 은은한 로즈 핑크 (핫핑크 촌스러움 회피).
-      frameBorder:    '#d96a90',                   // 메인 — 더스티 로즈
-      frameInner:     null,                        // 단일 stroke (네온 제거)
+      // 외곽 레일 프레임 — 벚꽃 나무 bark 톤 (유저 지시, 2026-04-24).
+      frameBorder:    '#8a5a42',                   // 메인 — 따뜻한 벚꽃나무 bark 브라운
+      frameInner:     null,
       frameGlow:      null,
     },
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
@@ -8752,6 +8752,20 @@ function renderBackplate() {
   const outerH = outerB - outerY;
 
   if (outerW <= sz(40) || outerH <= sz(60)) { ctx.restore(); return; }
+
+  // ★ 벚꽃 UI: 레일 외곽(outerX 왼쪽 + outerR 오른쪽) 에 bark 톤 배경 깔기.
+  //   HP 컨테이너, 좌우 margin 이 이 bark 배경 위에 얹힘. 벚꽃 나무 느낌의 베이스.
+  if (_getUiPack()) {
+    const _barkGrad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+    _barkGrad.addColorStop(0, '#2a1810');
+    _barkGrad.addColorStop(0.5, '#3a2418');
+    _barkGrad.addColorStop(1, '#22130a');
+    ctx.fillStyle = _barkGrad;
+    // 좌측 — 화면 왼쪽 ~ outerX
+    if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, H + safeTop + safeBottom);
+    // 우측 — outerR ~ 화면 오른쪽
+    if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, H + safeTop + safeBottom);
+  }
 
   // ★ HP 컨테이너 wedge Y 범위 (renderUI 와 동일 중앙 정렬 산식).
   const _spBtnBP = sz(26);
