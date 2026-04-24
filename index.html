@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424013100;
+window.__BUILD_TS = 20260424014000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7866,8 +7866,8 @@ function update(dt) {
       const hw = (getLaneW() - 8) / 2;
       const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
       if (fxActive) {
-        // ★ 상승 drift — 데스크탑 2 / 모바일 1 개/tick
-        const _dN = isMobile ? 1 : 2;
+        // ★ 상승 drift — 데스크탑 2 / 모바일 1 개/tick. soft cap 안에서만.
+        const _dN = (particles.length < (isMobile ? 40 : 90)) ? (isMobile ? 1 : 2) : 0;
         for (let i = 0; i < _dN; i++) {
           const ox = (Math.random() - 0.5) * hw * 1.6;
           particles.push({
@@ -7921,10 +7921,10 @@ function update(dt) {
     if (currentHitFxSkin && SKINS[currentHitFxSkin]) {
       const dhx = getLaneX(n.lane), dhy = getHitY();
       const dhw = (getLaneW() - 8) / 2;
-      // ---- (A) sparkle 방울 ----
+      // ---- (A) sparkle 방울 — 크기 작게 + 더 자주 ----
       const _pushSparkle = (bigger) => {
         const ox = (Math.random() - 0.5) * dhw * 0.9;
-        const sz = (bigger ? 26 : 20) + Math.random()*14;
+        const sz = (bigger ? 14 : 12) + Math.random()*10;   // init 14~24, tick 12~22
         particles.push({
           x: dhx + ox, y: dhy,
           vx: (Math.random()-0.5)*130,
@@ -7937,33 +7937,36 @@ function update(dt) {
       };
       if (!n._dropInit && particles.length < (isMobile ? 60 : 150)) {
         n._dropInit = true;
-        for (let i = 0; i < 4; i++) _pushSparkle(true);
+        for (let i = 0; i < 6; i++) _pushSparkle(true);       // init 4 → 6
       }
       if (!n._dropTimer) n._dropTimer = 0;
       n._dropTimer += dt;
-      if (n._dropTimer >= 0.12 && particles.length < (isMobile ? 60 : 150)) {
+      // 더 자주 — 단 기존 drift + drop + 다중 홀드 조합으로 cap 150 찍히면 중간 stutter.
+      //   cap 의 70% 이상이면 스킵해서 여유 남김.
+      const _particleSoft = isMobile ? 42 : 100;
+      if (n._dropTimer >= 0.08 && particles.length < _particleSoft) {
         n._dropTimer = 0;
         _pushSparkle(false);
       }
-      // ---- (B) drift + core_flash 아래로 흘려보냄 ----
+      // ---- (B) drift + core_flash 아래로 흘려보냄 — life 짧게 (더 일찍 사라짐) ----
       if (!n._holdFlowInit && particles.length < (isMobile ? 60 : 150)) {
         n._holdFlowInit = true;
-        // core_flash — 판정선 바로 아래 한 장 번쩍 (fade out 짧게)
+        // core_flash — 짧은 번쩍
         particles.push({
           x: dhx, y: dhy + 6,
           vx: 0, vy: 30 + Math.random()*15,
-          life: 0.45, maxLife: 0.45,
+          life: 0.3, maxLife: 0.3,                            // 0.45 → 0.3
           color: '#fff', size: 50 + Math.random()*10,
           sprite: true, spriteKey: 'coreFlash',
           rot: 0, rotVel: 0,
         });
-        // drift 3개 — 좌우로 퍼지며 아래로
+        // drift 3개 — 좌우로 퍼지며 아래로, 빠르게 사라짐
         for (let i = 0; i < 3; i++) {
           particles.push({
             x: dhx + (Math.random()-0.5) * dhw * 0.6, y: dhy + 4,
             vx: (Math.random()-0.5)*60,
             vy: 45 + Math.random()*55,
-            life: 1.0, maxLife: 1.0,
+            life: 0.55, maxLife: 0.55,                        // 1.0 → 0.55
             color: '#fff', size: 22 + Math.random()*10,
             sprite: true, spriteKey: 'drift',
             rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*2,
@@ -7972,13 +7975,13 @@ function update(dt) {
       }
       if (!n._holdFlowTimer) n._holdFlowTimer = 0;
       n._holdFlowTimer += dt;
-      if (n._holdFlowTimer >= 0.18 && particles.length < (isMobile ? 60 : 150)) {
+      if (n._holdFlowTimer >= 0.18 && particles.length < (isMobile ? 45 : 110)) {
         n._holdFlowTimer = 0;
         particles.push({
           x: dhx + (Math.random()-0.5) * dhw * 0.8, y: dhy + 2,
           vx: (Math.random()-0.5)*45,
           vy: 40 + Math.random()*45,
-          life: 0.9, maxLife: 0.9,
+          life: 0.5, maxLife: 0.5,
           color: '#fff', size: 18 + Math.random()*8,
           sprite: true, spriteKey: 'drift',
           rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*1.5,
