@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424017100;
+window.__BUILD_TS = 20260424018000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2640,8 +2640,7 @@ const SKINS = {
       containerBody: 'skins/neon/container/container_body.png',
       speedMinus: 'skins/neon/speed/speed_minus.png',
       speedPlus:  'skins/neon/speed/speed_plus.png',
-      // 판정선 3분할: 바 + 좌 데코 + 우 데코 (데코는 고정 크기, 바만 레인 폭 stretch)
-      judgeLineBar:       'skins/neon/judge_line/judge_line_bar.png',
+      // 판정선 — 바는 procedural (유저 요청, 2026-04-24), 좌/우 데코만 PNG.
       judgeLineDecoLeft:  'skins/neon/judge_line/judge_line_deco_left.png',
       judgeLineDecoRight: 'skins/neon/judge_line/judge_line_deco_right.png',
       // 판정선 밑 점수 패널 배경 (MAX COMBO / SCORE 텍스트의 배경판)
@@ -7142,7 +7141,6 @@ function startSong(idx) {
         if (_uiPS && _uiPS.imagePaths) {
           const _tw = getLaneW() * laneCount;
           const _warmRects = [
-            [_uiPS.imagePaths.judgeLineBar, _tw, sz(8)],
             [_uiPS.imagePaths.judgeLineDecoLeft, sz(44), sz(44)],
             [_uiPS.imagePaths.judgeLineDecoRight, sz(44), sz(44)],
           ];
@@ -8998,26 +8996,24 @@ function renderHitLine() {
   const _shadowCol = _ui ? (_ui.hitLineGlow || '#ffffff') : '#ffffff';
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
 
-  // PNG 판정선 오버라이드 — 바 + 좌/우 데코 3분할
+  // 판정선 바 — procedural 핑크 네온 (sakura_ui) / 기본 흰 라인 (그 외).
+  //   PNG 은 불필요 (유저 요청, 2026-04-24) — drawImage + texture upload 제거로 더 빠름.
   const _uiSkinJL = _getUiPackSkin();
-  const _jlBarPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineBar;
-  const _jlBarImg = _jlBarPath ? skinImages[_jlBarPath] : null;
-  const _jlBarReady = _jlBarImg && _jlBarImg._ok === true;
-  const _jlLPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineDecoLeft;
-  const _jlLImg = _jlLPath ? skinImages[_jlLPath] : null;
-  const _jlLReady = _jlLImg && _jlLImg._ok === true;
-  const _jlRPath = _uiSkinJL && _uiSkinJL.imagePaths && _uiSkinJL.imagePaths.judgeLineDecoRight;
-  const _jlRImg = _jlRPath ? skinImages[_jlRPath] : null;
-  const _jlRReady = _jlRImg && _jlRImg._ok === true;
-
-  if (_jlBarReady) {
-    // 바: 레인 폭 전체에 가로 stretch, 세로는 sz(8) 고정 (얇은 선).
-    try {
-      const _jlBarH = sz(8);
-      ctx.drawImage(_jlBarImg, lsx, hitY - _jlBarH / 2, tw, _jlBarH);
-    } catch(e) {}
+  if (_uiSkinJL) {
+    // ★ 두꺼운 핑크 네온 바 — 3단 band 로 glow 효과 (shadowBlur 는 PC 만).
+    if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 10; }
+    // 바깥 halo (넓고 투명)
+    ctx.fillStyle = 'rgba(255,122,168,0.25)';
+    ctx.fillRect(lsx, hitY - _s7, tw, _s14);
+    // 중간 핑크 band
+    ctx.fillStyle = _glowCol;
+    ctx.fillRect(lsx, hitY - _s3, tw, _s6);
+    // 코어 밝은 라인 (얇고 살구/흰)
+    ctx.fillStyle = _mainCol;
+    ctx.fillRect(lsx, hitY - 1, tw, 2);
+    ctx.shadowBlur = 0;
   } else {
-    // Procedural fallback — 기본 라인 + glow
+    // 기본 — 흰 라인 + soft glow
     if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
