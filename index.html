@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424004100;
+window.__BUILD_TS = 20260424005000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7841,6 +7841,20 @@ function update(dt) {
             rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*4,
           });
         }
+        // ★ 하강 꽃잎 입자 — 판정선 아래로 자연스럽게 흘러내림 (유저 요청)
+        //   petal1/petal2 번갈아 사용, 약한 좌우 흔들림 + 회전
+        const _pN = isMobile ? 1 : 2;
+        for (let i = 0; i < _pN; i++) {
+          const ox = (Math.random() - 0.5) * hw * 1.4;
+          particles.push({
+            x: hx + ox, y: hy + 2,
+            vx: (Math.random()-0.5)*30, vy: 60 + Math.random()*90,
+            life: 0.55 + Math.random()*0.35, maxLife: 0.9,
+            color: '#fff', size: 14 + Math.random()*8,
+            sprite: true, spriteKey: Math.random() < 0.5 ? 'petal1' : 'petal2',
+            rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*3,
+          });
+        }
       } else {
         // Big upward flame columns
         for (let i = 0; i < laneCount; i++) {
@@ -9565,20 +9579,13 @@ function renderHoldGlows() {
     ctx.translate(g.x, g.y);
 
     if (fx && fx.imgs.holdLineGlow) {
-      // ★ 벚꽃 라인 글로우 — 메인 sprite 1장 + 아래 보조 sprite 1장만 (경량).
-      //   과거: radial gradient + 스파클 5개 + 꽃잎 3개 → 홀드 중 매 프레임 비용 폭증으로 프리즈.
-      //   현재: drawImage 2회로 최소화. 충분히 풍성하면서 GC/경로 연산 없음.
+      // ★ 벚꽃 라인 글로우 — 판정선 중앙 sprite 1장만.
+      //   아래 영역의 "흘러내림" 은 spawnHoldParticles 의 petal 입자가 담당 (자연스러움).
       const _mobG = isMobile ? 0.65 : 0.85;
-      // 1) 메인 라인 sprite (판정선 중앙)
       const w = hw * 2 * (1.6 + t * 1.0) * _mobG;
       const h = _s40 * (1 - t * 0.2) * _mobG;
       ctx.globalAlpha = alpha * 0.95;
       ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
-      // 2) 아래 소프트 보조 — 같은 sprite 를 아래로 오프셋 + 작게 + 낮은 알파
-      const w2 = hw * 2 * (1.2 + t * 0.6) * _mobG;
-      const h2 = _s30 * (1 - t * 0.3) * _mobG;
-      ctx.globalAlpha = alpha * 0.55;
-      ctx.drawImage(fx.imgs.holdLineGlow, -w2/2, _s8, w2, h2);
       ctx.restore();
       continue;
     }
