@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424016100;
+window.__BUILD_TS = 20260424017000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9340,13 +9340,17 @@ function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
   const _pad = sz(3), _r = sz(6);
 
-  // ★ sakura_ui 장착 + key.png 로드 완료 시 PNG + 단일 색 모드 (레인별 색 구분 X)
+  // ★ sakura_ui 장착 시 — PNG 있으면 tinted PNG 모드, 없으면 procedural + sakura 팔레트.
   const _uiSkin = _getUiPackSkin();
   const _keyBasePath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.keyBase;
   const _keyBaseImg = _keyBasePath ? skinImages[_keyBasePath] : null;
   const _sakuraMode = !!(_keyBaseImg && _keyBaseImg.complete && _keyBaseImg.naturalWidth > 0);
+  const _sakuraUiActive = !!_uiSkin;
   // 키 색상: 8키 모두 동일 (deck_base wine 톤과 조화되는 medium pink).
-  const _sakuraKeyColor = '#ff89a7';
+  const _sakuraKeyColor = (_uiSkin && _uiSkin.palette && _uiSkin.palette.keyAccent) || '#ff7aa8';
+  const _sakuraBody0 = (_uiSkin && _uiSkin.palette && _uiSkin.palette.keyBody0) || '#3a1f2e';
+  const _sakuraBody1 = (_uiSkin && _uiSkin.palette && _uiSkin.palette.keyBody1) || '#28121f';
+  const _sakuraHL    = (_uiSkin && _uiSkin.palette && _uiSkin.palette.keyHL)    || 'rgba(255,220,235,0.22)';
 
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
@@ -9408,66 +9412,104 @@ function renderButtons() {
       // tint 생성 실패 → procedural fallback
     }
 
+    // ★ sakura_ui + PNG 없을 때: wine/pink 팔레트로 procedural key 렌더. 레인색 대신 단일 accent 사용.
+    const _keyCol = _sakuraUiActive ? _sakuraKeyColor : col;
     if (held) {
-      // ===== 눌림 — 키가 살짝 들어간 느낌 (어두워지고 색 포화) =====
-      const _pgrad = ctx.createLinearGradient(0, y, 0, y + h);
-      _pgrad.addColorStop(0, col + '66');
-      _pgrad.addColorStop(0.5, col + '33');
-      _pgrad.addColorStop(1, col + '11');
-      ctx.fillStyle = _pgrad;
-      rrFill(x, y, w, h, _r);
-      // 상단 컬러 스트라이프 (눌렸을 때 강하게 빛남)
-      ctx.fillStyle = col + 'dd';
-      ctx.fillRect(x + _r, y, w - _r*2, sz(4));
-      // 인셋 어두운 효과 (들어간 느낌)
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
-      // 테두리
-      ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2;
-      rrStroke(x, y, w, h, _r);
-      // ★ 눌림 상태에도 센서 점 유지 (더 밝게 빛남)
+      // ===== 눌림 — 키가 살짝 들어간 느낌 =====
+      if (_sakuraUiActive) {
+        // 벚꽃 눌림: wine body 가 더 포화되고 accent 빛남
+        const _pgrad = ctx.createLinearGradient(0, y, 0, y + h);
+        _pgrad.addColorStop(0, _sakuraBody0);
+        _pgrad.addColorStop(0.5, _sakuraBody1);
+        _pgrad.addColorStop(1, '#180810');
+        ctx.fillStyle = _pgrad;
+        rrFill(x, y, w, h, _r);
+        // 상단 pink accent 강하게
+        ctx.fillStyle = _sakuraKeyColor + 'ee';
+        ctx.fillRect(x + _r, y, w - _r*2, sz(4));
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
+        ctx.strokeStyle = _sakuraKeyColor + 'dd'; ctx.lineWidth = 2;
+        rrStroke(x, y, w, h, _r);
+      } else {
+        const _pgrad = ctx.createLinearGradient(0, y, 0, y + h);
+        _pgrad.addColorStop(0, col + '66');
+        _pgrad.addColorStop(0.5, col + '33');
+        _pgrad.addColorStop(1, col + '11');
+        ctx.fillStyle = _pgrad;
+        rrFill(x, y, w, h, _r);
+        ctx.fillStyle = col + 'dd';
+        ctx.fillRect(x + _r, y, w - _r*2, sz(4));
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(x + sz(2), y + sz(6), w - sz(4), sz(2));
+        ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2;
+        rrStroke(x, y, w, h, _r);
+      }
+      // 센서 점 — 팔레트 공통 (_keyCol 사용)
       const _dcxH = bx + lw/2, _dcyH = by + Math.min(bh * 0.55, sz(44));
       const _drH = sz(4);
-      ctx.fillStyle = col + '66';
+      ctx.fillStyle = _keyCol + '66';
       ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH + sz(3), 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH, 0, Math.PI*2); ctx.fill();
     } else {
-      // ===== 대기 — 신디사이저 키보드 느낌 =====
-      // 1) Key body: 상단 밝고 하단 어두운 메탈릭 그라데이션
-      const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
-      _kgrad.addColorStop(0,    '#3a3a44');
-      _kgrad.addColorStop(0.35, '#26262e');
-      _kgrad.addColorStop(1,    '#12121a');
-      ctx.fillStyle = _kgrad;
-      rrFill(x, y, w, h, _r);
-      // 2) 상단 엣지 하이라이트 (금속 반사)
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(x + _r, y + sz(3), w - _r*2, 1);
-      // 3) 컬러 액센트 스트라이프 (키보드 상단 표시등 같은 느낌)
-      ctx.fillStyle = col + '99';
-      ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
-      ctx.fillStyle = col + '44';
-      ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
-      // 4) 하단 그림자 (키가 올라와있는 느낌)
-      const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
-      _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
-      _sgrad.addColorStop(1, 'rgba(0,0,0,0.45)');
-      ctx.fillStyle = _sgrad;
-      ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
-      // 5) 테두리 — 차콜 메탈
-      ctx.strokeStyle = 'rgba(85,85,95,0.7)'; ctx.lineWidth = 1;
-      rrStroke(x, y, w, h, _r);
-      // 6) 중앙 원형 "키캡 센서" 점 — 레인 색
+      // ===== 대기 =====
+      if (_sakuraUiActive) {
+        // 1) wine body 그라데이션
+        const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
+        _kgrad.addColorStop(0,    _sakuraBody0);       // #3a1f2e wine
+        _kgrad.addColorStop(0.45, _sakuraBody1);       // #28121f darker
+        _kgrad.addColorStop(1,    '#170810');          // 바닥 거의 검정
+        ctx.fillStyle = _kgrad;
+        rrFill(x, y, w, h, _r);
+        // 2) 상단 엣지 pink 하이라이트
+        ctx.fillStyle = _sakuraHL;
+        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+        // 3) pink accent 스트라이프 (단일 색, 레인별 구분 없음)
+        ctx.fillStyle = _sakuraKeyColor + '88';
+        ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
+        ctx.fillStyle = _sakuraKeyColor + '33';
+        ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
+        // 4) 하단 그림자
+        const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
+        _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
+        _sgrad.addColorStop(1, 'rgba(0,0,0,0.5)');
+        ctx.fillStyle = _sgrad;
+        ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
+        // 5) pink 톤 테두리
+        ctx.strokeStyle = 'rgba(255,140,180,0.4)'; ctx.lineWidth = 1;
+        rrStroke(x, y, w, h, _r);
+      } else {
+        // 기본 메탈릭 (sakura_ui 미장착)
+        const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
+        _kgrad.addColorStop(0,    '#3a3a44');
+        _kgrad.addColorStop(0.35, '#26262e');
+        _kgrad.addColorStop(1,    '#12121a');
+        ctx.fillStyle = _kgrad;
+        rrFill(x, y, w, h, _r);
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x + _r, y + sz(3), w - _r*2, 1);
+        ctx.fillStyle = col + '99';
+        ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
+        ctx.fillStyle = col + '44';
+        ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
+        const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
+        _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
+        _sgrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+        ctx.fillStyle = _sgrad;
+        ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
+        ctx.strokeStyle = 'rgba(85,85,95,0.7)'; ctx.lineWidth = 1;
+        rrStroke(x, y, w, h, _r);
+      }
+      // 중앙 원형 센서 점 — 팔레트 공통 (_keyCol)
       const _dcx = bx + lw/2, _dcy = by + Math.min(bh * 0.55, sz(44));
       const _dr = sz(4);
-      ctx.fillStyle = col + '33';
+      ctx.fillStyle = _keyCol + '33';
       ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr + sz(2), 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = col + 'bb';
+      ctx.fillStyle = _keyCol + 'bb';
       ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr, 0, Math.PI*2); ctx.fill();
-      // 중심 밝은 하이라이트
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.beginPath(); ctx.arc(_dcx - _dr*0.3, _dcy - _dr*0.3, _dr*0.35, 0, Math.PI*2); ctx.fill();
     }
@@ -9486,7 +9528,7 @@ function renderButtons() {
     if (!isMobile) {
       ctx.font = `bold ${sz(14)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = held ? '#fff' : col + '88';
+      ctx.fillStyle = held ? '#fff' : (_sakuraUiActive ? 'rgba(255,190,210,0.65)' : col + '88');
       ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
     }
   }
