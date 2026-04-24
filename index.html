@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424046100;
+window.__BUILD_TS = 20260424047000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8945,18 +8945,19 @@ function renderBackplate() {
 
   if (outerW <= sz(40) || outerH <= sz(60)) { ctx.restore(); return; }
 
-  // ★ 벚꽃 UI: 레일 외곽(outerX 왼쪽 + outerR 오른쪽) 에 bark 톤 배경 깔기.
-  //   HP 컨테이너, 좌우 margin 이 이 bark 배경 위에 얹힘. 벚꽃 나무 느낌의 베이스.
+  // ★ 벚꽃 UI: 레일 외곽 bark 배경. 그라데이션 캐싱 (매 프레임 생성 방지).
   if (_getUiPack()) {
-    const _barkGrad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-    _barkGrad.addColorStop(0, '#2a1810');
-    _barkGrad.addColorStop(0.5, '#3a2418');
-    _barkGrad.addColorStop(1, '#22130a');
-    ctx.fillStyle = _barkGrad;
-    // 좌측 — 화면 왼쪽 ~ outerX
-    if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, H + safeTop + safeBottom);
-    // 우측 — outerR ~ 화면 오른쪽
-    if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, H + safeTop + safeBottom);
+    const _vh = H + safeTop + safeBottom;
+    if (!window._barkGradCache || window._barkGradCache._h !== _vh || window._barkGradCache._t !== safeTop) {
+      const g = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+      g.addColorStop(0, '#2a1810');
+      g.addColorStop(0.5, '#3a2418');
+      g.addColorStop(1, '#22130a');
+      window._barkGradCache = { g, _h: _vh, _t: safeTop };
+    }
+    ctx.fillStyle = window._barkGradCache.g;
+    if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
+    if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
   }
 
   // ★ HP 컨테이너 wedge Y 범위 (renderUI 와 동일 중앙 정렬 산식).
@@ -9902,23 +9903,24 @@ function renderBursts() {
 function renderSakuraHoldGlowBg() {
   const fx = _hitFxData();
   if (!fx) return;
+  // 모바일 skip — 홀드 글로우 sprite 가 이미 있어서 bg glow 생략해도 비주얼 크게 저하 X.
+  if (isMobile) return;
   for (const g of holdGlows) {
     const t = g.time / g.maxTime;
     const alpha = (1 - t);
     const hw = g.w / 2;
     ctx.save();
     ctx.translate(g.x, g.y);
-    const _mobG = isMobile ? 0.7 : 1.0;
-    const glowH = _s80 * (0.45 + t * 0.55) * _mobG;
+    const glowH = _s80 * (0.45 + t * 0.55);
     ctx.globalAlpha = alpha * 0.65;
-    const grd = ctx.createRadialGradient(0, glowH*0.1, 0, 0, glowH*0.15, hw * (1.3 + t * 0.8) * _mobG);
+    const grd = ctx.createRadialGradient(0, glowH*0.1, 0, 0, glowH*0.15, hw * (1.3 + t * 0.8));
     grd.addColorStop(0.0, '#ffe6f0');
     grd.addColorStop(0.25, '#ff7aa8');
     grd.addColorStop(0.65, 'rgba(255,90,140,0.5)');
     grd.addColorStop(1.0, 'rgba(255,90,140,0)');
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.ellipse(0, glowH * 0.15, hw * (1.4 + t * 0.9) * _mobG, glowH, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, glowH * 0.15, hw * (1.4 + t * 0.9), glowH, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -10155,37 +10157,30 @@ function renderUI() {
       const _exactLit = gauge * _segN;
       const _fullSegs = Math.floor(_exactLit);
       const _partial = _exactLit - _fullSegs;
+      // 빈 segment 먼저 일괄 fill (컬러 1회 세팅)
+      ctx.fillStyle = 'rgba(255,140,180,0.08)';
       for (let s = 0; s < _segN; s++) {
+        if (s < _fullSegs || s === _fullSegs) continue;
         const _segY = gy + gh - (s + 1) * _segH - s * _segGap;
-        // 색 — 3 구역 (하/중/상)
-        const _col = (s < _segN / 3) ? _segCol0 : (s < _segN * 2 / 3) ? _segCol1 : _segCol2;
+        ctx.fillRect(gx, _segY, gw, _segH);
+      }
+      // 채워진 segment 루프 — save/shadowBlur 제거 (per-frame 비용 축소). 색은 zone 별 배치.
+      for (let s = 0; s < _segN; s++) {
         let _segAlpha = 0;
         if (s < _fullSegs) _segAlpha = 1;
         else if (s === _fullSegs) _segAlpha = _partial;
-        if (_segAlpha <= 0) {
-          ctx.fillStyle = 'rgba(255,140,180,0.08)';
-          ctx.fillRect(gx, _segY, gw, _segH);
-          continue;
-        }
-        if (!isMobile) {
-          ctx.save();
-          ctx.shadowColor = _col;
-          ctx.shadowBlur = 6;
-          ctx.globalAlpha = _segAlpha;
-          ctx.fillStyle = _col;
-          ctx.fillRect(gx, _segY, gw, _segH);
-          ctx.restore();
-        } else {
-          ctx.globalAlpha = _segAlpha;
-          ctx.fillStyle = _col;
-          ctx.fillRect(gx, _segY, gw, _segH);
-        }
-        // 상단 하이라이트
+        if (_segAlpha <= 0) continue;
+        const _segY = gy + gh - (s + 1) * _segH - s * _segGap;
+        const _col = (s < _segN / 3) ? _segCol0 : (s < _segN * 2 / 3) ? _segCol1 : _segCol2;
+        ctx.globalAlpha = _segAlpha;
+        ctx.fillStyle = _col;
+        ctx.fillRect(gx, _segY, gw, _segH);
+        // 상단 1px 흰선 하이라이트
         ctx.globalAlpha = _segAlpha * 0.7;
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.fillRect(gx + 1, _segY + 1, gw - 2, 1);
-        ctx.globalAlpha = 1;
       }
+      ctx.globalAlpha = 1;
     } else {
       // 기본 스킨 — 캡슐 그라데이션 (기존 유지)
       const _fillH = gh * gauge;
