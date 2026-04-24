@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424010100;
+window.__BUILD_TS = 20260424011000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7915,44 +7915,38 @@ function update(dt) {
       holdGlows.push({ x: getLaneX(n.lane), y: getHitY(), time: 0, maxTime: 0.35,
         color: LANE_COLORS[n.lane], w: getLaneW() - 8 });
     }
-    // ★ 방울 분수 (sparkle 스프라이트) — sakura_fx 장착 시. 0.12s 틱.
-    //   위로 튀어오름 → 중력 낙하 → 페이드아웃. 레인 경계 넘어가도 OK (vx 넓게).
+    // ★ 방울 연출 — sakura_fx 장착 시.
+    //   (1) 누르는 순간 burst 4개 즉시 (n._dropInit 플래그로 1회만)
+    //   (2) 이후 0.12s 틱으로 1개씩 지속.
+    //   vy 약하게 (-40~-100): 살짝만 튀어오르고 바로 낙하 — 판정선 아래로 확실히 떨어짐.
+    //   life === maxLife 로 풀 알파 생성 → 끝까지 보이게 페이드.
     if (currentHitFxSkin && SKINS[currentHitFxSkin]) {
+      const dhx = getLaneX(n.lane), dhy = getHitY();
+      const dhw = (getLaneW() - 8) / 2;
+      const _pushDrop = (bigger) => {
+        const ox = (Math.random() - 0.5) * dhw * 0.9;
+        const sz = (bigger ? 10 : 8) + Math.random()*8;
+        particles.push({
+          x: dhx + ox, y: dhy,
+          vx: (Math.random()-0.5)*130,
+          vy: -40 - Math.random()*60,               // -40 ~ -100 약한 상승 → 바로 낙하
+          life: 1.3, maxLife: 1.3,                  // 풀 알파 시작, 1.3s 간 천천히 페이드
+          color: '#fff', size: sz,
+          sprite: true, spriteKey: 'sparkle',
+          rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*3,
+        });
+      };
+      // 초회 burst — 누르는 순간 4개 즉시 (살짝 크게)
+      if (!n._dropInit && particles.length < (isMobile ? 60 : 150)) {
+        n._dropInit = true;
+        for (let i = 0; i < 4; i++) _pushDrop(true);
+      }
+      // 지속 틱
       if (!n._dropTimer) n._dropTimer = 0;
       n._dropTimer += dt;
       if (n._dropTimer >= 0.12 && particles.length < (isMobile ? 60 : 150)) {
         n._dropTimer = 0;
-        const dhx = getLaneX(n.lane), dhy = getHitY();
-        const dhw = (getLaneW() - 8) / 2;
-        const ox = (Math.random() - 0.5) * dhw * 0.9;
-        particles.push({
-          x: dhx + ox, y: dhy,
-          vx: (Math.random()-0.5)*150,              // ±75, 양옆으로 퍼짐
-          vy: -90 - Math.random()*70,               // -90 ~ -160 위로 튀어오름
-          life: 1.3 + Math.random()*0.35, maxLife: 1.65,
-          color: '#fff', size: 10 + Math.random()*10,
-          sprite: true, spriteKey: 'sparkle',
-          rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*2.5,
-        });
-      }
-      // ★ 조용히 아래로 새어나오는 leak — 별도 느린 틱 (0.35s). 작은 sparkle 가 살짝만 떨어짐.
-      //   arc 와 구분되게 vy 양수(작게) + 크기 작음 + 좌우 흔들림 미약.
-      if (!n._leakTimer) n._leakTimer = 0;
-      n._leakTimer += dt;
-      if (n._leakTimer >= 0.35 && particles.length < (isMobile ? 60 : 150)) {
-        n._leakTimer = 0;
-        const dhx2 = getLaneX(n.lane), dhy2 = getHitY();
-        const dhw2 = (getLaneW() - 8) / 2;
-        const ox2 = (Math.random() - 0.5) * dhw2 * 1.0;
-        particles.push({
-          x: dhx2 + ox2, y: dhy2 + 2,
-          vx: (Math.random()-0.5)*20,
-          vy: 40 + Math.random()*50,                // 40~90 천천히 내려감
-          life: 0.9 + Math.random()*0.3, maxLife: 1.2,
-          color: '#fff', size: 6 + Math.random()*5, // 작게
-          sprite: true, spriteKey: 'sparkle',
-          rot: Math.random()*Math.PI*2, rotVel: (Math.random()-0.5)*1.5,
-        });
+        _pushDrop(false);
       }
     }
     // 홀드 중 키음 스템 볼륨 유지 (DJMAX식: 홀드하는 동안 소리 지속)
@@ -14025,15 +14019,18 @@ function renderDimDebug() {
   ctx.fillText('canvas bottom (' + cH + ')', 10, cH - 20);
   ctx.restore();
 }
-// ★ 페이지 로드 직후 prewarmup — 업데이트 직후 첫 곡 stutter 방지. 타이틀 → 첫 곡 시점엔
-//   JIT/텍스처 이미 hot 상태가 되도록 사전 실행. 두 번에 나눠서 (1) 빠르게 핵심 JIT (2) 이미지 로드 대기 후 GPU.
+// ★ 페이지 로드 직후 prewarmup — 업데이트 직후 첫 곡 stutter 방지.
+//   핵심: sakura_fx sprite 분기는 _hitFxData() 가 null 이면 JIT 안 됨 → 이미지 로드 완료 후에
+//   해야 sprite 경로까지 warm. retry 패턴으로 이미지 준비되면 1회 실행.
 (() => {
-  // Stage 1 — 이미지 로드 안 기다리고 즉시 JIT 만. 함수 내부 코드 경로 pre-compile.
-  const warmJIT = () => {
-    if (window._prewarmJITDone) return;
-    window._prewarmJITDone = true;
+  const doWarmup = () => {
+    if (window._prewarmDone) return true;
     try {
-      if (typeof renderBursts !== 'function') return;
+      if (typeof renderBursts !== 'function' || typeof renderParticles !== 'function') return false;
+      const fx = (typeof _hitFxData === 'function') ? _hitFxData() : null;
+      // sparkle/drift/petal 등 핵심 sprite 가 로드됐는지 확인 — 하나라도 없으면 재시도.
+      if (!fx || !fx.imgs.sparkle || !fx.imgs.drift) return false;
+      window._prewarmDone = true;
       const _mk = (extras) => Object.assign({
         x: -500, y: -500, vx: 10, vy: 10, life: 1, maxLife: 1,
         color: 'rgba(255,255,255,0.9)', size: 5,
@@ -14054,16 +14051,17 @@ function renderDimDebug() {
       for (const b of bursts) b.time += _dt;
       for (const g of holdGlows) g.time += _dt;
       ctx.save(); ctx.globalAlpha = 0;
+      // 2회 호출 — V8 baseline → optimized 전환 유도
+      renderParticles(); renderBursts(); renderHoldGlows();
       renderParticles(); renderBursts(); renderHoldGlows();
       ctx.restore();
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // spawnBurst / spawnParticles 내부 loop + Math.cos/sin JIT
       try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'perfect'); } catch(e) {}
       try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'great'); } catch(e) {}
+      try { if (typeof spawnBurst === 'function') spawnBurst(-500, -500, 'good'); } catch(e) {}
       try { if (typeof spawnParticles === 'function') spawnParticles(-500, -500, '#fff', 3); } catch(e) {}
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // renderNotes 경로 — dummy nodes 로 in-game 노트 렌더 코드 JIT.
-      //   페이지 로드 시 nodes/gameTime/countdownTime 은 초기값이라 side-effect 없음.
+      // renderNotes — dummy nodes
       if (typeof renderNotes === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
         try {
           nodes.push(
@@ -14071,18 +14069,12 @@ function renderDimDebug() {
             { type: 'hold', lane: 0, time: 999, endTime: 999.5, hit: false, missed: false, holding: false }
           );
           ctx.save(); ctx.globalAlpha = 0;
-          renderNotes();
+          renderNotes(); renderNotes();
           ctx.restore();
         } catch(e) {}
         nodes.length = 0;
       }
-    } catch(e) { console.warn('[prewarm JIT] failed', e); }
-  };
-  // Stage 2 — 이미지 로드된 뒤 GPU 텍스처 업로드.
-  const warmGPU = () => {
-    if (window._prewarmGPUDone) return;
-    window._prewarmGPUDone = true;
-    try {
+      // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부
       if (typeof skinImages === 'object' && skinImages) {
         ctx.save(); ctx.globalAlpha = 0;
         for (const path in skinImages) {
@@ -14096,15 +14088,14 @@ function renderDimDebug() {
         }
         ctx.restore();
       }
-    } catch(e) {}
+      return true;
+    } catch(e) { console.warn('[prewarm] failed', e); return false; }
   };
-  // JIT 는 즉시, GPU 는 2s 후 (이미지 로드 대기).
-  setTimeout(warmJIT, 100);
-  if (window.requestIdleCallback) {
-    window.requestIdleCallback(warmGPU, { timeout: 2500 });
-  } else {
-    setTimeout(warmGPU, 2000);
-  }
+  const retry = () => {
+    if (doWarmup()) return;
+    setTimeout(retry, 250);
+  };
+  setTimeout(retry, 200);
 })();
 requestAnimationFrame(loop);
 </script>
