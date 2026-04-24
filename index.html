@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424183234;
+window.__BUILD_TS = 20260424183811;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7016,12 +7016,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       console.log('ambient filter: ' + (before - allOnsets.length) + ' onsets dropped');
     }
 
-    // ===== Dominant stem gating — 버킷별 최강 스템의 ~40% 미만인 onset drop =====
-    // 드럼 주도 구간 → 드럼 onset 만 살림. 피아노 주도 → 피아노만. 일렉(instrum) 주도 → instrum.
-    // 배경으로 깔리는 낮은 RMS 스템의 onset 은 노트로 안 찍힘 → 곡의 "현재 주인공" 리듬 반영.
+    // ===== Dominant stem gating — 버킷별 최강 스템의 ~30% 미만인 onset drop =====
+    // 드럼 주도 구간 → 드럼 onset 주로, 피아노 주도 → 피아노 주로.
+    // 0.3 은 관대 (bass/drum 같이 30%+ 인 rhythmic 스템 공존 허용). 리듬 뼈대 보존.
     // 수동 intro 노트(_forceHold/_forceTap)는 예외.
     if (Object.keys(stemBucketRms).length >= 2) {
-      const DOMINANT_RATIO = 0.4;
+      const DOMINANT_RATIO = 0.3;
       const MIN_DOMINANT_RMS = 0.03; // 이 이하 버킷은 전체 조용 → gating skip
       const dominant = new Float32Array(maxBuckets);
       for (let b = 0; b < maxBuckets; b++) {
@@ -7163,61 +7163,79 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
   const nonSilent = merged;
 
-  // 난이도 필터링 — sequential gap (slot-based 는 slot 경계에서 같은 스템 빠른 독주 drop)
-  // 같은 스템 + 에너지 유사(0.7~1.5배) = 독주/트레몰로 → minGap 0.5배 로 연타 허용.
-  // 다른 스템 혼합이면 minGap 그대로 적용해 과밀도 방지.
+  // 난이도 필터링 — slot-based (815d64e 원본 방식, 안정 베이스 리듬).
+  // 각 slot 에서 에너지 최강 1개 선택. 규칙적 리듬 구조 유지.
   const density = diff.noteDensity;
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 보통: 8분음표
                : density <= 1.2 ? sixteenth * 1.5  // 어려움: 점8분음표
                : sixteenth;                        // 지옥: 16분음표
   const filtered = [];
-  {
-    let lastKept = null;
-    for (const o of nonSilent) {
-      let gap = minGap;
-      if (lastKept && o.stem === lastKept.stem) {
-        const eRatio = o.energy / (lastKept.energy || 1);
-        if (eRatio >= 0.7 && eRatio <= 1.5) gap = minGap * 0.5; // 독주/트레몰로
+  if (nonSilent.length > 0) {
+    const songStart = nonSilent[0].time;
+    const songEnd = nonSilent[nonSilent.length - 1].time;
+    let slotStart = songStart;
+    let nsIdx = 0;
+    while (slotStart < songEnd + minGap) {
+      const slotEnd = slotStart + minGap;
+      let best = null, bestEnergy = -1;
+      while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
+        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
+          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
+        }
+        nsIdx++;
       }
-      if (!lastKept || o.time - lastKept.time >= gap) {
-        filtered.push(o);
-        lastKept = o;
-      }
+      if (best) filtered.push(best);
+      slotStart = slotEnd;
     }
   }
 
-  // ===== "따닥/따라라락" 리듬 복구 (관대하게) =====
-  // density filter 에서 drop 됐지만 직전 kept 뒤 60~200ms + 에너지 >=50% 인 onset 복구.
-  // 빠른 연타 (16/32분음표 트레몰로, 드럼 롤, 스네어 플램) 리듬 살림.
-  // 한 kept 당 최대 3개 rescue (따라라락 4연타까지 커버), 총량 상한 20%.
+  // ===== Rhythmic burst rescue — "따단/따랄란" 같은 특징적 구간만 노트 밀도 올림 =====
+  // 500ms 윈도우에 onset 이 4개+ 몰린 구간 = 드럼 롤 / 트레몰로 / 16분 연타 burst
+  // 그 구간에서만 filtered 아닌 peak 1개 추가 복구. 평상시엔 영향 없음.
+  // 총량 상한 5% (남발 방지).
   {
-    const PAIR_MIN = 0.06;
-    const PAIR_MAX = 0.20;
-    const ENERGY_RATIO = 0.5;
-    const MAX_RESCUE_PER_KEPT = 3;
-    const MAX_TOTAL_RATIO = 0.20;
-    const maxTotal = Math.floor(filtered.length * MAX_TOTAL_RATIO);
+    const WIN = 0.5;
+    const MIN_BURST = 4;
+    const MAX_RESCUE_RATIO = 0.05;
+    const maxRescue = Math.floor(filtered.length * MAX_RESCUE_RATIO);
     const filteredSet = new Set(filtered);
     const rescuedSet = new Set();
     const rescued = [];
-    for (const f of filtered) {
-      if (rescued.length >= maxTotal) break;
-      let countHere = 0;
-      for (const o of nonSilent) {
-        if (countHere >= MAX_RESCUE_PER_KEPT) break;
-        if (filteredSet.has(o) || rescuedSet.has(o)) continue;
-        const dt = o.time - f.time;
-        if (dt < PAIR_MIN || dt > PAIR_MAX) continue;
-        if (o.energy < f.energy * ENERGY_RATIO) continue;
-        rescued.push(o);
-        rescuedSet.add(o);
-        countHere++;
+    let i = 0;
+    while (i < nonSilent.length && rescued.length < maxRescue) {
+      // 윈도우 [i, j) 안의 onset 카운트
+      let j = i;
+      while (j < nonSilent.length && nonSilent[j].time < nonSilent[i].time + WIN) j++;
+      const count = j - i;
+      if (count >= MIN_BURST) {
+        // burst 안에서 filtered/rescued 아닌 에너지 최강 onset 1개 rescue
+        let best = null, bestE = -1;
+        for (let k = i; k < j; k++) {
+          const o = nonSilent[k];
+          if (filteredSet.has(o) || rescuedSet.has(o)) continue;
+          if (o.energy > bestE) { best = o; bestE = o.energy; }
+        }
+        if (best) {
+          // 인접 filtered 와 minGap * 0.4 이내면 skip (겹침 방지)
+          let tooClose = false;
+          for (const f of filtered) {
+            if (Math.abs(f.time - best.time) < minGap * 0.4) { tooClose = true; break; }
+          }
+          if (!tooClose) {
+            rescued.push(best);
+            rescuedSet.add(best);
+          }
+        }
+        // 이 burst 건너뛰고 다음 burst 로
+        i = j;
+      } else {
+        i++;
       }
     }
     filtered.push(...rescued);
     filtered.sort((a, b) => a.time - b.time);
-    if (rescued.length > 0) console.log('[beatRescue] ' + rescued.length + ' follow-up onsets restored');
+    if (rescued.length > 0) console.log('[burstRescue] ' + rescued.length + ' rhythmic burst onsets restored');
   }
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
@@ -7238,7 +7256,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let prevTime = -1;
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
   const _recentLanes = [{lane: -1, time: -999}, {lane: -1, time: -999}]; // 최근 2개 사용 레인 + 시각
-  const _RECENT_WINDOW = 0.6; // 0.6s 이내 사용된 레인 회피 (a>s>a>s 단조 패턴 방지)
+  const _RECENT_WINDOW = 0.3; // 0.3s 이내 사용된 레인만 회피 (너무 길면 느린 곡에서 부자연스러움)
 
   let _lastChordTime = 0;
   for (const o of filtered) {
