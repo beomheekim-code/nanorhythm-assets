@@ -9115,8 +9115,9 @@ function renderBackplate() {
     if (outerX > 0) ctx.fillRect(0, -safeTop, outerX, _vh);
     if (outerR < W) ctx.fillRect(outerR, -safeTop, W - outerR, _vh);
 
-    // ★ 좌측 벚꽃 나무 + 로드 완료 시 꽃잎 색 샘플링
+    // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     const _tSk = _getUiPackSkin();
+    const _treeShift = sz(18);   // 레일 안쪽으로 밀어넣는 offset
     const _tLPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeLeft;
     const _tLImg = _tLPath ? skinImages[_tLPath] : null;
     if (_tLImg && _tLImg._ok === true) {
@@ -9124,17 +9125,17 @@ function renderBackplate() {
       try {
         const _tH = _vh;
         const _tW = _tH * (_tLImg.naturalWidth / _tLImg.naturalHeight);
-        ctx.drawImage(_tLImg, outerX - _tW, -safeTop, _tW, _tH);
+        ctx.drawImage(_tLImg, outerX - _tW + _treeShift, -safeTop, _tW, _tH);
       } catch(e) {}
     }
-    // ★ 우측 벚꽃 나무 (선택, 이미지 있으면 — trunk left 기준 outerR 에 mirror 식 배치)
+    // ★ 우측 — 레일 쪽으로 shift (이미지 좌측 일부가 playfield 로 들어감)
     const _tRPath = _tSk && _tSk.imagePaths && _tSk.imagePaths.treeRight;
     const _tRImg = _tRPath ? skinImages[_tRPath] : null;
     if (_tRImg && _tRImg._ok === true) {
       try {
         const _tH = _vh;
         const _tW = _tH * (_tRImg.naturalWidth / _tRImg.naturalHeight);
-        ctx.drawImage(_tRImg, outerR, -safeTop, _tW, _tH);
+        ctx.drawImage(_tRImg, outerR - _treeShift, -safeTop, _tW, _tH);
       } catch(e) {}
     }
 
