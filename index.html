@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260424034100;
+window.__BUILD_TS = 20260424035000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8834,24 +8834,66 @@ function renderBackplatePostNotes() {
       // PNG 에 세로 액센트/상단 라인이 이미 있으므로 procedural 생략.
       return;
     }
-    // Procedural fallback
-    // 1) 베이스 불투명 차콜
-    ctx.fillStyle = 'rgba(28,28,34,0.96)';
-    ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
-    // 2) 상단→하단 서브틀 수직 그라데이션 (입체감) — 캐시 불가지만 경량.
-    const _g = ctx.createLinearGradient(0, hitY + sz(2), 0, outerB);
-    _g.addColorStop(0, 'rgba(60,60,72,0.25)');
+    // Procedural — 판정선 밑 리듬게임 스타일 패널
+    const _uiBP = _getUiPack();
+    const _pnlTop = hitY + sz(2);
+    const _pnlW = outerR - outerX;
+    // 1) 베이스 불투명 차콜/와인
+    ctx.fillStyle = _uiBP ? 'rgba(30,12,20,0.96)' : 'rgba(28,28,34,0.96)';
+    ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
+    // 2) 상단→하단 수직 그라데이션 (입체감)
+    const _g = ctx.createLinearGradient(0, _pnlTop, 0, outerB);
+    _g.addColorStop(0, _uiBP ? 'rgba(80,30,50,0.28)' : 'rgba(60,60,72,0.25)');
     _g.addColorStop(0.5, 'rgba(20,20,26,0)');
     _g.addColorStop(1, 'rgba(0,0,0,0.35)');
     ctx.fillStyle = _g;
-    ctx.fillRect(outerX, hitY + sz(2), outerR - outerX, outerB - (hitY + sz(2)));
-    // 3) 좌/우 세로 액센트 바 (UI 팩 장착 시 팔레트, 기본은 흰색 — 곡 색 변동 제거)
-    const _uiBP = _getUiPack();
-    const _sc = _uiBP && _uiBP.deckAccent ? _uiBP.deckAccent : '#ffffff';
-    ctx.fillStyle = _sc + '22';
-    ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
-    ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
-    // (수평 스캔 라인 제거 — 모바일/저사양 기기 버벅임 원인)
+    ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
+
+    // ★ 벚꽃: 판정선 바로 밑에 두꺼운 데코 스트립 (리듬게임 UI 느낌)
+    if (_uiBP) {
+      const _strY = _pnlTop;
+      const _strH = sz(14);                          // 스트립 두께
+      const _rose = _uiBP.frameBorder || '#d96a90';
+      const _bright = '#f4b3c9';
+      // 스트립 body — 진한 와인
+      ctx.fillStyle = 'rgba(50,18,32,0.95)';
+      ctx.fillRect(outerX, _strY, _pnlW, _strH);
+      // 상단 얇은 로즈 line
+      ctx.fillStyle = _rose;
+      ctx.fillRect(outerX, _strY, _pnlW, 1);
+      // 하단 두꺼운 로즈 band
+      ctx.fillStyle = _rose;
+      ctx.fillRect(outerX, _strY + _strH - sz(2.5), _pnlW, sz(2.5));
+      // 밝은 1px 하이라이트 (위 line 바로 밑)
+      ctx.fillStyle = _bright;
+      ctx.fillRect(outerX + 2, _strY + 2, _pnlW - 4, 1);
+      // 좌/우 각진 코너 컷 — 한쪽 사선 (리듬게임식 베벨)
+      ctx.fillStyle = _rose;
+      ctx.beginPath();
+      ctx.moveTo(outerX, _strY + _strH);
+      ctx.lineTo(outerX + sz(8), _strY + _strH);
+      ctx.lineTo(outerX, _strY + _strH - sz(8));
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(outerR, _strY + _strH);
+      ctx.lineTo(outerR - sz(8), _strY + _strH);
+      ctx.lineTo(outerR, _strY + _strH - sz(8));
+      ctx.closePath();
+      ctx.fill();
+      // 중앙 dash 장식 (리듬게임식 구분 marker)
+      const _dashCx = outerX + _pnlW / 2;
+      ctx.fillStyle = _bright;
+      for (let i = -1; i <= 1; i++) {
+        ctx.fillRect(_dashCx + i * sz(12) - sz(3), _strY + _strH / 2 - 1, sz(6), 2);
+      }
+    } else {
+      // 기본 — 좌/우 세로 액센트
+      const _sc = '#ffffff';
+      ctx.fillStyle = _sc + '22';
+      ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
+      ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
+    }
   }
 }
 
