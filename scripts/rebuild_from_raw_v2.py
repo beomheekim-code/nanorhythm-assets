@@ -50,6 +50,26 @@ print(f'  bbox: {W}x{H}')
 # 다운스케일 (800px 폭)
 scale = TARGET_W / W
 img = img.resize((TARGET_W, int(H * scale)), Image.LANCZOS)
+
+# === Color match to right (mean/std per channel) ===
+right_ref = Image.open(RIGHT_BACKUP).convert('RGBA')
+right_arr = np.array(right_ref)
+left_arr = np.array(img)
+r_mask = right_arr[:,:,3] > 50
+l_mask = left_arr[:,:,3] > 50
+print(f'  color match: right opaque {int(r_mask.sum())}, left opaque {int(l_mask.sum())}')
+for c in range(3):
+    rm = float(right_arr[:,:,c][r_mask].mean())
+    rs = float(right_arr[:,:,c][r_mask].std())
+    lm = float(left_arr[:,:,c][l_mask].mean())
+    ls = float(left_arr[:,:,c][l_mask].std())
+    if ls > 1:
+        ch = left_arr[:,:,c].astype(np.float32)
+        ch = (ch - lm) * (rs / ls) + rm
+        ch = np.clip(ch, 0, 255)
+        left_arr[:,:,c] = ch.astype(np.uint8)
+    print(f'    ch{c}: left μ={lm:.1f} σ={ls:.1f} → right μ={rm:.1f} σ={rs:.1f}')
+img = Image.fromarray(left_arr, 'RGBA')
 img.save(DST_L, optimize=True, compress_level=9)
 print(f'left: {img.size}, {os.path.getsize(DST_L)/1024:.0f} KB')
 
