@@ -19,7 +19,6 @@ DST_R = os.path.join(CONTAINER, 'sakura_tree_right.png')
 RIGHT_BACKUP = os.path.join(ROOT, 'versions', 'sakura_tree_pre_holefill_v2', 'sakura_tree_right.png')
 
 TARGET_W = 800
-WM = 100  # 워터마크 박스 (50 은 너무 작아서 일부 잔존했음)
 
 # === LEFT: raw 처리 ===
 img = Image.open(RAW).convert('RGBA')
@@ -27,13 +26,19 @@ arr = np.array(img)
 h, w = arr.shape[:2]
 print(f'raw: {w}x{h}')
 
-# Green chroma
+# Green chroma — loose 조건 (g 가 다른 채널보다 명확히 우세 = 모든 초록 잡음, 이끼 잔존 방지)
 r, g, b = arr[:,:,0], arr[:,:,1], arr[:,:,2]
-green = (g > 150) & (r < 120) & (b < 120)
+green = (g.astype(int) > r.astype(int) + 15) & (g.astype(int) > b.astype(int) + 15) & (g > 80)
 arr[green, 3] = 0
+print(f'  green (loose): {int(green.sum())}')
 
-# Watermark 우하단 50x50 만
-arr[h-WM:h, w-WM:w, 3] = 0
+# Watermark — 우하단 250x250 영역에서 회색 픽셀만 (trunk brown 은 RGB 차이 커서 보존)
+WM_BOX = 250
+ry, rx = arr[h-WM_BOX:h, w-WM_BOX:w, 0], arr[h-WM_BOX:h, w-WM_BOX:w, 1]
+rb = arr[h-WM_BOX:h, w-WM_BOX:w, 2]
+gray = (np.abs(ry.astype(int) - rx.astype(int)) < 30) & (np.abs(rx.astype(int) - rb.astype(int)) < 30) & (ry > 100)
+arr[h-WM_BOX:h, w-WM_BOX:w, 3][gray] = 0
+print(f'  watermark gray pixels: {int(gray.sum())}')
 
 img = Image.fromarray(arr, 'RGBA')
 
