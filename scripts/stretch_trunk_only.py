@@ -18,7 +18,7 @@ ROOT = r'D:\nanorhythm-assets\nanorhythm-assets'
 CONTAINER = os.path.join(ROOT, 'skins', 'neon', 'container')
 
 SPLIT_RATIO = 0.5     # 0~50% = 캐노피 (그대로), 50~100% = 트렁크 (stretch)
-STRETCH = 1.5          # 트렁크 stretch factor (전체 이미지 (1+SPLIT)/2 * 0.5 + 1.5*0.5 = 1.25)
+STRETCH = 1.8          # 트렁크 1.8x stretch (전체 이미지 ~1.4x — 캐노피 화면 위로 잘리게)
 
 for name in ['left', 'right']:
     p = os.path.join(CONTAINER, f'sakura_tree_{name}.png')
