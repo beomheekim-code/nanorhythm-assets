@@ -73,7 +73,14 @@ print(f'  downscale: {TARGET_W}x{target_h}')
 final.save(DST_L, optimize=True, compress_level=9)
 print(f'left: {final.size}, {os.path.getsize(DST_L)/1024:.0f} KB')
 
-# 8. right = user-edit backup 그대로 복원 (사용자가 직접 나뭇가지 자른 버전 보존)
+# 8. right = user-edit backup 복원 + 다운스케일만 (편집 픽셀은 비례 보존)
+#    1248x3392 → 800x? = GPU 메모리 17MB → 7MB (모바일 안정).
+#    resize 외엔 어떤 변형도 안 함.
 RIGHT_BACKUP = os.path.join(ROOT, 'versions', 'sakura_tree_pre_holefill_v2', 'sakura_tree_right.png')
-shutil.copy(RIGHT_BACKUP, DST_R)
-print(f'right: user-edit 백업에서 복원 ({os.path.getsize(DST_R)/1024:.0f} KB)')
+right_img = Image.open(RIGHT_BACKUP).convert('RGBA')
+RW, RH = right_img.size
+r_scale = TARGET_W / RW
+new_RH = int(RH * r_scale)
+right_img = right_img.resize((TARGET_W, new_RH), Image.LANCZOS)
+right_img.save(DST_R, optimize=True, compress_level=9)
+print(f'right: user-edit 백업 → {TARGET_W}x{new_RH} 다운스케일, {os.path.getsize(DST_R)/1024:.0f} KB')
