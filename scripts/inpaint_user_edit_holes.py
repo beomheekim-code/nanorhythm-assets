@@ -1,12 +1,11 @@
 """
-유저가 직접 지운 나뭇가지 영역 (중간 크기 hole) + 우하단 Gemini 워터마크 자리 빵꾸
-를 주변 나무색으로 inpaint.
+유저가 직접 지운 나뭇가지 영역 (중간 크기 hole) + Gemini 워터마크 자리 빵꾸를 주변 나무색으로 inpaint.
 
-처리 영역:
-1. 내부 hole (binary_fill_holes) — 크기 <=1500 px 만 inpaint (user-edit 메움).
+처리 영역 (이전 시도가 sky 영역까지 침범해서 좁힘):
+1. 내부 hole (binary_fill_holes) — 크기 <=1500 px 만 inpaint.
    나뭇가지 사이 큰 sky patch (수만 px) 는 유지.
-2. 이미지 하단 30% 영역의 투명 픽셀 중 주변 opaque (거리 <= 150 px) 있는 곳 inpaint.
-   = Gemini 워터마크 제거된 자리.
+2. 워터마크: 우하단 + 좌하단 200x200 모서리 박스 안의 투명 픽셀 중 거리 <= 60px 인 곳만.
+   하단 전체 띠로 잡으면 sky 영역까지 trunk 색으로 채워짐 → 깨짐.
 """
 import os
 import numpy as np
@@ -17,8 +16,8 @@ ROOT = r'D:\nanorhythm-assets\nanorhythm-assets'
 CONTAINER = os.path.join(ROOT, 'skins', 'neon', 'container')
 
 HOLE_MAX = 1500
-WM_REGION_Y_RATIO = 0.7       # 하단 30%
-WM_INPAINT_MAX_DIST = 150     # nearest opaque 이 이만큼 이내에 있어야 inpaint
+WM_BOX = 200            # 모서리 200x200 박스
+WM_INPAINT_MAX_DIST = 60  # 그 안에서 trunk 가 60px 이내일 때만 inpaint (sky 침범 방지)
 
 for name in ['left', 'right']:
     src = os.path.join(CONTAINER, f'sakura_tree_{name}.png')
@@ -50,14 +49,14 @@ for name in ['left', 'right']:
             sky_px += int(sizes[li])
     print(f'  내부 hole: inpaint {fill_count} ({fill_px} px), sky 유지 {sky_count} ({sky_px} px)')
 
-    # === 2) 하단 워터마크 영역 inpaint (거리 <= 150px 제한) ===
+    # === 2) 우/좌하단 200x200 모서리만 워터마크 inpaint (거리 <=60px) ===
     dist, (iy, ix) = distance_transform_edt(~mask, return_distances=True, return_indices=True)
-    y_start = int(h * WM_REGION_Y_RATIO)
     wm_region = np.zeros_like(mask, dtype=bool)
-    wm_region[y_start:, :] = True
+    wm_region[h-WM_BOX:h, 0:WM_BOX] = True       # 좌하단
+    wm_region[h-WM_BOX:h, w-WM_BOX:w] = True     # 우하단
     wm_target = wm_region & ~mask & (dist <= WM_INPAINT_MAX_DIST)
     wm_px = int(wm_target.sum())
-    print(f'  워터마크 영역 inpaint: {wm_px} px (거리 <= {WM_INPAINT_MAX_DIST})')
+    print(f'  워터마크 모서리 inpaint: {wm_px} px (거리 <= {WM_INPAINT_MAX_DIST})')
 
     # 합쳐서 inpaint
     total_target = internal_target | wm_target
