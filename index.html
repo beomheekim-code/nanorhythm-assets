@@ -10320,28 +10320,42 @@ function renderHoldGlows() {
   ctx.globalAlpha = 1;
 }
 
-// numbers_atlas helper — 12 cells (0-9, x, .) 가로 정렬.
+// numbers_atlas helper — 12 cells (0-9, x, .) proportional kerning.
+// 각 cell 안 글자 width 다름 ('1'=141, '0'=198, '.'=98 등) → src crop tight + 비율 spacing.
 // 사용 예: _drawAtlasNumber(img, '12345', cx, cy, height, 'center')
+const _ATLAS_GLYPH_W = [198, 141, 213, 203, 206, 205, 190, 203, 203, 192, 197, 98]; // 0-9, x, . (in 220px cell)
+const _ATLAS_CELL_W_REF = 220;
+function _atlasIdx(ch) {
+  if (ch >= '0' && ch <= '9') return ch.charCodeAt(0) - 48;
+  if (ch === 'x' || ch === 'X') return 10;
+  if (ch === '.' || ch === ',') return 11;
+  return -1;
+}
 function _drawAtlasNumber(atlasImg, str, cx, cy, h, align) {
   if (!atlasImg || atlasImg._ok !== true) return false;
   const nCells = 12;
   const cellW = atlasImg.naturalWidth / nCells;
   const cellH = atlasImg.naturalHeight;
-  const w = h * cellW / cellH;
-  const totalW = (str || '').length * w;
-  let startX = cx;
-  if (align === 'center') startX = cx - totalW / 2;
-  else if (align === 'right') startX = cx - totalW;
-  let x = startX;
+  const scale = h / cellH;
+  const kern = h * 0.04;
+  // 각 char 의 dest width (글리프 실 폭만큼만)
+  const widths = [];
   for (const ch of str) {
-    let idx = -1;
-    if (ch >= '0' && ch <= '9') idx = ch.charCodeAt(0) - 48;
-    else if (ch === 'x' || ch === 'X') idx = 10;
-    else if (ch === '.' || ch === ',') idx = 11;
+    const idx = _atlasIdx(ch);
+    widths.push(idx >= 0 ? _ATLAS_GLYPH_W[idx] / _ATLAS_CELL_W_REF * cellW * scale : 0);
+  }
+  const totalW = widths.reduce((s,v)=>s+v,0) + kern * Math.max(0, str.length - 1);
+  let drawX = cx;
+  if (align === 'center') drawX = cx - totalW / 2;
+  else if (align === 'right') drawX = cx - totalW;
+  for (let i = 0; i < str.length; i++) {
+    const idx = _atlasIdx(str[i]);
     if (idx >= 0) {
-      try { ctx.drawImage(atlasImg, idx * cellW, 0, cellW, cellH, x, cy - h/2, w, h); } catch(e){}
+      const gW = _ATLAS_GLYPH_W[idx] / _ATLAS_CELL_W_REF * cellW;
+      const srcX = idx * cellW + (cellW - gW) / 2;
+      try { ctx.drawImage(atlasImg, srcX, 0, gW, cellH, drawX, cy - h/2, widths[i], h); } catch(e){}
     }
-    x += w;
+    drawX += widths[i] + kern;
   }
   return true;
 }
