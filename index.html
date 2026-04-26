@@ -4479,7 +4479,7 @@ function generateAchievements() {
     // Score achievements
     SCORE_THRESHOLDS.forEach(t => {
       achs.push({ id:`s${si}_score_${t}`, songIdx:si, type:'score',
-        label:`${s.name} — ${t.toLocaleString()}점 이상`, coins: SCORE_COINS[t],
+        label:`${s.name} — ${t}점 이상`, coins: SCORE_COINS[t],
         check: d => d.songIdx===si && d.score>=t });
     });
     // Difficulty achievements
@@ -10622,7 +10622,7 @@ function renderUI() {
   // SCORE (우측) + MAX COMBO (좌측) — 판정선 밑 백판에 배치. 리듬게임 UI 느낌.
   if (!window._hudRawMax) window._hudRawMax = totalNodes > 0 ? totalNodes * 200 * 3.0 * getKeyBonus() : 1;
   const _hudScore = Math.round(score / window._hudRawMax * 1000000);
-  if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = _hudScore.toLocaleString(); }
+  if (_hudScore !== window._hudScorePrev) { window._hudScorePrev = _hudScore; window._hudScoreStr = String(_hudScore); }
   {
     const _lsxUI = getLaneStartX();
     const _twUI = getLaneW() * laneCount;
@@ -13491,7 +13491,7 @@ function renderSelect() {
     ctx.textAlign = 'center';
     ctx.font = `bold ${sz(13)}px sans-serif`;
     ctx.fillStyle = '#ffd700';
-    ctx.fillText('MY BEST: ' + myBest.toLocaleString(), W/2, btnY + btnH + 20);
+    ctx.fillText('MY BEST: ' + myBest, W/2, btnY + btnH + 20);
   }
 
   // ===== CHART PANEL (좌측) =====
@@ -14186,7 +14186,7 @@ function renderRanking() {
       ctx.textAlign='right';
       ctx.font=`bold ${sz(14)}px sans-serif`;
       ctx.fillStyle = isMe ? song.color : 'rgba(255,255,255,0.6)';
-      ctx.fillText(r.score.toLocaleString(), scoreRightX, ry + (rowH-4)/2);
+      ctx.fillText(String(r.score), scoreRightX, ry + (rowH-4)/2);
     }
     ctx.textBaseline='alphabetic';
   }
@@ -14275,7 +14275,7 @@ function renderResult() {
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   }
 
-  const stats=[['SCORE',normalizedScore.toLocaleString()],['MAX COMBO',maxCombo+'x'],['HIT',collected+' / '+totalNodes],['MISS',''+missed],['ACCURACY',(pct*100).toFixed(1)+'%']];
+  const stats=[['SCORE',String(normalizedScore)],['MAX COMBO',maxCombo+'x'],['HIT',collected+' / '+totalNodes],['MISS',''+missed],['ACCURACY',(pct*100).toFixed(1)+'%']];
   ctx.font=`${sz(12)}px sans-serif`;
   const _statRowH = sz(22);
   const sy0 = _rTop + _rH * 0.46;
@@ -14297,10 +14297,10 @@ function renderResult() {
     ctx.font=`bold ${sz(12)}px sans-serif`;
     if (score >= myBest) {
       ctx.fillStyle='#ffd700';
-      ctx.fillText('NEW RECORD!  ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
+      ctx.fillText('NEW RECORD!  ' + myBest, W/2, _rTop + _rH * 0.79);
     } else {
       ctx.fillStyle='rgba(255,255,255,0.4)';
-      ctx.fillText('BEST: ' + myBest.toLocaleString(), W/2, _rTop + _rH * 0.79);
+      ctx.fillText('BEST: ' + myBest, W/2, _rTop + _rH * 0.79);
     }
   }
 
