@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426154920;
+window.__BUILD_TS = 20260426155759;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2783,7 +2783,7 @@ const SKINS = {
       hpFill2: '#ffd9e3',   // 상단
       // 컨테이너 body (HP 감싸는 어두운 영역)
       containerFill: 'rgba(54,24,40,0.88)',
-      containerBorder: 'rgba(107,48,39,0.95)',     // 벚꽃 나뭇가지 brown (#6b3027)
+      containerBorder: 'rgba(85,85,95,0.95)',      // 회색 (lane 테두리 톤)
       // 스코어/콤보 텍스트
       scoreText:  '#ffecf3',       // 거의 흰 살구
       comboText:  '#ff6fa3',       // 핫 핑크
@@ -2804,8 +2804,8 @@ const SKINS = {
       hitLineMain:   '#ffe8f0',      // 본 라인 (연한 흰-핑크)
       hitLineGlow:   '#d97aa0',      // 중간 band — 로즈 핑크 (컨테이너/레일과 톤 통일)
       hitLineGrad:   'rgba(217,122,160,0.12)',
-      // 외곽 레일 프레임 — 벚꽃 나뭇가지 진한 brown
-      frameBorder:    '#6b3027',                   // 벚꽃 나뭇가지 brown
+      // 외곽 레일 프레임 — 회색 (lane 테두리 톤, 두꺼운 stroke)
+      frameBorder:    'rgba(85,85,95,0.98)',
       frameInner:     null,
       frameGlow:      null,
     },
@@ -9186,9 +9186,13 @@ function renderBackplate() {
       g.addColorStop(1, _sgB && _sgB.bg2 ? _sgB.bg2 : '#111');
       window._barkGradCache = { g, _h: _vh, _t: safeTop, _k: _sgKey };
     }
+    // alpha 0.7 — 곡 bg 색은 유지하면서 뒤의 stars/gameParticles 비쳐보임
+    ctx.save();
+    ctx.globalAlpha = 0.7;
     ctx.fillStyle = window._barkGradCache.g;
     if (lsx > 0) ctx.fillRect(0, -safeTop, lsx, _vh);
     if (lsx + totalLW < W) ctx.fillRect(lsx + totalLW, -safeTop, W - lsx - totalLW, _vh);
+    ctx.restore();
 
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
@@ -9275,9 +9279,9 @@ function renderBackplate() {
     const laneX = lsx + i * lw;
     ctx.fillRect(laneX, outerY + sz(4), lw, hitY - outerY - sz(4));
   }
-  // ★ 벚꽃 UI: gap 을 frameBorder 색 (#6b3027) 단색으로 — 레일 테두리 동일 톤.
+  // ★ 벚꽃 UI: gap 을 회색 단색 — frameBorder 동일 톤.
   if (_getUiPack()) {
-    ctx.fillStyle = '#6b3027';
+    ctx.fillStyle = 'rgba(85,85,95,0.98)';
     if (lsx > outerX) ctx.fillRect(outerX, outerY + sz(4), lsx - outerX, hitY - outerY - sz(4));
     if (outerR > lsx + totalLW) ctx.fillRect(lsx + totalLW, outerY + sz(4), outerR - (lsx + totalLW), hitY - outerY - sz(4));
   }
@@ -9377,8 +9381,8 @@ function renderBackplateBorder() {
   // 단색 (그라데이션 제거, 유저 요청)
   let _sakuraStrokeGrad = null;
 
-  // 헬퍼: 수직 segment — 단일 stroke (네온 glow 제거, 두께 축소).
-  const _mainW  = _ui ? sz(2.5) : sz(7);
+  // 헬퍼: 수직 segment — sakura 도 sz(7) 두꺼운 회색 (유저 요청)
+  const _mainW  = sz(7);
   const _drawVSeg = (x, y0, y1) => {
     ctx.strokeStyle = _sakuraStrokeGrad || _mainColor;
     ctx.lineWidth = _mainW;
@@ -10399,17 +10403,19 @@ function renderUI() {
       ctx.fillStyle = _contFill;
       ctx.fill();
       ctx.save();
-      ctx.lineCap = 'butt'; // square → butt (대각선 끝점 외부 확장 방지, frameBorder 라인 안 삐짐)
+      ctx.lineCap = 'butt';
       ctx.lineJoin = 'miter';
       ctx.strokeStyle = _bpPal.border || 'rgba(85,85,95,0.98)';
       ctx.lineWidth = sz(7);
+      // wedge 끝점만 frameBorder stroke 안쪽 sz(3) 까지 확장 (빈 공간 메움 + 외부 삐짐 X)
+      const _wEdgeX = _rightEdgeX + sz(3);
       ctx.beginPath();
-      ctx.moveTo(_rightEdgeX, _botWedgeY);
+      ctx.moveTo(_wEdgeX, _botWedgeY);
       ctx.lineTo(_contCx - _capHalfL, _contBotY);
       ctx.lineTo(_contCx - _bodyHalf, _bodyBotY);
       ctx.lineTo(_contCx - _bodyHalf, _bodyTopY);
       ctx.lineTo(_contCx - _capHalfL, _contTopY);
-      ctx.lineTo(_rightEdgeX, _topWedgeY);
+      ctx.lineTo(_wEdgeX, _topWedgeY);
       ctx.stroke();
       ctx.restore();
     }
