@@ -27,14 +27,9 @@ for i in range(N_CELLS):
         continue
     glyph = cell.crop(cell_bbox)
     gw, gh = glyph.size
-    # height 우선 fit (비율 유지)
+    # 비율 무시 stretch — 모든 글자 동일 size (일관성 우선)
     target_h = int(H * 0.92)
-    scale = target_h / gh
-    new_w = int(gw * scale)
-    # cell 폭 초과 시 width 기준으로 다시
-    if new_w > NEW_CELL_W * 0.92:
-        new_w = int(NEW_CELL_W * 0.92)
-        target_h = int(gh * (new_w / gw))
+    new_w = int(NEW_CELL_W * 0.92)
     glyph_r = glyph.resize((new_w, target_h), Image.LANCZOS)
     px = i*NEW_CELL_W + (NEW_CELL_W - new_w) // 2
     py = (H - target_h) // 2
