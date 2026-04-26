@@ -118,9 +118,17 @@ final = Image.new('RGBA', (W, new_h), (0, 0, 0, 0))
 final.paste(top, (0, 0))
 final.paste(bot_stretched, (0, split_y))
 
-# === 8) 저장 ===
+# === 8) 모바일 GPU 친화적으로 다운스케일 ===
+# 1211x4875 = 24MB GPU 텍스처. 모바일에서 메모리 부족. 800 폭으로 줄임 (~10MB).
+TARGET_W = 800
+scale = TARGET_W / W
+target_h = int(new_h * scale)
+final = final.resize((TARGET_W, target_h), Image.LANCZOS)
+print(f'  downscale: {W}x{new_h} -> {TARGET_W}x{target_h}')
+
+# === 9) 저장 ===
 final.save(DST_L, optimize=True, compress_level=9)
-print(f'\nleft: {W}x{new_h} ({(new_h/H):.2f}x), {os.path.getsize(DST_L)/1024:.0f} KB')
+print(f'left: {final.size}, {os.path.getsize(DST_L)/1024:.0f} KB')
 
 # right = horizontal flip + 40px vertical shift
 arr_f = np.array(final)
@@ -130,4 +138,4 @@ arr_r_shifted = np.zeros_like(arr_r)
 arr_r_shifted[shift_y:, :, :] = arr_r[:-shift_y, :, :]
 final_right = Image.fromarray(arr_r_shifted, 'RGBA')
 final_right.save(DST_R, optimize=True, compress_level=9)
-print(f'right: {W}x{new_h} (flipped + shifted), {os.path.getsize(DST_R)/1024:.0f} KB')
+print(f'right: {final_right.size} (flipped + shifted), {os.path.getsize(DST_R)/1024:.0f} KB')

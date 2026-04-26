@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426113155;
+window.__BUILD_TS = 20260426113458;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2990,17 +2990,10 @@ function loadSkinImage(path, attempt = 0) {
       const finalize = () => { img._ok = true; };
       const warm = () => {
         try {
-          // ★ GPU 텍스처 업로드 강제 — 1px 만 그리면 GPU 가 실제 텍스처 안 만듦.
-          //   실제 size 로 한 번 그리고 getImageData 로 GPU↔CPU sync 강제 → 첫 drawImage 의 hitch 제거.
-          const w = img.naturalWidth, h = img.naturalHeight;
+          // 64x64 thumbnail 만 — 큰 PNG (트리 1211x4875 등) full-size 는 모바일 GPU 메모리 폭발
           const tmp = document.createElement('canvas');
-          tmp.width = Math.min(w, 64);
-          tmp.height = Math.min(h, 64);
-          const tcx = tmp.getContext('2d');
-          tcx.drawImage(img, 0, 0, tmp.width, tmp.height); // small thumbnail (cache test)
-          // 실제 사이즈로 그려 GPU 텍스처 업로드. 64x64 offscreen 에 일부만 보이지만 GPU 입장 동일.
-          tcx.drawImage(img, 0, 0, w, h);
-          tcx.getImageData(0, 0, 1, 1); // GPU sync 강제 (readback)
+          tmp.width = 64; tmp.height = 64;
+          tmp.getContext('2d').drawImage(img, 0, 0, 64, 64);
         } catch (e) {}
         finalize();
       };
@@ -14705,19 +14698,15 @@ function renderDimDebug() {
         particles.length = 0; bursts.length = 0; holdGlows.length = 0;
         curDiff = _savedDiff;
       }
-      // (state='playing' 으로 backplate prewarm 했던 코드 제거 — 가로모드 레일 멈춤 원인 의심)
-      // 대신 트리 PNG 만 game canvas 에 직접 drawImage (offscreen 위치) → GPU 텍스처 업로드 강제.
-      // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부 (game canvas 에 직접 drawImage → 첫 곡 hitch 방지)
+      // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부 (작은 size 만 사용 — 큰 size 는 모바일 GPU 폭발).
       if (typeof skinImages === 'object' && skinImages) {
         ctx.save(); ctx.globalAlpha = 0;
         for (const path in skinImages) {
           const im = skinImages[path];
           if (im && im.complete && im.naturalWidth > 0) {
             try {
-              // 작은 사이즈 + 실제 사이즈 + 화면 사이즈 = 다양한 GPU 텍스처 경로 워밍업
               ctx.drawImage(im, -3000, -3000, 100, 100);
-              ctx.drawImage(im, -3000, -3000, im.naturalWidth, im.naturalHeight);
-              ctx.drawImage(im, -3000, -3000, 600, 1200); // 게임에서 자주 쓰는 크기 근사
+              ctx.drawImage(im, -3000, -3000, 200, 200);
             } catch(e) {}
           }
         }
