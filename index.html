@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426174526;
+window.__BUILD_TS = 20260426175350;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8837,12 +8837,12 @@ function render() {
       const fh = sz(80);
       const fw = fh * (_feverImg.naturalWidth / _feverImg.naturalHeight);
       ctx.drawImage(_feverImg, -fw/2, 0, fw, fh);
-      // x2 SCORE — atlas 'x2' + procedural 'SCORE' 옆에
+      // x2 SCORE — atlas 'x2' + procedural 'SCORE' 옆에 (벚꽃 톤 핑크)
       const _atlasF = skinImages[_uiF.imagePaths.numbersAtlas];
       if (_atlasF && _atlasF._ok === true) {
         _drawAtlasNumber(_atlasF, 'x2', -sz(20), fh + sz(20), sz(32), 'right');
         ctx.font = `bold ${sz(16)}px sans-serif`;
-        ctx.fillStyle = '#ffd700';
+        ctx.fillStyle = '#ff7aa8';  // 벚꽃 핑크 (노란 → 핑크)
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText('SCORE', -sz(16), fh + sz(20));
@@ -10648,17 +10648,22 @@ function renderUI() {
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(_lsxUI + _inPad, _panelBot - sz(2), _twUI - _inPad*2, 1);
 
-    // 벚꽃 UI: 라벨은 procedural (sprite 네온 테두리 없애기), 숫자는 atlas (크게)
+    // 벚꽃 UI sprite 우선 — 라벨도 sprite 사용 (이전 procedural fallback 잘못 → sprite 다시)
     const _uiM = _getUiPackSkin();
     const _atlas = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.numbersAtlas] : null;
     const _useAtlas = _atlas && _atlas._ok === true;
-    const _numH = _useAtlas ? _valueSize * 1.7 : _valueSize;  // atlas 숫자 1.7배 키움 (cell 안 글자가 작음)
+    const _numH = _useAtlas ? _valueSize * 1.7 : _valueSize;
 
     // MAX COMBO (좌)
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${_labelSize}px sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45);
+    const _mcLabelImg = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.maxComboLabel] : null;
+    if (_mcLabelImg && _mcLabelImg._ok === true) {
+      _drawLabelSprite(_mcLabelImg, _lsxUI + _inPad, _midY - _valueSize * 0.45, _labelSize + 4, 'left');
+    } else {
+      ctx.font = `bold ${_labelSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45);
+    }
     if (_useAtlas) {
       _drawAtlasNumber(_atlas, maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35, _numH, 'left');
     } else {
@@ -10669,9 +10674,14 @@ function renderUI() {
 
     // SCORE (우)
     ctx.textAlign = 'right';
-    ctx.font = `bold ${_labelSize}px sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45);
+    const _scLabelImg = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.scoreLabel] : null;
+    if (_scLabelImg && _scLabelImg._ok === true) {
+      _drawLabelSprite(_scLabelImg, _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45, _labelSize + 4, 'right');
+    } else {
+      ctx.font = `bold ${_labelSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45);
+    }
     if (_useAtlas) {
       _drawAtlasNumber(_atlas, window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35, _numH, 'right');
     } else {
