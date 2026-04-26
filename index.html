@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426135353;
+window.__BUILD_TS = 20260426135759;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9192,23 +9192,6 @@ function renderBackplate() {
     if (lsx > 0) ctx.fillRect(0, -safeTop, lsx, _vh);
     if (lsx + totalLW < W) ctx.fillRect(lsx + totalLW, -safeTop, W - lsx - totalLW, _vh);
 
-    // ★ gap accent — frameBorder 와 레일 사이 6px 영역에 핑크-bark 띠 (벚꽃 분위기 강조)
-    const _gapAccentL = lsx - outerX;
-    const _gapAccentR = outerR - (lsx + totalLW);
-    if (_gapAccentL > 0 || _gapAccentR > 0) {
-      if (!window._gapAccentCache || window._gapAccentCache._h !== _vh) {
-        const gg = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-        gg.addColorStop(0, 'rgba(255,210,225,0.55)');   // 상단 캐노피 연핑크
-        gg.addColorStop(0.35, 'rgba(220,135,155,0.5)'); // 중상 로즈
-        gg.addColorStop(0.7, 'rgba(155,80,75,0.45)');   // 중하 로즈브라운
-        gg.addColorStop(1, 'rgba(75,38,30,0.55)');      // 하단 진한 bark
-        window._gapAccentCache = { g: gg, _h: _vh };
-      }
-      ctx.fillStyle = window._gapAccentCache.g;
-      if (_gapAccentL > 0) ctx.fillRect(outerX, -safeTop, _gapAccentL, _vh);
-      if (_gapAccentR > 0) ctx.fillRect(lsx + totalLW, -safeTop, _gapAccentR, _vh);
-    }
-
     // ★ 좌측 벚꽃 나무 — 레일 쪽으로 shift (이미지 우측 일부가 playfield 로 살짝 들어감)
     //   세로 1.25배 stretch → 캐노피가 상단으로 overflow 해서 더 풍성해보임.
     //   width 는 viewport 기준 유지 (레일 폭 침범 방지).
@@ -9387,15 +9370,8 @@ function renderBackplateBorder() {
   const _innerColor = _ui ? (_ui.frameInner || null) : null;
   const _glowColor = _ui ? (_ui.frameGlow || null) : null;
 
+  // 단색 (그라데이션 제거, 유저 요청)
   let _sakuraStrokeGrad = null;
-  if (_ui) {
-    // 수직 그라데이션 — 레일 양끝 라인에 자연 색 transition
-    _sakuraStrokeGrad = ctx.createLinearGradient(0, outerY, 0, outerB);
-    _sakuraStrokeGrad.addColorStop(0, '#d97a95');   // 상단 로즈 (캐노피)
-    _sakuraStrokeGrad.addColorStop(0.35, '#a8534a'); // 중상 rose-bark
-    _sakuraStrokeGrad.addColorStop(0.7, '#6b3027');  // 중하 진한 bark
-    _sakuraStrokeGrad.addColorStop(1, '#3d1a14');    // 하단 trunk
-  }
 
   // 헬퍼: 수직 segment — 단일 stroke (네온 glow 제거, 두께 축소).
   const _mainW  = _ui ? sz(2.5) : sz(7);
