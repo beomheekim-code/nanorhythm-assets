@@ -21,7 +21,7 @@ sakura_tree 재처리 — raw Gemini 원본에서 canopy 디테일 보존 + trun
 import os
 import numpy as np
 from PIL import Image
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import distance_transform_edt, label
 
 ROOT = r'D:\nanorhythm-assets\nanorhythm-assets'
 CONTAINER = os.path.join(ROOT, 'skins', 'neon', 'container')
@@ -56,17 +56,23 @@ arr[h-5:h, :, 3] = 0
 arr[:, 0:5, 3] = 0
 arr[:, w-5:w, 3] = 0
 
-# === 3) 검은 픽셀 hybrid 제거 ===
+# === 3) 검은 박스 정확한 검출 (큰 connected component 만 제거) ===
+# trunk 와 검은 박스 좌표 겹쳐서 강제 영역 투명은 trunk 잘림.
+# 검은 박스 = 직사각형 형태의 큰 connected component (>=3000 px), trunk 의 검은 디테일 = 작은 patches (skip).
 r, g, b, a = arr[:,:,0], arr[:,:,1], arr[:,:,2], arr[:,:,3]
-black_global = (r < BLACK_THR_GLOBAL) & (g < BLACK_THR_GLOBAL) & (b < BLACK_THR_GLOBAL) & (a > 50)
-black_corner = (r < BLACK_THR_CORNER) & (g < BLACK_THR_CORNER) & (b < BLACK_THR_CORNER) & (a > 50)
-corner_mask = np.zeros_like(a, dtype=bool)
-corner_mask[h-CORNER_BOX:h, 0:CORNER_BOX] = True
-corner_mask[h-CORNER_BOX:h, w-CORNER_BOX:w] = True
-total_black = black_global | (black_corner & corner_mask)
-n_black = int(total_black.sum())
-arr[total_black, 3] = 0
-print(f'  검은 픽셀 제거: 전체 {int(black_global.sum())} + 모서리 {int((black_corner & corner_mask).sum())} = 총 {n_black}')
+black_mask = (r < 60) & (g < 60) & (b < 60) & (a > 50)
+black_lbl, n_black_components = label(black_mask)
+sizes = np.bincount(black_lbl.ravel())
+# 큰 component (>=3000 px) 만 = 박스. 작은 것은 trunk 의 그림자/디테일 → 보존.
+LARGE_BLACK_THR = 3000
+target = np.zeros_like(black_mask, dtype=bool)
+removed = 0
+for li in range(1, n_black_components + 1):
+    if sizes[li] >= LARGE_BLACK_THR:
+        target |= (black_lbl == li)
+        removed += int(sizes[li])
+arr[target, 3] = 0
+print(f'  검은 박스 ({n_black_components} 컴포넌트 중 >={LARGE_BLACK_THR}px = {removed} px) 제거')
 
 img = Image.fromarray(arr, 'RGBA')
 
@@ -75,16 +81,7 @@ bbox = img.getbbox()
 img = img.crop(bbox)
 print(f'  bbox: {img.size}')
 
-# === 4b) 좌/우하단 250x250 모서리 강제 투명 (raw 분석상 trunk 가운데 좁음 → 모서리에 트리 X) ===
-arr_b = np.array(img)
-hh_b, ww_b = arr_b.shape[:2]
-HARD_CORNER = 250
-n_hard_l = int((arr_b[hh_b-HARD_CORNER:hh_b, 0:HARD_CORNER, 3] > 0).sum())
-n_hard_r = int((arr_b[hh_b-HARD_CORNER:hh_b, ww_b-HARD_CORNER:ww_b, 3] > 0).sum())
-arr_b[hh_b-HARD_CORNER:hh_b, 0:HARD_CORNER, 3] = 0
-arr_b[hh_b-HARD_CORNER:hh_b, ww_b-HARD_CORNER:ww_b, 3] = 0
-img = Image.fromarray(arr_b, 'RGBA')
-print(f'  강제 투명 (좌하 250x250: {n_hard_l} px, 우하 250x250: {n_hard_r} px)')
+# (좌/우하단 강제 투명 제거 — trunk 가 우측 가장자리에 있어 강제 alpha=0 시 trunk 끝부분 잘림)
 
 # === 5) 워터마크 자리 좁게 inpaint (모서리만) ===
 arr = np.array(img)
