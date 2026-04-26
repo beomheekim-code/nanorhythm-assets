@@ -63,8 +63,8 @@ r, g, b, a = arr[:,:,0], arr[:,:,1], arr[:,:,2], arr[:,:,3]
 black_mask = (r < 60) & (g < 60) & (b < 60) & (a > 50)
 black_lbl, n_black_components = label(black_mask)
 sizes = np.bincount(black_lbl.ravel())
-# 큰 component (>=3000 px) 만 = 박스. 작은 것은 trunk 의 그림자/디테일 → 보존.
-LARGE_BLACK_THR = 3000
+# 큰 component (>=1000 px) 만 = 박스. 작은 것은 trunk 의 그림자/디테일 → 보존.
+LARGE_BLACK_THR = 1000
 target = np.zeros_like(black_mask, dtype=bool)
 removed = 0
 for li in range(1, n_black_components + 1):
