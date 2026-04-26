@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426165225;
+window.__BUILD_TS = 20260426171838;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2823,7 +2823,16 @@ const SKINS = {
       // 판정선 — 바는 procedural (유저 요청, 2026-04-24), 좌/우 데코만 PNG.
       judgeLineDecoLeft:  'skins/neon/judge_line/judge_line_deco_left.png',
       judgeLineDecoRight: 'skins/neon/judge_line/judge_line_deco_right.png',
-      // deck_base PNG 삭제 (2026-04-24) — procedural 렌더로 전환.
+      // 텍스트 sprite (2026-04-26)
+      comboLabel:        'skins/neon/combo_text/combo_label.png',
+      judgePerfect:      'skins/neon/judgment_text/judge_perfect.png',
+      judgeGreat:        'skins/neon/judgment_text/judge_great.png',
+      judgeGood:         'skins/neon/judgment_text/judge_good.png',
+      judgeMiss:         'skins/neon/judgment_text/judge_miss.png',
+      scoreLabel:        'skins/neon/score_text/score_label.png',
+      maxComboLabel:     'skins/neon/score_text/max_combo_label.png',
+      feverBurst:        'skins/neon/fever/fever_burst.png',
+      numbersAtlas:      'skins/neon/numbers/numbers_atlas.png',
     },
   },
 };
@@ -10290,6 +10299,26 @@ function renderJudgment() {
   ctx.translate(W/2, getHitY() - _s40);
   ctx.scale(scale, scale);
   ctx.globalAlpha = Math.min(1, judgmentTimer*3);
+
+  // 벚꽃 UI: judgment sprite 우선
+  const _ui = _getUiPackSkin();
+  if (_ui && _ui.imagePaths) {
+    let spritePath = null;
+    const t = (judgmentText || '').toUpperCase();
+    if (t.startsWith('PERFECT')) spritePath = _ui.imagePaths.judgePerfect;
+    else if (t.startsWith('GREAT')) spritePath = _ui.imagePaths.judgeGreat;
+    else if (t.startsWith('GOOD') || t.startsWith('HOLD') || t === 'OK') spritePath = _ui.imagePaths.judgeGood;
+    else if (t === 'MISS' || t.startsWith('TRAP')) spritePath = _ui.imagePaths.judgeMiss;
+    const img = spritePath ? skinImages[spritePath] : null;
+    if (img && img._ok === true) {
+      const w = sz(180);
+      const h = w * (img.naturalHeight / img.naturalWidth);
+      ctx.drawImage(img, -w/2, -h/2, w, h);
+      ctx.globalAlpha = 1; ctx.restore();
+      return;
+    }
+  }
+
   ctx.font = `bold ${sz(22)}px sans-serif`;
   ctx.textAlign='center'; ctx.fillStyle = judgmentColor;
   if (!isMobile) { ctx.shadowColor=judgmentColor; ctx.shadowBlur=10; }
