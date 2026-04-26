@@ -75,6 +75,17 @@ bbox = img.getbbox()
 img = img.crop(bbox)
 print(f'  bbox: {img.size}')
 
+# === 4b) 좌/우하단 250x250 모서리 강제 투명 (raw 분석상 trunk 가운데 좁음 → 모서리에 트리 X) ===
+arr_b = np.array(img)
+hh_b, ww_b = arr_b.shape[:2]
+HARD_CORNER = 250
+n_hard_l = int((arr_b[hh_b-HARD_CORNER:hh_b, 0:HARD_CORNER, 3] > 0).sum())
+n_hard_r = int((arr_b[hh_b-HARD_CORNER:hh_b, ww_b-HARD_CORNER:ww_b, 3] > 0).sum())
+arr_b[hh_b-HARD_CORNER:hh_b, 0:HARD_CORNER, 3] = 0
+arr_b[hh_b-HARD_CORNER:hh_b, ww_b-HARD_CORNER:ww_b, 3] = 0
+img = Image.fromarray(arr_b, 'RGBA')
+print(f'  강제 투명 (좌하 250x250: {n_hard_l} px, 우하 250x250: {n_hard_r} px)')
+
 # === 5) 워터마크 자리 좁게 inpaint (모서리만) ===
 arr = np.array(img)
 hh, ww = arr.shape[:2]
