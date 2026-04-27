@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427183324;
+window.__BUILD_TS = 20260427183711;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7507,6 +7507,21 @@ function startSong(idx) {
               ctx.drawImage(im, -ww - 200, -hh - 200, ww, hh);
             }
           }
+        }
+      } catch(e) {}
+      // ★★★ Sprite bake 캐시 prewarm — 첫 노트 drop 시 _bakeSprite 동기 호출로 stutter.
+      try {
+        const _laneW = getLaneW(), _laneH = getBtnH();
+        const _bakeNoteW = Math.round(_laneW * 0.78);
+        const _bakeNoteH = Math.round(_laneH * 0.55);
+        for (let li = 0; li < laneCount; li++) {
+          ctx.globalAlpha = 0;
+          if (typeof drawSkinSprite === 'function') {
+            drawSkinSprite('note', li, -1000, -1000, _bakeNoteW, _bakeNoteH);
+            drawSkinSprite('holdHead', li, -1000, -1000, _bakeNoteW, _bakeNoteH);
+            drawSkinSprite('holdBody', li, -1000, -1000, _bakeNoteW, 20);
+          }
+          ctx.globalAlpha = 1;
         }
       } catch(e) {}
       // ★ 렌더/업데이트 JIT 워밍업 — 첫 호출 시 JIT 컴파일 지연으로 첫 노트 프레임 stutter.
