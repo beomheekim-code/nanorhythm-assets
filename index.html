@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427184840;
+window.__BUILD_TS = 20260427192030;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12257,7 +12257,12 @@ function renderShop() {
 
     // 가격 버튼 (우측 정렬) — 먼저 좌표 계산해서 텍스트 폭 제한에 사용
     const pbw = sz(96), pbh = sz(34);
-    const pbx = cx + cw - pbw - sz(12), pby = y + (ih - pbh) / 2;
+    const _hasPreview = item.type === 'skin' && item.previewGif;
+    const _btnGap = sz(6);
+    const _btnStackH = _hasPreview ? (pbh * 2 + _btnGap) : pbh;
+    const _btnStackTop = y + (ih - _btnStackH) / 2;
+    const pbx = cx + cw - pbw - sz(12);
+    const pby = _hasPreview ? (_btnStackTop + pbh + _btnGap) : _btnStackTop;
     // 텍스트 영역: 아이콘 우측~버튼 좌측 사이
     const textX = cx + sz(74);
     const textMaxW = pbx - sz(8) - textX;
@@ -12302,13 +12307,12 @@ function renderShop() {
       }
     }
 
-    // 미리보기 버튼 (스킨 + previewGif 있을 때만, 가격 버튼 위)
-    if (item.type === 'skin' && item.previewGif) {
-      const pvW = sz(86), pvH = sz(22);
-      const pvX = pbx + (pbw - pvW) / 2, pvY = pby - pvH - sz(4);
-      ctx.fillStyle = 'rgba(180,100,255,0.18)'; rrFill(pvX, pvY, pvW, pvH, sz(5));
-      ctx.strokeStyle = 'rgba(180,100,255,0.55)'; ctx.lineWidth = 1; rrStroke(pvX, pvY, pvW, pvH, sz(5));
-      ctx.font = `bold ${sz(10)}px sans-serif`; ctx.fillStyle = '#fff';
+    // 미리보기 버튼 (스킨 + previewGif 있을 때만) — 구매 버튼과 동일 크기, 위에 스택
+    if (_hasPreview) {
+      const pvX = pbx, pvY = _btnStackTop, pvW = pbw, pvH = pbh;
+      ctx.fillStyle = 'rgba(180,100,255,0.18)'; rrFill(pvX, pvY, pvW, pvH, sz(8));
+      ctx.strokeStyle = 'rgba(180,100,255,0.55)'; ctx.lineWidth = 1; rrStroke(pvX, pvY, pvW, pvH, sz(8));
+      ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = '#fff';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('▶ 미리보기', pvX + pvW/2, pvY + pvH/2);
       _shopPreviewAreas.push({ x: pvX, y: pvY, w: pvW, h: pvH, gifPath: item.previewGif, label: item.label });
@@ -12609,9 +12613,14 @@ function renderInventory() {
       ctx.fillText(_getSkinDisplayName(skinId), cardX + sz(74), yCur + cardH/2 - sz(10));
       ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
       ctx.fillText(_descText, cardX + sz(74), yCur + cardH/2 + sz(10), cardW - sz(180));
-      // 버튼 (장착 or 해제)
+      // 버튼 (장착 or 해제) — 미리보기 있으면 위에 동일 크기 버튼 스택
       const bbw = sz(76), bbh = sz(32);
-      const bbx = cardX + cardW - bbw - sz(12), bby = yCur + (cardH - bbh)/2;
+      const _invHasPreview = !!(_shopMatchInv && _shopMatchInv.previewGif);
+      const _invBtnGap = sz(6);
+      const _invStackH = _invHasPreview ? (bbh * 2 + _invBtnGap) : bbh;
+      const _invStackTop = yCur + (cardH - _invStackH) / 2;
+      const bbx = cardX + cardW - bbw - sz(12);
+      const bby = _invHasPreview ? (_invStackTop + bbh + _invBtnGap) : _invStackTop;
       if (equipped) {
         ctx.fillStyle = col + '22'; rrFill(bbx, bby, bbw, bbh, sz(8));
         ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 1; rrStroke(bbx, bby, bbw, bbh, sz(8));
@@ -12631,13 +12640,12 @@ function renderInventory() {
         ctx.fillText('장착', bbx + bbw/2, bby + bbh/2);
         _invBtnAreas.push({ type:'equip', cat: inventoryTab, id: skinId, x:bbx, y:bby, w:bbw, h:bbh });
       }
-      // ▶ 미리보기 버튼 — 상점과 동일 스타일 (장착 버튼 위에)
-      if (_shopMatchInv && _shopMatchInv.previewGif) {
-        const pvW = sz(86), pvH = sz(22);
-        const pvX = bbx + (bbw - pvW) / 2, pvY = bby - pvH - sz(4);
-        ctx.fillStyle = 'rgba(180,100,255,0.18)'; rrFill(pvX, pvY, pvW, pvH, sz(5));
-        ctx.strokeStyle = 'rgba(180,100,255,0.55)'; ctx.lineWidth = 1; rrStroke(pvX, pvY, pvW, pvH, sz(5));
-        ctx.font = `bold ${sz(10)}px sans-serif`; ctx.fillStyle = '#fff';
+      // ▶ 미리보기 버튼 — 장착/해제 버튼과 동일 크기, 위에 스택
+      if (_invHasPreview) {
+        const pvX = bbx, pvY = _invStackTop, pvW = bbw, pvH = bbh;
+        ctx.fillStyle = 'rgba(180,100,255,0.18)'; rrFill(pvX, pvY, pvW, pvH, sz(8));
+        ctx.strokeStyle = 'rgba(180,100,255,0.55)'; ctx.lineWidth = 1; rrStroke(pvX, pvY, pvW, pvH, sz(8));
+        ctx.font = `bold ${sz(12)}px sans-serif`; ctx.fillStyle = '#fff';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('▶ 미리보기', pvX + pvW/2, pvY + pvH/2);
         _invBtnAreas.push({ type:'preview', gifPath: _shopMatchInv.previewGif, label: _shopMatchInv.label, x:pvX, y:pvY, w:pvW, h:pvH });
