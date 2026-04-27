@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427105751;
+window.__BUILD_TS = 20260427112228;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2442,6 +2442,27 @@ function watchAdForSong(idx) {
   adSongIdx = idx;
   adCountdown = AD_DURATION;
   adStartTime = performance.now();
+}
+// KPLAY rewarded ad — production 진짜 광고. SDK 없으면 (localhost / 미주입) 기존 가짜 광고로 fallback.
+async function watchAdForSongKplay(idx) {
+  if (!isTestEnv && window.kplay && typeof window.kplay.showRewardedAd === 'function') {
+    closeUnlockPopup();
+    try {
+      const result = await window.kplay.showRewardedAd();
+      if (result && result.success) {
+        addSongFreePlay(idx);
+        showLoginToast('1회 무료 재생 획득!', '#44dd66', null, 2);
+      } else {
+        showLoginToast('광고 시청 미완료', '#ffa500', null, 1);
+      }
+    } catch (e) {
+      try { console.warn('[kplay rewarded ad] error', e); } catch(ex) {}
+      showLoginToast('광고 로딩 실패', '#ff6666', null, 1);
+    }
+    return;
+  }
+  // 로컬/SDK 미주입 → 기존 5초 가짜 광고 오버레이로 폴백
+  watchAdForSong(idx);
 }
 function updateAd(dt) {
   if (!adPlaying) return;
@@ -5298,7 +5319,7 @@ function handleSelectClick(mx, my) {
   // 해금 팝업 처리
   if (unlockPopupOpen && unlockPopupAreas.ad) {
     const a = unlockPopupAreas;
-    if (hitTest(mx, my, a.ad.x, a.ad.y, a.ad.w, a.ad.h)) { return; }
+    if (hitTest(mx, my, a.ad.x, a.ad.y, a.ad.w, a.ad.h)) { watchAdForSongKplay(unlockPopupSongIdx); return; }
     if (hitTest(mx, my, a.pt.x, a.pt.y, a.pt.w, a.pt.h)) { buyPlayWithPoints(unlockPopupSongIdx); return; }
     if (a.shop && hitTest(mx, my, a.shop.x, a.shop.y, a.shop.w, a.shop.h)) { closeUnlockPopup(); shopScroll = 0; stopPreview(); startShopBgm(); transitionTo('shop'); return; }
     if (hitTest(mx, my, a.close.x, a.close.y, a.close.w, a.close.h)) { closeUnlockPopup(); return; }
@@ -11400,14 +11421,16 @@ function renderUnlockPopup() {
   const sn = songs[unlockPopupSongIdx] ? songs[unlockPopupSongIdx].name : '';
   ctx.font = `${sz(13)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.fillText(sn, W/2, py + sz(50));
-  // 광고보기 버튼 (준비 중 — 비활성화 표시)
+  // 광고보기 버튼 — KPLAY rewarded ad (활성)
   const bw = pw * 0.75, bh = sz(36);
   const bx = (W - bw) / 2;
   const adY = py + sz(72);
-  ctx.fillStyle = 'rgba(255,215,0,0.15)'; rrFill(bx, adY, bw, bh, sz(8));
-  ctx.strokeStyle = 'rgba(255,215,0,0.3)'; ctx.lineWidth = 1; rrStroke(bx, adY, bw, bh, sz(8));
-  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = 'rgba(255,215,0,0.5)';
-  ctx.fillText('▶ 광고 보고 1회 무료 재생 (준비 중)', W/2, adY + bh/2);
+  const adGrad = ctx.createLinearGradient(bx, adY, bx, adY + bh);
+  adGrad.addColorStop(0, '#ffd700'); adGrad.addColorStop(1, '#e6a800');
+  ctx.fillStyle = adGrad; rrFill(bx, adY, bw, bh, sz(8));
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrStroke(bx, adY, bw, bh, sz(8));
+  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = '#1a0d2e';
+  ctx.fillText('▶ 광고 보고 1회 무료 재생', W/2, adY + bh/2);
   // 포인트 구매 버튼
   const ptY = adY + bh + sz(10);
   const canBuy = getCoins() >= UNLOCK_POINT_COST;
