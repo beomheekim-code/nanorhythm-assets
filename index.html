@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427184007;
+window.__BUILD_TS = 20260427184840;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -885,7 +885,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@af257d7/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@91abcfd/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -2173,6 +2173,31 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 145.2,
     pattern: [1,0,0,1,0,0,1,0, 1,0,0,1,0,1,0,1],
+    vocalIntroRange: 'auto', chordMode: true,
+  },
+  {
+    name: '고민의 자국', sub: 'HEARTFELT BALLAD', bpm: 99,
+    color: '#c98ad6', bg1: '#1a0d22', bg2: '#2e1338',
+    bars: 51, file: 'Music/고민의_자국.ogg',
+    cover: 'Music/고민의_자국/고민의_자국.png',
+    stemDir: 'Music/고민의_자국/',
+    stemPrefix: '고민의_자국',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [4],
+    endCutoff: 121.7,
+    pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,1,0],
+    chordMode: true,
+  },
+  {
+    name: '괜찮아', sub: 'WARM POP', bpm: 136,
+    color: '#ffb380', bg1: '#1f0e08', bg2: '#3a1a10',
+    bars: 125, file: 'Music/괜찮아.ogg',
+    cover: 'Music/괜찮아/괜찮아.png',
+    stemDir: 'Music/괜찮아/',
+    stemPrefix: '괜찮아',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    endCutoff: 218.2,
+    pattern: [1,0,1,0,1,0,1,0, 1,0,0,1,0,1,1,0],
     vocalIntroRange: 'auto', chordMode: true,
   },
 ];
