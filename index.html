@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427100338;
+window.__BUILD_TS = 20260427101446;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4900,6 +4900,8 @@ let shakeX = 0, shakeY = 0;
 let selectedSong = 0;
 try { loadSongDiffSpeed(0); } catch(e) {} // 초기 곡 설정 로드
 let keyHeld = Array(8).fill(false);
+let _keyPressAnim = new Array(8).fill(0); // 0..1 — 부드러운 음영 보간
+let _lastKeyAnimT = 0;
 let keyFlash = Array(8).fill(0);
 const touchLaneMap = new Map(); // touchId → 현재 레인 (모바일 슬라이드 감지용)
 let judgmentText = '', judgmentTimer = 0, judgmentColor = '#fff', judgmentPriority = 0;
@@ -6689,9 +6691,9 @@ function handleLanePress(lane, src) {
     gauge = Math.min(1, gauge + curDiff.hpGain * fm);
     let pts, txt, col;
     const _hsH = getHeightScale();
-    if (closestDist < 22 * _hsH) { pts=100; txt='HOLD!'; col='#ffd700'; }
-    else if (closestDist < 42 * _hsH) { pts=75; txt='HOLD!'; col='#00d4ff'; }
-    else { pts=40; txt='HOLD'; col='#44dd66'; }
+    if (closestDist < 22 * _hsH) { pts=100; txt='PERFECT'; col='#ffd700'; }
+    else if (closestDist < 42 * _hsH) { pts=75; txt='GREAT'; col='#00d4ff'; }
+    else { pts=40; txt='GOOD'; col='#44dd66'; }
     score += Math.floor(pts * fm * Math.min(1 + combo * 0.01, 2.0) * getKeyBonus());
     collected++;
     if (judgmentPriority < 2) { judgmentText = txt; judgmentTimer = 0.5; judgmentColor = col; judgmentPriority = 0; }
@@ -8271,19 +8273,19 @@ function update(dt) {
       if (endDist < 28 * hs) {
         score += Math.floor(200 * fm * getKeyBonus()); combo++; if (combo > maxCombo) maxCombo = combo;
         checkFeverActivate(); gauge = Math.min(1, gauge + curDiff.hpGain * 1.3 * fm);
-        judgmentText = 'PERFECT HOLD!'; judgmentTimer = 0.6; judgmentColor = '#ffd700'; judgmentPriority = 0;
+        judgmentText = 'PERFECT'; judgmentTimer = 0.6; judgmentColor = '#ffd700'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'perfect');
         spawnParticles(getLaneX(n.lane), getHitY(), LANE_COLORS[n.lane], fever ? 10 : 6);
         playerAnim = 0.3;
       } else if (endDist < 52 * hs) {
         score += Math.floor(150 * fm * getKeyBonus()); combo++; if (combo > maxCombo) maxCombo = combo;
         checkFeverActivate(); gauge = Math.min(1, gauge + curDiff.hpGain * fm);
-        judgmentText = 'GREAT HOLD!'; judgmentTimer = 0.5; judgmentColor = '#00d4ff'; judgmentPriority = 0;
+        judgmentText = 'GREAT'; judgmentTimer = 0.5; judgmentColor = '#00d4ff'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'great');
         playerAnim = 0.2;
       } else if (endDist < getHitWindow()) {
         score += Math.floor(80 * fm * getKeyBonus());
-        judgmentText = 'OK'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
+        judgmentText = 'GOOD'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
       } else {
         nanoMiss();
@@ -9833,7 +9835,17 @@ function renderButtons() {
   const lw = getLaneW(), lsx = getLaneStartX(), by = getBtnY(), bh = getBtnH();
   const _pad = sz(3), _r = sz(6);
 
-  // ★ sakura_ui 장착 시 — PNG 있으면 tinted PNG 모드, 없으면 procedural + sakura 팔레트.
+  // 키 누름 anim 업데이트 — press 60ms / release 140ms, 부드러운 음영 보간용.
+  const _nowKA = performance.now();
+  const _dtKA = Math.min(0.05, (_nowKA - (_lastKeyAnimT || _nowKA)) / 1000);
+  _lastKeyAnimT = _nowKA;
+  for (let i = 0; i < laneCount; i++) {
+    const tg = keyHeld[i] ? 1 : 0;
+    if (tg > _keyPressAnim[i]) _keyPressAnim[i] = Math.min(1, _keyPressAnim[i] + _dtKA / 0.06);
+    else _keyPressAnim[i] = Math.max(0, _keyPressAnim[i] - _dtKA / 0.14);
+  }
+
+  // ★ sakura_ui 장착 시 — PNG 양 끝 (lane 0 + last) 만 데코, 가운데는 procedural.
   const _uiSkin = _getUiPackSkin();
   const _keyBasePath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.keyBase;
   const _keyBaseImg = _keyBasePath ? skinImages[_keyBasePath] : null;
@@ -9848,35 +9860,43 @@ function renderButtons() {
   for (let i = 0; i < laneCount; i++) {
     const bx = lsx + i * lw;
     const held = keyHeld[i];
+    const _anim = _keyPressAnim[i]; // 0..1 부드러운 누름 보간
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
+    const _isEnd = (i === 0 || i === laneCount - 1);
 
-    // ─── 사카라 모드: key.png + 단일 색 tint (레인 색 무관) ───
-    if (_sakuraMode) {
+    // ─── 양 끝 (lane 0 + last) 만 sakura key.png 데코, 가운데는 procedural ───
+    if (_sakuraMode && _isEnd) {
       const tinted = _getTintedKeyCanvas(_sakuraKeyColor);
       if (tinted) {
-        // 레인 크기 대비 1.2x 스케일 — PNG 내부 장식(코너 블라썸/만다라)이 outline 밖에 있어
-        //   bbox 가 버튼 outline 보다 크므로, 이를 보정해 실제 버튼을 레인 크기로 맞춤.
-        //   살짝 overflow 되지만 시각상 기본 버튼과 동일 사이즈로 보임.
-        const _sScl = 1.2;
+        // 누를 때 살짝 작아짐 (smooth)
+        const _pressShrink = 1 - 0.025 * _anim;
+        const _sScl = 1.2 * _pressShrink;
         const _skW = lw * _sScl, _skH = bh * _sScl;
-        const _skX = bx - (_skW - lw) / 2;
-        const _skY = by - (_skH - bh) / 2;
+        const _skX = bx + lw/2 - _skW/2;
+        const _skY = by + bh/2 - _skH/2;
         ctx.drawImage(tinted, _skX, _skY, _skW, _skH);
-        // LED 좌표 — PNG 측정값 기반: bbox 의 x=47.6%, y=23.6% (scaled 영역 기준)
+        // 음영 오버레이 — anim 비례 (부드러운 inset 음영)
+        if (_anim > 0.005) {
+          ctx.save();
+          ctx.fillStyle = `rgba(0,0,0,${0.3 * _anim})`;
+          rrFill(bx + sz(1), by + sz(1), lw - sz(2), bh - sz(2), _r);
+          ctx.restore();
+        }
+        // LED — anim 강도로 글로우 alpha 보간
         const _dcx = _skX + _skW * 0.476;
         const _dcy = _skY + _skH * 0.236;
         const _glowR = Math.min(_skW, _skH) * 0.22;
-        if (held) {
+        if (_anim > 0.005) {
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = _anim;
           const _glowG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR);
           _glowG.addColorStop(0, col + 'ee');
           _glowG.addColorStop(0.4, col + '77');
           _glowG.addColorStop(1, col + '00');
           ctx.fillStyle = _glowG;
           ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR, 0, Math.PI*2); ctx.fill();
-          // 중심 흰 highlight
           const _wG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR*0.3);
           _wG.addColorStop(0, 'rgba(255,255,255,0.95)');
           _wG.addColorStop(1, 'rgba(255,255,255,0)');
@@ -9884,7 +9904,7 @@ function renderButtons() {
           ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR*0.3, 0, Math.PI*2); ctx.fill();
           ctx.restore();
         }
-        // 빈 입력 플래시 — 풀 레인 사이즈에 맞춤
+        // 빈 입력 플래시
         const _efAgeS = performance.now() - _lastEmptyFlash[i];
         if (_efAgeS < 200) {
           const _efAS = 0.6 * (1 - _efAgeS / 200);
@@ -9897,27 +9917,71 @@ function renderButtons() {
         if (!isMobile) {
           ctx.font = `bold ${sz(14)}px sans-serif`;
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillStyle = held ? '#fff' : 'rgba(255,235,245,0.65)';
+          ctx.fillStyle = `rgba(255,235,245,${0.65 + 0.35 * _anim})`;
           ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
         }
         continue;
       }
-      // tint 생성 실패 → procedural fallback
     }
 
-    // ★ sakura_ui + PNG 없을 때: wine/pink 팔레트로 procedural key 렌더. 레인색 대신 단일 accent 사용.
+    // ★ procedural 키 — rest 먼저 렌더, press 는 anim 비례 alpha 로 오버레이 (부드러운 음영)
     const _keyCol = _sakuraUiActive ? _sakuraKeyColor : col;
-    if (held) {
-      // ===== 눌림 — 키가 살짝 들어간 느낌 =====
+    // ===== Rest 항상 렌더 =====
+    if (_sakuraUiActive) {
+      const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
+      _kgrad.addColorStop(0,    _sakuraBody0);
+      _kgrad.addColorStop(0.45, _sakuraBody1);
+      _kgrad.addColorStop(1,    '#170810');
+      ctx.fillStyle = _kgrad;
+      rrFill(x, y, w, h, _r);
+      ctx.fillStyle = _sakuraHL;
+      ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+      ctx.fillStyle = _sakuraKeyColor + '88';
+      ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
+      ctx.fillStyle = _sakuraKeyColor + '33';
+      ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
+      const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
+      _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
+      _sgrad.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = _sgrad;
+      ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
+      ctx.strokeStyle = 'rgba(255,140,180,0.4)'; ctx.lineWidth = 1;
+      rrStroke(x, y, w, h, _r);
+    } else {
+      const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
+      _kgrad.addColorStop(0,    '#3a3a44');
+      _kgrad.addColorStop(0.35, '#26262e');
+      _kgrad.addColorStop(1,    '#12121a');
+      ctx.fillStyle = _kgrad;
+      rrFill(x, y, w, h, _r);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x + _r, y + sz(3), w - _r*2, 1);
+      ctx.fillStyle = col + '99';
+      ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
+      ctx.fillStyle = col + '44';
+      ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
+      const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
+      _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
+      _sgrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+      ctx.fillStyle = _sgrad;
+      ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
+      ctx.strokeStyle = 'rgba(85,85,95,0.7)'; ctx.lineWidth = 1;
+      rrStroke(x, y, w, h, _r);
+    }
+
+    // ===== Press overlay — anim 비례 alpha 로 부드럽게 음영 =====
+    if (_anim > 0.005) {
+      ctx.save();
+      ctx.globalAlpha = _anim;
       if (_sakuraUiActive) {
-        // 벚꽃 눌림: wine body 가 더 포화되고 accent 빛남
         const _pgrad = ctx.createLinearGradient(0, y, 0, y + h);
         _pgrad.addColorStop(0, _sakuraBody0);
         _pgrad.addColorStop(0.5, _sakuraBody1);
         _pgrad.addColorStop(1, '#180810');
         ctx.fillStyle = _pgrad;
         rrFill(x, y, w, h, _r);
-        // 상단 pink accent 강하게
         ctx.fillStyle = _sakuraKeyColor + 'ee';
         ctx.fillRect(x + _r, y, w - _r*2, sz(4));
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -9938,73 +10002,26 @@ function renderButtons() {
         ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2;
         rrStroke(x, y, w, h, _r);
       }
-      // 센서 점 — 팔레트 공통 (_keyCol 사용)
-      const _dcxH = bx + lw/2, _dcyH = by + Math.min(bh * 0.55, sz(44));
-      const _drH = sz(4);
+      ctx.restore();
+    }
+
+    // ===== 센서 점 — rest 먼저, press anim 만큼 흰점 오버레이 =====
+    const _dcx = bx + lw/2, _dcy = by + Math.min(bh * 0.55, sz(44));
+    const _dr = sz(4);
+    ctx.fillStyle = _keyCol + '33';
+    ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr + sz(2), 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = _keyCol + 'bb';
+    ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.arc(_dcx - _dr*0.3, _dcy - _dr*0.3, _dr*0.35, 0, Math.PI*2); ctx.fill();
+    if (_anim > 0.005) {
+      ctx.save();
+      ctx.globalAlpha = _anim;
       ctx.fillStyle = _keyCol + '66';
-      ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH + sz(3), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr + sz(3), 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(_dcxH, _dcyH, _drH, 0, Math.PI*2); ctx.fill();
-    } else {
-      // ===== 대기 =====
-      if (_sakuraUiActive) {
-        // 1) wine body 그라데이션
-        const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
-        _kgrad.addColorStop(0,    _sakuraBody0);       // #3a1f2e wine
-        _kgrad.addColorStop(0.45, _sakuraBody1);       // #28121f darker
-        _kgrad.addColorStop(1,    '#170810');          // 바닥 거의 검정
-        ctx.fillStyle = _kgrad;
-        rrFill(x, y, w, h, _r);
-        // 2) 상단 엣지 pink 하이라이트
-        ctx.fillStyle = _sakuraHL;
-        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-        // 3) pink accent 스트라이프 (단일 색, 레인별 구분 없음)
-        ctx.fillStyle = _sakuraKeyColor + '88';
-        ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
-        ctx.fillStyle = _sakuraKeyColor + '33';
-        ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
-        // 4) 하단 그림자
-        const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
-        _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
-        _sgrad.addColorStop(1, 'rgba(0,0,0,0.5)');
-        ctx.fillStyle = _sgrad;
-        ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
-        // 5) pink 톤 테두리
-        ctx.strokeStyle = 'rgba(255,140,180,0.4)'; ctx.lineWidth = 1;
-        rrStroke(x, y, w, h, _r);
-      } else {
-        // 기본 메탈릭 (sakura_ui 미장착)
-        const _kgrad = ctx.createLinearGradient(0, y, 0, y + h);
-        _kgrad.addColorStop(0,    '#3a3a44');
-        _kgrad.addColorStop(0.35, '#26262e');
-        _kgrad.addColorStop(1,    '#12121a');
-        ctx.fillStyle = _kgrad;
-        rrFill(x, y, w, h, _r);
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx.fillRect(x + _r, y + 1, w - _r*2, sz(2));
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(x + _r, y + sz(3), w - _r*2, 1);
-        ctx.fillStyle = col + '99';
-        ctx.fillRect(x + _r + sz(2), y + sz(7), w - _r*2 - sz(4), sz(2));
-        ctx.fillStyle = col + '44';
-        ctx.fillRect(x + _r + sz(2), y + sz(10), w - _r*2 - sz(4), 1);
-        const _sgrad = ctx.createLinearGradient(0, y + h - sz(8), 0, y + h);
-        _sgrad.addColorStop(0, 'rgba(0,0,0,0)');
-        _sgrad.addColorStop(1, 'rgba(0,0,0,0.45)');
-        ctx.fillStyle = _sgrad;
-        ctx.fillRect(x + sz(1), y + h - sz(8), w - sz(2), sz(8));
-        ctx.strokeStyle = 'rgba(85,85,95,0.7)'; ctx.lineWidth = 1;
-        rrStroke(x, y, w, h, _r);
-      }
-      // 중앙 원형 센서 점 — 팔레트 공통 (_keyCol)
-      const _dcx = bx + lw/2, _dcy = by + Math.min(bh * 0.55, sz(44));
-      const _dr = sz(4);
-      ctx.fillStyle = _keyCol + '33';
-      ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr + sz(2), 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = _keyCol + 'bb';
       ctx.beginPath(); ctx.arc(_dcx, _dcy, _dr, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.beginPath(); ctx.arc(_dcx - _dr*0.3, _dcy - _dr*0.3, _dr*0.35, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
     }
 
     // 빈 입력 플래시 (노트 없이 눌렸을 때 빨간 깜박)
@@ -10017,12 +10034,20 @@ function renderButtons() {
       rrStroke(x, y, w, h, _r);
     }
 
-    // Label — PC 만. 센서 점 아래쪽으로 이동 (겹침 방지).
+    // Label — PC 만. 센서 점 아래쪽으로 이동 (겹침 방지). _anim 으로 부드럽게 밝기 보간.
     if (!isMobile) {
       ctx.font = `bold ${sz(14)}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = held ? '#fff' : (_sakuraUiActive ? 'rgba(255,190,210,0.65)' : col + '88');
+      const _restCol = _sakuraUiActive ? 'rgba(255,190,210,0.65)' : col + '88';
+      ctx.fillStyle = _restCol;
       ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
+      if (_anim > 0.005) {
+        ctx.save();
+        ctx.globalAlpha = _anim;
+        ctx.fillStyle = '#fff';
+        ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
+        ctx.restore();
+      }
     }
   }
 }
@@ -10370,7 +10395,7 @@ function renderJudgment() {
     const t = (judgmentText || '').toUpperCase();
     if (t.startsWith('PERFECT')) { spritePath = _ui.imagePaths.judgePerfect; sizeMul = 1.0; }
     else if (t.startsWith('GREAT')) { spritePath = _ui.imagePaths.judgeGreat; sizeMul = 0.7; }
-    else if (t.startsWith('GOOD') || t.startsWith('HOLD') || t === 'OK') { spritePath = _ui.imagePaths.judgeGood; sizeMul = 0.6; }
+    else if (t.startsWith('GOOD')) { spritePath = _ui.imagePaths.judgeGood; sizeMul = 0.6; }
     else if (t === 'MISS' || t.startsWith('TRAP')) { spritePath = _ui.imagePaths.judgeMiss; sizeMul = 0.5; }
     const img = spritePath ? skinImages[spritePath] : null;
     if (img && img._ok === true) {
