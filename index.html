@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427104012;
+window.__BUILD_TS = 20260427104407;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2815,8 +2815,6 @@ const SKINS = {
     // 폴더 — 기존 sakura 계열 (neon/sakura_fx) 와 동일 루트에 통합.
     //   skins/neon/ui_pack/*.png 로 PNG 오버라이드 시 추가.
     imagePaths: {
-      // 키 데코 — 양 끝 (lane 0 + 마지막) 만 적용. 가운데는 procedural.
-      keyBase: 'skins/neon/key/key.png',
       hpBar:   'skins/neon/hp_bar/hp_bar.png',
       // container_body PNG 삭제 (2026-04-24) — procedural 핑크 네온 렌더.
       // sakura tree — preview (임시 container/ 경로).
@@ -2968,7 +2966,6 @@ function _refreshActiveSkin() {
   if (typeof laneCount !== 'undefined' && typeof skinPalette === 'function') {
     LANE_COLORS = skinPalette(currentSkin, laneCount) || [...KEY_MODES[laneCount].colors];
   }
-  if (typeof _invalidateTintedKeyCache === 'function') _invalidateTintedKeyCache();
 }
 // 초기값: 장착된 note 스킨 (null 이면 default 렌더). 아래 preloadSkin 호출 이후에 안전.
 let currentSkin = getEquippedSkin('note'); // null 가능 (= 기본 스킨)
@@ -3130,7 +3127,6 @@ function setLaneMode(n) {
   laneCount = n;
   LANE_COLORS = skinPalette(currentSkin, n) || [...KEY_MODES[n].colors];
   LANE_SEQ = [...KEY_MODES[n].seq];
-  if (typeof _invalidateTintedKeyCache === 'function') _invalidateTintedKeyCache();
   // 키 수 바뀌면 레인 폭 바뀜 → 기존 pre-baked sprite 캐시 무효 (사이즈 miss). 메모리 정리.
   skinSpriteBakery.clear();
   loadKeymap();
@@ -7391,16 +7387,6 @@ function startSong(idx) {
           } catch(e) {}
         }
       }
-      // ★ sakura_ui 장착 시 tinted key 캔버스 per-lane 미리 생성 + drawImage
-      //   첫 탭버튼 렌더 시 tinted 캔버스 생성 지연 + 텍스처 업로드 원스텝에 발생하는 stutter 방지.
-      try {
-        if (typeof _getTintedKeyCanvas === 'function' && typeof LANE_COLORS !== 'undefined') {
-          for (let li = 0; li < laneCount; li++) {
-            const tc = _getTintedKeyCanvas(LANE_COLORS[li]);
-            if (tc) ctx.drawImage(tc, -200, -200, 10, 10);
-          }
-        }
-      } catch(e) {}
       // ★ 판정선 PNG 들 — 실제 렌더 사이즈로 한번 더 워밍업 (작은 10x10 만으로 부족).
       //   GPU 가 실제 스케일에서 텍스처 샘플링을 pre-cache 하도록 유도.
       try {
@@ -8925,78 +8911,7 @@ function _getUiPackSkin() {
   if (!sid) return null;
   return SKINS[sid] || null;
 }
-// ★ key.png 베이스를 LANE_COLORS 별 hue-rotate tint 해서 캐시
-const _tintedKeyCache = {};
-function _hexToHueAngle(hex) {
-  if (!hex || hex.length < 7) return 340;
-  const r = parseInt(hex.slice(1,3),16)/255;
-  const g = parseInt(hex.slice(3,5),16)/255;
-  const b = parseInt(hex.slice(5,7),16)/255;
-  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), df = mx - mn;
-  let h = 0;
-  if (df < 1e-6) return 0;
-  if (mx === r) h = (((g-b)/df) % 6) * 60;
-  else if (mx === g) h = (((b-r)/df) + 2) * 60;
-  else h = (((r-g)/df) + 4) * 60;
-  if (h < 0) h += 360;
-  return h;
-}
-// 베이스 PNG 의 opaque bbox 측정 — 투명 여백 crop 용
-let _keyBaseBBox = null;
-function _measureKeyBBox(base) {
-  if (_keyBaseBBox) return _keyBaseBBox;
-  try {
-    const tcv = document.createElement('canvas');
-    tcv.width = base.naturalWidth; tcv.height = base.naturalHeight;
-    const tc = tcv.getContext('2d');
-    tc.drawImage(base, 0, 0);
-    const dat = tc.getImageData(0, 0, tcv.width, tcv.height).data;
-    let x0=tcv.width, x1=0, y0=tcv.height, y1=0;
-    for (let y=0; y<tcv.height; y+=4) {
-      for (let x=0; x<tcv.width; x+=4) {
-        if (dat[(y*tcv.width+x)*4+3] > 20) {
-          if (x<x0) x0=x; if (x>x1) x1=x;
-          if (y<y0) y0=y; if (y>y1) y1=y;
-        }
-      }
-    }
-    _keyBaseBBox = { x:x0, y:y0, w:x1-x0+1, h:y1-y0+1 };
-  } catch(e) {
-    _keyBaseBBox = { x:0, y:0, w:base.naturalWidth, h:base.naturalHeight };
-  }
-  return _keyBaseBBox;
-}
-function _getTintedKeyCanvas(colorHex) {
-  if (_tintedKeyCache[colorHex]) return _tintedKeyCache[colorHex];
-  const uiSkin = _getUiPackSkin();
-  const basePath = uiSkin && uiSkin.imagePaths && uiSkin.imagePaths.keyBase;
-  if (!basePath) return null;
-  const base = skinImages[basePath];
-  if (!base || !base.complete || !base.naturalWidth) return null;
-  const bbox = _measureKeyBBox(base);
-  // 다운스케일 + crop
-  const targetH = 384;
-  const targetW = Math.max(1, Math.round(targetH * (bbox.w / bbox.h)));
-  const cv = document.createElement('canvas');
-  cv.width = targetW; cv.height = targetH;
-  const c = cv.getContext('2d');
-  // 베이스 hue ≈ 340° (딥 와인/핑크). 타겟 hue 로 회전.
-  const targetHue = _hexToHueAngle(colorHex);
-  const baseHue = 340;
-  const rotation = ((targetHue - baseHue) % 360 + 360) % 360;
-  try {
-    c.filter = `hue-rotate(${rotation}deg) saturate(1.15)`;
-    c.drawImage(base, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, targetW, targetH);
-    c.filter = 'none';
-  } catch(e) {
-    c.drawImage(base, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, targetW, targetH);
-  }
-  _tintedKeyCache[colorHex] = cv;
-  return cv;
-}
-function _invalidateTintedKeyCache() {
-  for (const k in _tintedKeyCache) delete _tintedKeyCache[k];
-}
+// (key.png tint 캐시 시스템 제거 — 데코 미사용 2026-04-27)
 function _backplatePalette() {
   const sid = getEquippedSkin('backplate');
   const s = sid && SKINS[sid];
@@ -9846,11 +9761,8 @@ function renderButtons() {
     else _keyPressAnim[i] = Math.max(0, _keyPressAnim[i] - _dtKA / 0.14);
   }
 
-  // ★ sakura_ui 장착 시 — PNG 양 끝 (lane 0 + last) 만 데코, 가운데는 procedural.
+  // ★ sakura_ui 장착 여부만 확인 — 키 데코 PNG 미사용 (procedural pink/wine 만)
   const _uiSkin = _getUiPackSkin();
-  const _keyBasePath = _uiSkin && _uiSkin.imagePaths && _uiSkin.imagePaths.keyBase;
-  const _keyBaseImg = _keyBasePath ? skinImages[_keyBasePath] : null;
-  const _sakuraMode = !!(_keyBaseImg && _keyBaseImg.complete && _keyBaseImg.naturalWidth > 0);
   const _sakuraUiActive = !!_uiSkin;
   // 키 색상: 8키 모두 동일 (deck_base wine 톤과 조화되는 medium pink).
   const _sakuraKeyColor = (_uiSkin && _uiSkin.palette && _uiSkin.palette.keyAccent) || '#ff7aa8';
@@ -9993,27 +9905,6 @@ function renderButtons() {
     }
   }
 
-  // ★ sakura UI 코너 데코 — 좌측 키 좌상단 + 우측 키 우하단 (작게)
-  if (_sakuraMode) {
-    const tinted = _getTintedKeyCanvas(_sakuraKeyColor);
-    if (tinted) {
-      const _decoSz = Math.min(lw, bh) * 0.42;
-      // 좌측 키 좌상단 — 살짝 바깥으로 튀어나온 느낌
-      const _lBx = lsx;
-      const _lDx = _lBx - _decoSz * 0.2;
-      const _lDy = by - _decoSz * 0.2;
-      ctx.drawImage(tinted, _lDx, _lDy, _decoSz, _decoSz);
-      // 우측 키 우하단 — 180° 회전 (대각 대칭)
-      const _rBx = lsx + (laneCount - 1) * lw + lw;
-      const _rDx = _rBx - _decoSz + _decoSz * 0.2;
-      const _rDy = by + bh - _decoSz + _decoSz * 0.2;
-      ctx.save();
-      ctx.translate(_rDx + _decoSz / 2, _rDy + _decoSz / 2);
-      ctx.rotate(Math.PI);
-      ctx.drawImage(tinted, -_decoSz / 2, -_decoSz / 2, _decoSz, _decoSz);
-      ctx.restore();
-    }
-  }
 }
 
 function rrFill(x,y,w,h,r) {
