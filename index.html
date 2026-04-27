@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427175842;
+window.__BUILD_TS = 20260427180940;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2918,16 +2918,39 @@ function getSkinsForCategory(cat) {
 }
 function _invKey() { return 'rhythm_skinInv_' + (currentUser || '_guest'); }
 function _eqKey() { return 'rhythm_skinEq_' + (currentUser || '_guest'); }
-function _loadInv() { try { return JSON.parse(safeGetItem(_invKey()) || '{}'); } catch { return {}; } }
+let _invCache = null;
+let _invCacheKey = null;
+function _loadInv() {
+  const k = _invKey();
+  if (_invCache && _invCacheKey === k) return _invCache;
+  try { _invCache = JSON.parse(safeGetItem(k) || '{}'); }
+  catch { _invCache = {}; }
+  _invCacheKey = k;
+  return _invCache;
+}
+function _invalidateInvCache() { _invCache = null; _invCacheKey = null; }
 function _saveInv(x) {
   safeSetItem(_invKey(), JSON.stringify(x));
+  _invCache = x; _invCacheKey = _invKey();
   if (currentUser && fbDb) {
     try { fbDb.ref('settings/' + currentUser + '/skinInv').set(x); } catch(e) {}
   }
 }
-function _loadEq() { try { return JSON.parse(safeGetItem(_eqKey()) || '{}'); } catch { return {}; } }
+// ★ 인메모리 캐시 — 매 프레임 localStorage.getItem + JSON.parse 60fps × 6 카테고리 = GC 폭탄.
+let _eqCache = null;
+let _eqCacheKey = null;
+function _loadEq() {
+  const k = _eqKey();
+  if (_eqCache && _eqCacheKey === k) return _eqCache;
+  try { _eqCache = JSON.parse(safeGetItem(k) || '{}'); }
+  catch { _eqCache = {}; }
+  _eqCacheKey = k;
+  return _eqCache;
+}
+function _invalidateEqCache() { _eqCache = null; _eqCacheKey = null; }
 function _saveEq(x) {
   safeSetItem(_eqKey(), JSON.stringify(x));
+  _eqCache = x; _eqCacheKey = _eqKey();
   if (currentUser && fbDb) {
     try { fbDb.ref('settings/' + currentUser + '/skinEq').set(x); } catch(e) {}
   }
@@ -2946,7 +2969,7 @@ function loadSkinInvFromFirebase() {
         merged[cat] = Array.from(new Set([...a, ...b]));
       }
       safeSetItem(_invKey(), JSON.stringify(merged));
-      // Firebase 도 merged 로 쓰기 (로컬에만 있던 거 올림)
+      _invalidateInvCache();
       try { fbDb.ref('settings/' + currentUser + '/skinInv').set(merged); } catch(e) {}
     });
     fbDb.ref('settings/' + currentUser + '/skinEq').once('value', snap => {
@@ -2965,7 +2988,7 @@ function loadSkinInvFromFirebase() {
         }
       }
       safeSetItem(_eqKey(), JSON.stringify(merged));
-      // 정리된 결과를 Firebase 에도 다시 올려 영구 고정
+      _invalidateEqCache();
       try { fbDb.ref('settings/' + currentUser + '/skinEq').set(merged); } catch(e) {}
       _refreshActiveSkin();
     });
@@ -10017,14 +10040,23 @@ function notifyCharacterHit() { _charKeyCount++; _charLastHitT = performance.now
 function notifyCharacterMiss() { _charMissT = performance.now(); }
 const _CHAR_KEYS = ['standbyNear','strikeNear','standbyFar','strikeFar',
                     'standbyNearFever','strikeNearFever','standbyFarFever','strikeFarFever','miss'];
-let _charPreloadDoneFor = null;
 let _charLastPreloadCheck = 0;
+let _charPreloadAllLoaded = false;
+let _charPreloadCachedSkin = null;
 function _preloadCharacterSprites() {
   const cs = _getCharacterSkin();
-  if (!cs || !cs.imagePaths) { _charPreloadDoneFor = null; return; }
+  if (!cs || !cs.imagePaths) {
+    _charPreloadAllLoaded = false;
+    _charPreloadCachedSkin = null;
+    return;
+  }
+  if (cs !== _charPreloadCachedSkin) {
+    _charPreloadCachedSkin = cs;
+    _charPreloadAllLoaded = false;
+  }
+  if (_charPreloadAllLoaded) return;
   const now = performance.now();
-  const skinKey = JSON.stringify([cs.name, cs.imagePaths]);
-  if (_charPreloadDoneFor === skinKey && now - _charLastPreloadCheck < 1000) return;
+  if (now - _charLastPreloadCheck < 1000) return;
   _charLastPreloadCheck = now;
   let allLoaded = true;
   for (const k of _CHAR_KEYS) {
@@ -10036,7 +10068,7 @@ function _preloadCharacterSprites() {
       if (!im || im._ok === false) loadSkinImage(p);
     }
   }
-  if (allLoaded) _charPreloadDoneFor = skinKey;
+  if (allLoaded) _charPreloadAllLoaded = true;
 }
 function _charPickImg(paths, key) {
   let p = paths[key];
