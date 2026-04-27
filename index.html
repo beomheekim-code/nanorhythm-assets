@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427150342;
+window.__BUILD_TS = 20260427150825;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10033,17 +10033,18 @@ function renderCharacter() {
     : (isNear ? imgs.sn : imgs.fn);
 
   const lsx = getLaneStartX();
+  // 좌하단 절반 크기로 배치 (얼굴 오버레이는 좌표 추정 빗나가서 제거)
   const availW = Math.max(sz(40), lsx - sz(12));
   const availH = Math.max(sz(80), getBtnY() - sz(20));
   const aspect = img.naturalWidth / img.naturalHeight;
-  let charH = availH;
+  let charH = availH * 0.5;  // 절반 크기
   let charW = charH * aspect;
   if (charW > availW) {
     charW = availW;
     charH = charW / aspect;
   }
-  const charX = (lsx - charW) / 2;
-  const charY = getBtnY() - charH + sz(4);
+  const charX = sz(8);  // 좌측 끝
+  const charY = getBtnY() - charH + sz(4);  // 하단 (버튼 위)
 
   const hitAge = now - _charLastHitT;
   let squashY = 0, scaleY = 1;
@@ -10082,58 +10083,33 @@ function renderCharacter() {
   ctx.filter = 'none';
   ctx.restore();
 
-  // FEVER 다이아 ◆ 안광 오버레이 (눈 위치 추정)
+  // FEVER 머리 위 ◆ 다이아 sparkles — 캐릭터 위로 떠다니는 안전한 위치
   if (typeof fever !== 'undefined' && fever) {
     ctx.save();
-    const eyeY = charY + charH * 0.155 + squashY;
-    const eyeR = Math.max(2, charW * 0.022);
-    const eyeLeftX = charX + charW * 0.42 + shakeX;
-    const eyeRightX = charX + charW * 0.52 + shakeX;
-    const pulseT = (Math.sin(now * 0.015) + 1) * 0.5;
-    const r = eyeR * (0.85 + 0.25 * pulseT);
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    const sparkleY = charY + squashY - sz(8);
+    const cx_ = charX + charW / 2 + shakeX;
+    const sparkleR = Math.max(3, charW * 0.04);
+    const pulseT = (Math.sin(now * 0.012) + 1) * 0.5;
+    const r = sparkleR * (0.75 + 0.4 * pulseT);
+    const positions = [
+      { x: cx_ - charW * 0.2, y: sparkleY - sz(2), s: 1.0 },
+      { x: cx_ + charW * 0.2, y: sparkleY + sz(4), s: 0.9 },
+      { x: cx_,                y: sparkleY - sz(10), s: 0.6 },
+    ];
+    ctx.fillStyle = '#ffd700';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
-    for (const ex of [eyeLeftX, eyeRightX]) {
+    for (const pos of positions) {
+      const pr = r * pos.s;
       ctx.beginPath();
-      ctx.moveTo(ex, eyeY - r);
-      ctx.lineTo(ex + r, eyeY);
-      ctx.lineTo(ex, eyeY + r);
-      ctx.lineTo(ex - r, eyeY);
+      ctx.moveTo(pos.x, pos.y - pr);
+      ctx.lineTo(pos.x + pr, pos.y);
+      ctx.lineTo(pos.x, pos.y + pr);
+      ctx.lineTo(pos.x - pr, pos.y);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
     }
-    ctx.restore();
-  }
-
-  if (missT > 0.05) {
-    ctx.save();
-    ctx.globalAlpha = missT;
-    const faceCx = charX + charW * 0.50 + shakeX;
-    const faceCy = charY + charH * 0.20 + squashY;
-    const mouthY = charY + charH * 0.28 + squashY;
-    ctx.strokeStyle = '#3a1f2e';
-    ctx.lineWidth = Math.max(2, charW * 0.018);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    const mw = charW * 0.07;
-    ctx.moveTo(faceCx - mw, mouthY + mw * 0.4);
-    ctx.lineTo(faceCx, mouthY - mw * 0.2);
-    ctx.lineTo(faceCx + mw, mouthY + mw * 0.4);
-    ctx.stroke();
-    const swR = charW * 0.045;
-    const swX = faceCx + charW * 0.16;
-    const swY = faceCy - charH * 0.04;
-    ctx.fillStyle = 'rgba(120, 180, 240, 0.85)';
-    ctx.strokeStyle = 'rgba(60, 100, 160, 0.9)';
-    ctx.lineWidth = Math.max(1, swR * 0.2);
-    ctx.beginPath();
-    ctx.moveTo(swX, swY - swR);
-    ctx.bezierCurveTo(swX + swR, swY - swR * 0.3, swX + swR, swY + swR * 0.6, swX, swY + swR);
-    ctx.bezierCurveTo(swX - swR, swY + swR * 0.6, swX - swR, swY - swR * 0.3, swX, swY - swR);
-    ctx.fill();
-    ctx.stroke();
     ctx.restore();
   }
 }
