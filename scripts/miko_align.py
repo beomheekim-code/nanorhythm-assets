@@ -10,6 +10,9 @@ from PIL import Image
 DIR = r'D:\nanorhythm-assets\nanorhythm-assets\skins\miko_taiko'
 FILES = ['standby_near_normal.png', 'strike_near_normal.png',
          'standby_far_normal.png', 'strike_far_normal.png',
+         'standby_near_fever.png', 'strike_near_fever.png',
+         'standby_far_fever.png', 'strike_far_fever.png',
+         'miss.png',
          'idle.png']
 
 # 1단계: 각 프레임 측정

@@ -17,6 +17,9 @@ from scipy.ndimage import binary_dilation, distance_transform_edt, label
 DIR = r'D:\nanorhythm-assets\nanorhythm-assets\skins\miko_taiko'
 FILES = ['standby_near_normal.png', 'strike_near_normal.png',
          'standby_far_normal.png', 'strike_far_normal.png',
+         'standby_near_fever.png', 'strike_near_fever.png',
+         'standby_far_fever.png', 'strike_far_fever.png',
+         'miss.png',
          'idle.png']
 TARGET_H = 320  # 인게임 사이즈 (좌측 하단 캐릭터)
 WM_W, WM_H = 200, 200  # 우하단 watermark zone
@@ -80,25 +83,42 @@ def process(arr):
 
     return np.clip(arr, 0, 255).astype(np.uint8)
 
-def crop_and_scale(arr, target_h):
-    img = Image.fromarray(arr, 'RGBA')
-    bbox = img.getbbox()
-    if not bbox:
-        return img
-    cropped = img.crop(bbox)
-    cw, ch = cropped.size
-    scale = target_h / ch
-    nw = max(1, int(cw * scale))
-    return cropped.resize((nw, target_h), Image.LANCZOS)
-
+# 1단계: 모든 파일 chroma cleanup → 메모리에 보관
+cleaned_all = {}
 for f in FILES:
     p = os.path.join(DIR, f)
     if not os.path.exists(p):
         print(f'SKIP {f}: not found'); continue
     arr = np.array(Image.open(p).convert('RGBA'))
-    cleaned = process(arr)
-    final = crop_and_scale(cleaned, TARGET_H)
-    final.save(p, optimize=True, compress_level=9)
+    cleaned_all[f] = process(arr)
+
+# 2단계: union bbox 계산 (모든 프레임 캐릭터 둘러싸는 최대 영역)
+union = None
+for arr in cleaned_all.values():
+    img = Image.fromarray(arr, 'RGBA')
+    bb = img.getbbox()
+    if not bb: continue
+    if union is None:
+        union = list(bb)
+    else:
+        union[0] = min(union[0], bb[0])
+        union[1] = min(union[1], bb[1])
+        union[2] = max(union[2], bb[2])
+        union[3] = max(union[3], bb[3])
+print(f'union bbox: {union}')
+
+# 3단계: union bbox 로 모든 프레임 crop + 같은 크기로 다운스케일
+ux1, uy1, ux2, uy2 = union
+uw, uh = ux2 - ux1, uy2 - uy1
+scale = TARGET_H / uh
+target_w = max(1, int(uw * scale))
+print(f'union {uw}x{uh} → resized {target_w}x{TARGET_H}')
+
+for f, arr in cleaned_all.items():
+    img = Image.fromarray(arr, 'RGBA').crop((ux1, uy1, ux2, uy2))
+    img = img.resize((target_w, TARGET_H), Image.LANCZOS)
+    p = os.path.join(DIR, f)
+    img.save(p, optimize=True, compress_level=9)
     sz = os.path.getsize(p) / 1024
-    print(f'{f}: {final.size}, {sz:.0f} KB')
+    print(f'{f}: {img.size}, {sz:.0f} KB')
 print('Done.')
