@@ -885,7 +885,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@92f3591/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@e4c1b82/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -10081,6 +10081,31 @@ function renderCharacter() {
   ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
   ctx.filter = 'none';
   ctx.restore();
+
+  // FEVER 다이아 ◆ 안광 오버레이 (눈 위치 추정)
+  if (typeof fever !== 'undefined' && fever) {
+    ctx.save();
+    const eyeY = charY + charH * 0.155 + squashY;
+    const eyeR = Math.max(2, charW * 0.022);
+    const eyeLeftX = charX + charW * 0.42 + shakeX;
+    const eyeRightX = charX + charW * 0.52 + shakeX;
+    const pulseT = (Math.sin(now * 0.015) + 1) * 0.5;
+    const r = eyeR * (0.85 + 0.25 * pulseT);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 1;
+    for (const ex of [eyeLeftX, eyeRightX]) {
+      ctx.beginPath();
+      ctx.moveTo(ex, eyeY - r);
+      ctx.lineTo(ex + r, eyeY);
+      ctx.lineTo(ex, eyeY + r);
+      ctx.lineTo(ex - r, eyeY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   if (missT > 0.05) {
     ctx.save();
