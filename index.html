@@ -282,6 +282,26 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
 <input id="searchInput" style="position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:200px;height:30px;font-size:16px;background:transparent;color:transparent;border:none;outline:none;caret-color:transparent;z-index:9999;ime-mode:active;pointer-events:none;" type="text" autocomplete="off">
 <input id="loginInputEl" style="position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:240px;height:40px;font-size:18px;text-align:center;background:transparent;color:transparent;border:none;outline:none;z-index:9999;ime-mode:active;caret-color:transparent;pointer-events:none;" type="text" maxlength="12" autocomplete="off">
 <input id="speedInputEl" style="position:fixed;top:-100px;left:-100px;opacity:0;pointer-events:none;" type="text" inputmode="decimal" maxlength="4" autocomplete="off">
+<!-- 스킨 미리보기 오버레이 (DOM, lazy GIF 로드) -->
+<div id="skinPreviewOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10001;justify-content:center;align-items:center;padding:16px;box-sizing:border-box;-webkit-tap-highlight-color:transparent;">
+  <div id="skinPreviewBox" style="position:relative;width:100%;max-width:min(90vw,1100px);max-height:90vh;background:#150a26;border:1.5px solid rgba(180,100,255,0.7);border-radius:14px;box-shadow:0 8px 40px rgba(180,100,255,0.4);box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(180,100,255,0.3);">
+      <div id="skinPreviewTitle" style="color:#fff;font-family:sans-serif;font-weight:bold;font-size:14px;">미리보기</div>
+      <button id="skinPreviewClose" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.85);font-size:16px;width:32px;height:28px;border-radius:6px;cursor:pointer;font-family:sans-serif;line-height:1;">✕</button>
+    </div>
+    <div id="skinPreviewBody" style="position:relative;flex:1;min-height:120px;display:flex;align-items:center;justify-content:center;background:#08040f;">
+      <div id="skinPreviewLoading" style="display:none;color:rgba(255,255,255,0.7);font-family:sans-serif;font-size:13px;text-align:center;">
+        <div style="width:36px;height:36px;border:3px solid rgba(180,100,255,0.2);border-top-color:#b464ff;border-radius:50%;margin:0 auto 10px;animation:spnSpin 0.9s linear infinite;"></div>
+        로딩 중...
+      </div>
+      <div id="skinPreviewError" style="display:none;color:#ff6b6b;font-family:sans-serif;font-size:13px;">로딩 실패</div>
+      <img id="skinPreviewImg" style="display:none;max-width:100%;max-height:100%;object-fit:contain;" alt="">
+    </div>
+  </div>
+</div>
+<style>
+@keyframes spnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -11515,6 +11535,7 @@ function getShopItems() {
       // atlas 내 cleaned 꽃 셀 (3200×400 중 x=2800, 400×400) — 배경 투명 + 중앙 정렬
       iconImage: 'skins/neon/note/neon_note.png',
       iconSrc: [2800, 0, 400, 400],
+      previewGif: 'skins/neon/preview_note.gif',
       skinCategory: 'note', skinId: 'neon', coinCost: 2000,
       getStatus: () => ownsSkin('note', 'neon') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('note', 'neon'),
@@ -11529,6 +11550,7 @@ function getShopItems() {
       color: '#ff4d94', icon: '🌸',
       // 상점 아이콘 = petal_01 꽃잎 이미지 (전체 사용)
       iconImage: 'skins/neon/hit_effect/petal_01.png',
+      previewGif: 'skins/neon/preview_hit_effect.gif',
       skinCategory: 'hit_effect', skinId: 'sakura_fx', coinCost: 1000,
       getStatus: () => ownsSkin('hit_effect', 'sakura_fx') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('hit_effect', 'sakura_fx'),
@@ -11543,6 +11565,7 @@ function getShopItems() {
       color: '#ff7aa8', icon: '🌸',
       // 상점 아이콘 = hp_bar (세로 핑크 캡슐 + 벚꽃 가지)
       iconImage: 'skins/neon/hp_bar/hp_bar.png',
+      previewGif: 'skins/neon/preview_ui.gif',
       skinCategory: 'ui_pack', skinId: 'sakura_ui', coinCost: 3000,
       getStatus: () => ownsSkin('ui_pack', 'sakura_ui') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('ui_pack', 'sakura_ui'),
@@ -11640,6 +11663,56 @@ function buyCoinsPack(amount, credits, itemId) {
 
 let shopCancelArea = null;
 const _shopSkinCancelAreas = []; // localhost 스킨 보유 취소 버튼들 (프레임마다 갱신)
+const _shopPreviewAreas = []; // 스킨 미리보기 버튼 hit areas (프레임마다 갱신)
+
+// ===== 스킨 미리보기 오버레이 (DOM, GIF lazy load) =====
+let _skinPreviewOpen = false;
+const _skinPreviewLoadedSrc = new Set(); // 이미 로드된 src 캐시 (재오픈 시 spinner skip)
+function openSkinPreview(gifPath, title) {
+  const ov = document.getElementById('skinPreviewOverlay');
+  const img = document.getElementById('skinPreviewImg');
+  const ttl = document.getElementById('skinPreviewTitle');
+  const ld = document.getElementById('skinPreviewLoading');
+  const err = document.getElementById('skinPreviewError');
+  if (!ov || !img) return;
+  _skinPreviewOpen = true;
+  ov.style.display = 'flex';
+  if (ttl) ttl.textContent = title || '미리보기';
+  err.style.display = 'none';
+  const fullSrc = (typeof CDN_BASE !== 'undefined' ? CDN_BASE : '') + gifPath;
+  if (_skinPreviewLoadedSrc.has(fullSrc)) {
+    // 이미 로드됨 → 즉시 표시 (브라우저 캐시 hit)
+    ld.style.display = 'none';
+    img.style.display = 'block';
+    img.src = fullSrc;
+  } else {
+    ld.style.display = 'block';
+    img.style.display = 'none';
+    img.onload = () => {
+      _skinPreviewLoadedSrc.add(fullSrc);
+      ld.style.display = 'none';
+      img.style.display = 'block';
+    };
+    img.onerror = () => {
+      ld.style.display = 'none';
+      err.style.display = 'block';
+    };
+    img.src = fullSrc;
+  }
+}
+function closeSkinPreview() {
+  const ov = document.getElementById('skinPreviewOverlay');
+  if (!ov) return;
+  ov.style.display = 'none';
+  _skinPreviewOpen = false;
+}
+window.addEventListener('DOMContentLoaded', () => {
+  const ov = document.getElementById('skinPreviewOverlay');
+  const cb = document.getElementById('skinPreviewClose');
+  if (cb) cb.addEventListener('click', (e) => { e.stopPropagation(); closeSkinPreview(); });
+  if (ov) ov.addEventListener('click', (e) => { if (e.target === ov) closeSkinPreview(); });
+  document.addEventListener('keydown', (e) => { if (_skinPreviewOpen && e.key === 'Escape') closeSkinPreview(); });
+});
 function handleShopClick(mx, my) {
   if (handleHamburgerClick(mx, my)) return;
   // 탭 클릭 (스킨/음표/구독/캐릭터)
@@ -11659,6 +11732,14 @@ function handleShopClick(mx, my) {
         cancelSkinOwnership(a.cat, a.id, a.refund, a.label);
         return;
       }
+    }
+  }
+  // 스킨 미리보기 버튼 (구매 버튼 위 작은 버튼) — 카드 hitTest 보다 먼저
+  for (const a of _shopPreviewAreas) {
+    if (hitTest(mx, my, a.x, a.y, a.w, a.h)) {
+      playScrollTick();
+      openSkinPreview(a.gifPath, a.label);
+      return;
     }
   }
   // 뒤로가기 (반응형 좌하단 — 렌더에서 저장한 좌표 사용)
@@ -11865,6 +11946,7 @@ function renderShop() {
   let lastSection = '';
   shopCancelArea = null;
   _shopSkinCancelAreas.length = 0;
+  _shopPreviewAreas.length = 0;
 
   // 빈 탭 안내 (캐릭터 등)
   // 빈 탭 — 안내 텍스트 X (그냥 비어있게)
@@ -11944,6 +12026,18 @@ function renderShop() {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = `bold ${sz(11)}px sans-serif`; ctx.fillStyle = status.color;
       ctx.fillText(status.text, pbx + pbw/2, pby + pbh/2);
+    }
+
+    // 미리보기 버튼 (스킨 + previewGif 있을 때만, 가격 버튼 위)
+    if (item.type === 'skin' && item.previewGif) {
+      const pvW = sz(86), pvH = sz(22);
+      const pvX = pbx + (pbw - pvW) / 2, pvY = pby - pvH - sz(4);
+      ctx.fillStyle = 'rgba(180,100,255,0.18)'; rrFill(pvX, pvY, pvW, pvH, sz(5));
+      ctx.strokeStyle = 'rgba(180,100,255,0.55)'; ctx.lineWidth = 1; rrStroke(pvX, pvY, pvW, pvH, sz(5));
+      ctx.font = `bold ${sz(10)}px sans-serif`; ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('▶ 미리보기', pvX + pvW/2, pvY + pvH/2);
+      _shopPreviewAreas.push({ x: pvX, y: pvY, w: pvW, h: pvH, gifPath: item.previewGif, label: item.label });
     }
 
     // localhost 취소 (구독 상품 + 활성 시)
