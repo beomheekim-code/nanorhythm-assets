@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427103652;
+window.__BUILD_TS = 20260427104012;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9864,66 +9864,7 @@ function renderButtons() {
     const _anim = _keyPressAnim[i]; // 0..1 부드러운 누름 보간
     const col = LANE_COLORS[i];
     const x = bx + _pad, y = by + _pad, w = lw - _pad*2, h = bh - _pad;
-    const _isEnd = (i === 0 || i === laneCount - 1);
-
-    // ─── 양 끝 (lane 0 + last) 만 sakura key.png 데코, 가운데는 procedural ───
-    if (_sakuraMode && _isEnd) {
-      const tinted = _getTintedKeyCanvas(_sakuraKeyColor);
-      if (tinted) {
-        // 누를 때 살짝 작아짐 (smooth)
-        const _pressShrink = 1 - 0.025 * _anim;
-        const _sScl = 1.2 * _pressShrink;
-        const _skW = lw * _sScl, _skH = bh * _sScl;
-        const _skX = bx + lw/2 - _skW/2;
-        const _skY = by + bh/2 - _skH/2;
-        ctx.drawImage(tinted, _skX, _skY, _skW, _skH);
-        // 음영 오버레이 — anim 비례 (부드러운 inset 음영)
-        if (_anim > 0.005) {
-          ctx.save();
-          ctx.fillStyle = `rgba(0,0,0,${0.3 * _anim})`;
-          rrFill(bx + sz(1), by + sz(1), lw - sz(2), bh - sz(2), _r);
-          ctx.restore();
-        }
-        // LED — anim 강도로 글로우 alpha 보간
-        const _dcx = _skX + _skW * 0.476;
-        const _dcy = _skY + _skH * 0.236;
-        const _glowR = Math.min(_skW, _skH) * 0.22;
-        if (_anim > 0.005) {
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = _anim;
-          const _glowG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR);
-          _glowG.addColorStop(0, col + 'ee');
-          _glowG.addColorStop(0.4, col + '77');
-          _glowG.addColorStop(1, col + '00');
-          ctx.fillStyle = _glowG;
-          ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR, 0, Math.PI*2); ctx.fill();
-          const _wG = ctx.createRadialGradient(_dcx, _dcy, 0, _dcx, _dcy, _glowR*0.3);
-          _wG.addColorStop(0, 'rgba(255,255,255,0.95)');
-          _wG.addColorStop(1, 'rgba(255,255,255,0)');
-          ctx.fillStyle = _wG;
-          ctx.beginPath(); ctx.arc(_dcx, _dcy, _glowR*0.3, 0, Math.PI*2); ctx.fill();
-          ctx.restore();
-        }
-        // 빈 입력 플래시
-        const _efAgeS = performance.now() - _lastEmptyFlash[i];
-        if (_efAgeS < 200) {
-          const _efAS = 0.6 * (1 - _efAgeS / 200);
-          ctx.fillStyle = `rgba(255,50,50,${_efAS})`;
-          rrFill(bx, by, lw, bh, _r);
-          ctx.strokeStyle = `rgba(255,80,80,${_efAS})`; ctx.lineWidth = 2;
-          rrStroke(bx, by, lw, bh, _r);
-        }
-        // PC 라벨
-        if (!isMobile) {
-          ctx.font = `bold ${sz(14)}px sans-serif`;
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillStyle = `rgba(255,235,245,${0.65 + 0.35 * _anim})`;
-          ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
-        }
-        continue;
-      }
-    }
+    // 양 끝 PNG 데코는 루프 끝나고 별도 코너 오버레이 (좌상단 / 우하단) — 여기선 procedural 만
 
     // ★ procedural 키 — rest 먼저 렌더, press 는 anim 비례 alpha 로 오버레이 (부드러운 음영)
     const _keyCol = _sakuraUiActive ? _sakuraKeyColor : col;
@@ -10049,6 +9990,28 @@ function renderButtons() {
         ctx.fillText(getLaneLabel(i), bx + lw/2, by + bh * 0.82);
         ctx.restore();
       }
+    }
+  }
+
+  // ★ sakura UI 코너 데코 — 좌측 키 좌상단 + 우측 키 우하단 (작게)
+  if (_sakuraMode) {
+    const tinted = _getTintedKeyCanvas(_sakuraKeyColor);
+    if (tinted) {
+      const _decoSz = Math.min(lw, bh) * 0.42;
+      // 좌측 키 좌상단 — 살짝 바깥으로 튀어나온 느낌
+      const _lBx = lsx;
+      const _lDx = _lBx - _decoSz * 0.2;
+      const _lDy = by - _decoSz * 0.2;
+      ctx.drawImage(tinted, _lDx, _lDy, _decoSz, _decoSz);
+      // 우측 키 우하단 — 180° 회전 (대각 대칭)
+      const _rBx = lsx + (laneCount - 1) * lw + lw;
+      const _rDx = _rBx - _decoSz + _decoSz * 0.2;
+      const _rDy = by + bh - _decoSz + _decoSz * 0.2;
+      ctx.save();
+      ctx.translate(_rDx + _decoSz / 2, _rDy + _decoSz / 2);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(tinted, -_decoSz / 2, -_decoSz / 2, _decoSz, _decoSz);
+      ctx.restore();
     }
   }
 }
