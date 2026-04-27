@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427144852;
+window.__BUILD_TS = 20260427145608;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11880,15 +11880,18 @@ function handleShopClick(mx, my) {
   // 뒤로가기 (반응형 좌하단 — 렌더에서 저장한 좌표 사용)
   const _sbb = window._shopBackBtn;
   if (_sbb && hitTest(mx, my, _sbb.x, _sbb.y, _sbb.w, _sbb.h)) { playScrollTick(); stopShopBgm(); transitionTo('select'); return; }
-  // 상품 클릭 — 렌더의 _contentTop 계산과 정확히 동일하게
+  // 상품 클릭 — 렌더의 _contentTop 계산과 정확히 동일하게 (탭 필터 + 탭 바 높이 + sz(8) 갭)
   const _shopMobile = isMobile;
   const _shopHeaderTop = _shopMobile ? -safeTop : 0;
   const _shopHeaderH = _shopMobile ? (sz(44) + safeTop) : sz(56);
-  const _shopContentTop = _shopHeaderTop + _shopHeaderH;
+  const _tabY = _shopHeaderTop + _shopHeaderH + sz(8);
+  const _tabH = sz(28);
+  const _shopContentTop = _tabY + _tabH + sz(8);
   const cw = Math.min(sz(360), W * 0.92);
   const cx = (W - cw) / 2;
   let y = _shopContentTop + sz(14) - shopScroll;
-  const items = getShopItems();
+  // ★ 현재 탭만 필터 (renderShop 과 동일) — 탭 분리 후 좌표 어긋남 버그 fix
+  const items = getShopItems().filter(it => it.section === shopTab);
   let lastSec = '';
   for (const item of items) {
     if (item.section && item.section !== lastSec) { lastSec = item.section; y += sz(24); }
