@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260426201436;
+window.__BUILD_TS = 20260427095632;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2826,16 +2826,13 @@ const SKINS = {
       // 판정선 — 바는 procedural (유저 요청, 2026-04-24), 좌/우 데코만 PNG.
       judgeLineDecoLeft:  'skins/neon/judge_line/judge_line_deco_left.png',
       judgeLineDecoRight: 'skins/neon/judge_line/judge_line_deco_right.png',
-      // 텍스트 sprite (2026-04-26)
+      // 텍스트 sprite (2026-04-26) — numbers_atlas / score_label / max_combo_label 은 procedural 로 전환
       comboLabel:        'skins/neon/combo_text/combo_label.png',
       judgePerfect:      'skins/neon/judgment_text/judge_perfect.png',
       judgeGreat:        'skins/neon/judgment_text/judge_great.png',
       judgeGood:         'skins/neon/judgment_text/judge_good.png',
       judgeMiss:         'skins/neon/judgment_text/judge_miss.png',
-      scoreLabel:        'skins/neon/score_text/score_label.png',
-      maxComboLabel:     'skins/neon/score_text/max_combo_label.png',
       feverBurst:        'skins/neon/fever/fever_burst.png',
-      numbersAtlas:      'skins/neon/numbers/numbers_atlas.png',
     },
   },
 };
@@ -8837,12 +8834,11 @@ function render() {
       const fh = sz(80);
       const fw = fh * (_feverImg.naturalWidth / _feverImg.naturalHeight);
       ctx.drawImage(_feverImg, -fw/2, 0, fw, fh);
-      // x2 SCORE — atlas 'x2' + procedural 'SCORE' 옆에 (벚꽃 톤 핑크)
-      const _atlasF = skinImages[_uiF.imagePaths.numbersAtlas];
-      if (_atlasF && _atlasF._ok === true) {
-        _drawAtlasNumber(_atlasF, 'x2', -sz(20), fh + sz(20), sz(32), 'right');
+      // x2 SCORE — procedural 분홍/흰 (산스크리트체)
+      if (_uiF) {
+        _drawAtlasNumber(null, 'x2', -sz(20), fh + sz(20), sz(32), 'right');
         ctx.font = `bold ${sz(16)}px sans-serif`;
-        ctx.fillStyle = '#ff7aa8';  // 벚꽃 핑크 (노란 → 핑크)
+        ctx.fillStyle = '#ff7aa8';  // 벚꽃 핑크
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText('SCORE', -sz(16), fh + sz(20));
@@ -10320,43 +10316,30 @@ function renderHoldGlows() {
   ctx.globalAlpha = 1;
 }
 
-// numbers_atlas helper — 12 cells (0-9, x, .) proportional kerning.
-// 각 cell 안 글자 width 다름 ('1'=141, '0'=198, '.'=98 등) → src crop tight + 비율 spacing.
-// 사용 예: _drawAtlasNumber(img, '12345', cx, cy, height, 'center')
-const _ATLAS_GLYPH_W = [198, 141, 213, 203, 206, 205, 190, 203, 203, 192, 197, 98]; // 0-9, x, . (in 220px cell)
-const _ATLAS_CELL_W_REF = 220;
-function _atlasIdx(ch) {
-  if (ch >= '0' && ch <= '9') return ch.charCodeAt(0) - 48;
-  if (ch === 'x' || ch === 'X') return 10;
-  if (ch === '.' || ch === ',') return 11;
-  return -1;
+// 산스크리트체 sans-serif + 분홍 테두리 + 흰 텍스트 procedural 렌더.
+// numbers_atlas / scoreLabel / maxComboLabel PNG 대체 (chroma 이슈 자체 없음).
+function _drawProcText(text, cx, cy, fontSize, align, opts) {
+  opts = opts || {};
+  const fill = opts.fill || '#ffffff';
+  const outline = opts.outline || '#ff7aa8';  // sakura pink
+  const outlineW = opts.outlineW || Math.max(1.5, fontSize * 0.13);
+  ctx.save();
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  ctx.textAlign = align || 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.lineWidth = outlineW;
+  ctx.strokeStyle = outline;
+  ctx.strokeText(text, cx, cy);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, cx, cy);
+  ctx.restore();
 }
+// _drawAtlasNumber → procedural 으로 전환 (atlasImg 무시, signature 만 유지).
+// h 는 이전 atlas cell-height 기준 — 글자 실 비율 ~0.6 (atlas digit 높이 / cell 높이)
 function _drawAtlasNumber(atlasImg, str, cx, cy, h, align) {
-  if (!atlasImg || atlasImg._ok !== true) return false;
-  const nCells = 12;
-  const cellW = atlasImg.naturalWidth / nCells;
-  const cellH = atlasImg.naturalHeight;
-  const scale = h / cellH;
-  const kern = h * 0.04;
-  // 각 char 의 dest width (글리프 실 폭만큼만)
-  const widths = [];
-  for (const ch of str) {
-    const idx = _atlasIdx(ch);
-    widths.push(idx >= 0 ? _ATLAS_GLYPH_W[idx] / _ATLAS_CELL_W_REF * cellW * scale : 0);
-  }
-  const totalW = widths.reduce((s,v)=>s+v,0) + kern * Math.max(0, str.length - 1);
-  let drawX = cx;
-  if (align === 'center') drawX = cx - totalW / 2;
-  else if (align === 'right') drawX = cx - totalW;
-  for (let i = 0; i < str.length; i++) {
-    const idx = _atlasIdx(str[i]);
-    if (idx >= 0) {
-      const gW = _ATLAS_GLYPH_W[idx] / _ATLAS_CELL_W_REF * cellW;
-      const srcX = idx * cellW + (cellW - gW) / 2;
-      try { ctx.drawImage(atlasImg, srcX, 0, gW, cellH, drawX, cy - h/2, widths[i], h); } catch(e){}
-    }
-    drawX += widths[i] + kern;
-  }
+  _drawProcText(str || '', cx, cy, h * 0.6, align || 'left');
   return true;
 }
 
@@ -10662,47 +10645,18 @@ function renderUI() {
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(_lsxUI + _inPad, _panelBot - sz(2), _twUI - _inPad*2, 1);
 
-    // 벚꽃 UI sprite 우선 — 라벨도 sprite 사용 (이전 procedural fallback 잘못 → sprite 다시)
-    const _uiM = _getUiPackSkin();
-    const _atlas = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.numbersAtlas] : null;
-    const _useAtlas = _atlas && _atlas._ok === true;
-    const _numH = _useAtlas ? _valueSize * 1.7 : _valueSize;
+    // SCORE/MAX COMBO 라벨+숫자 — 산스크리트체 + 분홍 테두리 + 흰 텍스트 procedural (PNG sprite 폐기)
+    const _numH = _valueSize * 1.7;
 
-    // MAX COMBO (좌)
+    // MAX COMBO (좌) — 산스크리트체 + 분홍 테두리 + 흰 텍스트 procedural
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const _mcLabelImg = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.maxComboLabel] : null;
-    if (_mcLabelImg && _mcLabelImg._ok === true) {
-      _drawLabelSprite(_mcLabelImg, _lsxUI + _inPad, _midY - _valueSize * 0.45, _labelSize + 4, 'left');
-    } else {
-      ctx.font = `bold ${_labelSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45);
-    }
-    if (_useAtlas) {
-      _drawAtlasNumber(_atlas, maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35, _numH, 'left');
-    } else {
-      ctx.font = `bold ${_valueSize}px sans-serif`;
-      ctx.fillStyle = maxCombo > 0 ? '#ffd700' : 'rgba(255,255,255,0.35)';
-      ctx.fillText(maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35);
-    }
+    _drawProcText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'left');
+    _drawAtlasNumber(null, maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35, _numH, 'left');
 
     // SCORE (우)
     ctx.textAlign = 'right';
-    const _scLabelImg = (_uiM && _uiM.imagePaths) ? skinImages[_uiM.imagePaths.scoreLabel] : null;
-    if (_scLabelImg && _scLabelImg._ok === true) {
-      _drawLabelSprite(_scLabelImg, _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45, _labelSize + 4, 'right');
-    } else {
-      ctx.font = `bold ${_labelSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45);
-    }
-    if (_useAtlas) {
-      _drawAtlasNumber(_atlas, window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35, _numH, 'right');
-    } else {
-      ctx.font = `bold ${_valueSize}px sans-serif`;
-      ctx.fillStyle = '#fff';
-      ctx.fillText(window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35);
-    }
+    _drawProcText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'right');
+    _drawAtlasNumber(null, window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35, _numH, 'right');
 
     ctx.textBaseline = 'alphabetic';
   }
@@ -10725,20 +10679,16 @@ function renderUI() {
     ctx.font = `bold ${numSize}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-    // 벚꽃 UI: numbers_atlas + combo_label sprite 우선
+    // 벚꽃 UI: 콤보 숫자 procedural 분홍/흰, combo_label 만 PNG sprite
     const _uiC = _getUiPackSkin();
     let _spriteUsed = false;
-    if (_uiC && _uiC.imagePaths) {
-      const atlasImg = skinImages[_uiC.imagePaths.numbersAtlas];
-      if (atlasImg && atlasImg._ok === true) {
-        // 콤보 숫자 — atlas cell 안 글자가 작아서 1.7배 키움
-        _drawAtlasNumber(atlasImg, combo.toString(), 0, 0, numSize * 1.7, 'center');
-        const labelImg = skinImages[_uiC.imagePaths.comboLabel];
-        if (labelImg && labelImg._ok === true) {
-          _drawLabelSprite(labelImg, 0, numSize * 0.85, sz(28), 'center');
-        }
-        _spriteUsed = true;
+    if (_uiC) {
+      _drawAtlasNumber(null, combo.toString(), 0, 0, numSize * 1.7, 'center');
+      const labelImg = (_uiC.imagePaths) ? skinImages[_uiC.imagePaths.comboLabel] : null;
+      if (labelImg && labelImg._ok === true) {
+        _drawLabelSprite(labelImg, 0, numSize * 0.85, sz(28), 'center');
       }
+      _spriteUsed = true;
     }
 
     if (!_spriteUsed) {
@@ -10799,12 +10749,11 @@ function renderUI() {
   const spLabelY = spMinusY + spBtn + spGap;
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   rrFill(spMinusX, spLabelY, spBtn, spBtn, sz(5));
-  // 벚꽃 UI: 배속 숫자 atlas 사용
+  // 배속 숫자 — 산스크리트체 + 분홍 테두리 + 흰 텍스트 procedural
   const _uiSp = _getUiPackSkin();
-  const _spAtlas = (_uiSp && _uiSp.imagePaths) ? skinImages[_uiSp.imagePaths.numbersAtlas] : null;
   ctx.textBaseline = 'middle';
-  if (_spAtlas && _spAtlas._ok === true) {
-    _drawAtlasNumber(_spAtlas, selectedSpeed.toFixed(1) + 'x', spCx, spLabelY + spBtn/2 - 1, sz(18), 'center');
+  if (_uiSp) {
+    _drawAtlasNumber(null, selectedSpeed.toFixed(1) + 'x', spCx, spLabelY + spBtn/2 - 1, sz(18), 'center');
   } else {
     ctx.font = `bold ${sz(11)}px sans-serif`; ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'center';
