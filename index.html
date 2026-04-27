@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260427112228;
+window.__BUILD_TS = 20260427144852;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -885,7 +885,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@0d675bf/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@1442871/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -2873,6 +2873,19 @@ const SKINS = {
       judgeGood:         'skins/neon/judgment_text/judge_good.png',
       judgeMiss:         'skins/neon/judgment_text/judge_miss.png',
       feverBurst:        'skins/neon/fever/fever_burst.png',
+    },
+  },
+  // ===== 캐릭터 스킨 — 미코 (일본 무녀) 태고 =====
+  miko_taiko: {
+    name: '벚꽃 무녀',
+    category: 'character',
+    palette: { accent: '#ff7aa8' },
+    imagePaths: {
+      idle:        'skins/miko_taiko/idle.png',
+      standbyNear: 'skins/miko_taiko/standby_near_normal.png',
+      strikeNear:  'skins/miko_taiko/strike_near_normal.png',
+      standbyFar:  'skins/miko_taiko/standby_far_normal.png',
+      strikeFar:   'skins/miko_taiko/strike_far_normal.png',
     },
   },
 };
@@ -6667,6 +6680,7 @@ document.addEventListener('touchcancel', e => {
 let _lastEmptyFlash = new Float64Array(8);
 // lane dedup 제거 (2026-04-26): 유저 요청. 진짜 씹힘 판단을 방해함.
 function handleLanePress(lane, src) {
+  if (typeof notifyCharacterHit === 'function') notifyCharacterHit();
   const hitY = getHitY();
   const hw = getHitWindow();
   const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
@@ -8332,7 +8346,7 @@ function update(dt) {
       } else {
         nanoMiss();
         collected--; missed++; combo = 0; fever = false; feverTimer = 0;
-        judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
+        judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
       }
     }
     // Still holding when note ended — miss (홀드 유지 실패)
@@ -8343,7 +8357,7 @@ function update(dt) {
       stopHoldSound(n);
       nanoMiss();
       collected--; missed++; combo = 0; fever = false; feverTimer = 0;
-      judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1;
+      judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
     }
   }
 
@@ -8410,7 +8424,7 @@ function update(dt) {
         combo = 0; missed++; fever = false; feverTimer = 0;
         if (!devInvincible && playMode === 'normal') gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         // miss shake 제거 (유저 요청)
-        if (judgmentPriority < 2) { judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; }
+        if (judgmentPriority < 2) { judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss(); }
       }
     }
   }
@@ -8963,6 +8977,11 @@ function _getUiPack() {
 // ★ UI 팩 전체 스킨 객체 반환 — imagePaths 접근용 (PNG 오버라이드 체크)
 function _getUiPackSkin() {
   const sid = getEquippedSkin('ui_pack');
+  if (!sid) return null;
+  return SKINS[sid] || null;
+}
+function _getCharacterSkin() {
+  const sid = getEquippedSkin('character');
   if (!sid) return null;
   return SKINS[sid] || null;
 }
@@ -9979,7 +9998,87 @@ function rrStroke(x,y,w,h,r) {
   ctx.closePath(); ctx.stroke();
 }
 
-function renderCharacter() {}
+// 캐릭터 시스템 — 키 누름마다 standby↔strike + NEAR/FAR 토글, 모드별 코드 이펙트
+let _charKeyCount = 0;       // 키 누름 누적 횟수 (좌타↔우타 토글)
+let _charLastHitT = 0;       // 마지막 hit 시각 (strike 자세 유지용)
+let _charMissT = 0;          // 마지막 miss 시각 (푸른 flash 용)
+const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
+const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
+function notifyCharacterHit() { _charKeyCount++; _charLastHitT = performance.now(); }
+function notifyCharacterMiss() { _charMissT = performance.now(); }
+function renderCharacter() {
+  const cs = _getCharacterSkin();
+  if (!cs || !cs.imagePaths) return;
+  const paths = cs.imagePaths;
+  const imgs = {
+    sn: skinImages[paths.standbyNear],
+    fn: skinImages[paths.standbyFar],
+    hsn: skinImages[paths.strikeNear],
+    hsf: skinImages[paths.strikeFar],
+  };
+  for (const k in imgs) {
+    if (!imgs[k] || imgs[k]._ok !== true) {
+      if (paths[{sn:'standbyNear',fn:'standbyFar',hsn:'strikeNear',hsf:'strikeFar'}[k]]) {
+        loadSkinImage(paths[{sn:'standbyNear',fn:'standbyFar',hsn:'strikeNear',hsf:'strikeFar'}[k]]);
+      }
+      return;
+    }
+  }
+  const now = performance.now();
+  const isStrike = (now - _charLastHitT) < CHAR_HIT_HOLD;
+  const isNear = (_charKeyCount % 2) === 0;
+  const img = isStrike
+    ? (isNear ? imgs.hsn : imgs.hsf)
+    : (isNear ? imgs.sn : imgs.fn);
+
+  const lsx = getLaneStartX();
+  const charH = Math.min(sz(180), getBtnY() - getHitY() + sz(60));
+  const aspect = img.naturalWidth / img.naturalHeight;
+  const charW = charH * aspect;
+  const margin = sz(8);
+  let charX = lsx - charW - margin;
+  if (charX < -charW * 0.3) return;
+  charX = Math.max(0, charX);
+  const charY = getBtnY() - charH + sz(4);
+
+  const hitAge = now - _charLastHitT;
+  let squashY = 0, scaleY = 1;
+  if (hitAge < 100) {
+    const t = hitAge / 100;
+    squashY = -Math.sin(t * Math.PI) * sz(4);
+    scaleY = 1 + Math.sin(t * Math.PI) * 0.04;
+  }
+  const missAge = now - _charMissT;
+  let shakeX = 0;
+  let missAlpha = 0;
+  if (missAge < CHAR_MISS_FLASH) {
+    const t = missAge / CHAR_MISS_FLASH;
+    shakeX = Math.sin(t * 30) * sz(3) * (1 - t);
+    missAlpha = (1 - t) * 0.5;
+  }
+
+  if (typeof fever !== 'undefined' && fever) {
+    ctx.save();
+    const pulseT = (Math.sin(now * 0.008) + 1) * 0.5;
+    const glowR = sz(20) + sz(10) * pulseT;
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = glowR;
+    ctx.globalAlpha = 0.85 + 0.15 * pulseT;
+    for (let i = 0; i < 2; i++) {
+      ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
+    }
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
+  if (missAlpha > 0.01) {
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = `rgba(80, 130, 255, ${missAlpha})`;
+    ctx.fillRect(charX + shakeX - sz(20), charY + squashY - sz(20), charW + sz(40), charH + sz(40));
+  }
+  ctx.restore();
+}
 
 // ★ 히트 이펙트 스킨 활성 여부 + 키별 로드된 이미지 맵 반환.
 //   낱개 PNG 방식 — skin.imagePaths 의 각 key 가 곧 이미지 식별자. 하나라도 로드되지
@@ -11593,6 +11692,19 @@ function getShopItems() {
       getStatus: () => ownsSkin('ui_pack', 'sakura_ui') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('ui_pack', 'sakura_ui'),
       onBuy: () => buySkinWithCoins('ui_pack', 'sakura_ui', 3000, '벚꽃 UI 팩'),
+    },
+    {
+      id: 'skin_miko_taiko', type: 'skin', section: '캐릭터',
+      label: '벚꽃 무녀',
+      desc: '인게임 좌측에서 태고를 치는 무녀 캐릭터',
+      price: '4000 ♪',
+      priceType: 'coins',
+      color: '#ff7aa8', icon: '🌸',
+      iconImage: 'skins/miko_taiko/idle.png',
+      skinCategory: 'character', skinId: 'miko_taiko', coinCost: 4000,
+      getStatus: () => ownsSkin('character', 'miko_taiko') ? { text: '보유중', color: '#44dd66' } : null,
+      canBuy: () => !ownsSkin('character', 'miko_taiko'),
+      onBuy: () => buySkinWithCoins('character', 'miko_taiko', 4000, '벚꽃 무녀'),
     },
     {
       id: 'pass28', type: 'pass', section: '구독',
