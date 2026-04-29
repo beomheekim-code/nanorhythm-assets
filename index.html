@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429165656;
+window.__BUILD_TS = 20260429170328;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -216,15 +216,26 @@ function _activatePerfOnly() {
     window._dbg.loadEvents.push({ t: Math.round(performance.now()), label });
     if (window._dbg.loadEvents.length > 50) window._dbg.loadEvents.shift();
   };
-  // ★ longtask 자동 캡처 — 짧은 stutter 도 안 놓침. 50ms+ 메인 스레드 블록 모두 기록.
+  // ★ longtask 자동 캡처 + stutter snapshot — 임계 25ms (PC stutter 도 잡힘).
+  //   stutter 발생 시 직전 1초 함수별 시간 snapshot freeze → 게임 끝나고 캡처 가능.
   window._dbg.longTasks = [];
+  window._dbg.stutterSnapshot = null;  // { ts, dur, fns }
   try {
     if (typeof PerformanceObserver !== 'undefined') {
       const po = new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
-          if (entry.duration >= 50 && window._dbg) {
-            window._dbg.longTasks.push({ t: performance.now(), durMs: entry.duration });
+          if (entry.duration >= 25 && window._dbg) {
+            const now = performance.now();
+            window._dbg.longTasks.push({ t: now, durMs: entry.duration });
             if (window._dbg.longTasks.length > 20) window._dbg.longTasks.shift();
+            // 직전 1초 perfEntries 함수별 합산 → snapshot
+            const cutoff = now - 1000;
+            const fns = {};
+            for (const e of window._dbg.perfEntries) {
+              if (e.t < cutoff) continue;
+              fns[e.name] = (fns[e.name] || 0) + e.durMs;
+            }
+            window._dbg.stutterSnapshot = { ts: now, dur: entry.duration, fns };
           }
         }
       });
@@ -9659,14 +9670,18 @@ function _renderPerfOverlay() {
     ctx.fillText(name + ': ' + t.toFixed(1), bx + pad, py);
     py += lineH;
   }
-  // ★ 최근 longtask (50ms+) 표시 — 짧은 stutter 도 캡처
-  const lt = window._dbg.longTasks || [];
-  const recentLT = lt.slice(-3);  // 최근 3개
-  if (recentLT.length > 0) {
-    ctx.fillStyle = '#f80';
-    for (const t of recentLT) {
-      const ago = Math.round((now - t.t) / 100) / 10;  // 0.1s 단위
-      ctx.fillText('LONG ' + t.durMs.toFixed(0) + 'ms (' + ago + 's ago)', bx + pad, py);
+  // ★ stutter snapshot — 25ms+ 발생 시점 함수별 시간 freeze. 게임 끝나고 캡처 가능.
+  const snap = window._dbg.stutterSnapshot;
+  if (snap) {
+    const ago = Math.round((now - snap.ts) / 100) / 10;
+    ctx.fillStyle = '#f44';
+    ctx.fillText('STUTTER ' + snap.dur.toFixed(0) + 'ms (' + ago + 's ago)', bx + pad, py);
+    py += lineH;
+    // 그 시점 함수 top 3
+    const sortedSnap = Object.entries(snap.fns).sort((a,b) => b[1] - a[1]).slice(0, 3);
+    ctx.fillStyle = '#fa6';
+    for (const [name, t] of sortedSnap) {
+      ctx.fillText('  ' + name + ': ' + t.toFixed(1), bx + pad, py);
       py += lineH;
     }
   }
