@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429140633;
+window.__BUILD_TS = 20260429135851;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -5971,8 +5971,10 @@ function handleSelectClick(mx, my) {
   const btnW = Math.min(220, lay.optW*0.55), btnH = lay.btnH || Math.min(50, H*0.07);
   const btnX = (W-btnW)/2, btnY = H + safeBottom - btnH - sz(40);
   if (hitTest(mx, my, btnX, btnY, btnW, btnH)) {
-    // ★ songLoading 만 차단 (인게임 fetch 중). CD 커버 안 받아져도 진입 허용 (사용자 짜증 fix).
-    if (songLoading) { playScrollTick(); return; }
+    // ★ 로딩 중(CD 커버 또는 곡) 이면 START 무시 — CD 커버 아직 fetch/decode 전이면 인게임 진입 시 어색
+    const _ci = getCoverImage(selectedSong);
+    const _coverLoading = !_ci || !_ci.complete || !_ci.naturalWidth;
+    if (songLoading || _coverLoading) { playScrollTick(); return; }
     if (isSongLocked(selectedSong)) { playScrollTick(); showUnlockPopup(selectedSong); return; }
     if (selectedSong >= FREE_SONG_COUNT && !hasActivePass()) useSongFreePlay(selectedSong);
     playScrollTick(); startSong(selectedSong); transitionTo('playing'); return;
@@ -8533,8 +8535,10 @@ function update(dt) {
       }
       if (inp==='confirm') {
         speedInputActive=false; speedInputText='';
-        // ★ songLoading 만 차단. CD 커버 안 받아져도 진입 허용 (사용자 짜증 fix).
-        if (songLoading) { /* swallow */ }
+        // ★ 로딩 중(곡 or CD 커버) 이면 confirm 무시
+        const _ci = getCoverImage(selectedSong);
+        const _coverLoading = !_ci || !_ci.complete || !_ci.naturalWidth;
+        if (songLoading || _coverLoading) { /* swallow */ }
         else if (isSongLocked(selectedSong)) { showUnlockPopup(selectedSong); }
         else {
           if (selectedSong >= FREE_SONG_COUNT && !hasActivePass()) useSongFreePlay(selectedSong);
@@ -14227,10 +14231,8 @@ function renderSelect() {
     ctx.beginPath(); ctx.arc(0, 0, r*0.22, 0, Math.PI*2);
     ctx.strokeStyle = s.color + (sel ? '66' : '22'); ctx.lineWidth = 1.5; ctx.stroke();
 
-    // 선택된 CD + 프리뷰 로딩 중이면 스피너 — 모바일은 비활성화 (사용자 짜증 fix).
-    //   patch 받았는데 iOS audio element cache 분리로 preview 가 다시 받는 동안 spinner 가
-    //   "로딩 너무 김" 으로 보임. 모바일은 spinner 숨김 → preview 받아지면 자동 재생.
-    if (sel && previewLoading && !isMobile) {
+    // 선택된 CD + 프리뷰 로딩 중이면 스피너
+    if (sel && previewLoading) {
       const spinAngle = Date.now() * 0.005;
       ctx.strokeStyle = s.color + 'aa'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, r*0.17, spinAngle, spinAngle + Math.PI*1.2); ctx.stroke();
@@ -14268,8 +14270,8 @@ function renderSelect() {
       ctx.strokeStyle = lvColor + '88'; ctx.lineWidth = 1; rrStroke(lvX, lvY, lvW, lvH, _mlCD ? 3 : 5);
       ctx.fillStyle = lvColor;
       ctx.fillText(lvText, 0, lvY + lvH/2 + lvFont*0.35);
-      // 프리뷰 로딩 표시 — 모바일 비활성화 (사용자 짜증 fix)
-      if (previewLoading && !isMobile) {
+      // 프리뷰 로딩 표시
+      if (previewLoading) {
         ctx.font = `${sz(10)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.35)';
         const dots = '.'.repeat(Math.floor(Date.now() / 350) % 4);
         ctx.fillText('loading' + dots, 0, lvY + lvH + sz(12));
@@ -14458,8 +14460,7 @@ function renderSelect() {
   // ★ CD 커버 로딩 여부도 비활성화 조건에 포함
   const _ciBtn = getCoverImage(selectedSong);
   const _coverLoadingBtn = !_ciBtn || !_ciBtn.complete || !_ciBtn.naturalWidth;
-  // ★ CD 커버 미로딩 무시 — songLoading (인게임 fetch) 만 disabled 표시. 사용자 짜증 fix.
-  const _loading = !!songLoading;
+  const _loading = !!songLoading || _coverLoadingBtn;
   {
     const _r = _mlSub ? 8 : 14;
     // 로딩 중: 회색톤 disabled / 잠김: 골드 / 기본: 곡 색
