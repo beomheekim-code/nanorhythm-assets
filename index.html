@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429103533;
+window.__BUILD_TS = 20260429104757;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1141,6 +1141,19 @@ function _gotoSelectFromPatch() {
   try { if (typeof stopTitleBgm === 'function') stopTitleBgm(); } catch(e) {}
   try { transitionTo('select'); } catch(e) {}
 }
+// ★ patch 한 곡이라도 받았으면 페이지 reload — iOS WKWebView 의 메모리 압박 완전 해소.
+//   JS heap reset + JIT 캐시 새로 + 받은 곡은 HTTP cache hit 라 다음 진입 시 모달 안 뜸.
+function _reloadAfterPatch() {
+  try { if (typeof stopTitleBgm === 'function') stopTitleBgm(); } catch(e) {}
+  try {
+    // pending audio/timer 정리
+    if (typeof _clearLoadWatchdog === 'function') _clearLoadWatchdog();
+  } catch(e) {}
+  // 약간의 delay — Firebase / localStorage 마지막 쓰기 flush
+  setTimeout(() => {
+    try { location.reload(); } catch(e) {}
+  }, 200);
+}
 async function startPatchOrTransition() {
   let need;
   try { need = getAssetsToPatch(); } catch(e) { need = []; }
@@ -1172,7 +1185,15 @@ async function startPatchOrTransition() {
     } catch(e) {
       result = { ok:false, cancelled:false, failed:need.length, failedList:need.slice(), downloaded:0 };
     }
-    if (result.cancelled) { _closePatchOverlay(); return; }
+    if (result.cancelled) {
+      // 받은 게 있으면 reload (메모리 깨끗), 없으면 그냥 닫음
+      if (result.downloaded > 0) {
+        _patchIdleSettle().then(() => { _closePatchOverlay(); _reloadAfterPatch(); });
+      } else {
+        _closePatchOverlay();
+      }
+      return;
+    }
     if (result.failed > 0) {
       _patchOverlayMode = 'failed';
       _patchOverlayInfo.failedList = result.failedList || [];
@@ -1181,17 +1202,16 @@ async function startPatchOrTransition() {
           // 재시도 — 재귀 호출로 처음부터 (실패한 것만 자동으로 다시 대상)
           startPatchOrTransition();
         } else {
-          // skip — 실패한 곡은 patchedSet 에 안 들어감 → 다음 진입 시 다시 시도.
-          _patchIdleSettle().then(() => { _closePatchOverlay(); _gotoSelectFromPatch(); });
+          // skip — 일부라도 받았으면 reload (실패한 건 다음 진입 시 다시 시도)
+          _patchIdleSettle().then(() => { _closePatchOverlay(); _reloadAfterPatch(); });
         }
       };
       return;
     }
-    // ★ 100% 도달한 progress 모달 유지하면서 idle delay → 모달 닫고 진입.
-    //   GC + iOS 캐시 flush 시간 확보. 인게임 첫 곡 stutter 완화.
+    // ★ 100% 도달한 progress 모달 유지하면서 idle delay → reload (메모리 깨끗하게 인게임 진입).
     await _patchIdleSettle();
     _closePatchOverlay();
-    _gotoSelectFromPatch();
+    _reloadAfterPatch();
   });
 }
 
