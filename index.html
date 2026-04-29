@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429124220;
+window.__BUILD_TS = 20260429125412;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6426,7 +6426,9 @@ document.addEventListener('gestureend', e => { if (state === 'playing' && !gameP
 // → 연속 탭(따닥)은 40ms TTL 로 false-match 방지. 정지 손가락 복구는 활성 pointer 로 판정.
 const _pointerLaneMap = new Map(); // pointerId → {lane, x, y}
 let _recentGestureHits = []; // 페어링용 단기 큐 {x,y,t}
-const _DEDUP_MS = 40;  // pair 페어링에만 사용. 연속 탭(25Hz+)이어도 false-match 안 되도록 짧게.
+// ★ iOS WKWebView touchend → mousedown compat 이벤트 간격이 40ms 초과하는 케이스 발견 (사용자 보고).
+//   60ms 로 보수적 강화 — 25Hz(40ms) 연타는 살짝 영향 가능하지만 사람 한계는 ~16Hz(62ms)라 안전.
+const _DEDUP_MS = 60;
 const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표. 서브픽셀 여유만.
 let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
 // ★ 레인별 마지막 hit 시각 — 같은 탭의 pointerdown↔touchstart 이중 호출 방지.
@@ -9089,9 +9091,35 @@ function render() {
 
   // BG — 안전 영역까지 확장 (Kplay iframe 위/아래 빈 공간 제거)
   const totalH = H + safeTop + safeBottom;
-  const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-  grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
-  ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+  // ★ 모바일: BG gradient 오프스크린 캐싱 (iOS 매 프레임 createLinearGradient + 풀스크린 fillRect 부담).
+  //   PC 동결 — isMobile 분기로 보호. 시각 0% 차이.
+  if (isMobile) {
+    const _bgKey = song.bg1 + '|' + song.bg2 + '|' + (W|0) + '|' + (totalH|0);
+    if (!window._bgCache || window._bgCacheKey !== _bgKey) {
+      try {
+        const _cv = document.createElement('canvas');
+        _cv.width = Math.max(1, ((W + 40) | 0));
+        _cv.height = Math.max(1, ((totalH + 40) | 0));
+        const _cx = _cv.getContext('2d');
+        const _g = _cx.createLinearGradient(0, 0, 0, _cv.height);
+        _g.addColorStop(0, song.bg1); _g.addColorStop(1, song.bg2);
+        _cx.fillStyle = _g; _cx.fillRect(0, 0, _cv.width, _cv.height);
+        window._bgCache = _cv;
+        window._bgCacheKey = _bgKey;
+      } catch(e) { window._bgCache = null; }
+    }
+    if (window._bgCache) {
+      ctx.drawImage(window._bgCache, -20, -safeTop - 20);
+    } else {
+      const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+      grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
+      ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+    }
+  } else {
+    const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+    grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+  }
 
   if (state==='login') { renderLogin(); if (_patchOverlayMode!=='idle') renderPatchOverlay(); ctx.restore(); return; }
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); if (nicknameOverlay) renderNicknameOverlay(); if (_patchOverlayMode!=='idle') renderPatchOverlay(); ctx.restore(); return; }
