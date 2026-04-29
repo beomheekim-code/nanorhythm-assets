@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429121139;
+window.__BUILD_TS = 20260429122810;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10598,7 +10598,14 @@ function _charPickImg(paths, key) {
   }
   return null;
 }
+// ★ 모바일 격프레임 skip — 캐릭터 sprite drawImage + transform 계산이 iOS GPU 부담.
+//   자세 변경 (strike 100ms) 은 6 frames at 60fps → 격프레임이라도 3 frames 보임 OK.
+//   PC 동결 — 분기로 보호.
+let _charFrameSkipMobile = 0;
 function renderCharacter() {
+  if (isMobile) {
+    if ((_charFrameSkipMobile++ & 1) === 1) return;  // 격프레임 skip
+  }
   const cs = _getCharacterSkin();
   if (!cs || !cs.imagePaths) return;
   _preloadCharacterSprites();  // 1초 throttle
