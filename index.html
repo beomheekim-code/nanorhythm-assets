@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429165017;
+window.__BUILD_TS = 20260429165519;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8512,7 +8512,9 @@ function update(dt) {
   updateSelectArrowHold();
   updateSpeedHold();
   // Preview: start/switch when song selection changes in select state (디바운스)
-  if (state === 'select' && actx) {
+  // ★ 모바일은 preview 자동 재생 비활성화 — iOS audio cache 분리로 매번 풀 OGG fetch (10MB+)
+  //   해서 곡 선택 화면 1분+ 로딩 사용자 보고. 시각/기능 손실 (미리듣기 안 들림) 감수.
+  if (state === 'select' && actx && !isMobile) {
     if (previewSongIdx !== selectedSong || (!previewActive && !_previewDebounce)) {
       if (_previewDebounce) clearTimeout(_previewDebounce);
       const _target = selectedSong;
@@ -8520,7 +8522,6 @@ function update(dt) {
       _previewDebounce = setTimeout(function _tryPreview() {
         if (selectedSong !== _target) return;
         if (Math.abs(selectScrollVel) > 0.15 || selectTargetScrollX !== null) {
-          // 아직 스크롤/스냅 중 → 300ms 후 재시도
           _previewDebounce = setTimeout(_tryPreview, 300);
           return;
         }
