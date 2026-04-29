@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429105852;
+window.__BUILD_TS = 20260429110607;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1161,16 +1161,20 @@ async function startPatchOrTransition() {
     _gotoSelectFromPatch();
     return;
   }
+  // ★ 추정 사이즈 — HEAD 응답 늦은 환경(iOS jsdelivr cold) 대비. 평균 2.2MB/곡 가정.
+  //   HEAD 도착하면 정확한 값으로 자동 갱신.
+  const _estimatedBytes = need.length * 2.2 * 1024 * 1024;
   // 사이즈 측정 백그라운드 (confirm 모달에서 표시)
   Promise.all(need.map(p => _patchHeadSize(p))).then(sizes => {
     const tb = sizes.reduce((a,b) => a+b, 0);
-    if (_patchOverlayMode === 'confirm' || _patchOverlayMode === 'progress') {
+    if (tb > 0 && (_patchOverlayMode === 'confirm' || _patchOverlayMode === 'progress')) {
       _patchOverlayInfo.totalBytes = tb;
+      _patchOverlayInfo._sizeMeasured = true;
       _patchState.totalBytes = tb;
     }
   }).catch(()=>{});
-  // confirm 모달 띄우기
-  showPatchConfirm(need, 0, async (action) => {
+  // confirm 모달 띄우기 — 추정 사이즈로 즉시 표시
+  showPatchConfirm(need, _estimatedBytes, async (action) => {
     if (action === 'back') {
       // 타이틀로 — 모달 닫고 그대로 (state 변경 X)
       return;
@@ -10620,14 +10624,30 @@ function renderCharacter() {
   if (isFever && !isMiss) {
     const pulseT = (Math.sin(now * 0.008) + 1) * 0.5;
     const glowColor = pulseT > 0.5 ? '#ff80c0' : '#ffb3d9';
-    // ★ shadowBlur 제거 (PC 매 프레임 가우시안 블러 = 인게임 stutter 주범).
-    //   PC/모바일 통일: 'lighter' fillRect 로 가벼운 글로우. 시각적 차이는 미미.
+    // ★ shadowBlur 제거 후 radial gradient — 매 프레임 가우시안 블러 X, 자연스러운 fade.
+    //   PC/모바일 통일. drawImage 1회 줄어듦.
+    const _gPad = isMobile ? sz(8) : sz(14);
+    const _gx = charX + shakeX - _gPad;
+    const _gy = charY + squashY - _gPad;
+    const _gw = charW + _gPad*2;
+    const _gh = charH * scaleY + _gPad*2;
+    const _gcx = _gx + _gw/2;
+    const _gcy = _gy + _gh/2;
+    const _grOuter = Math.max(_gw, _gh) * 0.6;
+    const _grInner = _grOuter * 0.45;
+    const _hex = glowColor;  // '#ff80c0' / '#ffb3d9'
+    const _aInner = isMobile ? Math.round((0.32 + 0.20 * pulseT) * 255).toString(16).padStart(2,'0')
+                             : Math.round((0.45 + 0.25 * pulseT) * 255).toString(16).padStart(2,'0');
+    const _aMid   = isMobile ? Math.round((0.14 + 0.10 * pulseT) * 255).toString(16).padStart(2,'0')
+                             : Math.round((0.22 + 0.14 * pulseT) * 255).toString(16).padStart(2,'0');
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = isMobile ? (0.20 + 0.15 * pulseT) : (0.28 + 0.18 * pulseT);
-    ctx.fillStyle = glowColor;
-    const _glPad = isMobile ? sz(6) : sz(10);
-    ctx.fillRect(charX + shakeX - _glPad, charY + squashY - _glPad, charW + _glPad*2, charH * scaleY + _glPad*2);
+    const _gr = ctx.createRadialGradient(_gcx, _gcy, _grInner, _gcx, _gcy, _grOuter);
+    _gr.addColorStop(0, _hex + _aInner);
+    _gr.addColorStop(0.55, _hex + _aMid);
+    _gr.addColorStop(1, _hex + '00');
+    ctx.fillStyle = _gr;
+    ctx.fillRect(_gx, _gy, _gw, _gh);
     ctx.restore();
   }
 
@@ -12156,9 +12176,10 @@ function _renderPatchConfirm() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `bold ${sz(17)}px sans-serif`; ctx.fillStyle = '#fff';
   ctx.fillText('곡 패치', W/2, py + sz(34));
-  // 사이즈 정보
+  // 사이즈 정보 — 추정값은 ~ 표시
   const cnt = _patchOverlayInfo.paths.length;
-  const sizeStr = _patchOverlayInfo.totalBytes > 0 ? _fmtBytes(_patchOverlayInfo.totalBytes) : '계산 중';
+  const tb = _patchOverlayInfo.totalBytes;
+  const sizeStr = tb > 0 ? (_patchOverlayInfo._sizeMeasured ? _fmtBytes(tb) : '~' + _fmtBytes(tb)) : '계산 중';
   ctx.font = `${sz(14)}px sans-serif`; ctx.fillStyle = '#9e7aff';
   ctx.fillText(cnt + '개 · ' + sizeStr, W/2, py + sz(72));
   // 안내
