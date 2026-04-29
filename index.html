@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429100754;
+window.__BUILD_TS = 20260429103513;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -897,7 +897,7 @@ function assetUrl(path) { return CDN_BASE + path; }
 //   신곡만 추가된 경우 (CDN_BASE 동일) 신곡만 fetch.
 const PATCH_STORAGE_KEY = 'rhythm_patchedAssets_v1';
 const PATCH_PARALLEL_DESKTOP = 4;
-const PATCH_PARALLEL_MOBILE = 2;
+const PATCH_PARALLEL_MOBILE = 1;   // ★ iOS 메모리 압박 줄이기 — 동시 fetch 1개
 const PATCH_PER_FILE_TIMEOUT = 30000;
 const PATCH_PER_FILE_RETRIES = 3;       // 곡당 retry (1s/3s/8s 백오프)
 
@@ -1124,6 +1124,15 @@ async function patchAssets(opts) {
 
 function cancelPatch() { _patchState.cancelled = true; }
 
+// ★ patch 완료 후 idle delay — GC + OS 캐시 flush + 메인 스레드 회복 시간 확보.
+//   바로 인게임 진입하면 첫 곡 디코드와 patch 잔여 작업이 겹쳐 stutter/멈춤 발생.
+async function _patchIdleSettle() {
+  await new Promise(r => setTimeout(r, 1500));
+  if (typeof requestIdleCallback === 'function') {
+    await new Promise(r => requestIdleCallback(() => r(), { timeout: 1000 }));
+  }
+}
+
 // ===== 타이틀 → 선곡 흐름 진입 시 패치 게이트 =====
 // 받을 거 있음 → confirm 모달 → 받기 → progress → 끝/실패 처리.
 // 받을 거 없음 → 바로 transitionTo('select').
@@ -1173,12 +1182,14 @@ async function startPatchOrTransition() {
           startPatchOrTransition();
         } else {
           // skip — 실패한 곡은 patchedSet 에 안 들어감 → 다음 진입 시 다시 시도.
-          _closePatchOverlay();
-          _gotoSelectFromPatch();
+          _patchIdleSettle().then(() => { _closePatchOverlay(); _gotoSelectFromPatch(); });
         }
       };
       return;
     }
+    // ★ 100% 도달한 progress 모달 유지하면서 idle delay → 모달 닫고 진입.
+    //   GC + iOS 캐시 flush 시간 확보. 인게임 첫 곡 stutter 완화.
+    await _patchIdleSettle();
     _closePatchOverlay();
     _gotoSelectFromPatch();
   });
@@ -12169,10 +12180,11 @@ function _renderPatchProgress() {
     ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText(_fmtBytes(db) + ' / ' + _fmtBytes(tb), W/2, by + bh + sz(14));
   }
-  // 재시도/오프라인 메시지
+  // 재시도/오프라인/완료 메시지
   let extra = '';
   if (_patchState.offlineWaiting) extra = '📡 오프라인 — 연결 복구 대기 중';
   else if (_patchState.retryingPath) extra = '🔄 재시도 중...';
+  else if (pct >= 0.999 && tb > 0) extra = '✓ 완료 — 곧 시작합니다';
   else if (_patchState.failed > 0) extra = '실패 ' + _patchState.failed + '개 (계속 진행)';
   if (extra) {
     ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = '#ffb86b';
