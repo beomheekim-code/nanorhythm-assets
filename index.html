@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429122839;
+window.__BUILD_TS = 20260429123822;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9089,9 +9089,27 @@ function render() {
 
   // BG — 안전 영역까지 확장 (Kplay iframe 위/아래 빈 공간 제거)
   const totalH = H + safeTop + safeBottom;
-  const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-  grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
-  ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+  // ★ 모바일: BG gradient 캐싱 (iOS 매 프레임 createLinearGradient + 풀스크린 fillRect 부담).
+  //   PC 동결 — isMobile 분기로 보호.
+  if (isMobile) {
+    const _bgKey = song.bg1 + '|' + song.bg2 + '|' + (W|0) + '|' + (totalH|0);
+    if (!window._bgCache || window._bgCacheKey !== _bgKey) {
+      const _cv = document.createElement('canvas');
+      _cv.width = (W + 40) | 0;
+      _cv.height = (totalH + 40) | 0;
+      const _cx = _cv.getContext('2d');
+      const _g = _cx.createLinearGradient(0, 0, 0, _cv.height);
+      _g.addColorStop(0, song.bg1); _g.addColorStop(1, song.bg2);
+      _cx.fillStyle = _g; _cx.fillRect(0, 0, _cv.width, _cv.height);
+      window._bgCache = _cv;
+      window._bgCacheKey = _bgKey;
+    }
+    ctx.drawImage(window._bgCache, -20, -safeTop - 20);
+  } else {
+    const grad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+    grad.addColorStop(0, song.bg1); grad.addColorStop(1, song.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(-20, -safeTop - 20, W+40, totalH + 40);
+  }
 
   if (state==='login') { renderLogin(); if (_patchOverlayMode!=='idle') renderPatchOverlay(); ctx.restore(); return; }
   if (state==='title') { ctx.fillStyle='#020208'; ctx.fillRect(0, -safeTop, W, totalH); renderTitle(); if (settingsOpen) renderSettingsOverlay(); if (mailboxOpen) renderMailboxOverlay(); if (nicknameOverlay) renderNicknameOverlay(); if (_patchOverlayMode!=='idle') renderPatchOverlay(); ctx.restore(); return; }
