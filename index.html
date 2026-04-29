@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260429115525;
+window.__BUILD_TS = 20260429120147;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9500,8 +9500,11 @@ function _getUiPackSkin() {
 }
 // ★ 캐릭터 스킨 캐시 — 매 프레임 _loadEq + key lookup 회피 (note/hitfx 와 동일 패턴).
 //   _refreshActiveSkin 시점에 갱신 + lazy init (첫 호출 시 자동 초기화).
-let _activeCharacterSkin = null;
-let _activeCharacterSkinInit = false;
+//   ★ var hoisting 필수 — _refreshActiveSkin (3381) 이 모듈 평가 위쪽에서 호출되는데
+//     _refreshActiveCharacterSkin 본체가 이 변수에 할당. let 이면 TDZ ReferenceError 로
+//     iOS 페이지 로드 깨짐 (catch 안에서도 TDZ → uncaught).
+var _activeCharacterSkin = null;
+var _activeCharacterSkinInit = false;
 function _refreshActiveCharacterSkin() {
   try {
     const sid = getEquippedSkin('character');
