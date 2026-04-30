@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260430045723;
+window.__BUILD_TS = 20260430065042;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -666,8 +666,8 @@ class KPlayAPI {
     window.addEventListener('message', (e) => {
       const { type, ...data } = e.data ?? {};
       if (!type) return;
-      // [bridge] 진단 — bridge 가 보내는 모든 message 1회 dump (광고 SDK init 관련 신호 추적용)
-      try { console.log('[bridge in]', type, data); } catch(_) {}
+      // [bridge] 진단 — 필요시 다음 줄 주석 해제
+      // try { console.log('[bridge in]', type, data); } catch(_) {}
       switch (type) {
         case 'user-info':
           this.user = { userId: data.userId, name: data.name, credits: data.credits ?? 0 };
@@ -782,7 +782,7 @@ class KPlayAPI {
     //    type string 자체는 ad 단어 포함 — 그 라인을 차단하는 공격적 차단기 회피용으로 분할 결합.
     const _T_REQ = 'show-' + 'rewarded-' + 'ad';
     const _T_RES = 'rewarded-' + 'ad-result';
-    console.log('[reward] showRewardOverlay() entry — type=' + _T_REQ);
+    // console.log('[reward] showRewardOverlay() entry — type=' + _T_REQ);
     return new Promise((resolve) => {
       let done = false;
       const onMsg = (e) => {
@@ -793,14 +793,14 @@ class KPlayAPI {
         clearTimeout(timer);
         window.removeEventListener('message', onMsg);
         const elapsed = (performance.now() - _t0).toFixed(0);
-        console.log('[reward] result received in ' + elapsed + 'ms:', d);
+        // console.log('[reward] result received in ' + elapsed + 'ms:', d);
         resolve({ success: !!d.success, points: d.points, error: d.error });
       };
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
         window.removeEventListener('message', onMsg);
-        console.warn('[reward] TIMEOUT 35s — host did not respond to ' + _T_REQ + ' type');
+        // console.warn('[reward] TIMEOUT 35s — host did not respond to ' + _T_REQ + ' type');
         resolve({ success: false, error: 'timeout' });
       }, 35000);
       window.addEventListener('message', onMsg);
@@ -810,14 +810,14 @@ class KPlayAPI {
         //   rewarded 도 동일 패턴일 가능성 — bridge 가 name/placement 로 광고 라우팅할 수도.
         const _payload = { type: _T_REQ, name: 'rewarded', adType: 'reward', placement: 'song-unlock' };
         window.parent.postMessage(_payload, '*');
-        console.log('[reward] postMessage sent', _payload);
+        // console.log('[reward] postMessage sent', _payload);
       }
       catch(e) {
         if (done) return;
         done = true;
         clearTimeout(timer);
         window.removeEventListener('message', onMsg);
-        console.warn('[reward] postMessage threw:', e);
+        // console.warn('[reward] postMessage threw:', e);
         resolve({ success: false, error: 'postmessage_failed' });
       }
     });
@@ -834,27 +834,27 @@ class KPlayAPI {
     return this;
   }
 }
-// [reward] 진단 — 기존 window.kplay (KPLAY 호스트 inject SDK 가능성) 덮어쓰기 전 dump
-try {
-  const _existing = window.kplay;
-  if (_existing) {
-    const keys = [];
-    try { for (const k in _existing) keys.push(k); } catch(e) {}
-    console.warn('[reward] existing window.kplay before overwrite:', {
-      type: typeof _existing,
-      ctor: _existing && _existing.constructor && _existing.constructor.name,
-      hasShowRewardedAd: typeof (_existing && _existing.showRewardedAd),
-      hasShowRewardOverlay: typeof (_existing && _existing.showRewardOverlay),
-      hasPurchase: typeof (_existing && _existing.purchase),
-      keys: keys.slice(0, 30),
-    });
-  } else {
-    console.log('[reward] no existing window.kplay — clean install');
-  }
-  console.log('[reward] in iframe?', window.parent !== window);
-} catch(e) { console.warn('[reward] diag pre-install failed:', e); }
+// [reward] 진단 — 필요시 아래 블록 주석 해제
+// try {
+//   const _existing = window.kplay;
+//   if (_existing) {
+//     const keys = [];
+//     try { for (const k in _existing) keys.push(k); } catch(e) {}
+//     console.warn('[reward] existing window.kplay before overwrite:', {
+//       type: typeof _existing,
+//       ctor: _existing && _existing.constructor && _existing.constructor.name,
+//       hasShowRewardedAd: typeof (_existing && _existing.showRewardedAd),
+//       hasShowRewardOverlay: typeof (_existing && _existing.showRewardOverlay),
+//       hasPurchase: typeof (_existing && _existing.purchase),
+//       keys: keys.slice(0, 30),
+//     });
+//   } else {
+//     console.log('[reward] no existing window.kplay — clean install');
+//   }
+//   console.log('[reward] in iframe?', window.parent !== window);
+// } catch(e) { console.warn('[reward] diag pre-install failed:', e); }
 window.kplay = new KPlayAPI();
-console.log('[reward] window.kplay = our KPlayAPI instance');
+// console.log('[reward] window.kplay = our KPlayAPI instance');
 
 // ===== Storage wrapper (localStorage sync + kplay.storage mirror) =====
 function _kpHas() { return !!(window.kplay && window.kplay.storage); }
@@ -3084,11 +3084,11 @@ function claimRewardForSong(idx) {
   const _hosted = (window.parent !== window);
   const _hasKp = !!window.kplay;
   const _hasFn = !!(window.kplay && typeof window.kplay.showRewardOverlay === 'function');
-  console.log('[reward] claimRewardForSong(idx=' + idx + ')', { hosted: _hosted, hasKplay: _hasKp, hasShowRewardOverlay: _hasFn, hasShowRewardedAd: typeof (window.kplay && window.kplay.showRewardedAd) });
+  // console.log('[reward] claimRewardForSong(idx=' + idx + ')', { hosted: _hosted, hasKplay: _hasKp, hasShowRewardOverlay: _hasFn, hasShowRewardedAd: typeof (window.kplay && window.kplay.showRewardedAd) });
   if (_hosted && _hasFn) {
-    console.log('[reward] route: HOST (KPLAY postMessage)');
+    // console.log('[reward] route: HOST (KPLAY postMessage)');
     window.kplay.showRewardOverlay().then((res) => {
-      console.log('[reward] resolved:', res);
+      // console.log('[reward] resolved:', res);
       if (res && res.success) {
         addSongFreePlay(idx);
         showLoginToast('보상 지급 완료', '#44dd66');
@@ -3104,12 +3104,12 @@ function claimRewardForSong(idx) {
         showLoginToast(_msg, '#ff6666');
       }
     }).catch((e) => {
-      console.warn('[reward] caught error:', e);
+      // console.warn('[reward] caught error:', e);
       showLoginToast('보상 처리 오류', '#ff6666');
     });
     return;
   }
-  console.log('[reward] route: LOCAL MOCK (5초 카운트다운)');
+  // console.log('[reward] route: LOCAL MOCK (5초 카운트다운)');
   rewardOverlayActive = true;
   rewardOverlaySongIdx = idx;
   rewardOverlayCountdown = REWARD_OVERLAY_DURATION;
@@ -7405,9 +7405,9 @@ document.addEventListener('touchcancel', e => {
 // ===== HIT DETECTION =====
 let _lastEmptyFlash = new Float64Array(8);
 // lane dedup 제거 (2026-04-26): 유저 요청. 진짜 씹힘 판단을 방해함.
-let _lastInputT = 0; // [stutter] 진단 — 입력 직후 frame stutter 추적용
+// let _lastInputT = 0; // [stutter] 진단 — 필요시 주석 해제 (handleLanePress 의 _lastInputT update 도)
 function handleLanePress(lane, src) {
-  _lastInputT = performance.now();
+  // _lastInputT = performance.now();
   if (typeof notifyCharacterHit === 'function') notifyCharacterHit();
   const hitY = getHitY();
   const hw = getHitWindow();
@@ -16031,28 +16031,28 @@ function _dimWatcher() {
 function loop(time) {
   _dimWatcher();
   if (lastTime === 0) lastTime = time; // 첫 프레임 dt 스파이크 방지
-  const _rawDt = (time - lastTime) / 1000;
-  const dt = Math.min(_rawDt, 0.033); // 최대 dt 33ms (30fps 하한)
+  const dt = Math.min((time-lastTime)/1000, 0.033); // 최대 dt 33ms (30fps 하한)
   lastTime = time;
-  // [stutter] 진단 — 실제 frame 간격이 33ms 초과 시 자동 console.warn (perf 영향 0).
-  if (_rawDt > 0.033 && lastTime !== time) {
-    const _sinceInput = _lastInputT ? (performance.now() - _lastInputT) : -1;
-    let _topFns = '';
-    try {
-      if (window._dbg && window._dbg.perfEntries && window._dbg.perfEntries.length) {
-        const _sums = {};
-        const _cut = performance.now() - 200;
-        for (const _e of window._dbg.perfEntries) if (_e.t >= _cut) _sums[_e.name] = (_sums[_e.name] || 0) + _e.durMs;
-        _topFns = Object.entries(_sums).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,d])=>n+'='+d.toFixed(1)).join(' ');
-      }
-    } catch(e) {}
-    console.warn('[stutter] frame=' + (_rawDt*1000).toFixed(0) + 'ms', {
-      state,
-      song: (typeof songs !== 'undefined' && songs[selectedSong]) ? songs[selectedSong].name : null,
-      sinceInputMs: _sinceInput >= 0 ? Math.round(_sinceInput) : '-',
-      top200ms: _topFns || '(?debug=1 로 들어와야 함수별 시간 표시)'
-    });
-  }
+  // [stutter] 진단 — 필요시 아래 블록 주석 해제 (hot path 영향 가능성 있어 default off)
+  // const _rawDt = (time - lastTime) / 1000;
+  // if (_rawDt > 0.033 && lastTime !== time) {
+  //   const _sinceInput = _lastInputT ? (performance.now() - _lastInputT) : -1;
+  //   let _topFns = '';
+  //   try {
+  //     if (window._dbg && window._dbg.perfEntries && window._dbg.perfEntries.length) {
+  //       const _sums = {};
+  //       const _cut = performance.now() - 200;
+  //       for (const _e of window._dbg.perfEntries) if (_e.t >= _cut) _sums[_e.name] = (_sums[_e.name] || 0) + _e.durMs;
+  //       _topFns = Object.entries(_sums).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,d])=>n+'='+d.toFixed(1)).join(' ');
+  //     }
+  //   } catch(e) {}
+  //   console.warn('[stutter] frame=' + (_rawDt*1000).toFixed(0) + 'ms', {
+  //     state,
+  //     song: (typeof songs !== 'undefined' && songs[selectedSong]) ? songs[selectedSong].name : null,
+  //     sinceInputMs: _sinceInput >= 0 ? Math.round(_sinceInput) : '-',
+  //     top200ms: _topFns || '(?debug=1 로 들어와야 함수별 시간 표시)'
+  //   });
+  // }
   updateRewardOverlay(dt);
   if (!gamePaused) {
     if (window._measure) window._measure('update', () => update(dt));
