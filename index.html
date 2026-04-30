@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260430025844;
+window.__BUILD_TS = 20260430031429;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6041,7 +6041,8 @@ function handleSelectClick(mx, my) {
   // 해금 팝업 처리
   if (unlockPopupOpen && unlockPopupAreas.reward) {
     const a = unlockPopupAreas;
-    if (hitTest(mx, my, a.reward.x, a.reward.y, a.reward.w, a.reward.h)) { claimRewardForSong(unlockPopupSongIdx); return; }
+    // 보상받기 버튼 — KPLAY 광고 SDK 활성화 전까지 비활성화. 안내 토스트만 띄우고 무동작.
+    if (hitTest(mx, my, a.reward.x, a.reward.y, a.reward.w, a.reward.h)) { showLoginToast('보상영상 시스템 준비 중입니다', '#ffaa66'); return; }
     if (hitTest(mx, my, a.pt.x, a.pt.y, a.pt.w, a.pt.h)) { buyPlayWithPoints(unlockPopupSongIdx); return; }
     if (a.shop && hitTest(mx, my, a.shop.x, a.shop.y, a.shop.w, a.shop.h)) { closeUnlockPopup(); shopScroll = 0; stopPreview(); startShopBgm(); transitionTo('shop'); return; }
     if (hitTest(mx, my, a.close.x, a.close.y, a.close.w, a.close.h)) { closeUnlockPopup(); return; }
@@ -12640,14 +12641,16 @@ function renderUnlockPopup() {
   const sn = songs[unlockPopupSongIdx] ? songs[unlockPopupSongIdx].name : '';
   ctx.font = `${sz(13)}px sans-serif`; ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.fillText(sn, W/2, py + sz(50));
-  // 보상받기 버튼 (KPLAY 보상 영상 시청 → 1회 무료 재생)
+  // 보상받기 버튼 — KPLAY 광고 SDK 미준비 상태 (bridge build 비활성) → 비활성화 표시.
+  //   인프라 (claimRewardForSong, KPlayAPI.showRewardOverlay) 는 그대로 두어 KPLAY 측
+  //   활성화 시 클릭 핸들러 / 색상만 다시 켜면 즉시 동작.
   const bw = pw * 0.75, bh = sz(36);
   const bx = (W - bw) / 2;
   const rwY = py + sz(72);
-  ctx.fillStyle = 'rgba(255,215,0,0.22)'; rrFill(bx, rwY, bw, bh, sz(8));
-  ctx.strokeStyle = 'rgba(255,215,0,0.6)'; ctx.lineWidth = 1; rrStroke(bx, rwY, bw, bh, sz(8));
-  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = '#ffd700';
-  ctx.fillText('🎁 보상받고 1회 무료 재생', W/2, rwY + bh/2);
+  ctx.fillStyle = 'rgba(255,215,0,0.10)'; rrFill(bx, rwY, bw, bh, sz(8));
+  ctx.strokeStyle = 'rgba(255,215,0,0.25)'; ctx.lineWidth = 1; rrStroke(bx, rwY, bw, bh, sz(8));
+  ctx.font = `bold ${sz(13)}px sans-serif`; ctx.fillStyle = 'rgba(255,215,0,0.4)';
+  ctx.fillText('🎁 보상받고 1회 무료 재생 (준비 중)', W/2, rwY + bh/2);
   // 포인트 구매 버튼
   const ptY = rwY + bh + sz(10);
   const canBuy = getCoins() >= UNLOCK_POINT_COST;
