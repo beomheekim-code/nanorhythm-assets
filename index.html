@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260430015550;
+window.__BUILD_TS = 20260430020005;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9943,6 +9943,9 @@ let _treePetalPalette = ['rgba(255,180,200,0.85)', 'rgba(255,140,170,0.85)', 'rg
 let _treePaletteSampled = null;  // 샘플링 완료된 image 객체 저장 (재샘플 방지)
 function _sampleTreePalette(img) {
   if (_treePaletteSampled === img) return;
+  // ★ 시도 자체를 캐시 — CORS tainted 등으로 실패해도 매 frame 재시도/throw/console.warn spam 방지.
+  //    실패 시 fallback _treePetalPalette 그대로 사용 (시각 영향 0).
+  _treePaletteSampled = img;
   try {
     const cv = document.createElement('canvas');
     // 작게 리사이즈해서 빠르게 샘플
@@ -9970,10 +9973,9 @@ function _sampleTreePalette(img) {
     const pal = [avg(buckets.light), avg(buckets.mid), avg(buckets.deep)].filter(Boolean);
     if (pal.length >= 2) {
       _treePetalPalette = pal;
-      _treePaletteSampled = img;
       console.log('[bark petals] tree palette sampled:', pal);
     }
-  } catch(e) { console.warn('[bark petals] palette sample failed', e); }
+  } catch(e) { console.warn('[bark petals] palette sample failed (using fallback, will not retry)', e && e.message); }
 }
 function _updateBarkPetals(vh) {
   // ★ spawn zone = 트리 이미지 bounds × 캐노피 상단 45% 영역 (잎파리가 있는 곳에서만 흩날림)
