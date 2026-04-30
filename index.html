@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260430020732;
+window.__BUILD_TS = 20260430021414;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3066,7 +3066,15 @@ function claimRewardForSong(idx) {
         addSongFreePlay(idx);
         showLoginToast('보상 지급 완료', '#44dd66');
       } else {
-        showLoginToast('보상 지급 실패: ' + (res && res.error || '알 수 없음'), '#ff6666');
+        // KPLAY error 키워드 → 사용자 친화 한글 메시지
+        const _err = (res && res.error) || '';
+        let _msg;
+        if (/dismiss/i.test(_err)) _msg = '끝까지 시청해야 보상이 지급돼요';
+        else if (/not\s*ready/i.test(_err)) _msg = '광고 준비 중이에요. 잠시 후 다시 시도해주세요';
+        else if (/timeout/i.test(_err)) _msg = '응답 시간 초과';
+        else if (/inventory|no.*ad/i.test(_err)) _msg = '지금은 시청할 영상이 없어요';
+        else _msg = '보상 지급 실패' + (_err ? ' (' + _err + ')' : '');
+        showLoginToast(_msg, '#ff6666');
       }
     }).catch((e) => {
       console.warn('[reward] caught error:', e);
@@ -8371,8 +8379,10 @@ function startSong(idx) {
   });
   // ★ Wake Lock API — iOS 에게 "게임 중, 풀파워 유지" 선언. 화면 dimming/CPU throttling 방지.
   //   iOS 16.4+ 지원. 지원 안 하는 환경은 try/catch 로 무시됨.
+  //   ★ iframe 안 (KPLAY 호스트 등) 에선 Permissions Policy 로 차단됨 → [Violation] 콘솔 spam.
+  //     호출 자체를 skip 해서 spam 제거.
   try {
-    if (navigator.wakeLock && !window._wakeLock) {
+    if (navigator.wakeLock && !window._wakeLock && window.top === window) {
       navigator.wakeLock.request('screen').then(wl => {
         window._wakeLock = wl;
         wl.addEventListener('release', () => { window._wakeLock = null; });
