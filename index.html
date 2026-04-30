@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260430094145;
+window.__BUILD_TS = 20260430094942;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7908,20 +7908,37 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // 난이도 필터링 — slot-based (815d64e 원본 방식, 안정 베이스 리듬).
   // 각 slot 에서 에너지 최강 1개 선택. 규칙적 리듬 구조 유지.
-  // ★ 임계값 매핑 (보통/어려움 그대로 유지, 지옥만 BPM 기반 자동 분기):
+  // ★ 지옥 grid 자동화 — 곡의 onset density 기반 자동 분기 (수동 hardcode X):
   //   쉬움(0.28) / 보통(0.45) → 4분음표
   //   어려움(0.8) → 8분음표
   //   지옥(1.1):
-  //     BPM ≥ 150 (Lucifer 등 빠른 곡) → 16분음표 (가장 dense)
-  //     BPM 110~149 (중간 — 괜찮아 등) → 점8분음표 (적당)
-  //     BPM < 110 (느린 곡 — SPIN 등) → 8분음표 (어려움 수준 — 곡 차분함)
+  //     onsets/sec > 30 (매우 dense — 빠른 록/EDM) → 8분음표 grid
+  //     onsets/sec 15~30 (적당히 dense — pop/일반) → 점8분음표 grid
+  //     onsets/sec < 15 (sparse — jazz/ballad) → 16분음표 grid (default, 노트 충분 확보)
+  //   곡별 song.hellMaxGrid override 옵션 (선택, 자동값 무시 가능): 'eighth' / 'eighth-dotted'
   const density = diff.noteDensity;
-  const _hellMinGap = song.bpm >= 150 ? sixteenth
-                    : song.bpm >= 110 ? sixteenth * 1.5
-                    : sixteenth * 2;
+  let _hellMinGap = sixteenth; // default 16분음표
+  if (density > 0.8) {
+    // 지옥 분기일 때만 onset density 계산
+    let _totalOnsets = 0;
+    for (const _si in onsetsByStem) {
+      const _siNum = Number(_si);
+      if (ALWAYS_AUDIBLE_STEMS.includes(_siNum)) continue;
+      if ((song.excludeStems || []).includes(_siNum)) continue;
+      _totalOnsets += (onsetsByStem[_si] || []).length;
+    }
+    const _songDuration = (song.bars * 4 * 60) / Math.max(song.bpm, 1);
+    const _onsetsPerSec = _totalOnsets / Math.max(_songDuration, 1);
+    if (_onsetsPerSec > 30) _hellMinGap = sixteenth * 2;          // 매우 dense → 8분음표
+    else if (_onsetsPerSec > 15) _hellMinGap = sixteenth * 1.5;   // 적당히 dense → 점8분음표
+    // else: sixteenth (default sparse 곡)
+    // 곡별 override (있을 때만 자동값 덮음)
+    if (song.hellMaxGrid === 'eighth') _hellMinGap = sixteenth * 2;
+    else if (song.hellMaxGrid === 'eighth-dotted') _hellMinGap = sixteenth * 1.5;
+  }
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움/보통: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 어려움: 8분음표
-               : _hellMinGap;                       // 지옥: BPM 기반 자동 분기
+               : _hellMinGap;                       // 지옥: 자동 + override
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
