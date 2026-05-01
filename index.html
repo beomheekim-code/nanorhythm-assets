@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501025130;
+window.__BUILD_TS = 20260430095554;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7567,7 +7567,7 @@ function spawnBurst(x, y, grade) {
 }
 
 // ===== ONSET DETECTION =====
-function detectOnsets(audioBuffer, sensitivity = 1.1) {
+function detectOnsets(audioBuffer) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
@@ -7576,14 +7576,12 @@ function detectOnsets(audioBuffer, sensitivity = 1.1) {
   const onsets = [];
   let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
-  // sensitivity = 1.1 (default) — 일반 곡. 1.05 — sparse 곡 (jazz 등 sustained note 보강용).
-  //   낮을수록 더 sensitive (작은 transient 도 onset 잡음).
   for (let i = 0; i < data.length; i += winSamples) {
     let sum = 0, cnt = 0;
     const end = Math.min(i + winSamples, data.length);
     for (let k = i; k < end; k += 8) { sum += data[k] * data[k]; cnt++; }
     const energy = cnt > 0 ? Math.sqrt(sum / cnt) : 0;
-    if (energy > 0.003 && energy > smoothed * sensitivity && i - lastOnset > minGapSamples) {
+    if (energy > 0.003 && energy > smoothed * 1.1 && i - lastOnset > minGapSamples) {
       onsets.push(i / sr);
       lastOnset = i;
     }
@@ -8522,26 +8520,6 @@ function startSong(idx) {
           console.log('Stem', i, stemNames[i], ':', onsetsByStem[i].length, 'onsets, first:', onsetsByStem[i][0]?.toFixed(2) + 's');
         } else {
           console.log('Stem', i, stemNames[i], ': NO BUFFER');
-        }
-      }
-      // ★ Sparse 곡 자동 sensitive 재detect — drum (0) + instrum (3) 만.
-      //   jazz/ballad 같은 sustained note 곡은 일반 detect 로 onset 부족 (사용자: "어려움 수준 노트")
-      //   strong stem (drum/instrum) 만 재detect → ambient noise (자연음/벚꽃) risk 최소.
-      //   ambient filter (line ~7732) 가 그대로 작동하므로 자연음/long sustained 는 계속 drop.
-      const _drumCnt = (onsetsByStem[0] || []).length;
-      const _instrumCnt = (onsetsByStem[3] || []).length;
-      const _refBuf = stemAudioBuffers[0] || stemAudioBuffers[3];
-      const _songDur = _refBuf ? _refBuf.duration : 0;
-      const _strongOnsetsPerSec = _songDur > 0 ? (_drumCnt + _instrumCnt) / _songDur : 0;
-      if (_strongOnsetsPerSec < 2 && _songDur > 0) {
-        console.log('[onsets] sparse song detected (drum+instrum ' + _strongOnsetsPerSec.toFixed(2) + ' onsets/sec) — re-detecting with sensitivity 1.05');
-        if (stemAudioBuffers[0]) {
-          onsetsByStem[0] = detectOnsets(stemAudioBuffers[0], 1.05);
-          console.log('Stem 0 drums (sensitive):', onsetsByStem[0].length, 'onsets');
-        }
-        if (stemAudioBuffers[3]) {
-          onsetsByStem[3] = detectOnsets(stemAudioBuffers[3], 1.05);
-          console.log('Stem 3 instrum (sensitive):', onsetsByStem[3].length, 'onsets');
         }
       }
       if (Object.keys(onsetsByStem).length > 0) {
