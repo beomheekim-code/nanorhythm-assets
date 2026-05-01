@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501153909;
+window.__BUILD_TS = 20260501154316;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7703,14 +7703,33 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
-  // ★ Per-onset filters:
-  //   1. Local RMS — onset 위치 ±50ms RMS < 0.015 면 drop (phantom / spike-only 잡음).
-  //   2. Attack sharpness (melody stems 3/4/5 만) — onset 직전 20ms vs 직후 20ms 에너지 비율 < 2.5 면 drop.
-  //      바이올린/패드 같은 gradual attack sustain → drop. 피아노 staccato 같은 sharp attack → keep.
-  //      사용자: "instrum 7초 바이올린 비슷한 소리 노트 없어야 해".
+  // ★ Per-onset filters — "실제 들리는 음 (mixed)" 기준으로 판정.
+  //   1. Mixed RMS — onset 위치 ±50ms 의 모든 stem RMS 합 < 0.04 면 drop (실제 들리지 않는 phantom).
+  //      stem 단독은 약해도 mixed 가 강하면 keep (작은 hi-hat 도 다른 stem 강할 때 살림).
+  //   2. Attack sharpness (melody stems 3/4/5 만) — sustain 악기 (바이올린/패드) drop.
+  //      사용자: "파일 위주로 하지말고 실제 들리는 음 기준".
   let allOnsets = [];
   let _phantomDropped = 0;
   let _sustainDropped = 0;
+  // Helper: 특정 시점 ±winSec/2 의 mixed RMS (모든 musical stem 합산)
+  const _mixedRmsAt = (tSec, winSec) => {
+    let mixed = 0;
+    for (const _msi in stemAudioBuffers) {
+      const _miIdx = Number(_msi);
+      if (ALWAYS_AUDIBLE_STEMS.includes(_miIdx)) continue;
+      const _mbuf = stemAudioBuffers[_miIdx];
+      if (!_mbuf) continue;
+      const _mdata = _mbuf.getChannelData(0);
+      const _msr = _mbuf.sampleRate;
+      const _mwin = Math.floor(_msr * winSec);
+      const _ms = Math.max(0, Math.floor(tSec * _msr) - _mwin / 2);
+      const _me = Math.min(_mdata.length, _ms + _mwin);
+      let _sum = 0, _c = 0;
+      for (let k = _ms; k < _me; k += 16) { _sum += _mdata[k] * _mdata[k]; _c++; }
+      mixed += _c > 0 ? Math.sqrt(_sum / _c) : 0;
+    }
+    return mixed;
+  };
   for (const si in onsetsByStem) {
     if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
     const _stemIdx = Number(si);
@@ -7718,37 +7737,30 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     const _buf = stemAudioBuffers[_stemIdx];
     const _data = _buf ? _buf.getChannelData(0) : null;
     const _sr = _buf ? _buf.sampleRate : 44100;
-    const _rmsWin = Math.floor(_sr * 0.1); // 100ms window
-    const _attackWin = Math.floor(_sr * 0.02); // 20ms window
+    const _attackWin = Math.floor(_sr * 0.02); // 20ms window (melody attack 검사용 — 단일 stem)
     for (const t of onsetsByStem[si]) {
-      if (_data) {
-        // 1. Local RMS
+      // 1. Mixed RMS — 실제 들리는 음 기준
+      const _mixed = _mixedRmsAt(t, 0.1);
+      if (_mixed < 0.04) { _phantomDropped++; continue; }
+      // 2. Attack sharpness (melody only — 그 stem 자체의 sharpness)
+      if (_isMelody && _data) {
         const _onsetSample = Math.floor(t * _sr);
-        const _rmsStart = Math.max(0, _onsetSample - _rmsWin / 2);
-        const _rmsEnd = Math.min(_data.length, _rmsStart + _rmsWin);
-        let _sum = 0, _c = 0;
-        for (let k = _rmsStart; k < _rmsEnd; k += 8) { _sum += _data[k] * _data[k]; _c++; }
-        const _rms = _c > 0 ? Math.sqrt(_sum / _c) : 0;
-        if (_rms < 0.010) { _phantomDropped++; continue; } // 0.015 → 0.010. 췩췩 더 살림.
-        // 2. Attack sharpness (melody only)
-        if (_isMelody) {
-          const _beforeStart = Math.max(0, _onsetSample - _attackWin);
-          const _beforeEnd = _onsetSample;
-          const _afterStart = _onsetSample;
-          const _afterEnd = Math.min(_data.length, _onsetSample + _attackWin);
-          let _bSum = 0, _bC = 0, _aSum = 0, _aC = 0;
-          for (let k = _beforeStart; k < _beforeEnd; k += 4) { _bSum += _data[k] * _data[k]; _bC++; }
-          for (let k = _afterStart; k < _afterEnd; k += 4) { _aSum += _data[k] * _data[k]; _aC++; }
-          const _bRms = _bC > 0 ? Math.sqrt(_bSum / _bC) : 0.0001;
-          const _aRms = _aC > 0 ? Math.sqrt(_aSum / _aC) : 0;
-          const _attackRatio = _aRms / Math.max(_bRms, 0.0001);
-          if (_attackRatio < 2.5) { _sustainDropped++; continue; } // gradual attack — sustain 악기, drop
-        }
+        const _bs = Math.max(0, _onsetSample - _attackWin);
+        const _be = _onsetSample;
+        const _as = _onsetSample;
+        const _ae = Math.min(_data.length, _onsetSample + _attackWin);
+        let _bSum = 0, _bC = 0, _aSum = 0, _aC = 0;
+        for (let k = _bs; k < _be; k += 4) { _bSum += _data[k] * _data[k]; _bC++; }
+        for (let k = _as; k < _ae; k += 4) { _aSum += _data[k] * _data[k]; _aC++; }
+        const _bRms = _bC > 0 ? Math.sqrt(_bSum / _bC) : 0.0001;
+        const _aRms = _aC > 0 ? Math.sqrt(_aSum / _aC) : 0;
+        const _attackRatio = _aRms / Math.max(_bRms, 0.0001);
+        if (_attackRatio < 2.5) { _sustainDropped++; continue; }
       }
       allOnsets.push({ time: t + bgmDelay, stem: _stemIdx });
     }
   }
-  if (_phantomDropped > 0) console.log('[phantomDrop] ' + _phantomDropped + ' weak onsets dropped for ' + song.name);
+  if (_phantomDropped > 0) console.log('[phantomDrop] ' + _phantomDropped + ' onsets (mixed RMS<0.04) dropped for ' + song.name);
   if (_sustainDropped > 0) console.log('[sustainDrop] ' + _sustainDropped + ' melody sustain onsets dropped for ' + song.name);
   // vocal ranges 안의 vocals onset 포함
   if (vocalRanges.length > 0 && onsetsByStem[2]) {
@@ -7996,9 +8008,15 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움/보통: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 어려움: 8분음표
                : _hellMinGap;                       // 지옥: 32분 default + override
-  // ★ 지옥은 슬롯당 multi-pick — strong onset 최대 2개까지 keep (slot 평균 × 1.2 이상).
-  //   두둥 같은 sub-슬롯 연속 비트 둘 다 살림. 사용자: "연속비트는 그에 맞게 노트 나와야하고".
+  // ★ 지옥은 슬롯당 multi-pick — 단, 슬롯이 "돋보이는 (high-energy)" 일 때만.
+  //   사용자: "돋보이는 음은 따닥 연속 박자, 서브 음은 한개씩".
+  //   곡 max energy 의 50% 이상 슬롯 → multi-pick (따닥). 미만 → single (서브).
   const _slotMultiPick = (density > 1.1);
+  let _songMaxE = 0;
+  if (_slotMultiPick) {
+    for (const o of nonSilent) _songMaxE = Math.max(_songMaxE, o.energy || 0);
+  }
+  const _highEnergyThr = _songMaxE * 0.5;
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -8015,12 +8033,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       if (slotItems.length === 0) { slotStart = slotEnd; continue; }
       slotItems.sort((a, b) => (b.energy || 0) - (a.energy || 0));
       filtered.push(slotItems[0]);
-      // 지옥 + 슬롯에 2개 이상 + 2번째 onset 도 의미있게 강하면 둘 다 keep (두둥 살림)
+      // 지옥 + 슬롯이 high-energy (돋보이는) + 2개 이상 + 2번째 강함 → 둘 다 keep (따닥)
       if (_slotMultiPick && slotItems.length >= 2) {
         const e1 = slotItems[0].energy || 0;
         const e2 = slotItems[1].energy || 0;
-        // 1번째의 80% 이상 + 시간 간격 32분음표 이상 → 진짜 두 번째 비트로 간주
-        if (e2 >= e1 * 0.8 && Math.abs(slotItems[1].time - slotItems[0].time) >= sixteenth * 0.4) {
+        // 1번째가 high-energy 슬롯 + 2번째 80% 이상 + 32분 이상 떨어짐
+        if (e1 >= _highEnergyThr && e2 >= e1 * 0.8 && Math.abs(slotItems[1].time - slotItems[0].time) >= sixteenth * 0.4) {
           filtered.push(slotItems[1]);
         }
       }
