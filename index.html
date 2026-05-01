@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501151836;
+window.__BUILD_TS = 20260501152442;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2024,8 +2024,9 @@ function playEmptyPressSfx(lane) {
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
           src.connect(gain); gain.connect(actx.destination);
-          // ★ 빈 레인 SFX = 첫 노트의 stem 위치 (phantom drop 후 자연스러운 음악 시작점).
-          const offset = targetOffset > 0 ? targetOffset : (stemFirstSoundTime[si] || 0);
+          // ★ 빈 레인 SFX = stemMusicalStart (peak≥0.1 sustained 100ms — 노드 생성 여부 무관, 항상 audible).
+          //   첫 노트 위치는 너무 이른 (인트로) 시점일 수 있어 무음 → 일관된 stemMusicalStart 사용.
+          const offset = stemMusicalStart[si] || stemFirstSoundTime[si] || 0;
           src.start(0, offset, 0.5);
         }
       } else {
@@ -7701,24 +7702,31 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
-  // ★ 각 stem 의 stemFirstSoundTime 이전 onset 은 phantom (stem audio 첫 transient / leading silence 아티팩트) → drop.
-  //   사용자 보고: 인트로 음 인식 전 3개 phantom 노트 떨어짐. 비인위적 fix (이미 계산된 데이터 활용).
+  // ★ Per-onset local RMS filter — onset 위치 ±50ms 의 RMS < 0.025 면 phantom (spike-only 잡음 / decay tail).
+  //   stemFirstSoundTime 임계 너무 낮아 (0.01) 이전 phantom drop 무효. 실제 사운드 강도 직접 검증.
+  //   사용자 보고: 인트로 음 인식 전 4개 phantom 노트.
   let allOnsets = [];
   let _phantomDropped = 0;
   for (const si in onsetsByStem) {
     if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
     const _stemIdx = Number(si);
-    const _firstAudible = stemFirstSoundTime[_stemIdx];
+    const _buf = stemAudioBuffers[_stemIdx];
+    const _data = _buf ? _buf.getChannelData(0) : null;
+    const _sr = _buf ? _buf.sampleRate : 44100;
+    const _winSamples = Math.floor(_sr * 0.1); // 100ms window centered on onset
     for (const t of onsetsByStem[si]) {
-      // stem 이 첫 audible 시점 - 30ms 이전 onset 은 phantom
-      if (typeof _firstAudible === 'number' && t < _firstAudible - 0.03) {
-        _phantomDropped++;
-        continue;
+      if (_data) {
+        const _start = Math.max(0, Math.floor(t * _sr) - _winSamples / 2);
+        const _end = Math.min(_data.length, _start + _winSamples);
+        let _sum = 0, _c = 0;
+        for (let k = _start; k < _end; k += 8) { _sum += _data[k] * _data[k]; _c++; }
+        const _rms = _c > 0 ? Math.sqrt(_sum / _c) : 0;
+        if (_rms < 0.025) { _phantomDropped++; continue; } // phantom — 실제 음악적 사운드 미만
       }
       allOnsets.push({ time: t + bgmDelay, stem: _stemIdx });
     }
   }
-  if (_phantomDropped > 0) console.log('[phantomDrop] ' + _phantomDropped + ' pre-audible onsets dropped for ' + song.name);
+  if (_phantomDropped > 0) console.log('[phantomDrop] ' + _phantomDropped + ' weak onsets dropped for ' + song.name);
   // vocal ranges 안의 vocals onset 포함
   if (vocalRanges.length > 0 && onsetsByStem[2]) {
     let added = 0;
@@ -8133,7 +8141,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
 // ===== START SONG =====
 let songLoading = false, songLoadProgress = 0, songLoadTotal = 1;
-let stemFirstSoundTime = {}; // 스템별 첫 소리 위치 (초)
+let stemFirstSoundTime = {}; // 스템별 첫 소리 위치 (초) — peak > 0.01 임계
+let stemMusicalStart = {};    // 스템별 음악적 audible 위치 — peak ≥ 0.1 sustained 100ms (SFX 슬라이스용)
 let stemAudioBuffers = {};   // 스템별 디코딩된 AudioBuffer (곡 끝 빈노트용)
 let stemOnsetCache = {};     // 스템별 onset 결과 캐시
 
@@ -8487,6 +8496,7 @@ function startSong(idx) {
   noteSpeed = calcNoteSpeed(curSong.bpm, speedMul);
   generateNodes(curSong, curDiff);
   stemFirstSoundTime = {};
+  stemMusicalStart = {};
   stemAudioBuffers = {};
   stemOnsetCache = {};
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
@@ -8665,6 +8675,15 @@ function startSong(idx) {
             for (let k = j; k < end; k += 4) { const v = Math.abs(data[k]); if (v > peak) peak = v; }
             if (peak > 0.01) { stemFirstSoundTime[_si] = j / sr; break; }
           }
+          // ★ stemMusicalStart — peak ≥ 0.1 sustained 100ms (실제 음악적 audible).
+          //   SFX 카운트다운 슬라이스용. 노드 생성 여부 무관하게 일관된 audible 위치.
+          for (let j = 0; j < Math.min(data.length, sr * 60); j += bigChunk) {
+            let strongCount = 0, total = 0;
+            const end = Math.min(j + bigChunk, data.length);
+            for (let k = j; k < end; k += 4) { const v = Math.abs(data[k]); total++; if (v > 0.1) strongCount++; }
+            // 100ms 내 25% 이상 샘플이 0.1 초과 → 음악적으로 audible
+            if (total > 0 && strongCount / total > 0.25) { stemMusicalStart[_si] = j / sr; break; }
+          }
           if (!ALWAYS_AUDIBLE_STEMS.includes(_si)) {
             const winSize = Math.floor(sr * 0.5);
             const mapLen = Math.ceil(data.length / winSize);
@@ -8730,6 +8749,13 @@ function startSong(idx) {
                 const end = Math.min(j + bigChunk, data.length);
                 for (let k = j; k < end; k += 4) { const v = Math.abs(data[k]); if (v > peak) peak = v; }
                 if (peak > 0.01) { stemFirstSoundTime[_si] = j / sr; break; }
+              }
+              // ★ stemMusicalStart — peak ≥ 0.1 sustained 100ms (실제 음악적 audible).
+              for (let j = 0; j < Math.min(data.length, sr * 60); j += bigChunk) {
+                let strongCount = 0, total = 0;
+                const end = Math.min(j + bigChunk, data.length);
+                for (let k = j; k < end; k += 4) { const v = Math.abs(data[k]); total++; if (v > 0.1) strongCount++; }
+                if (total > 0 && strongCount / total > 0.25) { stemMusicalStart[_si] = j / sr; break; }
               }
               const winSize = Math.floor(sr * 0.5);
               const mapLen = Math.ceil(data.length / winSize);
