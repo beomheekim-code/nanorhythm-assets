@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501152507;
+window.__BUILD_TS = 20260501152931;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1974,11 +1974,13 @@ const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
-  // BGM 재생 중(카운트다운 끝난 후)에는 빈 노트 SFX 비활성 — 연타 시 오디오 소스 폭주로 지지직 소리 발생 방지
-  if (countdownTime <= 0 && !songLoading) return;
-  // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
+  // ★ 인게임 중 빈 레인 SFX = 카운트와 동일하게 stemMusicalStart 슬라이스.
+  //   사용자: "노트음 떨어지는 구간 그때 소리가 나야 돼 카운트때 나는 소리".
+  //   기존 50ms 쿨다운 + createBufferSource 자체 종료로 오디오 폭주 방지 충분.
+  // 연타 시 오디오 소스 폭주 방지: 80ms 쿨다운 (카운트 50ms 보다 살짝 보수적)
   const now = performance.now();
-  if (now - _lastEmptySfxTime < 50) return;
+  const _gateCd = (countdownTime > 0 || songLoading) ? 50 : 80;
+  if (now - _lastEmptySfxTime < _gateCd) return;
   _lastEmptySfxTime = now;
   resumeAudio(); // AudioContext resume 보장
   // BGM 종료 후: 무음
@@ -7721,7 +7723,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         let _sum = 0, _c = 0;
         for (let k = _start; k < _end; k += 8) { _sum += _data[k] * _data[k]; _c++; }
         const _rms = _c > 0 ? Math.sqrt(_sum / _c) : 0;
-        if (_rms < 0.025) { _phantomDropped++; continue; } // phantom — 실제 음악적 사운드 미만
+        if (_rms < 0.015) { _phantomDropped++; continue; } // phantom 임계 0.025 → 0.015. 작은 hi-hat / 췩췩 살림.
       }
       allOnsets.push({ time: t + bgmDelay, stem: _stemIdx });
     }
