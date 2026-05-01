@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501025155;
+window.__BUILD_TS = 20260501030512;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7567,12 +7567,12 @@ function spawnBurst(x, y, grade) {
 }
 
 // ===== ONSET DETECTION =====
-function detectOnsets(audioBuffer, sensitivity = 1.1) {
+function detectOnsets(audioBuffer, sensitivity = 1.1, minGapMs = 30) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
   const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
-  const minGapSamples = Math.floor(sr * 0.03); // 30ms 최소 간격
+  const minGapSamples = Math.floor(sr * (minGapMs / 1000)); // 기본 30ms, sustain 합치려면 50~80ms
   const onsets = [];
   let smoothed = 0;
   let lastOnset = -minGapSamples * 2;
@@ -7729,12 +7729,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // ===== 자동 ambient/조용한 구간 필터 =====
-  // MUSICAL_STEMS 중 하나라도 절대 RMS > 0.003 인 버킷만 "음악적"으로 판정
+  // MUSICAL_STEMS 중 하나라도 절대 RMS > floor 인 버킷만 "음악적"으로 판정
   // 조용한 구간(intro, outro, 새소리 등)은 onset 자동 drop
   if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
     const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
     const BUCKET_SEC = 0.5;
-    const ABS_FLOOR = 0.02; // 사람이 들리는 수준
+    const ABS_FLOOR = 0.03; // ★ 0.02 → 0.03 상향 — 더 strict, quiet 구간 (조용한 break) 노트 떨어짐 차단
     const stemBucketRms = {};
     let maxBuckets = 0;
     for (const si of MUSICAL_STEMS) {
@@ -8036,10 +8036,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
     // 동시 노트 (chord): chordMode 활성 + extra onset 보유 + 에너지 상위 구간
     if (song.chordMode && o.extra && o.extra.length > 0 && nd.type === 'note') {
-      const chordGap = song.chordMinGap || 2.0;
+      const chordGap = song.chordMinGap || 1.0; // ★ 2.0 → 1.0 — chord 더 자주 (사용자: "2개 떨어져야 하는데 1개")
       if (!_lastChordTime || (o.time - _lastChordTime) >= chordGap) {
         const avgEnergy = filtered.reduce((s, x) => s + (x.energy || 0), 0) / filtered.length;
-        if ((o.energy || 0) >= avgEnergy * 1.3) {
+        if ((o.energy || 0) >= avgEnergy * 1.15) { // ★ 1.3 → 1.15 — energy 임계값 완화
           const ex = o.extra[0];
           let cLane = (lane + 1 + Math.floor(rng() * (lc - 1))) % lc;
           nodes.push({
@@ -8535,12 +8535,13 @@ function startSong(idx) {
       const _strongOnsetsPerSec = _songDur > 0 ? (_drumCnt + _instrumCnt) / _songDur : 0;
       if (_strongOnsetsPerSec < 2 && _songDur > 0) {
         console.log('[onsets] sparse song detected (drum+instrum ' + _strongOnsetsPerSec.toFixed(2) + ' onsets/sec) — re-detecting with sensitivity 1.05');
+        // minGap 50ms — sustain tail / reverb 같은 한 음의 여러 transient 를 합쳐 "따란~ 1개" 가 1 onset 으로
         if (stemAudioBuffers[0]) {
-          onsetsByStem[0] = detectOnsets(stemAudioBuffers[0], 1.05);
+          onsetsByStem[0] = detectOnsets(stemAudioBuffers[0], 1.05, 50);
           console.log('Stem 0 drums (sensitive):', onsetsByStem[0].length, 'onsets');
         }
         if (stemAudioBuffers[3]) {
-          onsetsByStem[3] = detectOnsets(stemAudioBuffers[3], 1.05);
+          onsetsByStem[3] = detectOnsets(stemAudioBuffers[3], 1.05, 50);
           console.log('Stem 3 instrum (sensitive):', onsetsByStem[3].length, 'onsets');
         }
       }
