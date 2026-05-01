@@ -8516,10 +8516,10 @@ function startSong(idx) {
       const onsetsByStem = {};
       for (let i = 0; i < stemNames.length; i++) {
         if (stemAudioBuffers[i]) {
-          // instrum (3) / piano (4) / guitar (5): minGap 50ms — sustained note 의 짧은 transient 합침
-          //   (Cherry Blossom 도입부 melody 가 1 음을 여러 onset 으로 분리되던 문제 fix)
+          // instrum (3) / piano (4) / guitar (5): minGap 80ms — sustained note 의 짧은 transient 합침
+          //   (50ms 부족 — Cherry Blossom 도입부 melody 여전히 dense 한 사용자 보고 후 80ms 상향)
           // drum (0) / bass (1) / vocals (2) / other (6): default 30ms — 빠른 transient (drum 두둥 등) 분리 유지
-          const _gap = (i === 3 || i === 4 || i === 5) ? 50 : 30;
+          const _gap = (i === 3 || i === 4 || i === 5) ? 80 : 30;
           onsetsByStem[i] = detectOnsets(stemAudioBuffers[i], 1.1, _gap);
           console.log('Stem', i, stemNames[i], ':', onsetsByStem[i].length, 'onsets, first:', onsetsByStem[i][0]?.toFixed(2) + 's');
         } else {
