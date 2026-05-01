@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501145424;
+window.__BUILD_TS = 20260501145949;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7897,9 +7897,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   allOnsets.sort((a, b) => a.time - b.time);
 
-  // ★ 난이도 변수 사전 — 지옥은 32분 grid (두둥 같은 sub-16분 연속 비트 살림)
-  const _isHell = (diff.noteDensity || 0) > 1.1;
-  const _baseGrid = _isHell ? sixteenth * 0.5 : sixteenth; // 지옥 32분 / 그외 16분
+  // ★ baseGrid 16분음표 (모든 난이도). 두둥 같은 연속 비트는 slot multi-pick 으로 살림.
+  //   32분 grid 시도 → gridTol ±35% = ±9ms 너무 좁음 → 정상 비트 30% drop. 16분 복귀.
+  const _baseGrid = sixteenth;
 
   // ★ 박자 grid tolerance filter — onset 가 grid 에 ±tolerance 이내일 때만 keep.
   //   sustain tail / 새소리 / 앰비언트 noise / 박자 외 잡음 자동 drop.
@@ -7965,13 +7965,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   //   곡별 song.hellMaxGrid override 옵션 (특수 케이스용, 사용자가 직접 sparse 원할 때만):
   //     'eighth' → 8분음표 / 'eighth-dotted' → 점8분음표
   const density = diff.noteDensity;
-  // ★ 지옥 default 32분음표 — 두둥 (sub-16분 연속 비트) 양쪽 다른 슬롯에 들어가 둘 다 keep.
-  //   사용자: "비트가 연속으로 되는건 하나만 나오고" → fix.
-  let _hellMinGap = sixteenth * 0.5; // default 32분음표
+  // 지옥 minGap = 16분음표 (slot 단위). 연속 비트는 slot multi-pick 으로 살림.
+  let _hellMinGap = sixteenth;
   if (density > 0.8 && song.hellMaxGrid) {
     if (song.hellMaxGrid === 'eighth') _hellMinGap = sixteenth * 2;
     else if (song.hellMaxGrid === 'eighth-dotted') _hellMinGap = sixteenth * 1.5;
-    else if (song.hellMaxGrid === 'sixteenth') _hellMinGap = sixteenth; // 옛 16분 모드 override
   }
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움/보통: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 어려움: 8분음표
