@@ -8516,11 +8516,11 @@ function startSong(idx) {
       const onsetsByStem = {};
       for (let i = 0; i < stemNames.length; i++) {
         if (stemAudioBuffers[i]) {
-          // instrum (3) / piano (4) / guitar (5): sensitivity 1.2 (더 strict — Cherry Blossom 도입부 여전히 dense) + minGap 80ms
+          // instrum (3) / piano (4) / guitar (5): sensitivity 1.3 (very strict — Cherry Blossom 여전히 dense 한 추가 fix) + minGap 80ms
           // drum (0) / bass (1) / vocals (2) / other (6): default sensitivity 1.1 + 30ms
           const _melody = (i === 3 || i === 4 || i === 5);
           const _gap = _melody ? 80 : 30;
-          const _sens = _melody ? 1.2 : 1.1;
+          const _sens = _melody ? 1.3 : 1.1;
           onsetsByStem[i] = detectOnsets(stemAudioBuffers[i], _sens, _gap);
           console.log('Stem', i, stemNames[i], ':', onsetsByStem[i].length, 'onsets, first:', onsetsByStem[i][0]?.toFixed(2) + 's');
         } else {
