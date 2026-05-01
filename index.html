@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501153150;
+window.__BUILD_TS = 20260501153657;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2026,9 +2026,10 @@ function playEmptyPressSfx(lane) {
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
           src.connect(gain); gain.connect(actx.destination);
-          // ★ 빈 레인 SFX = stemMusicalStart (peak≥0.1 sustained 100ms — 노드 생성 여부 무관, 항상 audible).
-          //   첫 노트 위치는 너무 이른 (인트로) 시점일 수 있어 무음 → 일관된 stemMusicalStart 사용.
-          const offset = stemMusicalStart[si] || stemFirstSoundTime[si] || 0;
+          // ★ 빈 레인 SFX = 그 레인의 첫 노트 stem 위치 우선 (per-lane 분배).
+          //   nodes 생성 전 fallback: stemMusicalStart (loud audible point).
+          //   사용자: "첫 시작 노트음들로 분배" — per-lane 별로 그 레인의 첫 stem audio.
+          const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
         }
       } else {
@@ -7730,7 +7731,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         let _sum = 0, _c = 0;
         for (let k = _rmsStart; k < _rmsEnd; k += 8) { _sum += _data[k] * _data[k]; _c++; }
         const _rms = _c > 0 ? Math.sqrt(_sum / _c) : 0;
-        if (_rms < 0.015) { _phantomDropped++; continue; }
+        if (_rms < 0.010) { _phantomDropped++; continue; } // 0.015 → 0.010. 췩췩 더 살림.
         // 2. Attack sharpness (melody only)
         if (_isMelody) {
           const _beforeStart = Math.max(0, _onsetSample - _attackWin);
