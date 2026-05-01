@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501213212;
+window.__BUILD_TS = 20260501213642;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8315,7 +8315,7 @@ function _warmupFeverGpu() {
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
   // 곡 시작 시 캐릭터 상태 리셋 (Sera 인트로 다시 재생되게)
-  _charKeyCount = 0; _charLastHitT = 0; _seraIntroT = 0; _seraLastStrikeFireT = 0; _seraStrikeIdx = 0;
+  _charKeyCount = 0; _charLastHitT = 0; _seraIntroT = 0; _seraStrikeFireT = 0; _seraStrikeIdx = 0;
   // ★ 피버 파이프라인 프리웜 — 첫 피버 activation 시 gradient/text/shadow JIT 로 발생하는
   //   1회성 버벅임 방지. 로딩 시작 시점에 오프스크린 canvas 에서 미리 처리.
   _warmupFeverGpu();
@@ -11106,21 +11106,21 @@ let _charLastHitT = 0;       // 마지막 hit 시각 (strike 자세 유지용)
 let _charMissT = 0;          // 마지막 miss 시각 (푸른 flash 용)
 const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
 const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
-let _seraIntroT = 0; // 첫 hit 시점
-let _seraStrikeIdx = 0; // 0=near, 1=far
-let _seraLastStrikeFireT = 0; // 마지막 strike 발사 시점 (1초 쿨타임)
+let _seraIntroT = 0;
+let _seraStrikeIdx = 0;
+let _seraStrikeFireT = 0;
+const SERA_STRIKE_DURATION = 250; // strike 재생 총 시간 (이 시간 안 hit 무시)
 function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
   _charLastHitT = now;
   if (_charKeyCount === 1) _seraIntroT = now;
-  // Sera 쿨타임: 마지막 strike 발사 후 1초 지난 hit 만 새 strike 발사 (alternated).
-  // 1초 안 hit 들은 strike 발사 안 함 (아무것도 안 일어남, strike_idle 유지).
+  // Sera: strike 재생 끝나야 새 strike fire (alternated). 재생 중 hit 무시.
   const cs = _getCharacterSkin();
-  if (cs && cs.customAnim === 'sera_v1' && _charKeyCount >= 2 && now - _seraIntroT >= 200) {
-    if (now - _seraLastStrikeFireT >= 1000) {
+  if (cs && cs.customAnim === 'sera_v1' && _charKeyCount >= 2 && now - _seraIntroT >= 120) {
+    if (now - _seraStrikeFireT >= SERA_STRIKE_DURATION) {
       _seraStrikeIdx ^= 1;
-      _seraLastStrikeFireT = now;
+      _seraStrikeFireT = now;
     }
   }
 }
@@ -11199,18 +11199,19 @@ function renderCharacter() {
     const sinceIntro = now - _seraIntroT;
     if (_charKeyCount === 0) {
       key = 'idle';
-    } else if (sinceIntro < 200) {
-      // 첫 hit 후 200ms 인트로 sequence (더 빠르게)
-      if (sinceIntro < 40) key = 'idle';                  // 0~40ms idle
-      else if (sinceIntro < 120) key = 'standbyNear1';    // 40~120ms standby_1 (80ms)
-      else key = 'standbyNear2';                          // 120~200ms standby_2 (80ms)
+    } else if (sinceIntro < 120) {
+      // 인트로 sequence — 빠르게 (총 120ms)
+      if (sinceIntro < 20) key = 'idle';                  // 0~20ms idle
+      else if (sinceIntro < 60) key = 'standbyNear1';     // 20~60ms standby_1 (40ms)
+      else key = 'standbyNear2';                          // 60~120ms standby_2 (60ms)
     } else {
-      // 인트로 끝난 후: strike fire 후 50ms strike pose, 그 후 strike_idle.
-      // 1초 쿨타임 — _seraLastStrikeFireT 가 last strike 시점.
-      const sinceFire = now - _seraLastStrikeFireT;
-      if (_seraLastStrikeFireT > 0 && sinceFire < 50) {
+      // 인트로 끝난 후: strike playback (강제 재생, 중단 안 됨).
+      const sinceFire = now - _seraStrikeFireT;
+      if (_seraStrikeFireT > 0 && sinceFire < 120) {
+        // 0~120ms strike pose
         key = _seraStrikeIdx === 0 ? 'strikeNear' : 'strikeFar';
       } else {
+        // strike pose 끝났거나 아직 fire 안 함 — strike_idle
         key = 'strikeIdle';
       }
     }
