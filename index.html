@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501152931;
+window.__BUILD_TS = 20260501153130;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1043,7 +1043,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@0fac1c0/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@887eec6/';
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -7704,31 +7704,53 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
-  // ★ Per-onset local RMS filter — onset 위치 ±50ms 의 RMS < 0.025 면 phantom (spike-only 잡음 / decay tail).
-  //   stemFirstSoundTime 임계 너무 낮아 (0.01) 이전 phantom drop 무효. 실제 사운드 강도 직접 검증.
-  //   사용자 보고: 인트로 음 인식 전 4개 phantom 노트.
+  // ★ Per-onset filters:
+  //   1. Local RMS — onset 위치 ±50ms RMS < 0.015 면 drop (phantom / spike-only 잡음).
+  //   2. Attack sharpness (melody stems 3/4/5 만) — onset 직전 20ms vs 직후 20ms 에너지 비율 < 2.5 면 drop.
+  //      바이올린/패드 같은 gradual attack sustain → drop. 피아노 staccato 같은 sharp attack → keep.
+  //      사용자: "instrum 7초 바이올린 비슷한 소리 노트 없어야 해".
   let allOnsets = [];
   let _phantomDropped = 0;
+  let _sustainDropped = 0;
   for (const si in onsetsByStem) {
     if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
     const _stemIdx = Number(si);
+    const _isMelody = (_stemIdx === 3 || _stemIdx === 4 || _stemIdx === 5);
     const _buf = stemAudioBuffers[_stemIdx];
     const _data = _buf ? _buf.getChannelData(0) : null;
     const _sr = _buf ? _buf.sampleRate : 44100;
-    const _winSamples = Math.floor(_sr * 0.1); // 100ms window centered on onset
+    const _rmsWin = Math.floor(_sr * 0.1); // 100ms window
+    const _attackWin = Math.floor(_sr * 0.02); // 20ms window
     for (const t of onsetsByStem[si]) {
       if (_data) {
-        const _start = Math.max(0, Math.floor(t * _sr) - _winSamples / 2);
-        const _end = Math.min(_data.length, _start + _winSamples);
+        // 1. Local RMS
+        const _onsetSample = Math.floor(t * _sr);
+        const _rmsStart = Math.max(0, _onsetSample - _rmsWin / 2);
+        const _rmsEnd = Math.min(_data.length, _rmsStart + _rmsWin);
         let _sum = 0, _c = 0;
-        for (let k = _start; k < _end; k += 8) { _sum += _data[k] * _data[k]; _c++; }
+        for (let k = _rmsStart; k < _rmsEnd; k += 8) { _sum += _data[k] * _data[k]; _c++; }
         const _rms = _c > 0 ? Math.sqrt(_sum / _c) : 0;
-        if (_rms < 0.015) { _phantomDropped++; continue; } // phantom 임계 0.025 → 0.015. 작은 hi-hat / 췩췩 살림.
+        if (_rms < 0.015) { _phantomDropped++; continue; }
+        // 2. Attack sharpness (melody only)
+        if (_isMelody) {
+          const _beforeStart = Math.max(0, _onsetSample - _attackWin);
+          const _beforeEnd = _onsetSample;
+          const _afterStart = _onsetSample;
+          const _afterEnd = Math.min(_data.length, _onsetSample + _attackWin);
+          let _bSum = 0, _bC = 0, _aSum = 0, _aC = 0;
+          for (let k = _beforeStart; k < _beforeEnd; k += 4) { _bSum += _data[k] * _data[k]; _bC++; }
+          for (let k = _afterStart; k < _afterEnd; k += 4) { _aSum += _data[k] * _data[k]; _aC++; }
+          const _bRms = _bC > 0 ? Math.sqrt(_bSum / _bC) : 0.0001;
+          const _aRms = _aC > 0 ? Math.sqrt(_aSum / _aC) : 0;
+          const _attackRatio = _aRms / Math.max(_bRms, 0.0001);
+          if (_attackRatio < 2.5) { _sustainDropped++; continue; } // gradual attack — sustain 악기, drop
+        }
       }
       allOnsets.push({ time: t + bgmDelay, stem: _stemIdx });
     }
   }
   if (_phantomDropped > 0) console.log('[phantomDrop] ' + _phantomDropped + ' weak onsets dropped for ' + song.name);
+  if (_sustainDropped > 0) console.log('[sustainDrop] ' + _sustainDropped + ' melody sustain onsets dropped for ' + song.name);
   // vocal ranges 안의 vocals onset 포함
   if (vocalRanges.length > 0 && onsetsByStem[2]) {
     let added = 0;
