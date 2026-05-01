@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501161949;
+window.__BUILD_TS = 20260501162418;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7666,9 +7666,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
           const mark = (!musical && vocal) ? ' VOCAL-ONLY' : (musical ? ' music' : ' silent');
           dumpRows.push(`  ${t}s: voc=${v} dr=${d0} bs=${d1} in=${d3} pn=${d4} gt=${d5}${mark}`);
         }
-        console.log('[vocalIntro auto] RMS dump for ' + song.name + ':
-' + dumpRows.join('
-'));
+        console.log('[vocalIntro auto] RMS dump for ' + song.name + ':\n' + dumpRows.join('\n'));
       }
 
       // 연속 구간 찾기 (최소 MIN_RUN 버킷)
