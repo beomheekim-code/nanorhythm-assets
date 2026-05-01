@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501144049;
+window.__BUILD_TS = 20260501144651;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7732,7 +7732,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   if (typeof stemAudioBuffers === 'object' && stemAudioBuffers) {
     const MUSICAL_STEMS = [0, 1, 3, 4, 5]; // drums, bass, instrum, piano, guitar
     const BUCKET_SEC = 0.5;
-    const ABS_FLOOR = 0.03; // ★ 0.025 → 0.03 — Cherry Blossom 도입부 instrum 0.026 drop. 노트 적정 우선.
     const stemBucketRms = {};
     let maxBuckets = 0;
     for (const si of MUSICAL_STEMS) {
@@ -7751,6 +7750,28 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       }
       stemBucketRms[si] = arr;
     }
+    // ★ Adaptive ambient floor — 곡별 자동 calibration.
+    //   각 슬롯의 max(stem RMS) 분포 → 전체 mean × 0.4. 최소 0.025.
+    //   시끄러운 곡은 floor 자동으로 높여 잡음 컷, 조용한 곡은 0.025 유지.
+    //   사용자: "조용한 부분은 안나오는게 맞지" → fix.
+    let _adaptiveFloor = 0.025;
+    {
+      const _slotMaxRms = [];
+      for (let b = 0; b < maxBuckets; b++) {
+        let mx = 0;
+        for (const si of MUSICAL_STEMS) {
+          const arr = stemBucketRms[si];
+          if (arr && (arr[b] || 0) > mx) mx = arr[b];
+        }
+        if (mx > 0.005) _slotMaxRms.push(mx); // 0.005 미만은 진짜 무음 — mean 왜곡 방지
+      }
+      if (_slotMaxRms.length > 0) {
+        const _mean = _slotMaxRms.reduce((s,x) => s+x, 0) / _slotMaxRms.length;
+        _adaptiveFloor = Math.max(0.025, _mean * 0.4);
+      }
+    }
+    const ABS_FLOOR = _adaptiveFloor;
+    console.log('[ambientFloor] adaptive=' + _adaptiveFloor.toFixed(4) + ' for ' + song.name);
     const isMusical = [];
     for (let b = 0; b < maxBuckets; b++) {
       let musical = false;
@@ -7952,6 +7973,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움/보통: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 어려움: 8분음표
                : _hellMinGap;                       // 지옥: 32분 default + override
+  // ★ 지옥은 슬롯당 multi-pick — strong onset 최대 2개까지 keep (slot 평균 × 1.2 이상).
+  //   두둥 같은 sub-슬롯 연속 비트 둘 다 살림. 사용자: "연속비트는 그에 맞게 노트 나와야하고".
+  const _slotMultiPick = (density > 1.1);
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
@@ -7960,16 +7984,26 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     let nsIdx = 0;
     while (slotStart < songEnd + minGap) {
       const slotEnd = slotStart + minGap;
-      let best = null, bestEnergy = -1;
+      const slotItems = [];
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
-        if (nonSilent[nsIdx].time >= slotStart && nonSilent[nsIdx].energy > bestEnergy) {
-          best = nonSilent[nsIdx]; bestEnergy = nonSilent[nsIdx].energy;
-        }
+        if (nonSilent[nsIdx].time >= slotStart) slotItems.push(nonSilent[nsIdx]);
         nsIdx++;
       }
-      if (best) filtered.push(best);
+      if (slotItems.length === 0) { slotStart = slotEnd; continue; }
+      slotItems.sort((a, b) => (b.energy || 0) - (a.energy || 0));
+      filtered.push(slotItems[0]);
+      // 지옥 + 슬롯에 2개 이상 + 2번째 onset 도 의미있게 강하면 둘 다 keep (두둥 살림)
+      if (_slotMultiPick && slotItems.length >= 2) {
+        const e1 = slotItems[0].energy || 0;
+        const e2 = slotItems[1].energy || 0;
+        // 1번째의 80% 이상 + 시간 간격 32분음표 이상 → 진짜 두 번째 비트로 간주
+        if (e2 >= e1 * 0.8 && Math.abs(slotItems[1].time - slotItems[0].time) >= sixteenth * 0.4) {
+          filtered.push(slotItems[1]);
+        }
+      }
       slotStart = slotEnd;
     }
+    filtered.sort((a, b) => a.time - b.time);
   }
 
   // ===== "따단" 패턴 복구 (815d64e 원본 방식, 매우 엄격) =====
