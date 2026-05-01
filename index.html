@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501165023;
+window.__BUILD_TS = 20260501165733;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2771,8 +2771,8 @@ const songs = [
     pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1],
     chordMode: true,
     melodySensitivity: 1.3, // instrum/guitar 신디 임계 ↑
-    stemSensitivity: { 4: 1.05 }, // piano 만 매우 lenient (연속 박자 다 잡힘)
-    hellSubdivision: 0.5, // 지옥 슬롯 32분 (따라라라 빠른 melody run 살림)
+    stemSensitivity: { 4: 1.02 }, // piano 매우 매우 lenient (1.05 → 1.02)
+    hellSubdivision: 0.25, // 지옥 슬롯 64분 (따라라라 빠른 run 다 살림)
   },
   {
     name: 'Spin', sub: 'JAZZ / SLOW', bpm: 78,
@@ -2787,8 +2787,8 @@ const songs = [
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
     vocalIntroRange: 'auto', chordMode: true,
     melodySensitivity: 1.3, // instrum/guitar 신디 임계 ↑
-    stemSensitivity: { 6: 1.05 }, // other 만 매우 lenient (연속 박자 다 잡힘)
-    hellSubdivision: 0.5, // 지옥 슬롯 32분 (따라라라 빠른 melody run 살림)
+    stemSensitivity: { 6: 1.02 }, // other 매우 매우 lenient (1.05 → 1.02)
+    hellSubdivision: 0.25, // 지옥 슬롯 64분 (빠른 run 다 살림)
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
