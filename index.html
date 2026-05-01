@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501154828;
+window.__BUILD_TS = 20260501155523;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7764,7 +7764,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
         const _bRms = _bC > 0 ? Math.sqrt(_bSum / _bC) : 0.0001;
         const _aRms = _aC > 0 ? Math.sqrt(_aSum / _aC) : 0;
         const _attackRatio = _aRms / Math.max(_bRms, 0.0001);
-        if (_attackRatio < 2.5) { _sustainDropped++; continue; }
+        if (_attackRatio < 1.5) { _sustainDropped++; continue; } // 2.5 → 1.5. 빠른 hi-hat 시리즈 (이전 decay 때문에 ratio 낮음) 살림. violin sustain (~1.2) 은 여전히 drop.
       }
       allOnsets.push({ time: t + bgmDelay, stem: _stemIdx });
     }
