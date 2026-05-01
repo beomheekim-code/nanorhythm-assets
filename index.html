@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501212427;
+window.__BUILD_TS = 20260501212555;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11205,8 +11205,9 @@ function renderCharacter() {
       else if (sinceIntro < 500) key = 'standbyNear1';    // 200~500ms standby_1 (300ms)
       else key = 'standbyNear2';                          // 500~800ms standby_2 (300ms)
     } else {
-      // 인트로 끝난 후: strike cycle. 1초 쿨타임 alternate (notifyCharacterHit 에서 _seraStrikeIdx 관리).
-      if (sinceHit < 150) {
+      // 인트로 끝난 후: strike cycle. 1초 쿨타임 alternate.
+      // strike 50ms 만 표시 후 strike_idle (빠른 hit 에서도 idle 잠깐 visible 보장).
+      if (sinceHit < 50) {
         key = _seraStrikeIdx === 0 ? 'strikeNear' : 'strikeFar';
       } else {
         key = 'strikeIdle';
