@@ -8034,10 +8034,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
     // 동시 노트 (chord): chordMode 활성 + extra onset 보유 + 에너지 상위 구간
     if (song.chordMode && o.extra && o.extra.length > 0 && nd.type === 'note') {
-      const chordGap = song.chordMinGap || 1.5; // ★ 1.0 → 1.5 — chord 살짝 strict (사용자: "노트 너무 많다")
+      const chordGap = song.chordMinGap || 1.0; // ★ 2.0 → 1.0 — chord 더 자주 (사용자: "2개 떨어져야 하는데 1개")
       if (!_lastChordTime || (o.time - _lastChordTime) >= chordGap) {
         const avgEnergy = filtered.reduce((s, x) => s + (x.energy || 0), 0) / filtered.length;
-        if ((o.energy || 0) >= avgEnergy * 1.2) { // ★ 1.15 → 1.2 — energy 임계값 strict
+        if ((o.energy || 0) >= avgEnergy * 1.15) { // ★ 1.3 → 1.15 — energy 임계값 완화
           const ex = o.extra[0];
           let cLane = (lane + 1 + Math.floor(rng() * (lc - 1))) % lc;
           nodes.push({
