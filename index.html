@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501205252;
+window.__BUILD_TS = 20260501205755;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2770,9 +2770,9 @@ const songs = [
     endCutoff: 163.2,
     pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1],
     chordMode: true,
-    // 특단: stem priority 제거. 슬롯당 가장 쎈 onset (에너지 max) 만 win.
-    // 모든 stem 비슷한 strict 로 false positive 막고, 진짜 강한 hit 만 살림.
-    stemSensitivity: { 0: 1.5, 3: 1.5, 4: 1.05, 5: 1.5 },
+    // 특단: stem priority 제거. 슬롯당 가장 쎈 onset (localEnergy max) 만 win.
+    // bass (1623 onsets) + other (1343) sens 1.1 default 였음 → strict 화.
+    stemSensitivity: { 0: 1.5, 1: 1.7, 3: 1.5, 4: 1.05, 5: 1.5, 6: 1.7 },
     stemMinGap: { 4: 60 }, // piano: decay re-trigger 차단
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 47ms@161BPM)
     // slotStemPriority 제거: 순수 energy 기반 picker (가장 쎈 음만)
