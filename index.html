@@ -15846,7 +15846,7 @@ document.addEventListener('visibilitychange', () => {
     // 복귀 시 dt 스파이크 방지
     lastTime = 0;
     // 복귀 시: 인게임이 아닌 오디오만 자동 복원 (인게임은 resumeGame으로 처리)
-    if (bgAudioState.titleBgm && state !== 'playing') { titleBgm.play().catch(()=>{}); }
+    if (bgAudioState.titleBgm && state === 'title') { titleBgm.play().catch(()=>{}); } // ★ !== 'playing' → === 'title' — 패치/select 화면에서 titleBgm 잘못 재생 차단
     if (bgAudioState.rankingBgm && state === 'ranking' && rankingBgm) { rankingBgm.play().catch(()=>{}); }
     if (bgAudioState.shopBgm && state === 'shop' && shopBgm) { shopBgm.play().catch(()=>{}); }
     if (bgAudioState.achievementBgm && state === 'achievement' && achievementBgm) { achievementBgm.play().catch(()=>{}); }
