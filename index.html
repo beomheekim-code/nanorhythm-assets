@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501145104;
+window.__BUILD_TS = 20260501145405;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7770,7 +7770,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       }
       if (_slotMaxRms.length > 0) {
         const _mean = _slotMaxRms.reduce((s,x) => s+x, 0) / _slotMaxRms.length;
-        _adaptiveFloor = Math.max(0.025, _mean * 0.4);
+        _adaptiveFloor = Math.max(0.025, _mean * 0.3); // 0.4 → 0.3 — 정상 비트 살림
       }
     }
     const ABS_FLOOR = _adaptiveFloor;
@@ -7906,7 +7906,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   //   "리듬이랑 맞아야지" — 박자 정확한 onset 만 노트화.
   //   _baseGrid (지옥 32분 / 그외 16분) ±25% 이내면 박자, 그 외는 drop.
   {
-    const _gridTol = _baseGrid * 0.25;
+    const _gridTol = _baseGrid * 0.35; // 0.25 → 0.35 — 인간 연주 swing 살림
     const _before = allOnsets.length;
     allOnsets = allOnsets.filter(o => {
       if (o._forceHold || o._forceTap) return true;
