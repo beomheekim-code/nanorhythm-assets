@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501141657;
+window.__BUILD_TS = 20260501142644;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7873,17 +7873,49 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   allOnsets.sort((a, b) => a.time - b.time);
 
-  // ★ 박자 grid tolerance filter — onset 가 16분음표 grid 에 ±tolerance 이내일 때만 keep.
+  // ★ 난이도 변수 사전 — 지옥은 32분 grid (두둥 같은 sub-16분 연속 비트 살림)
+  const _isHell = (diff.noteDensity || 0) > 1.1;
+  const _baseGrid = _isHell ? sixteenth * 0.5 : sixteenth; // 지옥 32분 / 그외 16분
+
+  // 에너지 부여 — 먼저 (percentile filter 위해)
+  if (energyMap && energyMap.length > 0) {
+    for (const o of allOnsets) {
+      const eIdx = Math.min(Math.floor((o.time - bgmDelay) / 0.5), energyMap.length - 1);
+      o.energy = eIdx >= 0 ? energyMap[eIdx] : 1;
+    }
+  } else {
+    for (const o of allOnsets) o.energy = 1;
+  }
+
+  // ★ Energy percentile filter — 곡 전체 onset 에너지 분포에서 하위 X% drop.
+  //   조용한 구간 (intro 새소리 / outro reverb / 앰비언트 잡음) 자동 정리.
+  //   사용자: "나오지 않아야하는 곳은 많이나오고 이상해" → fix.
+  //     지옥(>1.1): 하위 15% / 어려움(0.8~1.1): 25% / 보통(0.5~0.8): 40% / 쉬움(<=0.5): 55%
+  if (allOnsets.length > 30) {
+    const _density = diff.noteDensity || 0;
+    const _cutPct = _density > 1.1 ? 0.15 : _density > 0.8 ? 0.25 : _density > 0.5 ? 0.40 : 0.55;
+    const _energies = allOnsets.filter(o => !(o._forceHold || o._forceTap)).map(o => o.energy || 0).sort((a,b) => a-b);
+    if (_energies.length > 0) {
+      const _cutEnergy = _energies[Math.floor(_energies.length * _cutPct)];
+      const _before = allOnsets.length;
+      allOnsets = allOnsets.filter(o => (o._forceHold || o._forceTap) || (o.energy || 0) >= _cutEnergy);
+      if (_before !== allOnsets.length) {
+        console.log('[energyPct] ' + (_before - allOnsets.length) + ' low-energy onsets dropped for ' + song.name + ' (cut=' + _cutEnergy.toFixed(3) + ', pct=' + (_cutPct*100).toFixed(0) + '%, kept ' + allOnsets.length + '/' + _before + ')');
+      }
+    }
+  }
+
+  // ★ 박자 grid tolerance filter — onset 가 grid 에 ±tolerance 이내일 때만 keep.
   //   sustain tail / 새소리 / 앰비언트 noise / 박자 외 잡음 자동 drop.
-  //   "리듬이랑 맞아야지" — 박자 정확한 onset 만 노트화 (체리블라썸 인트로 dense fix).
-  //   16분음표 ±25% 이내면 박자, 그 외는 drop.
+  //   "리듬이랑 맞아야지" — 박자 정확한 onset 만 노트화.
+  //   _baseGrid (지옥 32분 / 그외 16분) ±25% 이내면 박자, 그 외는 drop.
   {
-    const _gridTol = sixteenth * 0.25;
+    const _gridTol = _baseGrid * 0.25;
     const _before = allOnsets.length;
     allOnsets = allOnsets.filter(o => {
       if (o._forceHold || o._forceTap) return true;
       const rel = o.time - bgmDelay;
-      const grid = Math.round(rel / sixteenth) * sixteenth;
+      const grid = Math.round(rel / _baseGrid) * _baseGrid;
       return Math.abs(rel - grid) <= _gridTol;
     });
     if (_before !== allOnsets.length) {
@@ -7891,14 +7923,14 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     }
   }
 
-  // BPM 그리드에 퀀타이즈 (16분음표). 수동 intro 노트(_forceHold/_forceTap)는 정확한 시점 유지.
+  // 그리드에 퀀타이즈 (지옥 32분 / 그외 16분). 수동 intro 노트(_forceHold/_forceTap)는 정확한 시점 유지.
   for (const o of allOnsets) {
     if (o._forceHold || o._forceTap) continue;
     const rel = o.time - bgmDelay;
-    o.time = Math.round(rel / sixteenth) * sixteenth + bgmDelay;
+    o.time = Math.round(rel / _baseGrid) * _baseGrid + bgmDelay;
   }
 
-  // 에너지 부여
+  // 에너지 재할당 (quantize 후) — 시간 변경됐으니 bucket idx 갱신
   if (energyMap && energyMap.length > 0) {
     for (const o of allOnsets) {
       const eIdx = Math.min(Math.floor((o.time - bgmDelay) / 0.5), energyMap.length - 1);
@@ -7937,14 +7969,17 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   //   곡별 song.hellMaxGrid override 옵션 (특수 케이스용, 사용자가 직접 sparse 원할 때만):
   //     'eighth' → 8분음표 / 'eighth-dotted' → 점8분음표
   const density = diff.noteDensity;
-  let _hellMinGap = sixteenth; // default 16분음표 (박자 매치)
+  // ★ 지옥 default 32분음표 — 두둥 (sub-16분 연속 비트) 양쪽 다른 슬롯에 들어가 둘 다 keep.
+  //   사용자: "비트가 연속으로 되는건 하나만 나오고" → fix.
+  let _hellMinGap = sixteenth * 0.5; // default 32분음표
   if (density > 0.8 && song.hellMaxGrid) {
     if (song.hellMaxGrid === 'eighth') _hellMinGap = sixteenth * 2;
     else if (song.hellMaxGrid === 'eighth-dotted') _hellMinGap = sixteenth * 1.5;
+    else if (song.hellMaxGrid === 'sixteenth') _hellMinGap = sixteenth; // 옛 16분 모드 override
   }
   const minGap = density <= 0.5 ? sixteenth * 4    // 쉬움/보통: 4분음표
                : density <= 0.8 ? sixteenth * 2    // 어려움: 8분음표
-               : _hellMinGap;                       // 지옥: 자동 + override
+               : _hellMinGap;                       // 지옥: 32분 default + override
   const filtered = [];
   if (nonSilent.length > 0) {
     const songStart = nonSilent[0].time;
