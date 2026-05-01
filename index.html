@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501204830;
+window.__BUILD_TS = 20260501205225;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2770,11 +2770,12 @@ const songs = [
     endCutoff: 163.2,
     pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1],
     chordMode: true,
-    // piano (4) 만 lenient — 다른 stem 은 매우 strict 로 piano-only 구간 false positive 완전 차단
-    stemSensitivity: { 0: 1.7, 3: 1.8, 4: 1.05, 5: 1.8 },
-    stemMinGap: { 4: 60 }, // piano: 30→60ms (decay 안 re-trigger 차단, 1 piano 음 = 1 onset)
+    // 특단: stem priority 제거. 슬롯당 가장 쎈 onset (에너지 max) 만 win.
+    // 모든 stem 비슷한 strict 로 false positive 막고, 진짜 강한 hit 만 살림.
+    stemSensitivity: { 0: 1.5, 3: 1.5, 4: 1.05, 5: 1.5 },
+    stemMinGap: { 4: 60 }, // piano: decay re-trigger 차단
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 47ms@161BPM)
-    slotStemPriority: [4, 5, 3, 0, 1, 6, 2], // piano > guitar > 신스 > drum > bass > other > vocal
+    // slotStemPriority 제거: 순수 energy 기반 picker (가장 쎈 음만)
   },
   {
     name: 'Spin', sub: 'JAZZ / SLOW', bpm: 78,
@@ -7713,12 +7714,26 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     vocalRanges = _vir;
   }
 
-  // 모든 stem onset을 하나로 합치되 stem 정보 유지 (vocals 제외)
+  // 모든 stem onset을 하나로 합치되 stem 정보 + local RMS 보존 (slot picker 가 진짜 강도 비교)
+  // ★ localEnergy: onset 시점 ±25ms 의 stem-local RMS. slot picker 의 "가장 쎈 음" 비교용.
+  const _computeLocalE = (stemIdx, tSec) => {
+    const buf = stemAudioBuffers[stemIdx];
+    if (!buf) return 0;
+    const data = buf.getChannelData(0);
+    const sr = buf.sampleRate;
+    const half = Math.floor(sr * 0.025);
+    const start = Math.max(0, Math.floor(tSec * sr) - half);
+    const end = Math.min(data.length, start + half * 2);
+    let sum = 0, c = 0;
+    for (let k = start; k < end; k += 8) { sum += data[k] * data[k]; c++; }
+    return c > 0 ? Math.sqrt(sum / c) : 0;
+  };
   let allOnsets = [];
   for (const si in onsetsByStem) {
     if (ALWAYS_AUDIBLE_STEMS.includes(Number(si))) continue;
+    const _siNum = Number(si);
     for (const t of onsetsByStem[si]) {
-      allOnsets.push({ time: t + bgmDelay, stem: Number(si) });
+      allOnsets.push({ time: t + bgmDelay, stem: _siNum, localEnergy: _computeLocalE(_siNum, t) });
     }
   }
   // vocal ranges 안의 vocals onset 포함
@@ -7727,7 +7742,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
     for (const [vs, ve] of vocalRanges) {
       for (const t of onsetsByStem[2]) {
         if (t >= vs && t <= ve) {
-          allOnsets.push({ time: t + bgmDelay, stem: 2 });
+          allOnsets.push({ time: t + bgmDelay, stem: 2, localEnergy: _computeLocalE(2, t) });
           added++;
         }
       }
@@ -7955,16 +7970,18 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       while (nsIdx < nonSilent.length && nonSilent[nsIdx].time < slotEnd) {
         const o = nonSilent[nsIdx];
         if (o.time >= slotStart) {
-          const oE = o.energy || 0;
           if (_getStemPrio) {
+            // priority 우선, 동률이면 bucket energy
+            const oE = o.energy || 0;
             const oPrio = _getStemPrio(o.stem);
-            // priority 우선, 동률이면 energy
             if (oPrio > bestPrio || (oPrio === bestPrio && oE > bestEnergy)) {
               best = o; bestEnergy = oE; bestPrio = oPrio;
             }
           } else {
-            // 기존 동작: energy strict greater (시간상 먼저인 같은 에너지 win)
-            if (oE > bestEnergy) { best = o; bestEnergy = oE; }
+            // localEnergy (onset 위치 ±25ms RMS) 비교 — 진짜 "가장 쎈 음" win.
+            //   localEnergy 없으면 fallback to bucket energy.
+            const oLE = (typeof o.localEnergy === 'number') ? o.localEnergy : (o.energy || 0);
+            if (oLE > bestEnergy) { best = o; bestEnergy = oLE; }
           }
         }
         nsIdx++;
