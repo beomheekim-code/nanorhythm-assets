@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260501212116;
+window.__BUILD_TS = 20260501212403;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2774,7 +2774,7 @@ const songs = [
     // slotStemPriority piano 우선 (분리).
     stemSensitivity: { 4: 1.05 },
     stemMinGap: { 4: 60 },
-    slotSubdivision: 0.65, // 0.75 → 0.65 살짝 dense (지옥 60ms, 어려움 91ms@161BPM)
+    slotSubdivision: 0.75, // 어려움 91ms / 지옥 70ms (0.65 너무 dense → 0.75 복귀)
     slotStemPriority: [4, 5, 3, 0, 1, 6, 2], // piano > guitar > 신스 > drum > bass > other > vocal
     // slotStemPriority 제거: 순수 energy 기반 picker (가장 쎈 음만)
   },
@@ -8313,6 +8313,8 @@ function _warmupFeverGpu() {
 
 function startSong(idx) {
   stopTitleBgm(); stopPreview(); stopSongPreview(); stopSongAudio(); resumeAudio();
+  // 곡 시작 시 캐릭터 상태 리셋 (Sera 인트로 다시 재생되게)
+  _charKeyCount = 0; _charLastHitT = 0; _seraIntroT = 0;
   // ★ 피버 파이프라인 프리웜 — 첫 피버 activation 시 gradient/text/shadow JIT 로 발생하는
   //   1회성 버벅임 방지. 로딩 시작 시점에 오프스크린 canvas 에서 미리 처리.
   _warmupFeverGpu();
@@ -11103,7 +11105,23 @@ let _charLastHitT = 0;       // 마지막 hit 시각 (strike 자세 유지용)
 let _charMissT = 0;          // 마지막 miss 시각 (푸른 flash 용)
 const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
 const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
-function notifyCharacterHit() { _charKeyCount++; _charLastHitT = performance.now(); }
+let _seraIntroT = 0; // 첫 hit 시점 — Sera 인트로 sequence 시간 기반 표시용
+let _seraStrikeIdx = 0; // 0=near, 1=far (1초 쿨타임으로 alternate)
+let _seraStrikeIdxT = 0; // 마지막 idx 변경 시각
+function notifyCharacterHit() {
+  _charKeyCount++;
+  const now = performance.now();
+  _charLastHitT = now;
+  if (_charKeyCount === 1) _seraIntroT = now;
+  // Sera: 1초 쿨타임 alternate — 1초 이상 지나면 idx flip
+  const cs = _getCharacterSkin();
+  if (cs && cs.customAnim === 'sera_v1' && _charKeyCount >= 2 && now - _seraIntroT >= 800) {
+    if (now - _seraStrikeIdxT >= 1000) {
+      _seraStrikeIdx ^= 1;
+      _seraStrikeIdxT = now;
+    }
+  }
+}
 function notifyCharacterMiss() { _charMissT = performance.now(); }
 const _CHAR_KEYS = ['standbyNear','strikeNear','standbyFar','strikeFar',
                     'standbyNearFever','strikeNearFever','standbyFarFever','strikeFarFever','miss',
@@ -11177,19 +11195,19 @@ function renderCharacter() {
   //     5. fever: 일단 normal 과 동일 (별도 파일 미준비)
   if (cs.customAnim === 'sera_v1') {
     const sinceHit = now - _charLastHitT;
+    const sinceIntro = now - _seraIntroT;
     if (_charKeyCount === 0) {
       key = 'idle';
-    } else if (_charKeyCount === 1) {
-      // 첫 hit 플로우: idle → standby_1 → standby_2 (3 프레임 sequence, 각 충분히 visible)
-      if (sinceHit < 120) key = 'idle';                 // 0~120ms idle 잔상
-      else if (sinceHit < 380) key = 'standbyNear1';    // 120~380ms standby_1
-      else key = 'standbyNear2';                        // 380ms+ standby_2 hold
+    } else if (sinceIntro < 800) {
+      // 첫 hit 후 800ms 동안 인트로 sequence 강제 표시 (rule 1)
+      // 빠른 hit 으로 count 가 즉시 2+ 되어도 인트로는 시간 기반으로 진행
+      if (sinceIntro < 200) key = 'idle';                 // 0~200ms idle 잔상
+      else if (sinceIntro < 500) key = 'standbyNear1';    // 200~500ms standby_1 (300ms)
+      else key = 'standbyNear2';                          // 500~800ms standby_2 (300ms)
     } else {
-      // 2번째+ hit: strike cycle. 매 hit 마다 near/far alternate (parity 기반).
-      // count 2=near, 3=far, 4=near, 5=far, ... (rule 2,3,2,3 반복)
+      // 인트로 끝난 후: strike cycle. 1초 쿨타임 alternate (notifyCharacterHit 에서 _seraStrikeIdx 관리).
       if (sinceHit < 150) {
-        const isNear = (_charKeyCount % 2) === 0;
-        key = isNear ? 'strikeNear' : 'strikeFar';
+        key = _seraStrikeIdx === 0 ? 'strikeNear' : 'strikeFar';
       } else {
         key = 'strikeIdle';
       }
