@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260503170429;
+window.__BUILD_TS = 20260503171357;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1792,19 +1792,28 @@ let _previewDebounce = null;
 //   대신 첫 user gesture (탭/클릭) 시 silent unlock → 이후 src 변경만으로 재생.
 let _previewAudioInstance = null;
 let _previewAudioUnlocked = false;
+// ★ 1초 무음 8kHz 8bit mono WAV (44 bytes) — iOS unlock 용 valid src.
+//   src 없는 audio.play() 는 iOS 가 즉시 reject → unlock 실패 → 영원히 stuck loading.
+const _SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 function _unlockPreviewAudio() {
   if (_previewAudioUnlocked) return;
   if (!_previewAudioInstance) {
     _previewAudioInstance = new Audio();
-    _previewAudioInstance.preload = 'metadata';
+    _previewAudioInstance.preload = 'auto';
     _previewAudioInstance.volume = 0;
+    _previewAudioInstance.src = _SILENT_WAV;
   }
   // user gesture 컨텍스트에서 silent play → iOS 가 audio session unlock
   try {
-    _previewAudioInstance.play().then(() => {
-      try { _previewAudioInstance.pause(); _previewAudioInstance.currentTime = 0; } catch(e) {}
+    const p = _previewAudioInstance.play();
+    if (p && p.then) {
+      p.then(() => {
+        try { _previewAudioInstance.pause(); _previewAudioInstance.currentTime = 0; } catch(e) {}
+        _previewAudioUnlocked = true;
+      }).catch(() => {});
+    } else {
       _previewAudioUnlocked = true;
-    }).catch(() => {});
+    }
   } catch(e) {}
 }
 // 첫 탭 / 클릭 시 unlock 시도
@@ -1837,6 +1846,12 @@ function startPreview(idx) {
   audio.addEventListener('canplay', markReady, { once: true });
   audio.addEventListener('loadeddata', markReady, { once: true });
   audio.addEventListener('playing', markReady, { once: true });
+  // ★ 로드 실패해도 stuck loading 방지 — 에러 시 1회 retry 후 markReady (UI unstuck)
+  audio.addEventListener('error', () => {
+    if (audio._aborted || songPreviewAudio !== audio) return;
+    try { audio.load(); audio.play().catch(()=>{}); } catch(e) {}
+    setTimeout(markReady, 200);
+  }, { once: true });
   // ★ play() 실패 시 1회 재시도 — iOS 오디오 세션 혼잡/네트워크 플랩으로 간헐적 재생 실패 대응
   audio.play().then(() => { if (!audio._aborted) markReady(); }).catch(() => {
     if (audio._aborted || songPreviewAudio !== audio) return;
@@ -6923,9 +6938,14 @@ function _processPlayingTouch(t, src) {
   // ★ identifier는 게이트와 무관하게 항상 등록 — touchend에서 반드시 해제되도록
   if (t.identifier != null) touchLaneMap.set(t.identifier, i);
   keyHeld[i] = true; keyFlash[i] = 0.3;
-  // ★ dedup 제거 — handleLanePress 의 note.hit 플래그가 자연스럽게 중복 호출 흡수.
-  //   pointerdown / touchstart 둘 다 호출해도 같은 노트 두 번 안 맞음.
-  //   (iOS 가 두 손 따닥 시 touchstart 드롭하는 경우를 pointerdown 으로 방어)
+  // ★ 같은 레인 cooldown — pointerdown↔touchstart 한 탭 이중 호출 시 두 번째 차단.
+  //   note.hit 플래그만으론 부족: 첫 호출에서 노트A hit → 두 번째 호출에서 다음 노트B 추가 hit
+  //   = 한 탭에 노트 두 개 소비 회귀 (사용자 보고 2026-05-03).
+  //   _LANE_HIT_COOLDOWN_MS=50 = 사람 최대 연타 한계(~20Hz=50ms) → 정상 입력은 안 막힘.
+  const _now = performance.now();
+  const _laneBlocked = _lastLaneHitAt[i] && (_now - _lastLaneHitAt[i] < _LANE_HIT_COOLDOWN_MS);
+  if (_laneBlocked) return i;
+  _lastLaneHitAt[i] = _now;
   const _canHit = !songLoading && (countdownTime <= 0 || (curSong && curSong._onsetMode && countdownTime < 0.5));
   if (_canHit) handleLanePress(i, src || 'touch');
   // ★ 카운트다운 중 빈노트 SFX — 원본 touchstart 핸들러(c57aaae)에 있던 else if 를
