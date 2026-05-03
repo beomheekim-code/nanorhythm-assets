@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260503162110;
+window.__BUILD_TS = 20260503162606;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1787,17 +1787,45 @@ function getPreviewMaxVol() { return 0.55 * volBgm; }
 
 let previewLoading = false;
 let _previewDebounce = null;
+// ★ 프리뷰 audio singleton — iOS 자동재생 차단 회피.
+//   매 startPreview 마다 new Audio() → user gesture 컨텍스트 expired → autoplay 차단.
+//   대신 첫 user gesture (탭/클릭) 시 silent unlock → 이후 src 변경만으로 재생.
+let _previewAudioInstance = null;
+let _previewAudioUnlocked = false;
+function _unlockPreviewAudio() {
+  if (_previewAudioUnlocked) return;
+  if (!_previewAudioInstance) {
+    _previewAudioInstance = new Audio();
+    _previewAudioInstance.preload = 'metadata';
+    _previewAudioInstance.volume = 0;
+  }
+  // user gesture 컨텍스트에서 silent play → iOS 가 audio session unlock
+  try {
+    _previewAudioInstance.play().then(() => {
+      try { _previewAudioInstance.pause(); _previewAudioInstance.currentTime = 0; } catch(e) {}
+      _previewAudioUnlocked = true;
+    }).catch(() => {});
+  } catch(e) {}
+}
+// 첫 탭 / 클릭 시 unlock 시도
+['touchstart', 'click'].forEach(ev => {
+  document.addEventListener(ev, _unlockPreviewAudio, { once: false, passive: true, capture: true });
+});
+
 function startPreview(idx) {
   stopSongPreview();
   previewSongIdx = idx;
   previewActive = true;
   previewLoading = true;
   const song = songs[idx];
-  const audio = new Audio();
-  // ★ abort flag — pending play promise / setTimeout / event 가 stop 이후 실행될 때
-  //   audio.play() 재호출 차단. iOS 에서 pause 후 비동기 play 해버리는 버그 대응.
+  // singleton 재사용 (unlock 된 audio element) — autoplay 정책 통과
+  let audio = _previewAudioInstance;
+  if (!audio) {
+    audio = new Audio();
+    audio.preload = 'metadata';
+    _previewAudioInstance = audio;
+  }
   audio._aborted = false;
-  audio.preload = 'metadata';
   audio.src = assetUrl(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
