@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504134909;
+window.__BUILD_TS = 20260504135217;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4704,6 +4704,20 @@ function handleAuthSuccess(uid, method) {
   // Kplay: 로컬 캐시된 닉네임 (이전 로그인 시 저장) 있으면 즉시 접속
   const kplayNick = safeGetItem('rhythm_kplayNickname_' + uid);
   if (kplayNick) { completeLogin(kplayNick, 'kplay'); return; }
+
+  // ★ KPLAY iframe localStorage 가 리셋되어 rhythm_kplayNickname_<uid> 가 사라진 경우
+  //   → rhythm_nicknames (uid 역방향 매핑, _kpPullAll 로 kplay.storage 에서 복원됨) 으로 fallback.
+  //   사용자 보고: 모바일 재접속 마다 닉네임 바뀜 회귀 fix.
+  try {
+    const nickMap = getLocalNicknames();
+    for (const name in nickMap) {
+      if (nickMap[name] === uid) {
+        safeSetItem('rhythm_kplayNickname_' + uid, name); // 빠른 캐시 복원
+        completeLogin(name, 'kplay');
+        return;
+      }
+    }
+  } catch(e) {}
 
   // Firebase 에서 users/{uid}/nickname 직접 조회 (O(1))
   // 타임아웃 3초: 느린 네트워크 대응
