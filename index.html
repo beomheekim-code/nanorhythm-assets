@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504125204;
+window.__BUILD_TS = 20260504125643;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -883,6 +883,7 @@ async function _kpPullAll() {
     'rhythm_laneCount', 'rhythm_currentUser', 'rhythm_authMethod',
     'rhythm_allScores', 'rhythm_localPlays', 'rhythm_playsCache',
     'rhythm_nicknames',
+    'rhythm_patchedAssets_v1',  // ★ KPLAY iframe localStorage 리셋 시에도 patch 상태 복원
   ];
   for (const k of staticKeys) {
     try {
@@ -896,6 +897,8 @@ async function _kpPullAll() {
     const userKeys = [
       'rhythm_pass_' + u, 'rhythm_passBought_' + u, 'rhythm_freeplays_' + u,
       'rhythm_coins_' + u, 'rhythm_ach_' + u, 'rhythm_claimed_' + u,
+      // ★ KPLAY iframe localStorage 리셋 시에도 우편함/수령기록 복원
+      'rhythm_mailbox_' + u, 'rhythm_claimedMailIds_' + u,
     ];
     for (const k of userKeys) {
       try {
@@ -1073,7 +1076,7 @@ let _patchState = {
 
 function _loadPatchedSet() {
   try {
-    const raw = localStorage.getItem(PATCH_STORAGE_KEY);
+    const raw = safeGetItem(PATCH_STORAGE_KEY);
     if (!raw) return { cdnBase: null, paths: [] };
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== 'object') return { cdnBase: null, paths: [] };
@@ -1081,8 +1084,9 @@ function _loadPatchedSet() {
   } catch(e) { return { cdnBase: null, paths: [] }; }
 }
 function _savePatchedSet(paths) {
+  // ★ safeSetItem 사용 — kplay.storage 도 같이 저장. KPLAY iframe localStorage 리셋되어도 복원.
   try {
-    localStorage.setItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths }));
+    safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths }));
   } catch(e) {}
 }
 
@@ -2819,7 +2823,6 @@ const songs = [
     vocalIntroRange: 'auto', chordMode: true,
     // ★ 드럼 strict (1.2) 으로 sparse 해짐 (사용자 보고 2026-05-04). 신스 강화 버전 (9ee3e68) 으로 revert.
     stemSensitivity: { 0: 1.05, 6: 1.05 }, // drum + 신스 둘 다 lenient
-    introSparse: [0, 12, 0.4], // 인트로 12초 onset 0.4초 간격 (살짝만 thin)
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
