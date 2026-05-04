@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504141202;
+window.__BUILD_TS = 20260504141915;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1845,16 +1845,30 @@ function startPreview(idx) {
     }
   }, 3000);
 }
-// ★ iOS preview 글로벌 unlocker — startPreview 마다 once:true 로 리스너 달면 첫 startPreview
-//   delay 안에 사용자가 이미 scroll 시작 시 touch 소모돼 다음 startPreview 까지 unlock 안 됨
-//   (사용자 보고: 첫 곡 안 들리고 옆곡 넘겨야 들림). 글로벌 persistent 리스너로 변경 —
-//   매 user gesture 마다 현재 songPreviewAudio 가 paused 면 play() 시도.
+// ★ iOS preview 글로벌 unlocker — 매 user gesture 마다 현재 songPreviewAudio 가 paused 면
+//   play() 시도. play 실패 (poisoned audio element) 시 startPreview 재호출 — user gesture
+//   context 안에서 새 Audio 만들어 즉시 unlock. 첫 곡 BGM 안 들리는 회귀 fix.
 if (typeof window !== 'undefined') {
   const _previewUnlocker = () => {
     try {
+      if (typeof state === 'undefined' || state !== 'select') return;
       const a = (typeof songPreviewAudio !== 'undefined') ? songPreviewAudio : null;
-      if (a && !a._aborted && a.paused) {
-        a.play().catch(()=>{});
+      if (a && !a._aborted) {
+        if (a.paused) {
+          const p = a.play();
+          if (p && p.catch) {
+            p.catch(() => {
+              // play() rejected — audio poisoned. user gesture context 에서 새로 만듦.
+              if (typeof startPreview === 'function' && typeof selectedSong !== 'undefined') {
+                try { startPreview(selectedSong); } catch(e) {}
+              }
+            });
+          }
+        }
+      } else if (typeof previewActive !== 'undefined' && previewActive &&
+                 typeof startPreview === 'function' && typeof selectedSong !== 'undefined') {
+        // audio 없거나 aborted — user gesture 에서 fresh 생성
+        try { startPreview(selectedSong); } catch(e) {}
       }
     } catch(e) {}
   };
