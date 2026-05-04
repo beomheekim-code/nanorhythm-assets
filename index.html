@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504141915;
+window.__BUILD_TS = 20260504142516;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3040,19 +3040,23 @@ function loadMailboxFromFirebase() {
           map.set(m.id, mergedMail);
         }
       }
-      // ★ 단방향 sync 복구 — claimed=true entry 의 id 를 claimedIds 에 add (FB write 실패 복구).
-      //   주의: 반대 방향 (claimedIds → 강제 claimed=true) 은 admin 이 같은 id 재전송 시
-      //   mail 이 hidden 처리되는 회귀 유발 → 적용 안 함. 재지급 차단은 claimMail 의 defense 가 담당.
-      const claimedIdsBefore = getClaimedMailIds();
-      const claimedIds = [...claimedIdsBefore];
+      // ★ 단방향 sync 복구 — claimed=true entry 를 claimedMap 에 ts 와 함께 add (FB write 실패 복구).
+      //   admin 재발행 시 newer mail.ts > claimedAt 통과하도록 ts-aware.
+      const claimedMapBefore = getClaimedMailMap();
+      const claimedMap = { ...claimedMapBefore };
+      let mapChanged = false;
       for (const [id, entry] of map) {
-        if (entry.claimed && !claimedIds.includes(id)) {
-          claimedIds.push(id);
+        if (entry.claimed) {
+          const ets = entry.ts || 0;
+          if ((claimedMap[id] || 0) < ets) {
+            claimedMap[id] = ets;
+            mapChanged = true;
+          }
         }
       }
-      if (claimedIds.length !== claimedIdsBefore.length) {
-        safeSetItem(_claimedIdsKey(), JSON.stringify(claimedIds));
-        try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(claimedIds); } catch(e) {}
+      if (mapChanged) {
+        safeSetItem(_claimedIdsKey(), JSON.stringify(claimedMap));
+        try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(claimedMap); } catch(e) {}
       }
       // 24h 만료 필터
       const now = Date.now();
@@ -5116,37 +5120,75 @@ function saveMailbox(arr) {
   saveMailboxToFirebase(arr);
 }
 function getUnreadMailCount() { return getMailbox().filter(m => !m.claimed).length; }
-// ★ 수령한 mail id 영구 기록 (Firebase) — mailbox 24h 만료와 무관하게 재지급 차단.
-//   localStorage 만으로는 다른 디바이스/캐시 클리어 시 재지급되던 버그 해결.
+// ★ 수령한 mail 영구 기록 (Firebase) — ts-aware Map { id: claimedAtTs }.
+//   admin 이 mail 을 같은 id, newer ts 로 재발행하면 mail.ts > claimedAt 이라 재지급 허용.
+//   백워드 호환: 이전 array 포맷은 모든 ts=0 으로 변환 (어떤 newer mail.ts 도 통과).
 function _claimedIdsKey() { return 'rhythm_claimedMailIds_' + (currentUser || 'guest'); }
-function getClaimedMailIds() {
-  try { return JSON.parse(safeGetItem(_claimedIdsKey()) || '[]'); } catch { return []; }
+function getClaimedMailMap() {
+  try {
+    const raw = JSON.parse(safeGetItem(_claimedIdsKey()) || '{}');
+    if (Array.isArray(raw)) {
+      const obj = {};
+      for (const id of raw) if (typeof id === 'string') obj[id] = 0;
+      return obj;
+    }
+    return (raw && typeof raw === 'object') ? raw : {};
+  } catch { return {}; }
 }
-function addClaimedMailId(id) {
-  const ids = getClaimedMailIds();
-  if (ids.includes(id)) return;
-  ids.push(id);
-  safeSetItem(_claimedIdsKey(), JSON.stringify(ids));
-  if (currentUser && fbDb) { try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(ids); } catch(e) {} }
+function getClaimedMailIds() { return Object.keys(getClaimedMailMap()); } // 백워드 호환
+function addClaimedMailRecord(id, ts) {
+  const map = getClaimedMailMap();
+  const newTs = Math.max(map[id] || 0, ts || Date.now());
+  if (map[id] === newTs) return;
+  map[id] = newTs;
+  safeSetItem(_claimedIdsKey(), JSON.stringify(map));
+  if (currentUser && fbDb) { try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(map); } catch(e) {} }
+}
+function addClaimedMailId(id) { addClaimedMailRecord(id, Date.now()); } // 호환성 wrapper
+// claim 차단 여부 — mail.ts > 이전 claimedAt 이면 통과 (admin 재발행 허용)
+function _isClaimed(mailId, mailTs) {
+  const map = getClaimedMailMap();
+  if (!(mailId in map)) return false;
+  const claimedAt = map[mailId] || 0;
+  return (mailTs || 0) <= claimedAt;
 }
 function loadClaimedMailIdsFromFirebase() {
   if (!currentUser || !fbDb) return;
   try {
     fbDb.ref('settings/' + currentUser + '/claimedMails').once('value', snap => {
       const raw = snap.val();
-      const fbIds = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
-      const local = getClaimedMailIds();
-      const merged = Array.from(new Set([...local, ...fbIds.filter(x => typeof x === 'string')]));
+      // 다양한 포맷 처리: array (legacy), object {id:ts} (new), object {0:id, 1:id} (FB array)
+      let fbMap = {};
+      if (Array.isArray(raw)) {
+        for (const id of raw) if (typeof id === 'string') fbMap[id] = 0;
+      } else if (raw && typeof raw === 'object') {
+        for (const k in raw) {
+          const v = raw[k];
+          if (typeof v === 'string') fbMap[v] = 0; // FB array → values 가 id
+          else if (typeof v === 'number') fbMap[k] = v; // {id: ts}
+        }
+      }
+      const local = getClaimedMailMap();
+      const merged = { ...local };
+      for (const id in fbMap) merged[id] = Math.max(merged[id] || 0, fbMap[id]);
       safeSetItem(_claimedIdsKey(), JSON.stringify(merged));
       try { fbDb.ref('settings/' + currentUser + '/claimedMails').set(merged); } catch(e) {}
     });
   } catch(e) {}
 }
 function addMail(mail) {
-  // ★ 재지급 방어 — 이미 수령한 id 는 mailbox 에서 만료됐어도 다시 추가 안 함.
-  if (getClaimedMailIds().includes(mail.id)) return;
+  // ★ 재지급 방어 — ts-aware. mail.ts 가 이전 claimedAt 보다 새로우면 재발행 허용.
+  if (_isClaimed(mail.id, mail.ts)) return;
   const m = getMailbox();
-  if (m.some(x => x.id === mail.id)) return; // 중복 방지
+  // 같은 id 가 이미 mailbox 에 있으면, mail.ts 가 더 새로우면 교체 (admin 재발행)
+  const exIdx = m.findIndex(x => x.id === mail.id);
+  if (exIdx >= 0) {
+    if ((mail.ts || 0) > (m[exIdx].ts || 0)) {
+      m[exIdx] = mail;
+      saveMailbox(m);
+    }
+    return;
+  }
   m.unshift(mail);
   saveMailbox(m);
 }
@@ -5176,10 +5218,21 @@ function checkWeeklyRewards() {
         safeSetItem(_weeklyCheckedKey(prevWeekStart), '1');  // 로컬에도 마킹
         return;
       }
-      // claimedMails Firebase → localStorage 동기화 (addMail 이 이걸 읽음)
+      // claimedMails Firebase → localStorage 동기화 (ts-aware map 형태로 merge)
       const rawCM = snapCM.val();
-      const fbClaimed = Array.isArray(rawCM) ? rawCM : (rawCM && typeof rawCM === 'object' ? Object.values(rawCM) : []);
-      const merged = Array.from(new Set([...getClaimedMailIds(), ...fbClaimed.filter(x => typeof x === 'string')]));
+      let fbMap = {};
+      if (Array.isArray(rawCM)) {
+        for (const id of rawCM) if (typeof id === 'string') fbMap[id] = 0;
+      } else if (rawCM && typeof rawCM === 'object') {
+        for (const k in rawCM) {
+          const v = rawCM[k];
+          if (typeof v === 'string') fbMap[v] = 0;
+          else if (typeof v === 'number') fbMap[k] = v;
+        }
+      }
+      const localMap = getClaimedMailMap();
+      const merged = { ...localMap };
+      for (const id in fbMap) merged[id] = Math.max(merged[id] || 0, fbMap[id]);
       safeSetItem(_claimedIdsKey(), JSON.stringify(merged));
       _runWeeklyScoresCheck(prevWeekStart, prevWeekEnd);
     }).catch(() => {});
@@ -5246,12 +5299,13 @@ function claimMail(mailId) {
   if (idx < 0) return;
   const item = m[idx];
   if (item.claimed) return;
-  // ★ 이미 수령 이력이 Firebase 에 있으면 재수령 차단 (디바이스 간 동기화 race 방어)
-  if (getClaimedMailIds().includes(mailId)) { m[idx] = { ...item, claimed: true }; saveMailbox(m); return; }
+  // ★ 이미 수령 이력 있으면 재수령 차단 (ts-aware — mail.ts <= claimedAt 일 때만 차단).
+  //   admin 이 newer ts 로 재발행하면 mail.ts > claimedAt → 통과 → 재지급.
+  if (_isClaimed(mailId, item.ts)) { m[idx] = { ...item, claimed: true }; saveMailbox(m); return; }
   if (item.reward) addCoins(item.reward);
   m[idx] = { ...item, claimed: true };
   saveMailbox(m);
-  addClaimedMailId(mailId); // Firebase 영구 기록 — mailbox 만료되어도 재지급 차단
+  addClaimedMailRecord(mailId, item.ts || Date.now()); // ts-aware 기록
 }
 // 캔버스 텍스트 폭 기준 줄바꿈 (한글 캐릭터 단위 안전)
 function wrapTextToLines(text, maxWidth) {
