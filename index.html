@@ -13254,7 +13254,7 @@ function getShopItems() {
       price: '4000 ♪',
       priceType: 'coins',
       color: '#9b1c1c', icon: '🎤',
-      iconImage: 'skins/bj_sera/idle_raw.png',
+      iconImage: 'skins/bj_sera/icon.png',
       skinCategory: 'character', skinId: 'bj_sera', coinCost: 4000,
       getStatus: () => ownsSkin('character', 'bj_sera') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('character', 'bj_sera'),
@@ -13943,8 +13943,8 @@ function _getSkinPreview(id) {
   if (id === 'sakura_ui') return { path: 'skins/neon/hp_bar/hp_bar.png', src: null };
   // 히나 (미코) 캐릭터 — 상점 아이콘과 동일 (상반신 crop)
   if (id === 'miko_taiko') return { path: 'skins/miko_taiko/icon.png', src: null };
-  // BJ세라 — idle_raw 사용 (별도 icon 없음)
-  if (id === 'bj_sera') return { path: 'skins/bj_sera/idle_raw.png', src: null };
+  // BJ세라 — 상점/가방 전용 icon.png (상반신 crop)
+  if (id === 'bj_sera') return { path: 'skins/bj_sera/icon.png', src: null };
   // 기본: atlas 첫 셀
   const p = s.imagePaths?.note;
   if (p) return { path: p, src: [0, 0, 400, 400] };
