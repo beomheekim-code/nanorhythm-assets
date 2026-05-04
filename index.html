@@ -2872,10 +2872,6 @@ const songs = [
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
-    // ★ 박자 안 맞는 자리에 hold 강제 변환되는 회귀 fix (사용자 보고 2026-05-04).
-    //   SPIN 은 노트 밀집 (slotSubdivision 0.5) + 지옥 holdEvery 8 → hold 빈도 너무 잦음.
-    //   holdEveryOverride 16 으로 빈도 절반. sustain 체크는 default (모든 곡) 적용.
-    holdEveryOverride: 16,
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
@@ -6211,19 +6207,26 @@ function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<
 //   따라서 location.reload() 호출하면 페이지 진입 자체가 막힘 (사용자 보고 2026-05-04).
 //   분기: iframe 안 + window.kplay 정의됨 → KPLAY 환경 간주, postMessage 시도 + alert.
 //        그 외 (PC 직접 접속, 일반 모바일 브라우저) → location.reload().
+// ★ 모달 snooze 타임스탬프 — 버튼 누르면 5분간 모달 다시 안 뜸. 사용자가 앱 재시작할 시간.
+let _updateModalSnoozeUntil = 0;
+
 function _doUpdateReload() {
   // ★ iframe 안에 있으면 무조건 KPLAY 간주 — window.kplay 미정의 / cross-origin 권한 에러
-  //   케이스 커버 (이전 fix 가 window.kplay 의존해서 실패 → 사용자 보고 2026-05-04).
+  //   케이스 커버 (이전 fix 가 window.kplay 의존해서 실패).
   let inIframe = false;
   try { inIframe = (typeof window !== 'undefined') && (window.self !== window.top); }
   catch(e) { inIframe = true; } // cross-origin 권한 에러 = iframe 거의 확실
   if (inIframe) {
-    // KPLAY 가 받아주면 reload, 안 받아주면 무시 (무해 — type 미정의 시 KPLAY 가 무시)
+    // KPLAY iframe 의 src URL 은 일회용 세션 토큰 → location.reload() 시 404.
+    // 다양한 type 의 reload 메시지 시도 (KPLAY 가 받는 type 모름, 모르는 type 은 무시).
+    // 모달은 5분간 snooze — 사용자가 직접 앱 종료 + 재시작 할 시간 확보.
     try { window.parent.postMessage({ type: 'reload' }, '*'); } catch(e) {}
     try { window.parent.postMessage({ type: 'kplay:reload' }, '*'); } catch(e) {}
-    try {
-      alert('자동 새로고침이 제한된 환경입니다.\n앱을 완전히 닫았다가 다시 실행해주세요.');
-    } catch(e) {}
+    try { window.parent.postMessage({ type: 'restart' }, '*'); } catch(e) {}
+    try { window.parent.postMessage({ type: 'refresh' }, '*'); } catch(e) {}
+    try { window.parent.postMessage({ type: 'reload-game' }, '*'); } catch(e) {}
+    try { window.parent.postMessage({ type: 'iframe:reload' }, '*'); } catch(e) {}
+    _updateModalSnoozeUntil = performance.now() + 5 * 60 * 1000;
     return;
   }
   try { location.reload(); } catch(e) {}
@@ -8238,8 +8241,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
-  // ★ song.holdEveryOverride 우선 (SPIN 등 박자 안 맞는 hold 회귀 fix).
-  const holdEvery = (typeof song.holdEveryOverride === 'number') ? song.holdEveryOverride : (diff.holdEvery || 999);
+  const holdEvery = diff.holdEvery || 999;
   const eighthDur = sixteenth * 2;
 
   // stem → 레인 매핑 (전 레인에 고르게 분산)
@@ -8256,9 +8258,7 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
 
   let _lastChordTime = 0;
-  let _fi = -1;  // ★ filtered 인덱스 추적 — sustain-aware hold 변환 시 다음 onset 거리 계산용
   for (const o of filtered) {
-    _fi++;
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
@@ -8284,27 +8284,15 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       nd.type = 'hold';
       nd.endTime = nd.time + (o._holdDur || 1.2);
     } else if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
-      const _hDurBase = (2 + Math.floor(rng() * 2)) * eighthDur;
+      const _hDur = (2 + Math.floor(rng() * 2)) * eighthDur;
+      const _hEnd = nd.time + _hDur;
       // endCutoff 근처에서 hold 꼬리가 곡 끝을 넘으면 tap 으로 강등 (소리 안 들리는 구간에 hold 방지)
       const _cutAbs = (typeof song.endCutoff === 'number') ? song.endCutoff + bgmDelay : Infinity;
-      // ★ sustain-aware hold (default, 모든 곡) — hold 길이를 다음 onset 직전까지 자동 클램프.
-      //   너무 빡세지 않게: hold 가 다음 노트랑 겹치지 않는 한 만듦. 단 최소 hold 길이 보장.
-      //   결과: 음 sustain 되는 자리는 base 길이, 가까운 자리는 단축, 너무 가까우면 tap.
-      const _MIN_HOLD = eighthDur * 1.5; // 최소 hold = 1.5 박 (짧은 자투리 hold 는 tap 으로 fallback)
-      const _GAP_TO_NEXT = 0.18;          // 다음 노트 직전 여유 늘림 (자연스러운 sustain 자리만 hold)
-      let _maxAllowed = _hDurBase;
-      if (_fi + 1 < filtered.length) {
-        const _nextT = filtered[_fi + 1].time;
-        _maxAllowed = Math.min(_hDurBase, _nextT - nd.time - _GAP_TO_NEXT);
+      if (_hEnd <= _cutAbs - 0.3) {
+        nd.type = 'hold';
+        nd.endTime = _hEnd;
       }
-      if (_maxAllowed >= _MIN_HOLD) {
-        const _hEnd = nd.time + _maxAllowed;
-        if (_hEnd <= _cutAbs - 0.3) {
-          nd.type = 'hold';
-          nd.endTime = _hEnd;
-        }
-      }
-      // else: tap 유지 (hold 생성 skip — 다음 노트가 너무 가까운 자리)
+      // else: tap 유지 (hold 생성 skip)
     }
     nodes.push(nd);
     noteIdx++;
@@ -16698,7 +16686,8 @@ function loop(time) {
   // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
   //   강제 새로고침 버튼 복원 (사용자 요청 2026-05-04). 모바일에서 캐시 이슈로 강제 reload 필요.
   //   KPLAY iframe 환경에서 location.reload() 가 일회용 세션 토큰 만료로 404 → _doUpdateReload 가 환경 분기.
-  if (window.__updateAvailable && state !== 'playing') {
+  //   _updateModalSnoozeUntil — 버튼 누르면 5분간 모달 다시 안 뜸 (사용자가 직접 앱 종료 + 재시작 시간).
+  if (window.__updateAvailable && state !== 'playing' && performance.now() >= _updateModalSnoozeUntil) {
     // 검은 오버레이
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
