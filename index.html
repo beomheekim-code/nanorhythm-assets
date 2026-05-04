@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504105553;
+window.__BUILD_TS = 20260504110129;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -304,13 +304,11 @@ function _activatePerfOnly() {
         if (typeof state !== 'undefined' && state === 'playing') return;
       } catch(e) { return; }
       try {
-        // ★ jsdelivr 직접 fetch — KPLAY edge 가 자체 hosted index.html 을 24h+ 캐시
-        //   (Cache-Control 헤더 무시) → location.pathname fetch 동일 응답 → 영원히 same TS.
-        //   jsdelivr @main 은 매 push 마다 최신 commit HTML. KPLAY 우회.
-        // ★ 헤더 (Cache-Control/Pragma) 제거 — cross-origin 에서 simple request 아니라
-        //   CORS preflight (OPTIONS) 트리거 → jsdelivr 가 Access-Control-Allow-Headers
-        //   안 보내서 모바일 브라우저가 fetch 차단. cache:'no-store' + __chk= 만으로 충분.
-        var u = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/index.html?__chk=' + Date.now();
+        // ★ raw.githubusercontent.com 직접 fetch — jsdelivr 는 쿼리 캐시 키 무시 + edge
+        //   s-maxage=43200(12h) 라 매 push 갱신 안 됨. 게다가 purge API rate-limit (5분 N회)
+        //   걸려서 잦은 push 시 throttle. raw.github 는 max-age=300(5분) 으로 항상 최신 수준.
+        //   CORS Access-Control-Allow-Origin:* 지원, simple GET 이라 preflight 도 없음.
+        var u = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
         var r = await fetch(u, { cache: 'no-store' });
         if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
         var txt = await r.text();
