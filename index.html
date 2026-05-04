@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504114015;
+window.__BUILD_TS = 20260504120426;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2821,6 +2821,7 @@ const songs = [
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
+    holdEveryMul: 2.0, // 노트 2x dense (slotSubdivision 0.5) → hold 간격도 2x 로 겹침 방지
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
@@ -8069,7 +8070,12 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
-  const holdEvery = diff.holdEvery || 999;
+  // ★ song.holdEveryMul — slotSubdivision 으로 노트 밀도 ↑ 인 곡은 hold 간격도 같은 비율로
+  //   늘려야 hold 시각적 겹침 방지 (SPIN 지옥 hold 붙어 보이는 버그 fix).
+  //   예: SPIN slotSubdivision=0.5 → 노트 2x dense → holdEveryMul=2 → hold 간격 2x.
+  const _holdMul = song.holdEveryMul || 1;
+  const _baseHE = diff.holdEvery || 0;
+  const holdEvery = _baseHE > 0 ? Math.max(2, Math.floor(_baseHE * _holdMul)) : 0;
   const eighthDur = sixteenth * 2;
 
   // stem → 레인 매핑 (전 레인에 고르게 분산)
