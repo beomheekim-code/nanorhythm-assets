@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504154500;
+window.__BUILD_TS = 20260504155500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -13323,6 +13323,24 @@ function _handlePatchOverlayClick(x, y) {
   const inside = (r) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   if (_patchOverlayMode === 'confirm') {
     if (inside(a.ok)) {
+      // ★ iOS HTMLAudio 프라이머 — 받기 클릭은 user gesture context (마지막 gesture).
+      //   silent Audio play+pause 해두면 패치 후 30초+ 뒤 자동 startPreview 가
+      //   fresh gesture 없이도 audio.play() 통과 (document audio session 활성화).
+      //   사용자 보고 2026-05-04: bfa6311 의 _previewUnlocker 만으론 자동 재생 X, 수동 탭 필요.
+      try {
+        const _primer = new Audio();
+        _primer.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        _primer.volume = 0;
+        _primer.play().then(() => { try { _primer.pause(); } catch(e){} }).catch(()=>{});
+      } catch(e) {}
+      // ★ 추가 프라이머 — songPreviewAudio 와 같은 pattern 의 Audio element 도 미리 unlock.
+      //   per-element gesture 정책의 iOS 버전 대응 (silent ogg 시도, 실패해도 무해).
+      try {
+        const _primer2 = new Audio();
+        _primer2.src = 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAADBSAAAAAAAANJ0lDABHgF2b3JiaXMAAAAAAUSsAAAAAAAAgFcBAAAAAAC4AU9nZ1MAAAAAAAAAAAAAwUgAAAEAAAANvKxAAQQ=';
+        _primer2.volume = 0;
+        _primer2.play().then(() => { try { _primer2.pause(); } catch(e){} }).catch(()=>{});
+      } catch(e) {}
       _patchOverlayMode = 'progress';
       const cb = _patchOverlayPromise;
       _patchOverlayPromise = null;
