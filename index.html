@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504113250;
+window.__BUILD_TS = 20260504114015;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11459,6 +11459,27 @@ function renderParticles() {
   ctx.globalAlpha = 1;
 }
 
+// ★ burst sprite pre-bake — 소스 2048×2048 → 매 프레임 60~180px 로 scale 시
+//   GPU resampling 호출당 30ms+ (측정 확인). 256×256 중간 사이즈로 1회 bake →
+//   매 프레임 256→실제 scale (작은 소스라 빠름).
+//   사이즈가 매 프레임 변하는 burst 특성상 정확 사이즈 캐시 무의미 → 단일 baked.
+const _burstBakeSize = 256;
+const _burstBaked = new Map();
+function _getBurstBaked(img) {
+  if (!img || !img._ok) return null;
+  const key = img.src || img;
+  let baked = _burstBaked.get(key);
+  if (baked) return baked;
+  const cv = document.createElement('canvas');
+  cv.width = _burstBakeSize;
+  cv.height = _burstBakeSize;
+  const bctx = cv.getContext('2d');
+  bctx.imageSmoothingEnabled = true;
+  bctx.imageSmoothingQuality = 'high';
+  bctx.drawImage(img, 0, 0, _burstBakeSize, _burstBakeSize);
+  _burstBaked.set(key, cv);
+  return cv;
+}
 function renderBursts() {
   const fx = _hitFxData();
   for (const b of bursts) {
@@ -11474,24 +11495,29 @@ function renderBursts() {
       const _mobHF = isMobile ? 0.55 : 0.85;          // 일반 (sparkle/petal)
       const _mobRF = isMobile ? 0.40 : 0.75;          // ring/core — 모바일 fill rate 부담 축소 (링 확대 이후)
       const _mobAF = isMobile ? 0.55 : 0.80;          // ring/core 알파 감쇠
+      // pre-baked 256×256 캐시 사용 (소스 2048×2048 → GPU resampling 비용 ↓)
+      const ringPinkBaked = _getBurstBaked(fx.imgs.ringPink);
+      const ringGoldBaked = _getBurstBaked(fx.imgs.ringGold);
+      const coreFlashBaked = _getBurstBaked(fx.imgs.coreFlash);
+      const sparkleBaked = _getBurstBaked(fx.imgs.sparkle);
       for (let r = 0; r < 2; r++) {
         const delay = r * 0.1;
         const rt = Math.max(0, (b.time - delay) / (b.maxTime - delay));
         if (rt <= 0 || rt >= 1) continue;
         // ★ 링 크기 확대 — 유저 요청으로 다시 크게 (기존 100 → 약 180).
         const size = (28 + r * 14 + rt * 58) * b.size * _mobRF;
-        const ringImg = r === 0 ? fx.imgs.ringPink : fx.imgs.ringGold;
-        if (!ringImg) continue;
+        const ringBaked = r === 0 ? ringPinkBaked : ringGoldBaked;
+        if (!ringBaked) continue;
         ctx.globalAlpha = (1 - rt) * 0.9 * _mobAF;
-        ctx.drawImage(ringImg, -size/2, -size/2, size, size);
+        ctx.drawImage(ringBaked, -size/2, -size/2, size, size);
       }
-      if (t < 0.45 && fx.imgs.coreFlash) {
+      if (t < 0.45 && coreFlashBaked) {
         const ft = t / 0.45;
         const flashSize = (60 + ft * 120) * b.size * _mobRF;
         ctx.globalAlpha = (1 - ft) * _mobAF;
-        ctx.drawImage(fx.imgs.coreFlash, -flashSize/2, -flashSize/2, flashSize, flashSize);
+        ctx.drawImage(coreFlashBaked, -flashSize/2, -flashSize/2, flashSize, flashSize);
       }
-      if (fx.imgs.sparkle) {
+      if (sparkleBaked) {
         const sparkCount = Math.max(4, Math.floor(b.sparks * 0.5));
         for (let i = 0; i < sparkCount; i++) {
           const a = Math.PI * 2 * i / sparkCount + t * 0.8;
@@ -11500,7 +11526,7 @@ function renderBursts() {
           const sy = Math.sin(a) * dist;
           const ss = (22 + (i * 7) % 14) * (1 - t) * b.size * _mobHF;
           ctx.globalAlpha = alpha * 0.95;
-          ctx.drawImage(fx.imgs.sparkle, sx - ss/2, sy - ss/2, ss, ss);
+          ctx.drawImage(sparkleBaked, sx - ss/2, sy - ss/2, ss, ss);
         }
       }
       ctx.restore();
