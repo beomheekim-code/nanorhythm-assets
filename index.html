@@ -6212,16 +6212,17 @@ function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<
 //   분기: iframe 안 + window.kplay 정의됨 → KPLAY 환경 간주, postMessage 시도 + alert.
 //        그 외 (PC 직접 접속, 일반 모바일 브라우저) → location.reload().
 function _doUpdateReload() {
-  let isKplayIframe = false;
-  try {
-    isKplayIframe = !!(window.kplay && window.kplay.storage && window.parent !== window);
-  } catch(e) {}
-  if (isKplayIframe) {
+  // ★ iframe 안에 있으면 무조건 KPLAY 간주 — window.kplay 미정의 / cross-origin 권한 에러
+  //   케이스 커버 (이전 fix 가 window.kplay 의존해서 실패 → 사용자 보고 2026-05-04).
+  let inIframe = false;
+  try { inIframe = (typeof window !== 'undefined') && (window.self !== window.top); }
+  catch(e) { inIframe = true; } // cross-origin 권한 에러 = iframe 거의 확실
+  if (inIframe) {
     // KPLAY 가 받아주면 reload, 안 받아주면 무시 (무해 — type 미정의 시 KPLAY 가 무시)
     try { window.parent.postMessage({ type: 'reload' }, '*'); } catch(e) {}
     try { window.parent.postMessage({ type: 'kplay:reload' }, '*'); } catch(e) {}
     try {
-      alert('KPLAY 환경에서는 자동 새로고침이 제한됩니다.\n앱을 완전히 닫았다가 다시 실행해주세요.');
+      alert('자동 새로고침이 제한된 환경입니다.\n앱을 완전히 닫았다가 다시 실행해주세요.');
     } catch(e) {}
     return;
   }
@@ -8283,21 +8284,27 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       nd.type = 'hold';
       nd.endTime = nd.time + (o._holdDur || 1.2);
     } else if (holdEvery > 0 && noteIdx > 0 && noteIdx % holdEvery === 0) {
-      const _hDur = (2 + Math.floor(rng() * 2)) * eighthDur;
-      const _hEnd = nd.time + _hDur;
+      const _hDurBase = (2 + Math.floor(rng() * 2)) * eighthDur;
       // endCutoff 근처에서 hold 꼬리가 곡 끝을 넘으면 tap 으로 강등 (소리 안 들리는 구간에 hold 방지)
       const _cutAbs = (typeof song.endCutoff === 'number') ? song.endCutoff + bgmDelay : Infinity;
-      // ★ sustain-aware hold (default, 모든 곡 적용) — 다음 onset 까지 간격이 hold 길이의 90% 이상일 때만 hold.
-      //   박자 안 맞는 자리에 인위적 hold 변환되는 회귀 fix (사용자 보고 SPIN/Lucifer 2026-05-04).
-      //   다음 노트가 hold 끝나기 전에 와버리면 어색 → tap 유지. 음이 sustain 되는 자리만 hold.
-      let _nextGap = Infinity;
-      if (_fi + 1 < filtered.length) _nextGap = filtered[_fi + 1].time - nd.time;
-      const _spaceOk = _nextGap >= _hDur * 0.9;
-      if (_spaceOk && _hEnd <= _cutAbs - 0.3) {
-        nd.type = 'hold';
-        nd.endTime = _hEnd;
+      // ★ sustain-aware hold (default, 모든 곡) — hold 길이를 다음 onset 직전까지 자동 클램프.
+      //   너무 빡세지 않게: hold 가 다음 노트랑 겹치지 않는 한 만듦. 단 최소 hold 길이 보장.
+      //   결과: 음 sustain 되는 자리는 base 길이, 가까운 자리는 단축, 너무 가까우면 tap.
+      const _MIN_HOLD = eighthDur * 0.8; // 최소 hold ≈ 한 박 (BPM 78 ≈ 307ms)
+      const _GAP_TO_NEXT = 0.12;          // 다음 노트 직전 여유
+      let _maxAllowed = _hDurBase;
+      if (_fi + 1 < filtered.length) {
+        const _nextT = filtered[_fi + 1].time;
+        _maxAllowed = Math.min(_hDurBase, _nextT - nd.time - _GAP_TO_NEXT);
       }
-      // else: tap 유지 (hold 생성 skip)
+      if (_maxAllowed >= _MIN_HOLD) {
+        const _hEnd = nd.time + _maxAllowed;
+        if (_hEnd <= _cutAbs - 0.3) {
+          nd.type = 'hold';
+          nd.endTime = _hEnd;
+        }
+      }
+      // else: tap 유지 (hold 생성 skip — 다음 노트가 너무 가까운 자리)
     }
     nodes.push(nd);
     noteIdx++;
