@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504125643;
+window.__BUILD_TS = 20260504130022;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -883,7 +883,6 @@ async function _kpPullAll() {
     'rhythm_laneCount', 'rhythm_currentUser', 'rhythm_authMethod',
     'rhythm_allScores', 'rhythm_localPlays', 'rhythm_playsCache',
     'rhythm_nicknames',
-    'rhythm_patchedAssets_v1',  // ★ KPLAY iframe localStorage 리셋 시에도 patch 상태 복원
   ];
   for (const k of staticKeys) {
     try {
@@ -897,8 +896,6 @@ async function _kpPullAll() {
     const userKeys = [
       'rhythm_pass_' + u, 'rhythm_passBought_' + u, 'rhythm_freeplays_' + u,
       'rhythm_coins_' + u, 'rhythm_ach_' + u, 'rhythm_claimed_' + u,
-      // ★ KPLAY iframe localStorage 리셋 시에도 우편함/수령기록 복원
-      'rhythm_mailbox_' + u, 'rhythm_claimedMailIds_' + u,
     ];
     for (const k of userKeys) {
       try {
@@ -906,6 +903,19 @@ async function _kpPullAll() {
         if (v != null) { try { window.localStorage.setItem(k, v); } catch(e) {} }
       } catch(e) {}
     }
+  }
+  // ★ 안전 모드 키들 — local 이 비어있을 때만 kplay.storage 에서 복원.
+  //   stale kplay.storage 가 fresh local 을 덮어쓰는 회귀 방지.
+  //   patch 추적 / 우편함 / 수령기록 — KPLAY iframe localStorage 리셋 시에만 폴백.
+  const safeRestoreKeys = ['rhythm_patchedAssets_v1'];
+  if (u) safeRestoreKeys.push('rhythm_mailbox_' + u, 'rhythm_claimedMailIds_' + u);
+  for (const k of safeRestoreKeys) {
+    try {
+      const localV = window.localStorage.getItem(k);
+      if (localV != null) continue; // local 이 이미 있음 — 건드리지 않음
+      const v = await window.kplay.storage.getItem(k);
+      if (v != null) { try { window.localStorage.setItem(k, v); } catch(e) {} }
+    } catch(e) {}
   }
 }
 // DOM 로드 후 비동기 실행 (게임 init 방해 X)
@@ -3013,16 +3023,14 @@ function loadMailboxFromFirebase() {
           map.set(m.id, mergedMail);
         }
       }
-      // ★ 양방향 consistency 복구 (사용자 보고: 재접속 시 우편함 들어옴 + 수령 안 되는 회귀 fix)
-      //   - 어느 쪽이든 claimed=true 면 claimedMailIds 에 추가 (FB write 실패로 sync 안 된 케이스)
-      //   - claimedMailIds 에 있는 id 는 강제 claimed=true (불일치 상태에서 지급 누락 방지)
+      // ★ 단방향 sync 복구 — claimed=true entry 의 id 를 claimedIds 에 add (FB write 실패 복구).
+      //   주의: 반대 방향 (claimedIds → 강제 claimed=true) 은 admin 이 같은 id 재전송 시
+      //   mail 이 hidden 처리되는 회귀 유발 → 적용 안 함. 재지급 차단은 claimMail 의 defense 가 담당.
       const claimedIdsBefore = getClaimedMailIds();
       const claimedIds = [...claimedIdsBefore];
       for (const [id, entry] of map) {
         if (entry.claimed && !claimedIds.includes(id)) {
           claimedIds.push(id);
-        } else if (!entry.claimed && claimedIds.includes(id)) {
-          map.set(id, { ...entry, claimed: true });
         }
       }
       if (claimedIds.length !== claimedIdsBefore.length) {
