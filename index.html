@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504124322;
+window.__BUILD_TS = 20260504124419;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2819,6 +2819,7 @@ const songs = [
     vocalIntroRange: 'auto', chordMode: true,
     // ★ 드럼 strict (1.2) 으로 sparse 해짐 (사용자 보고 2026-05-04). 신스 강화 버전 (9ee3e68) 으로 revert.
     stemSensitivity: { 0: 1.05, 6: 1.05 }, // drum + 신스 둘 다 lenient
+    introSparse: [0, 18, 0.7], // 보컬 인트로 18초 onset 0.7초 간격으로 thin out
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
