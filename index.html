@@ -6207,28 +6207,22 @@ function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<
 //   따라서 location.reload() 호출하면 페이지 진입 자체가 막힘 (사용자 보고 2026-05-04).
 //   분기: iframe 안 + window.kplay 정의됨 → KPLAY 환경 간주, postMessage 시도 + alert.
 //        그 외 (PC 직접 접속, 일반 모바일 브라우저) → location.reload().
-// ★ 모달 snooze 타임스탬프 — 버튼 누르면 5분간 모달 다시 안 뜸. 사용자가 앱 재시작할 시간.
-let _updateModalSnoozeUntil = 0;
-
 function _doUpdateReload() {
-  // ★ iframe 안에 있으면 무조건 KPLAY 간주 — window.kplay 미정의 / cross-origin 권한 에러
-  //   케이스 커버 (이전 fix 가 window.kplay 의존해서 실패).
-  let inIframe = false;
-  try { inIframe = (typeof window !== 'undefined') && (window.self !== window.top); }
-  catch(e) { inIframe = true; } // cross-origin 권한 에러 = iframe 거의 확실
-  if (inIframe) {
-    // KPLAY iframe 의 src URL 은 일회용 세션 토큰 → location.reload() 시 404.
-    // 다양한 type 의 reload 메시지 시도 (KPLAY 가 받는 type 모름, 모르는 type 은 무시).
-    // 모달은 5분간 snooze — 사용자가 직접 앱 종료 + 재시작 할 시간 확보.
-    try { window.parent.postMessage({ type: 'reload' }, '*'); } catch(e) {}
-    try { window.parent.postMessage({ type: 'kplay:reload' }, '*'); } catch(e) {}
-    try { window.parent.postMessage({ type: 'restart' }, '*'); } catch(e) {}
-    try { window.parent.postMessage({ type: 'refresh' }, '*'); } catch(e) {}
-    try { window.parent.postMessage({ type: 'reload-game' }, '*'); } catch(e) {}
-    try { window.parent.postMessage({ type: 'iframe:reload' }, '*'); } catch(e) {}
-    _updateModalSnoozeUntil = performance.now() + 5 * 60 * 1000;
-    return;
+  // ★ 강제 새로고침 — 가능한 모든 방법 순차 시도 (사용자 명시 요청).
+  //   1) parent 에 다양한 reload type postMessage (KPLAY 가 받는 type 모름 — 다 시도)
+  //   2) top.location.reload() — top frame 새로고침. cross-origin 이면 throw.
+  //   3) window.parent.location.reload() — parent 직접 reload
+  //   4) location.reload() — 자기 자신 (KPLAY iframe 에선 토큰 만료로 404 가능, 일반 환경 작동)
+  const _reloadTypes = [
+    'reload', 'kplay:reload', 'kplay:restart', 'kplay:refresh',
+    'restart', 'refresh', 'reload-game', 'reload-iframe',
+    'iframe:reload', 'navigate-reload', 'app:reload', 'page:reload',
+  ];
+  for (const _t of _reloadTypes) {
+    try { window.parent.postMessage({ type: _t }, '*'); } catch(e) {}
   }
+  try { window.top.location.reload(); return; } catch(e) {}
+  try { window.parent.location.reload(); return; } catch(e) {}
   try { location.reload(); } catch(e) {}
 }
 
@@ -16684,10 +16678,8 @@ function loop(time) {
     window._pauseVolHits = null;
   }
   // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
-  //   강제 새로고침 버튼 복원 (사용자 요청 2026-05-04). 모바일에서 캐시 이슈로 강제 reload 필요.
-  //   KPLAY iframe 환경에서 location.reload() 가 일회용 세션 토큰 만료로 404 → _doUpdateReload 가 환경 분기.
-  //   _updateModalSnoozeUntil — 버튼 누르면 5분간 모달 다시 안 뜸 (사용자가 직접 앱 종료 + 재시작 시간).
-  if (window.__updateAvailable && state !== 'playing' && performance.now() >= _updateModalSnoozeUntil) {
+  //   강제 새로고침 버튼 (사용자 요청 2026-05-04). _doUpdateReload 가 가능한 모든 reload 방법 순차 시도.
+  if (window.__updateAvailable && state !== 'playing') {
     // 검은 오버레이
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, -safeTop, W, H + safeTop + safeBottom);
@@ -16702,19 +16694,21 @@ function loop(time) {
     ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(18)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('⚠ 새 업데이트 적용 필요', _umX + _umW/2, _umY + sz(34));
-    // 본문 — 솔직 안내 (자동 새로고침 KPLAY iframe 환경 한계)
+    // 본문
     ctx.fillStyle = '#fff'; ctx.font = `${sz(13)}px sans-serif`;
-    ctx.fillText('새 버전이 배포되었습니다.', _umX + _umW/2, _umY + sz(64));
-    ctx.fillStyle = '#ffd090'; ctx.font = `bold ${sz(13)}px sans-serif`;
-    ctx.fillText('앱을 완전히 종료한 뒤', _umX + _umW/2, _umY + sz(92));
-    ctx.fillText('다시 실행해주세요', _umX + _umW/2, _umY + sz(110));
-    // 닫기 버튼 (5분 snooze)
+    ctx.fillText('새 버전이 배포되었습니다.', _umX + _umW/2, _umY + sz(78));
+    // 강제 새로고침 버튼
     const _ubW = _umW - sz(40), _ubH = sz(42);
-    const _ubX = _umX + sz(20), _ubY = _umY + sz(140);
-    ctx.fillStyle = '#9f7fff'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
-    ctx.strokeStyle = '#c8b3ff'; ctx.lineWidth = 1.5; rrStroke(_ubX, _ubY, _ubW, _ubH, sz(8));
-    ctx.fillStyle = '#fff'; ctx.font = `bold ${sz(14)}px sans-serif`;
-    ctx.fillText('확인 (5분간 알림 끄기)', _umX + _umW/2, _ubY + _ubH/2);
+    const _ubX = _umX + sz(20), _ubY = _umY + sz(96);
+    ctx.fillStyle = '#ffb050'; rrFill(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.strokeStyle = '#ffd090'; ctx.lineWidth = 1.5; rrStroke(_ubX, _ubY, _ubW, _ubH, sz(8));
+    ctx.fillStyle = '#1a0d00'; ctx.font = `bold ${sz(15)}px sans-serif`;
+    ctx.fillText('강제 새로고침', _umX + _umW/2, _ubY + _ubH/2);
+    // fallback 안내 (버튼 안 먹힐 때)
+    ctx.fillStyle = 'rgba(255,200,120,0.7)'; ctx.font = `${sz(11)}px sans-serif`;
+    ctx.fillText('안 되면 앱(탭)을 닫고 다시 열어주세요', _umX + _umW/2, _umY + sz(170));
+    ctx.fillStyle = 'rgba(255,200,120,0.5)'; ctx.font = `${sz(10)}px sans-serif`;
+    ctx.fillText('(브라우저 캐시 삭제 후 재접속도 가능)', _umX + _umW/2, _umY + sz(196));
     ctx.textBaseline = 'alphabetic';
     window._updateModalBtn = { x: _ubX, y: _ubY, w: _ubW, h: _ubH };
   } else {
