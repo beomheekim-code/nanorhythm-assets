@@ -8290,8 +8290,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       // ★ sustain-aware hold (default, 모든 곡) — hold 길이를 다음 onset 직전까지 자동 클램프.
       //   너무 빡세지 않게: hold 가 다음 노트랑 겹치지 않는 한 만듦. 단 최소 hold 길이 보장.
       //   결과: 음 sustain 되는 자리는 base 길이, 가까운 자리는 단축, 너무 가까우면 tap.
-      const _MIN_HOLD = eighthDur * 0.8; // 최소 hold ≈ 한 박 (BPM 78 ≈ 307ms)
-      const _GAP_TO_NEXT = 0.12;          // 다음 노트 직전 여유
+      const _MIN_HOLD = eighthDur * 1.5; // 최소 hold = 1.5 박 (짧은 자투리 hold 는 tap 으로 fallback)
+      const _GAP_TO_NEXT = 0.18;          // 다음 노트 직전 여유 늘림 (자연스러운 sustain 자리만 hold)
       let _maxAllowed = _hDurBase;
       if (_fi + 1 < filtered.length) {
         const _nextT = filtered[_fi + 1].time;
