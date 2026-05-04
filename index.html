@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504153100;
+window.__BUILD_TS = 20260504154500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2872,6 +2872,10 @@ const songs = [
     slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
+    // ★ 박자 안 맞는 자리에 hold 강제 변환되는 회귀 fix (사용자 보고 2026-05-04).
+    //   SPIN 은 노트 밀집 (slotSubdivision 0.5) + 지옥 holdEvery 8 → hold 빈도 너무 잦음.
+    //   holdEveryOverride 16 으로 빈도 절반. sustain 체크는 default (모든 곡) 적용.
+    holdEveryOverride: 16,
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
@@ -6202,6 +6206,28 @@ addEventListener('keyup', e => {
 
 function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<=by+bh; }
 
+// ★ 업데이트 모달 새로고침 버튼 핸들러 — KPLAY iframe 환경 안전 분기.
+//   KPLAY iframe 의 src URL 은 일회용 세션 토큰 포함 → 같은 URL 재요청 시 404.
+//   따라서 location.reload() 호출하면 페이지 진입 자체가 막힘 (사용자 보고 2026-05-04).
+//   분기: iframe 안 + window.kplay 정의됨 → KPLAY 환경 간주, postMessage 시도 + alert.
+//        그 외 (PC 직접 접속, 일반 모바일 브라우저) → location.reload().
+function _doUpdateReload() {
+  let isKplayIframe = false;
+  try {
+    isKplayIframe = !!(window.kplay && window.kplay.storage && window.parent !== window);
+  } catch(e) {}
+  if (isKplayIframe) {
+    // KPLAY 가 받아주면 reload, 안 받아주면 무시 (무해 — type 미정의 시 KPLAY 가 무시)
+    try { window.parent.postMessage({ type: 'reload' }, '*'); } catch(e) {}
+    try { window.parent.postMessage({ type: 'kplay:reload' }, '*'); } catch(e) {}
+    try {
+      alert('KPLAY 환경에서는 자동 새로고침이 제한됩니다.\n앱을 완전히 닫았다가 다시 실행해주세요.');
+    } catch(e) {}
+    return;
+  }
+  try { location.reload(); } catch(e) {}
+}
+
 // 공통 햄버거 메뉴 클릭 처리 (상점/업적/랭킹/선곡 공용)
 function handleHamburgerClick(mx, my) {
   if (hamburgerAreas.btn) {
@@ -6627,9 +6653,7 @@ addEventListener('mousedown', e => {
   if (window.__updateAvailable && window._updateModalBtn && state !== 'playing') {
     const btn = window._updateModalBtn;
     if (hitTest(e.clientX, gameY(e.clientY), btn.x, btn.y, btn.w, btn.h)) {
-      // ★ location.replace(pathname + '?_v=...') 가 KPLAY 라우팅에서 "페이지 불러올수 없어" 발생.
-      //   location.reload() 로 변경 — URL 변형 없이 동일 URL 재요청. 브라우저가 자체 revalidation.
-      try { location.reload(); } catch(ex) {}
+      _doUpdateReload();
       return;
     }
     // 모달 떠 있으면 다른 입력 차단
@@ -7172,9 +7196,7 @@ document.addEventListener('touchstart', e => {
     const t0 = e.changedTouches[0];
     const btn = window._updateModalBtn;
     if (t0 && hitTest(t0.clientX, gameY(t0.clientY), btn.x, btn.y, btn.w, btn.h)) {
-      // ★ location.replace(pathname + '?_v=...') 가 KPLAY 라우팅에서 "페이지 불러올수 없어" 발생.
-      //   location.reload() 로 변경 — URL 변형 없이 동일 URL 재요청. 브라우저가 자체 revalidation.
-      try { location.reload(); } catch(e) {}
+      _doUpdateReload();
       return;
     }
     // 모달 떠 있으면 다른 입력 전부 무시
@@ -8215,7 +8237,8 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
-  const holdEvery = diff.holdEvery || 999;
+  // ★ song.holdEveryOverride 우선 (SPIN 등 박자 안 맞는 hold 회귀 fix).
+  const holdEvery = (typeof song.holdEveryOverride === 'number') ? song.holdEveryOverride : (diff.holdEvery || 999);
   const eighthDur = sixteenth * 2;
 
   // stem → 레인 매핑 (전 레인에 고르게 분산)
@@ -8232,7 +8255,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   const SAME_LANE_MIN_GAP = 0.3; // 같은 레인 연속 허용 최소 간격 (초, 시각 overlap 방지)
 
   let _lastChordTime = 0;
+  let _fi = -1;  // ★ filtered 인덱스 추적 — sustain-aware hold 변환 시 다음 onset 거리 계산용
   for (const o of filtered) {
+    _fi++;
     if (!stemCnt[o.stem]) stemCnt[o.stem] = 0;
     const ci = stemCnt[o.stem]++;
     const base = stemBase[o.stem] || 0;
@@ -8262,7 +8287,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
       const _hEnd = nd.time + _hDur;
       // endCutoff 근처에서 hold 꼬리가 곡 끝을 넘으면 tap 으로 강등 (소리 안 들리는 구간에 hold 방지)
       const _cutAbs = (typeof song.endCutoff === 'number') ? song.endCutoff + bgmDelay : Infinity;
-      if (_hEnd <= _cutAbs - 0.3) {
+      // ★ sustain-aware hold (default, 모든 곡 적용) — 다음 onset 까지 간격이 hold 길이의 90% 이상일 때만 hold.
+      //   박자 안 맞는 자리에 인위적 hold 변환되는 회귀 fix (사용자 보고 SPIN/Lucifer 2026-05-04).
+      //   다음 노트가 hold 끝나기 전에 와버리면 어색 → tap 유지. 음이 sustain 되는 자리만 hold.
+      let _nextGap = Infinity;
+      if (_fi + 1 < filtered.length) _nextGap = filtered[_fi + 1].time - nd.time;
+      const _spaceOk = _nextGap >= _hDur * 0.9;
+      if (_spaceOk && _hEnd <= _cutAbs - 0.3) {
         nd.type = 'hold';
         nd.endTime = _hEnd;
       }
@@ -16641,7 +16672,7 @@ function loop(time) {
   }
   // ★ 업데이트 감지 모달 — 전체 화면 블로킹. state !== 'playing' 일 때만.
   //   강제 새로고침 버튼 복원 (사용자 요청 2026-05-04). 모바일에서 캐시 이슈로 강제 reload 필요.
-  //   KPLAY iframe location.reload() 토큰 만료 위험 있어 안내문구도 같이 표시 (fallback).
+  //   KPLAY iframe 환경에서 location.reload() 가 일회용 세션 토큰 만료로 404 → _doUpdateReload 가 환경 분기.
   if (window.__updateAvailable && state !== 'playing') {
     // 검은 오버레이
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
