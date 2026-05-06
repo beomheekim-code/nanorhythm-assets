@@ -308,12 +308,23 @@ function _activatePerfOnly() {
         if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
         var txt = await r.text();
         var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
+        // ★ dynamic FORCE_REPATCH_LIST / VERSION 추출 — 사용자 KPLAY 빌드 의 옛 force list 무관,
+        //   raw.github 의 latest 사용. getAssetsToPatch 가 window.__FORCE_REPATCH_LIST fallback.
+        try {
+          var forceM = txt.match(/const FORCE_REPATCH_LIST\s*=\s*\[([\s\S]*?)\]/);
+          if (forceM) {
+            var items = forceM[1].match(/'([^']+)'/g) || [];
+            window.__FORCE_REPATCH_LIST = items.map(function(s){return s.replace(/'/g,'');});
+          }
+          var verM = txt.match(/const FORCE_REPATCH_VERSION\s*=\s*(\d+)/);
+          if (verM) {
+            window.__FORCE_REPATCH_VERSION = parseInt(verM[1]);
+          }
+        } catch(e) {}
         if (m) {
           var srv = parseInt(m[1]);
           window.__lastUpdateCheck = { srv: srv, t: Date.now() };
           window.__lastUpdateCheckErr = null;
-          // ★ lastReceived mark — 사용자 받기 후 srv 저장. 다음 reload 시 srv <= max(KPLAY, lastReceived)
-          //   면 모달 X (이미 받음). 사용자 deploy 알림 후만 우리 raw bump → srv > lastReceived → 모달.
           var lastReceived = 0;
           try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
           var threshold = Math.max(window.__BUILD_TS || 0, lastReceived);
@@ -1191,7 +1202,10 @@ function buildAssetManifest() {
 function getAssetsToPatch() {
   const all = buildAssetManifest();
   const saved = _loadPatchedSet();
-  const force = (typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : [];
+  // ★ dynamic force list — _checkUpdate 가 raw 에서 추출한 latest 우선. fallback: 자체 const.
+  const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
+                ? window.__FORCE_REPATCH_LIST
+                : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
   // ★ 비정상 reset 감지 — saved.cdnBase 옛 + saved.paths 가 manifest 50% 미만.
   if (saved.cdnBase && saved.cdnBase !== CDN_BASE && all.length > 10 && saved.paths.length < all.length * 0.5) {
     const filled = all.filter(p => force.indexOf(p) === -1);
@@ -1206,7 +1220,10 @@ function getAssetsToPatch() {
   // ★ saved.cdnBase 일치 — force list version 비교. 새 version 이면 force re-patch.
   let lastForceVer = 0;
   try { lastForceVer = parseInt(localStorage.getItem('rhythm_lastForceVersion') || '0') || 0; } catch(e) {}
-  const forceVer = (typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0;
+  // ★ dynamic version — _checkUpdate 가 raw 에서 추출한 latest 우선. fallback: 자체 const.
+  const forceVer = (typeof window.__FORCE_REPATCH_VERSION === 'number')
+                   ? window.__FORCE_REPATCH_VERSION
+                   : ((typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0);
   if (forceVer > lastForceVer) {
     const set = new Set(saved.paths.filter(p => force.indexOf(p) === -1));
     return all.filter(p => !set.has(p));
@@ -1421,9 +1438,10 @@ async function patchAssets(opts) {
     _savePatchedSet([...set]);
     // ★ force list version mark — 받기 완료 후. 다음 reload 시 force re-patch X.
     try {
-      if (typeof FORCE_REPATCH_VERSION !== 'undefined') {
-        localStorage.setItem('rhythm_lastForceVersion', String(FORCE_REPATCH_VERSION));
-      }
+      const verToMark = (typeof window.__FORCE_REPATCH_VERSION === 'number')
+                        ? window.__FORCE_REPATCH_VERSION
+                        : ((typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0);
+      if (verToMark) localStorage.setItem('rhythm_lastForceVersion', String(verToMark));
     } catch(e) {}
   }
 
