@@ -6344,11 +6344,26 @@ function hitTest(x, y, bx, by, bw, bh) { return x>=bx && x<=bx+bw && y>=by && y<
 //   분기: iframe 안 + window.kplay 정의됨 → KPLAY 환경 간주, postMessage 시도 + alert.
 //        그 외 (PC 직접 접속, 일반 모바일 브라우저) → location.reload().
 function _doUpdateReload() {
+  // ★ lastReceivedBuildTs mark — _checkUpdate 모달 다시 안 뜨게.
+  try {
+    if (window.__lastUpdateCheck && window.__lastUpdateCheck.srv) {
+      localStorage.setItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
+    }
+  } catch(e) {}
+  // ★ saved.paths 의 force list wipe — reload 후 select 진입 시 force list patch overlay 자동.
+  //   force list = window.__FORCE_REPATCH_LIST (raw 추출) 우선, 자체 const fallback.
+  try {
+    const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
+                  ? window.__FORCE_REPATCH_LIST
+                  : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
+    if (force.length > 0) {
+      const k = 'rhythm_patchedAssets_v1';
+      const data = JSON.parse(localStorage.getItem(k) || '{"paths":[]}');
+      data.paths = (data.paths || []).filter(p => force.indexOf(p) === -1);
+      localStorage.setItem(k, JSON.stringify(data));
+    }
+  } catch(e) {}
   // ★ 강제 새로고침 — 가능한 모든 방법 순차 시도 (사용자 명시 요청).
-  //   1) parent 에 다양한 reload type postMessage (KPLAY 가 받는 type 모름 — 다 시도)
-  //   2) top.location.reload() — top frame 새로고침. cross-origin 이면 throw.
-  //   3) window.parent.location.reload() — parent 직접 reload
-  //   4) location.reload() — 자기 자신 (KPLAY iframe 에선 토큰 만료로 404 가능, 일반 환경 작동)
   const _reloadTypes = [
     'reload', 'kplay:reload', 'kplay:restart', 'kplay:refresh',
     'restart', 'refresh', 'reload-game', 'reload-iframe',
