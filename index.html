@@ -308,24 +308,8 @@ function _activatePerfOnly() {
         if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
         var txt = await r.text();
         var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
-        // ★ dynamic FORCE_REPATCH_LIST / VERSION 추출 — 사용자 KPLAY 빌드 의 옛 force list 무관,
-        //   raw.github 의 latest 사용. getAssetsToPatch 가 window.__FORCE_REPATCH_LIST fallback.
-        try {
-          var forceM = txt.match(/const FORCE_REPATCH_LIST\s*=\s*\[([\s\S]*?)\]/);
-          if (forceM) {
-            var items = forceM[1].match(/'([^']+)'/g) || [];
-            window.__FORCE_REPATCH_LIST = items.map(function(s){return s.replace(/'/g,'');});
-          }
-          var verM = txt.match(/const FORCE_REPATCH_VERSION\s*=\s*(\d+)/);
-          if (verM) {
-            window.__FORCE_REPATCH_VERSION = parseInt(verM[1]);
-          }
-          // ★ FORCE_CLEAR_VERSION 도 raw 추출 — 사용자 환경 force_clear 1회 wipe 트리거.
-          var clrM = txt.match(/const FORCE_CLEAR_VERSION\s*=\s*['"]([^'"]+)['"]/);
-          if (clrM) {
-            window.__FORCE_CLEAR_VERSION = clrM[1];
-          }
-        } catch(e) {}
+        // ★ dynamic 추출 제거 (2026-05-06): 사용자 명시 — admin upload 전 사용자 환경 영향 X.
+        //   force list / version / clear 모두 사용자 KPLAY 빌드 의 const 만 사용. raw 변경 자동 도달 X.
         if (m) {
           var srv = parseInt(m[1]);
           window.__lastUpdateCheck = { srv: srv, t: Date.now() };
