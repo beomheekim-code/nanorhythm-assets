@@ -1110,7 +1110,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 6;
+const FORCE_REPATCH_VERSION = 7;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=BUILD_TS query — 브라우저 cache 우회 (변경된 PNG fresh fetch).
@@ -1253,7 +1253,9 @@ async function _patchViaFetch(path, onBytes) {
   const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch(e) {} }, PATCH_PER_FILE_TIMEOUT) : null;
   try {
-    const opts = ctrl ? { signal: ctrl.signal, cache: 'force-cache' } : { cache: 'force-cache' };
+    // ★ cache: 'reload' — 사용자 브라우저 cache 옛 PNG hit 회피. 매 patch 시 fresh fetch 강제.
+    //   변경된 PNG 도 옛 cache 에서 받아오는 회귀 fix (사용자 보고 2026-05-06: 패치해도 옛 본).
+    const opts = ctrl ? { signal: ctrl.signal, cache: 'reload' } : { cache: 'reload' };
     const resp = await fetch(url, opts);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     if (resp.body && resp.body.getReader && typeof onBytes === 'function') {
@@ -1543,7 +1545,7 @@ async function startPatchOrTransition() {
     //   raw 의 새 version → 사용자 환경 mark 없음 → 1회 wipe → force list 자동 patch.
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v7';
+                                : 'v8';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
