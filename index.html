@@ -1164,6 +1164,15 @@ function getAssetsToPatch() {
   const all = buildAssetManifest();
   const saved = _loadPatchedSet();
   const force = (typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : [];
+  // ★ 비정상 reset 감지 — saved.cdnBase 가 옛 빌드 + saved.paths 가 manifest 의 50% 미만.
+  //   옛 빌드 (1371 의 saved.cdnBase mismatch 시 set 빈 회귀) 영향 사용자 자동 복구.
+  //   기존 사용자 = 이미 받은 적 있음 가정 → manifest 강제 fill + force list 만 patch.
+  //   새 사용자 (saved.cdnBase = null) 는 정상 path.
+  if (saved.cdnBase && saved.cdnBase !== CDN_BASE && all.length > 10 && saved.paths.length < all.length * 0.5) {
+    const filled = all.filter(p => force.indexOf(p) === -1);
+    _savePatchedSet(filled);
+    return force.slice();
+  }
   const set = new Set(saved.paths.filter(p => force.indexOf(p) === -1));
   return all.filter(p => !set.has(p));
 }
