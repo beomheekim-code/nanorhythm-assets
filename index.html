@@ -1492,6 +1492,22 @@ async function _runPatchExecution(need) {
 }
 
 async function startPatchOrTransition() {
+  // ★ FORCE_REPATCH 1회성 강제 clear — 사용자 환경 saved.paths 에 force list 가
+  //   이미 누적된 상태에서 PNG 변경 시 자동 re-patch 안 되는 회귀 fix.
+  //   localStorage mark (force_clear_vN) 가 없으면 1회 force list 를 saved.paths 에서 제거.
+  //   N 을 매 force list PNG 변경 시 +1 → 사용자 자동 re-patch 트리거.
+  try {
+    const FORCE_CLEAR_VERSION = 'v2';  // PNG 변경 시 v3, v4 로 bump
+    const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
+    if (!localStorage.getItem(key)) {
+      const saved = _loadPatchedSet();
+      const force = (typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : [];
+      const cleared = saved.paths.filter(p => force.indexOf(p) === -1);
+      _savePatchedSet(cleared);
+      localStorage.setItem(key, '1');
+      console.log('[patch] force-clear ' + FORCE_CLEAR_VERSION + ': ' + force.length + ' paths removed from saved');
+    }
+  } catch(e) {}
   // ★ kplay.storage → localStorage 동기화 완료 대기 (모바일 KPLAY iframe 매번 패치 재다운 fix).
   //   _kpPullAll 은 script load 시 setTimeout(0) 으로 시작. 모바일에서 사용자가 빠르게 진입하면
   //   미완료 상태에서 getAssetsToPatch 호출 → _loadPatchedSet 가 빈 결과 → 전체 재다운로드.
