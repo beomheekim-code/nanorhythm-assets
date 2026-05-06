@@ -13340,9 +13340,9 @@ function _handlePatchOverlayClick(x, y) {
   if (_patchOverlayMode === 'confirm') {
     if (inside(a.ok)) {
       // ★ iOS HTMLAudio 프라이머 — 받기 클릭은 user gesture context (마지막 gesture).
-      //   silent Audio play+pause 해두면 패치 후 30초+ 뒤 자동 startPreview 가
-      //   fresh gesture 없이도 audio.play() 통과 (document audio session 활성화).
-      //   사용자 보고 2026-05-06: silent data URI primer 만으론 부족 → 첫 곡 실제 audio 도 silent play.
+      //   첫 곡 실제 audio 를 silent 로 짧게 play → audio session 활성화.
+      //   끝난 후 titleBgm 즉시 재시작 (iOS 정책상 새 audio 시작하면 titleBgm 자동 pause 됨).
+      //   사용자 보고 2026-05-06: 패치 중 titleBgm 무음 + 사용자 터치 전까지 preview 안 들림.
       try {
         if (typeof songs !== 'undefined' && Array.isArray(songs) && songs[0] && songs[0].file) {
           const _realPrimer = new Audio();
@@ -13350,7 +13350,15 @@ function _handlePatchOverlayClick(x, y) {
           _realPrimer.volume = 0;
           _realPrimer.preload = 'auto';
           _realPrimer.play().then(() => {
-            setTimeout(() => { try { _realPrimer.pause(); _realPrimer.removeAttribute('src'); _realPrimer.load(); } catch(e){} }, 800);
+            setTimeout(() => {
+              try { _realPrimer.pause(); _realPrimer.removeAttribute('src'); _realPrimer.load(); } catch(e){}
+              // ★ titleBgm 재시작 — _realPrimer 가 audio session 가져가면서 자동 pause 됐을 가능성.
+              try {
+                if (typeof titleBgm !== 'undefined' && titleBgm && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
+                  if (titleBgm.paused) titleBgm.play().catch(()=>{});
+                }
+              } catch(e) {}
+            }, 800);
           }).catch(()=>{});
         }
       } catch(e) {}
