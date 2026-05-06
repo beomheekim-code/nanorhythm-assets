@@ -13359,20 +13359,9 @@ function _handlePatchOverlayClick(x, y) {
       setTimeout(_titleBgmRetry, 1500);
       setTimeout(_titleBgmRetry, 4000);
       setTimeout(_titleBgmRetry, 10000);
-      try {
-        const _primer = new Audio();
-        _primer.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-        _primer.volume = 0;
-        _primer.play().then(() => { try { _primer.pause(); } catch(e){} }).catch(()=>{});
-      } catch(e) {}
-      // ★ 추가 프라이머 — songPreviewAudio 와 같은 pattern 의 Audio element 도 미리 unlock.
-      //   per-element gesture 정책의 iOS 버전 대응 (silent ogg 시도, 실패해도 무해).
-      try {
-        const _primer2 = new Audio();
-        _primer2.src = 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAADBSAAAAAAAANJ0lDABHgF2b3JiaXMAAAAAAUSsAAAAAAAAgFcBAAAAAAC4AU9nZ1MAAAAAAAAAAAAAwUgAAAEAAAANvKxAAQQ=';
-        _primer2.volume = 0;
-        _primer2.play().then(() => { try { _primer2.pause(); } catch(e){} }).catch(()=>{});
-      } catch(e) {}
+      // ★ silent data URI primer 들 (WAV/OGG) 도 제거 (사용자 보고 2026-05-06):
+      //   new Audio() + play() 자체가 audio session 점유 → titleBgm/preview 차단 의심.
+      //   받기 클릭에서 audio 관련 작업은 titleBgm.play() retry 만 유지.
       _patchOverlayMode = 'progress';
       const cb = _patchOverlayPromise;
       _patchOverlayPromise = null;
