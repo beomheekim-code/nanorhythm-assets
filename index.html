@@ -1199,12 +1199,14 @@ function buildAssetManifest() {
 // ★ saved.cdnBase !== CDN_BASE 시 전체 재패치 제거 (수백 MB 사이드 이펙트 회피).
 //   PNG 변경 시 FORCE_REPATCH_LIST 에 추가 → 그 paths 만 다시 받음.
 function getAssetsToPatch() {
-  const all = buildAssetManifest();
+  const baseManifest = buildAssetManifest();
   const saved = _loadPatchedSet();
   // ★ dynamic force list — _checkUpdate 가 raw 에서 추출한 latest 우선. fallback: 자체 const.
   const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
                 ? window.__FORCE_REPATCH_LIST
                 : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
+  // ★ force list 의 manifest 외 path 도 patch 대상 (preview gif / icon.png 등 SKINS imagePaths X 항목).
+  const all = [...new Set([...baseManifest, ...force])];
   // ★ 비정상 reset 감지 — saved.cdnBase 옛 + saved.paths 가 manifest 50% 미만.
   if (saved.cdnBase && saved.cdnBase !== CDN_BASE && all.length > 10 && saved.paths.length < all.length * 0.5) {
     const filled = all.filter(p => force.indexOf(p) === -1);
