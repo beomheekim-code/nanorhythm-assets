@@ -1070,16 +1070,31 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@
 //   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
 //   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
 const FORCE_REPATCH_LIST = [
+  // 세라 전체 imagePaths — 사용자 수동 처리 본 (Gemini 마크 제거 등) 자동 도달.
+  'skins/bj_sera/idle_raw.png',
+  'skins/bj_sera/standby_far_normal_1.png',
+  'skins/bj_sera/standby_far_normal_2.png',
+  'skins/bj_sera/standby_near_normal_1.png',
+  'skins/bj_sera/standby_near_normal_2.png',
+  'skins/bj_sera/strike_far_normal.png',
+  'skins/bj_sera/strike_idle_normal.png',
+  'skins/bj_sera/strike_near_normal.png',
   'skins/bj_sera/strike_far_fever_1.png',
   'skins/bj_sera/strike_idle_fever_1.png',
   'skins/bj_sera/strike_near_fever_1.png',
+  'skins/bj_sera/strike_far_fever_2.png',
+  'skins/bj_sera/strike_idle_fever_2.png',
+  'skins/bj_sera/strike_near_fever_2.png',
   'skins/bj_sera/fever_raw.png',
+  'skins/bj_sera/miss.png',
+  'skins/bj_sera/miss_idle.png',
+  'skins/bj_sera/miss_normal.png',
   'skins/bj_sera/miss_fever.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 2;
+const FORCE_REPATCH_VERSION = 3;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=BUILD_TS query — 브라우저 cache 우회 (변경된 PNG fresh fetch).
@@ -1497,7 +1512,7 @@ async function startPatchOrTransition() {
   //   localStorage mark (force_clear_vN) 가 없으면 1회 force list 를 saved.paths 에서 제거.
   //   N 을 매 force list PNG 변경 시 +1 → 사용자 자동 re-patch 트리거.
   try {
-    const FORCE_CLEAR_VERSION = 'v3';  // PNG 변경 시 v3, v4 로 bump
+    const FORCE_CLEAR_VERSION = 'v4';  // PNG 변경 시 v3, v4 로 bump
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
