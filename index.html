@@ -9626,7 +9626,7 @@ function update(dt) {
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
       } else {
         nanoMiss();
-        collected--; missed++; combo = 0; fever = false; feverTimer = 0;
+        collected--; missed++; combo = 0; _charMissWasFever = fever; fever = false; feverTimer = 0;
         judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
       }
     }
@@ -9637,7 +9637,7 @@ function update(dt) {
       n.missed = true;
       stopHoldSound(n);
       nanoMiss();
-      collected--; missed++; combo = 0; fever = false; feverTimer = 0;
+      collected--; missed++; combo = 0; _charMissWasFever = fever; fever = false; feverTimer = 0;
       judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
     }
   }
@@ -9702,7 +9702,7 @@ function update(dt) {
           } catch(e){}
         }
         nanoMiss();
-        combo = 0; missed++; fever = false; feverTimer = 0;
+        combo = 0; missed++; _charMissWasFever = fever; fever = false; feverTimer = 0;
         if (!devInvincible && playMode === 'normal') gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         // miss shake 제거 (유저 요청)
         if (judgmentPriority < 2) { judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss(); }
@@ -11393,6 +11393,7 @@ function rrStroke(x,y,w,h,r) {
 let _charKeyCount = 0;       // 키 누름 누적 횟수 (좌타↔우타 토글)
 let _charLastHitT = 0;       // 마지막 hit 시각 (strike 자세 유지용)
 let _charMissT = 0;          // 마지막 miss 시각 (푸른 flash 용)
+let _charMissWasFever = false; // miss 시점 fever 상태 — fever 시 miss 후에 fever=false 되므로 캡쳐 필요
 const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
 const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
 let _seraIntroT = 0;
@@ -11525,8 +11526,9 @@ function renderCharacter() {
     const isFeverNow = isFever;
     // ★ miss 분기 — 시간 기반 (CHAR_MISS_FLASH ms 동안 miss 이미지). idle/fever 구분.
     //   _charKeyCount 무관 (사용자 요청 2026-05-06: hit 후 miss 도 miss 이미지 표시).
+    //   ★ _charMissWasFever 사용 — miss 직후 fever=false 되므로 호출 측에서 캡쳐된 값 활용.
     if (_charMissT > 0 && sinceMiss < CHAR_MISS_FLASH) {
-      if (isFeverNow && paths.missFever) key = 'missFever';
+      if (_charMissWasFever && paths.missFever) key = 'missFever';
       else if (paths.missIdle) key = 'missIdle';
       else if (paths.miss) key = 'miss';
       else key = 'idle';
@@ -11591,7 +11593,10 @@ function renderCharacter() {
 
   if (isFever && !isMiss) {
     const pulseT = (Math.sin(now * 0.008) + 1) * 0.5;
-    const glowColor = pulseT > 0.5 ? '#ff80c0' : '#ffb3d9';
+    // ★ glow 색상 단일화 (사용자 요청 2026-05-06): 두 색 토글이 눈아픔 → 단일 색.
+    //   히나/세라 공통 적용 (이 코드는 customAnim 무관 fever glow 공통 path).
+    //   intensity 만 pulseT 로 살짝 변동, 색은 고정.
+    const glowColor = '#ff9ace';
     if (isMobile) {
       // 모바일: radial gradient + ★ arc fill (사각형 cutoff 제거). 원형 영역만 fill = 진짜 원형 글로우.
       const _gPad = sz(16);
