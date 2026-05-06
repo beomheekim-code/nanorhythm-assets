@@ -11414,7 +11414,7 @@ const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
 let _seraIntroT = 0;
 let _seraStrikeIdx = 0;
 let _seraStrikeFireT = 0;
-const SERA_STRIKE_DURATION = 350; // strike 재생 총 시간 (이 시간 안 hit 무시)
+const SERA_STRIKE_DURATION = 260; // strike 재생 총 시간 (이 시간 안 hit 무시) — 사용자 요청 2026-05-06 단축
 function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
@@ -11602,8 +11602,8 @@ function renderCharacter() {
       // 인트로 끝난 후: strike playback (총 350ms). fever phase 별 키 사용.
       const sinceFire = now - _seraStrikeFireT;
       const _ph = (_seraFeverPhase === 2) ? '2' : '1';
-      if (_seraStrikeFireT > 0 && sinceFire < 150) {
-        // 0~150ms strike pose
+      if (_seraStrikeFireT > 0 && sinceFire < 120) {
+        // 0~120ms strike pose (사용자 요청 2026-05-06 단축: 150 → 120)
         if (isFeverNow) {
           key = _seraStrikeIdx === 0 ? ('strikeNearFever' + _ph) : ('strikeFarFever' + _ph);
         } else {
