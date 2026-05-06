@@ -1076,6 +1076,10 @@ const FORCE_REPATCH_LIST = [
   'skins/bj_sera/fever_raw.png',
   'skins/bj_sera/miss_fever.png',
 ];
+// ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
+//   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
+//   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
+const FORCE_REPATCH_VERSION = 1;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=BUILD_TS query — 브라우저 cache 우회 (변경된 PNG fresh fetch).
@@ -1180,13 +1184,19 @@ function getAssetsToPatch() {
     return force.slice();
   }
   // ★ saved.cdnBase 옛 빌드 — force list 의 path 다시 받기 (변경된 PNG fresh).
-  //   set 에서 force list 제외 → manifest 의 force list 가 set 에 없음 → 받음.
   if (saved.cdnBase !== CDN_BASE) {
     const set = new Set(saved.paths.filter(p => force.indexOf(p) === -1));
     return all.filter(p => !set.has(p));
   }
-  // ★ saved.cdnBase 일치 (force list 도 이미 받음) — set 에 force 포함 → patch X.
-  //   곡 선택 진입 시 또 patch 뜨는 회귀 fix.
+  // ★ saved.cdnBase 일치 — force list version 비교. 새 version 이면 force re-patch.
+  let lastForceVer = 0;
+  try { lastForceVer = parseInt(localStorage.getItem('rhythm_lastForceVersion') || '0') || 0; } catch(e) {}
+  const forceVer = (typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0;
+  if (forceVer > lastForceVer) {
+    const set = new Set(saved.paths.filter(p => force.indexOf(p) === -1));
+    return all.filter(p => !set.has(p));
+  }
+  // version 일치 — saved 그대로 (force 포함). patch X.
   const set = new Set(saved.paths);
   return all.filter(p => !set.has(p));
 }
@@ -1388,14 +1398,18 @@ async function patchAssets(opts) {
   for (let w = 0; w < parallel; w++) workers.push(worker());
   await Promise.all(workers);
 
-  // 점진적 저장은 cancel 케이스 대비 → 성공한 것만 누적
-  // ★ saved.cdnBase 비교 제거 (FORCE_REPATCH_LIST 시스템과 일관) → 항상 누적.
-  //   이전: cdnBase mismatch 시 saved.paths 비움 → 곡 선택 진입 시 manifest 전체 재패치.
+  // 점진적 저장 — saved.paths 누적 + force list version mark.
   if (succeeded.length > 0) {
     const saved = _loadPatchedSet();
     const set = new Set(saved.paths);
     for (const p of succeeded) set.add(p);
     _savePatchedSet([...set]);
+    // ★ force list version mark — 받기 완료 후. 다음 reload 시 force re-patch X.
+    try {
+      if (typeof FORCE_REPATCH_VERSION !== 'undefined') {
+        localStorage.setItem('rhythm_lastForceVersion', String(FORCE_REPATCH_VERSION));
+      }
+    } catch(e) {}
   }
 
   _patchState.active = false;
