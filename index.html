@@ -1077,7 +1077,16 @@ const FORCE_REPATCH_LIST = [
   'skins/bj_sera/miss_fever.png',
 ];
 
-function assetUrl(path) { return CDN_BASE + path; }
+function assetUrl(path) {
+  // ★ force list 의 PNG 는 ?v=BUILD_TS query — 브라우저 cache 우회 (변경된 PNG fresh fetch).
+  //   jsdelivr 는 query 무시 (path 만 cache key) 라 server 는 같은 resource. 브라우저 cache
+  //   는 query 별 분리 → BUILD_TS bump 시 cache miss → fresh PNG 도달.
+  //   다른 path (곡 OGG / BGM) 는 query X — fresh fetch 부담 X.
+  if (typeof FORCE_REPATCH_LIST !== 'undefined' && FORCE_REPATCH_LIST.indexOf(path) >= 0) {
+    return CDN_BASE + path + '?v=' + window.__BUILD_TS;
+  }
+  return CDN_BASE + path;
+}
 
 // ===== ASSET PATCH SYSTEM =====
 // ★ 타이틀 → 게임시작 시점에 명시적 패치 단계.
