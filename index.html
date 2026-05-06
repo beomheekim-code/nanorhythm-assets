@@ -1086,26 +1086,9 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@
 //   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
 //   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
 const FORCE_REPATCH_LIST = [
-  // 세라 — 사용자 수동 처리 본 _v2 path (cache 무관 새 URL).
-  'skins/bj_sera/idle_raw_v2.png',
-  'skins/bj_sera/fever_raw_v2.png',
-  'skins/bj_sera/miss_idle_v2.png',
-  'skins/bj_sera/miss_fever_v2.png',
-  'skins/bj_sera/strike_far_fever_1_v2.png',
+  // 적용 안 된 2장 만 _v2 (cache 무관 새 URL)
   'skins/bj_sera/strike_idle_fever_1_v2.png',
-  'skins/bj_sera/strike_near_fever_1_v2.png',
-  // 나머지 (사용자 수정 X — raw 처리 본)
-  'skins/bj_sera/standby_far_normal_1.png',
-  'skins/bj_sera/standby_far_normal_2.png',
-  'skins/bj_sera/standby_near_normal_1.png',
-  'skins/bj_sera/standby_near_normal_2.png',
-  'skins/bj_sera/strike_far_normal.png',
-  'skins/bj_sera/strike_idle_normal.png',
-  'skins/bj_sera/strike_near_normal.png',
-  'skins/bj_sera/strike_far_fever_2.png',
-  'skins/bj_sera/strike_idle_fever_2.png',
-  'skins/bj_sera/strike_near_fever_2.png',
-  'skins/bj_sera/miss_normal.png',
+  'skins/bj_sera/miss_fever_v2.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -3844,7 +3827,7 @@ const SKINS = {
     palette: { accent: '#9b1c1c' },
     customAnim: 'sera_v1', // 커스텀 애니메이션 플로우
     imagePaths: {
-      idle:           'skins/bj_sera/idle_raw_v2.png', // centroid 정렬로 위치 정상화 (이전 BBox center → centroid 변경)
+      idle:           'skins/bj_sera/idle_raw.png', // centroid 정렬로 위치 정상화 (이전 BBox center → centroid 변경)
       standbyNear1:   'skins/bj_sera/standby_near_normal_1.png',
       standbyNear2:   'skins/bj_sera/standby_near_normal_2.png',
       standbyFar1:    'skins/bj_sera/standby_far_normal_1.png',
@@ -3854,15 +3837,15 @@ const SKINS = {
       strikeIdle:     'skins/bj_sera/strike_idle_normal.png',
       miss:           'skins/bj_sera/miss_normal.png',
       // fever 변형 (2026-05-06 추가) — fever 모드 phase 1/2 (4 hit 마다 toggle)
-      feverRaw:        'skins/bj_sera/fever_raw_v2.png',
+      feverRaw:        'skins/bj_sera/fever_raw.png',
       strikeIdleFever1: 'skins/bj_sera/strike_idle_fever_1_v2.png',
-      strikeNearFever1: 'skins/bj_sera/strike_near_fever_1_v2.png',
-      strikeFarFever1:  'skins/bj_sera/strike_far_fever_1_v2.png',
+      strikeNearFever1: 'skins/bj_sera/strike_near_fever_1.png',
+      strikeFarFever1:  'skins/bj_sera/strike_far_fever_1.png',
       strikeIdleFever2: 'skins/bj_sera/strike_idle_fever_2.png',
       strikeNearFever2: 'skins/bj_sera/strike_near_fever_2.png',
       strikeFarFever2:  'skins/bj_sera/strike_far_fever_2.png',
       // miss idle/fever 구분 (2026-05-06 추가) — fever 상태와 일반 상태 별도 miss 표정
-      missIdle:        'skins/bj_sera/miss_idle_v2.png',
+      missIdle:        'skins/bj_sera/miss_idle.png',
       missFever:       'skins/bj_sera/miss_fever_v2.png',
     },
   },
