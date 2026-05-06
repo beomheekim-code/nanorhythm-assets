@@ -13799,6 +13799,7 @@ function getShopItems() {
       priceType: 'coins',
       color: '#9b1c1c', icon: '🎤',
       iconImage: 'skins/bj_sera/icon.png',
+      previewGif: 'skins/bj_sera/preview_sera.gif',
       skinCategory: 'character', skinId: 'bj_sera', coinCost: 4000,
       getStatus: () => ownsSkin('character', 'bj_sera') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('character', 'bj_sera'),
@@ -16064,11 +16065,22 @@ function renderLogin() {
   if (Math.random() < 0.025) spawnShootingStar();
   renderShootingStars();
 
-  // 로고
-  ctx.font=`bold ${sz(28)}px sans-serif`;
-  ctx.textAlign='center'; ctx.fillStyle='#fff';
-  ctx.shadowColor='#fff'; ctx.shadowBlur=10;
-  ctx.fillText('NANO RHYTHM',W/2,H*0.18); ctx.shadowBlur=0;
+  // 로고 — icon.png (NANO RHYTHM 앱 아이콘 image, 1024x1024 고해상도)
+  if (!window._appLogoImg) {
+    window._appLogoImg = new Image();
+    window._appLogoImg.src = (typeof CDN_BASE !== 'undefined' ? CDN_BASE : '') + 'icon.png';
+  }
+  const _logoImg = window._appLogoImg;
+  if (_logoImg && _logoImg.complete && _logoImg.naturalWidth > 0) {
+    const _logoSz = sz(140);
+    ctx.drawImage(_logoImg, W/2 - _logoSz/2, H*0.10, _logoSz, _logoSz);
+  } else {
+    // fallback 텍스트
+    ctx.font=`bold ${sz(28)}px sans-serif`;
+    ctx.textAlign='center'; ctx.fillStyle='#fff';
+    ctx.shadowColor='#fff'; ctx.shadowBlur=10;
+    ctx.fillText('NANO RHYTHM',W/2,H*0.18); ctx.shadowBlur=0;
+  }
 
   ctx.font=`${sz(13)}px sans-serif`;
   ctx.fillStyle='rgba(255,255,255,0.5)';
