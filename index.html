@@ -1158,12 +1158,11 @@ function getAssetsToPatch() {
 
 // 단일 파일 fetch — Content-Length 사이즈 측정 + arrayBuffer 까지 강제 (HTTP 캐시 데움)
 async function _patchFetchOne(path, onBytes, expectedSize) {
-  // ★ 모바일 + OGG: audio.load() 사용 — fetch() 캐시는 audio element 캐시와 분리되어 hit 안 됨.
-  //   audio.load() 로 직접 받으면 audio 캐시 데움 → preview/인게임 audio 가 cache hit.
-  //   PC 는 기존 fetch (PC 동결 정책 + fetch 가 더 안정적).
-  if (isMobile && /\.ogg$/i.test(path)) {
-    return _patchViaAudio(path, onBytes, expectedSize || 0);
-  }
+  // ★ 모바일 _patchViaAudio 제거 (사용자 보고 2026-05-06):
+  //   audio.load() 가 iOS audio session 점유 → 패치 중 titleBgm 무음 + 패치 후 preview 자동재생 차단.
+  //   모바일 4개 병렬 audio.load 가 audio session 을 BGM 으로부터 빼앗음.
+  //   fetch 로 통일 → audio session 영향 없음. audio cache 데우는 효과 손실 가능하지만
+  //   사용자 인지 가능한 BGM 끊김이 더 큰 문제.
   return _patchViaFetch(path, onBytes);
 }
 
