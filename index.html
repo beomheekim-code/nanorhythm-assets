@@ -1086,14 +1086,15 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@
 //   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
 //   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
 const FORCE_REPATCH_LIST = [
-  // 적용 안 된 2장 만 _v2 (cache 무관 새 URL)
+  // 적용 안 된 image _v2 (cache 무관 새 URL)
   'skins/bj_sera/strike_idle_fever_1_v2.png',
+  'skins/bj_sera/strike_near_fever_1_v2.png',
   'skins/bj_sera/miss_fever_v2.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 16;
+const FORCE_REPATCH_VERSION = 17;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -1574,7 +1575,7 @@ async function startPatchOrTransition() {
   try {
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v17';
+                                : 'v18';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
@@ -3839,7 +3840,7 @@ const SKINS = {
       // fever 변형 (2026-05-06 추가) — fever 모드 phase 1/2 (4 hit 마다 toggle)
       feverRaw:        'skins/bj_sera/fever_raw.png',
       strikeIdleFever1: 'skins/bj_sera/strike_idle_fever_1_v2.png',
-      strikeNearFever1: 'skins/bj_sera/strike_near_fever_1.png',
+      strikeNearFever1: 'skins/bj_sera/strike_near_fever_1_v2.png',
       strikeFarFever1:  'skins/bj_sera/strike_far_fever_1.png',
       strikeIdleFever2: 'skins/bj_sera/strike_idle_fever_2.png',
       strikeNearFever2: 'skins/bj_sera/strike_near_fever_2.png',
