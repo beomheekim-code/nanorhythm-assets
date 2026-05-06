@@ -13338,36 +13338,27 @@ function _handlePatchOverlayClick(x, y) {
   const inside = (r) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   if (_patchOverlayMode === 'confirm') {
     if (inside(a.ok)) {
-      // ★ iOS HTMLAudio 프라이머 — 받기 클릭은 user gesture context (마지막 gesture).
-      //   첫 곡 실제 audio 를 silent 로 짧게 play → audio session 활성화.
-      //   끝난 후 titleBgm 즉시 재시작 (iOS 정책상 새 audio 시작하면 titleBgm 자동 pause 됨).
-      //   사용자 보고 2026-05-06: 패치 중 titleBgm 무음 + 사용자 터치 전까지 preview 안 들림.
+      // ★ _realPrimer (첫 곡 silent play) 제거 — 사용자 보고 2026-05-06:
+      //   audio session 충돌 일으키고 titleBgm 안 들림 + preview 도 안 들림. 효과 없음.
+      //   대신 user gesture 안에서 titleBgm 명시적으로 재시작 (audio session 명확히 titleBgm 으로 점유).
       try {
-        if (typeof songs !== 'undefined' && Array.isArray(songs) && songs[0] && songs[0].file) {
-          const _realPrimer = new Audio();
-          _realPrimer.src = assetUrl(songs[0].file);
-          _realPrimer.muted = true;       // ★ iOS 호환 — volume=0 만으론 일부 환경에서 1초 들림 (사용자 보고 2026-05-06)
-          _realPrimer.volume = 0;
-          _realPrimer.preload = 'auto';
-          _realPrimer.play().then(() => {
-            setTimeout(() => {
-              try { _realPrimer.pause(); _realPrimer.removeAttribute('src'); _realPrimer.load(); } catch(e){}
-              // ★ titleBgm 재시작 — _realPrimer 가 audio session 가져가면서 자동 pause 됐을 가능성.
-              //   1번 시도 후 1초 뒤 또 한 번 시도 (사용자 보고: 1초 들리다 꺼짐 → retry 로 살림).
-              const _restart = () => {
-                try {
-                  if (typeof titleBgm !== 'undefined' && titleBgm && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
-                    if (titleBgm.paused) titleBgm.play().catch(()=>{});
-                  }
-                } catch(e) {}
-              };
-              _restart();
-              setTimeout(_restart, 1500);  // ★ 1.5s 후 재확인 — fetch 패치 시작 후에도 살아있게
-              setTimeout(_restart, 4000);  // ★ 4s 후 한 번 더 (패치 mid stage)
-            }, 800);
-          }).catch(()=>{});
+        if (typeof titleBgm !== 'undefined' && titleBgm) {
+          if (titleBgm.paused && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
+            titleBgm.play().catch(()=>{});
+          }
         }
       } catch(e) {}
+      // 패치 진행 중 titleBgm 끊김 시 재시도 (1.5s, 4s, 10s — 3회)
+      const _titleBgmRetry = () => {
+        try {
+          if (typeof titleBgm !== 'undefined' && titleBgm && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
+            if (titleBgm.paused) titleBgm.play().catch(()=>{});
+          }
+        } catch(e) {}
+      };
+      setTimeout(_titleBgmRetry, 1500);
+      setTimeout(_titleBgmRetry, 4000);
+      setTimeout(_titleBgmRetry, 10000);
       try {
         const _primer = new Audio();
         _primer.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
