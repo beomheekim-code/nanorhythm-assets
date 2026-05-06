@@ -1387,11 +1387,7 @@ async function _patchIdleSettle() {
 // 받을 거 없음 → 바로 transitionTo('select').
 // title BGM 은 유저가 'back/cancel' 선택해서 타이틀에 남으면 그대로 유지 (적막함 방지).
 function _gotoSelectFromPatch() {
-  // ★ stopTitleBgm 제거 (사용자 보고 2026-05-06): titleBgm 의 audio session 살아있는
-  //   상태로 select 진입 → startPreview 의 new Audio 가 audio session 자동 인계 (iOS 정책).
-  //   titleBgm 자체는 select 진입 후 startPreview 시작 시점에 자동 pause 됨.
-  //   기존 stopTitleBgm 으로 audio session 끊긴 후 transitionTo 800ms+fade 동안 비어있어
-  //   user gesture 없이 새 Audio play 차단되던 회귀 fix.
+  try { if (typeof stopTitleBgm === 'function') stopTitleBgm(); } catch(e) {}
   try { transitionTo('select'); } catch(e) {}
 }
 // ★ 자동 reload 제거 — 사용자 짜증 + reload loop 위험. 메모리 영향은 _patchIdleSettle (3s) 로 완화.
@@ -5779,33 +5775,7 @@ function updateFade(dt) {
       // 프리뷰 첫 로드 지연: 화면 전환 완료 후 시작 (첫 스크롤 끊김 방지)
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
-      // ★ titleBgm 의 살아있는 audio session 활용해 preview 시작 (사용자 보고 2026-05-06):
-      //   startPreview 의 new Audio.play() 가 audio session 인계받음 → titleBgm 자동 pause
-      //   (iOS 정책: 한 번에 1 audio element). user gesture 없이도 활성 audio session 안에서
-      //   새 Audio play 가능. _gotoSelectFromPatch 의 stopTitleBgm 제거와 짝을 이룸.
-      try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
-      _previewDebounce = setTimeout(() => {
-        try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
-        try { startPreview(selectedSong); } catch(e) {}
-        // ★ titleBgm cleanup — startPreview 후 audio session 인계 받았으니 명시적 정리.
-        //   PC 는 자동 pause 안 될 수 있어 명시 stop 필요.
-        setTimeout(() => {
-          try {
-            if (typeof titleBgm !== 'undefined' && titleBgm && !titleBgm.paused) {
-              titleBgm.pause();
-            }
-            if (typeof titleBgmPlaying !== 'undefined') titleBgmPlaying = false;
-          } catch(e) {}
-        }, 100);
-        // 600ms 추가 retry — 첫 play() 차단되면 활성 audio session 활용 재시도
-        setTimeout(() => {
-          try {
-            if (songPreviewAudio && songPreviewAudio.paused && !songPreviewAudio._aborted) {
-              songPreviewAudio.play().catch(()=>{});
-            }
-          } catch(e) {}
-        }, 600);
-      }, 800);
+      _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
       //   앞서있을 수 있으므로 Math.max 로 역행 방지.
