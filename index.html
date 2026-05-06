@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260504190000;
+window.__BUILD_TS = 20260506210000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1065,7 +1065,15 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@main/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@aee3a6e/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@1e96440/';
+// ★ FORCE_REPATCH_LIST — 사용자 환경 saved.paths 에 있어도 무조건 다시 받는 paths.
+//   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
+//   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
+const FORCE_REPATCH_LIST = [
+  'skins/bj_sera/strike_far_fever_1.png',
+  'skins/bj_sera/strike_idle_fever_1.png',
+  'skins/bj_sera/strike_near_fever_1.png',
+];
 
 function assetUrl(path) { return CDN_BASE + path; }
 
@@ -1147,12 +1155,14 @@ function buildAssetManifest() {
   return paths;
 }
 
-// 패치 필요 자산 (이미 받은 거 제외 + CDN_BASE mismatch 시 전체 재패치)
+// 패치 필요 자산 (이미 받은 거 제외 + FORCE_REPATCH_LIST 만 강제 재패치)
+// ★ saved.cdnBase !== CDN_BASE 시 전체 재패치 제거 (수백 MB 사이드 이펙트 회피).
+//   PNG 변경 시 FORCE_REPATCH_LIST 에 추가 → 그 paths 만 다시 받음.
 function getAssetsToPatch() {
   const all = buildAssetManifest();
   const saved = _loadPatchedSet();
-  if (saved.cdnBase !== CDN_BASE) return all;       // 빌드 업데이트 → 전체
-  const set = new Set(saved.paths);
+  const force = (typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : [];
+  const set = new Set(saved.paths.filter(p => force.indexOf(p) === -1));
   return all.filter(p => !set.has(p));
 }
 
