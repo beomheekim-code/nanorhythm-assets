@@ -320,6 +320,11 @@ function _activatePerfOnly() {
           if (verM) {
             window.__FORCE_REPATCH_VERSION = parseInt(verM[1]);
           }
+          // ★ FORCE_CLEAR_VERSION 도 raw 추출 — 사용자 환경 force_clear 1회 wipe 트리거.
+          var clrM = txt.match(/const FORCE_CLEAR_VERSION\s*=\s*['"]([^'"]+)['"]/);
+          if (clrM) {
+            window.__FORCE_CLEAR_VERSION = clrM[1];
+          }
         } catch(e) {}
         if (m) {
           var srv = parseInt(m[1]);
@@ -1530,11 +1535,17 @@ async function startPatchOrTransition() {
   //   localStorage mark (force_clear_vN) 가 없으면 1회 force list 를 saved.paths 에서 제거.
   //   N 을 매 force list PNG 변경 시 +1 → 사용자 자동 re-patch 트리거.
   try {
-    const FORCE_CLEAR_VERSION = 'v5';  // PNG 변경 시 v3, v4 로 bump
+    // ★ dynamic FORCE_CLEAR_VERSION — _checkUpdate 가 raw 에서 추출한 latest 우선.
+    //   raw 의 새 version → 사용자 환경 mark 없음 → 1회 wipe → force list 자동 patch.
+    const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
+                                ? window.__FORCE_CLEAR_VERSION
+                                : 'v5';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
-      const force = (typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : [];
+      const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
+                    ? window.__FORCE_REPATCH_LIST
+                    : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
       const cleared = saved.paths.filter(p => force.indexOf(p) === -1);
       _savePatchedSet(cleared);
       localStorage.setItem(key, '1');
