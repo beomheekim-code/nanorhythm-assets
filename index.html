@@ -9632,7 +9632,7 @@ function update(dt) {
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
       } else {
         nanoMiss();
-        collected--; missed++; combo = 0; _charMissWasFever = fever; fever = false; feverTimer = 0;
+        collected--; missed++; combo = 0; if (fever) { _charMissWasFever = true; _charMissPhase = _seraFeverPhase; } fever = false; feverTimer = 0;
         judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
       }
     }
@@ -9643,7 +9643,7 @@ function update(dt) {
       n.missed = true;
       stopHoldSound(n);
       nanoMiss();
-      collected--; missed++; combo = 0; _charMissWasFever = fever; fever = false; feverTimer = 0;
+      collected--; missed++; combo = 0; if (fever) { _charMissWasFever = true; _charMissPhase = _seraFeverPhase; } fever = false; feverTimer = 0;
       judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss();
     }
   }
@@ -9708,7 +9708,7 @@ function update(dt) {
           } catch(e){}
         }
         nanoMiss();
-        combo = 0; missed++; _charMissWasFever = fever; fever = false; feverTimer = 0;
+        combo = 0; missed++; if (fever) { _charMissWasFever = true; _charMissPhase = _seraFeverPhase; } fever = false; feverTimer = 0;
         if (!devInvincible && playMode === 'normal') gauge = Math.max(0, gauge - (curDiff ? curDiff.hpDrain : 0.04));
         // miss shake 제거 (유저 요청)
         if (judgmentPriority < 2) { judgmentText = 'MISS'; judgmentTimer = 0.4; judgmentColor = '#ff6666'; judgmentPriority = 1; if (typeof notifyCharacterMiss === 'function') notifyCharacterMiss(); }
@@ -11422,6 +11422,10 @@ function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
   _charLastHitT = now;
+  // ★ hit 성공 시 miss flag reset (사용자 요청 2026-05-06):
+  //   fever miss 후 연속 miss 동안 miss_fever 유지하다, hit 시점에 reset → 다음 모션으로 전환.
+  _charMissWasFever = false;
+  _charMissPhase = 1;
   if (_charKeyCount === 1) {
     _seraIntroT = now;
     _charMissT = 0; // Sera: miss 상태 클리어 → flow 1 깨끗하게 재실행
@@ -11475,8 +11479,8 @@ function _warmupCharacterGpu() {
 
 function notifyCharacterMiss() {
   _charMissT = performance.now();
-  // ★ miss 시점 sera fever phase 캡쳐 — fever_1 miss → miss_fever, fever_2 miss → miss_normal.
-  _charMissPhase = _seraFeverPhase;
+  // ★ _charMissPhase 는 호출 측에서 (fever=true 때) 캡쳐. 여기서는 덮어쓰지 않음.
+  //   사용자 요청 2026-05-06: fever miss 후 연속 miss 도 miss_fever 유지 (hit 시 reset).
   // ★ 사용자 요청 2026-05-06: miss 후 바로 hit 성공 시 strike 상태 즉시 복귀.
   //   카운트 유지 + 인트로 timer 만 reset.
   //   fever 카운트는 reset (사용자 지시: miss 시 반복 횟수 초기화).
