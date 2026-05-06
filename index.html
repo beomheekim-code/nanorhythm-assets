@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260506060000;
+window.__BUILD_TS = 20260504190000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11423,11 +11423,13 @@ function notifyCharacterHit() {
   const now = performance.now();
   _charLastHitT = now;
   // ★ hit 성공 시 miss flag reset (사용자 요청 2026-05-06).
-  //   fever miss 후 hit → 인트로 (standby_1 → standby_2) 다시 재생 후 normal 모션.
+  //   miss_fever (fever_1 miss) 후 hit → 인트로 (standby_1 → standby_2) 다시 재생 후 normal 모션.
+  //   miss_normal (fever_2 miss / 일반 normal miss) 후 hit → 인트로 X (그냥 strike 진입).
   const _wasFeverMiss = _charMissWasFever;
+  const _wasFeverMissPhase = _charMissPhase;
   _charMissWasFever = false;
   _charMissPhase = 1;
-  if (_charKeyCount === 1 || _wasFeverMiss) {
+  if (_charKeyCount === 1 || (_wasFeverMiss && _wasFeverMissPhase === 1)) {
     _seraIntroT = now;
     _charMissT = 0; // miss 상태 클리어 → 인트로 분기 진입
     _seraStrikeFireT = 0;
