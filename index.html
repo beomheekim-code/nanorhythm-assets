@@ -3719,7 +3719,13 @@ const SKINS = {
       strikeFar:      'skins/bj_sera/strike_far_normal.png',
       strikeIdle:     'skins/bj_sera/strike_idle_normal.png',
       miss:           'skins/bj_sera/miss_normal.png',
-      // fever: 일단 normal 과 동일 (별도 파일 미준비).
+      // fever 변형 (2026-05-06 추가) — fever 모드에서 별도 자세 사용
+      strikeNearFever: 'skins/bj_sera/strike_near_fever.png',
+      strikeFarFever:  'skins/bj_sera/strike_far_fever.png',
+      strikeIdleFever: 'skins/bj_sera/strike_idle_fever.png',
+      // miss idle/fever 구분 (2026-05-06 추가) — fever 상태와 일반 상태 별도 miss 표정
+      missIdle:        'skins/bj_sera/miss_idle.png',
+      missFever:       'skins/bj_sera/miss_fever.png',
     },
   },
 };
@@ -11432,13 +11438,15 @@ function _warmupCharacterGpu() {
 
 function notifyCharacterMiss() {
   _charMissT = performance.now();
-  // Sera: miss 시 flow 1 (intro) 으로 복귀 — 다음 hit 부터 idle → standby_1 → standby_2 재생
+  // ★ 사용자 요청 2026-05-06: miss 후 바로 hit 성공 시 strike 상태 즉시 복귀.
+  //   기존: _charKeyCount=0 리셋 → 다음 hit 가 인트로 (idle → standby_1 → standby_2) 부터.
+  //   변경: 카운트 유지 + 인트로 timer 만 reset (인트로 skip, strike 직접 진입).
+  //   miss flash 동안에는 miss_idle / miss_fever 이미지 표시 (시간 기반).
   const cs = _getCharacterSkin();
   if (cs && cs.customAnim === 'sera_v1') {
-    _charKeyCount = 0;
-    _seraIntroT = 0;
-    _seraStrikeFireT = 0;
+    _seraStrikeFireT = 0;  // strike pose 클리어 — 다음 hit 시 새 strike fire
     _seraStrikeIdx = 0;
+    // _charKeyCount 유지 → 다음 hit 시 인트로 분기 X, strike 분기 (sinceIntro >= 50)
   }
 }
 const _CHAR_KEYS = ['standbyNear','strikeNear','standbyFar','strikeFar',
@@ -11513,10 +11521,15 @@ function renderCharacter() {
   //     5. fever: 일단 normal 과 동일 (별도 파일 미준비)
   if (cs.customAnim === 'sera_v1') {
     const sinceIntro = now - _seraIntroT;
-    if (_charMissT > 0 && _charKeyCount === 0 && paths.miss) {
-      // miss 후 다음 hit 전까지 miss 이미지 유지 (flicker 제거).
-      // 다음 hit 시 _charMissT=0 으로 클리어되며 flow 1 시작.
-      key = 'miss';
+    const sinceMiss = now - _charMissT;
+    const isFeverNow = isFever;
+    // ★ miss 분기 — 시간 기반 (CHAR_MISS_FLASH ms 동안 miss 이미지). idle/fever 구분.
+    //   _charKeyCount 무관 (사용자 요청 2026-05-06: hit 후 miss 도 miss 이미지 표시).
+    if (_charMissT > 0 && sinceMiss < CHAR_MISS_FLASH) {
+      if (isFeverNow && paths.missFever) key = 'missFever';
+      else if (paths.missIdle) key = 'missIdle';
+      else if (paths.miss) key = 'miss';
+      else key = 'idle';
     } else if (_charKeyCount === 0) {
       key = 'idle';
     } else if (sinceIntro < 50) {
@@ -11525,14 +11538,18 @@ function renderCharacter() {
       else if (sinceIntro < 25) key = 'standbyNear1';     // 10~25ms standby_1 (15ms)
       else key = 'standbyNear2';                          // 25~50ms standby_2 (25ms)
     } else {
-      // 인트로 끝난 후: strike playback 살짝 느리게 (총 350ms).
+      // 인트로 끝난 후: strike playback (총 350ms). fever / normal 구분.
       const sinceFire = now - _seraStrikeFireT;
       if (_seraStrikeFireT > 0 && sinceFire < 150) {
-        // 0~150ms strike pose (이전 120 → 150)
-        key = _seraStrikeIdx === 0 ? 'strikeNear' : 'strikeFar';
+        // 0~150ms strike pose
+        if (isFeverNow) {
+          key = _seraStrikeIdx === 0 ? 'strikeNearFever' : 'strikeFarFever';
+        } else {
+          key = _seraStrikeIdx === 0 ? 'strikeNear' : 'strikeFar';
+        }
       } else {
         // strike pose 끝났거나 아직 fire 안 함 — strike_idle
-        key = 'strikeIdle';
+        key = isFeverNow ? 'strikeIdleFever' : 'strikeIdle';
       }
     }
   } else if (isMiss && paths.miss) {
