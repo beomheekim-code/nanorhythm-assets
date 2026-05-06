@@ -1110,7 +1110,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 12;
+const FORCE_REPATCH_VERSION = 13;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -1449,6 +1449,21 @@ async function patchAssets(opts) {
     const set = new Set(saved.paths);
     for (const p of succeeded) set.add(p);
     _savePatchedSet([...set]);
+    // ★ skinImages 객체 reset — 옛 decoded PNG 유지 회귀 fix.
+    //   force list path 의 image 객체 삭제 → loadSkinImage 재호출 → src 재설정 → fresh
+    //   fetch (cache 'PNG?v=250000' = patch 시 받은 latest hit) → 새 decode.
+    try {
+      const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
+                    ? window.__FORCE_REPATCH_LIST
+                    : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
+      for (const p of succeeded) {
+        if (force.indexOf(p) >= 0 && typeof skinImages !== 'undefined') {
+          delete skinImages[p];
+          if (typeof loadSkinImage === 'function') loadSkinImage(p);
+        }
+      }
+      console.log('[patch] skinImages reset for ' + succeeded.length + ' force paths');
+    } catch(e) {}
     // ★ force list version mark — 받기 완료 후. 다음 reload 시 force re-patch X.
     try {
       const verToMark = (typeof window.__FORCE_REPATCH_VERSION === 'number')
@@ -1576,7 +1591,7 @@ async function startPatchOrTransition() {
   try {
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v13';
+                                : 'v14';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
