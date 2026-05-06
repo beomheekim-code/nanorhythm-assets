@@ -5775,7 +5775,22 @@ function updateFade(dt) {
       // 프리뷰 첫 로드 지연: 화면 전환 완료 후 시작 (첫 스크롤 끊김 방지)
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
-      _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
+      // ★ actx resume + preview audio session 활성화 시도 — 패치 후 select 진입 시 BGM 자동재생 fix.
+      //   사용자 보고 2026-05-06: 터치 전까지 select BGM 안 들림. 받기 click 의 user gesture 잔재
+      //   + titleBgm 의 audio session 활성화 상태를 활용해 startPreview 의 play() 통과 시도.
+      try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+      _previewDebounce = setTimeout(() => {
+        try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+        try { startPreview(selectedSong); } catch(e) {}
+        // ★ 800ms 추가 retry — 첫 play() 차단되면 user gesture 잔재 활용 재시도
+        setTimeout(() => {
+          try {
+            if (songPreviewAudio && songPreviewAudio.paused && !songPreviewAudio._aborted) {
+              songPreviewAudio.play().catch(()=>{});
+            }
+          } catch(e) {}
+        }, 600);
+      }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
       //   앞서있을 수 있으므로 Math.max 로 역행 방지.
