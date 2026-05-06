@@ -1089,12 +1089,13 @@ const FORCE_REPATCH_LIST = [
   // 적용 안 된 image _v2 (cache 무관 새 URL)
   'skins/bj_sera/strike_idle_fever_1_v2.png',
   'skins/bj_sera/strike_near_fever_1_v2.png',
+  'skins/bj_sera/strike_far_fever_1_v2.png',
   'skins/bj_sera/miss_fever_v2.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 17;
+const FORCE_REPATCH_VERSION = 18;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -1575,7 +1576,7 @@ async function startPatchOrTransition() {
   try {
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v18';
+                                : 'v19';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
@@ -3841,7 +3842,7 @@ const SKINS = {
       feverRaw:        'skins/bj_sera/fever_raw.png',
       strikeIdleFever1: 'skins/bj_sera/strike_idle_fever_1_v2.png',
       strikeNearFever1: 'skins/bj_sera/strike_near_fever_1_v2.png',
-      strikeFarFever1:  'skins/bj_sera/strike_far_fever_1.png',
+      strikeFarFever1:  'skins/bj_sera/strike_far_fever_1_v2.png',
       strikeIdleFever2: 'skins/bj_sera/strike_idle_fever_2.png',
       strikeNearFever2: 'skins/bj_sera/strike_near_fever_2.png',
       strikeFarFever2:  'skins/bj_sera/strike_far_fever_2.png',
