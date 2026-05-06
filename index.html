@@ -8560,7 +8560,7 @@ function startSong(idx) {
   // 곡 시작 시 캐릭터 상태 리셋 (Sera 인트로 다시 재생되게, 이전 곡 miss state carry over 방지)
   _charKeyCount = 0; _charLastHitT = 0; _charMissT = 0;
   _seraIntroT = 0; _seraStrikeFireT = 0; _seraStrikeIdx = 0;
-  _seraFeverPhase = 1; _seraFeverHitCount = 0; _seraFeverRawT = 0; _seraWasFever = false;
+  _seraFeverPhase = 1; _seraFeverHitCount = 0; _seraFeverRawT = 0; _seraWasFever = false; _seraFeverCycleT = 0;
   _charMissWasFever = false; _charMissPhase = 1;
   // GPU prewarm 비활성 (stutter 분리 테스트). 필요 시 재활성.
   // setTimeout(() => { try { _warmupCharacterGpu(); } catch(e) {} }, 100);
@@ -11404,17 +11404,19 @@ let _charMissPhase = 1;      // miss 시점 sera fever phase (1 또는 2) — fe
 // ★ Sera fever phase 시스템 (2026-05-06):
 //   fever 진입 → fever_raw 표시 → strike_*_fever_1 cycle (4 hit) → fever_raw → _2 cycle (4 hit) → 무한 toggle
 let _seraFeverPhase = 1;     // 1 또는 2
-let _seraFeverHitCount = 0;  // 현재 phase 내 누적 hit (4 도달 시 phase toggle)
+let _seraFeverHitCount = 0;  // 현재 phase 내 누적 cycle (4 도달 시 phase toggle)
 let _seraFeverRawT = 0;      // fever_raw 표시 시작 시각 (>0 이면 raw 보여주는 중)
 let _seraWasFever = false;   // 직전 frame 의 fever 상태 — 진입 감지용
-const SERA_FEVER_RAW_DURATION = 150;  // fever_raw 표시 시간 ms (사용자 요청 2026-05-06 단축)
-const SERA_FEVER_HITS_PER_PHASE = 8;  // 사용자 요청 2026-05-06: 각 자세 4번씩 = 한 cycle (idle+near+far) 4번 = ~8 hit
+let _seraFeverCycleT = 0;    // 현재 cycle 시작 시각 (window 안 hit 들은 같은 cycle)
+const SERA_FEVER_RAW_DURATION = 150;  // fever_raw 표시 시간 ms
+const SERA_FEVER_HITS_PER_PHASE = 4;  // 사용자 요청 2026-05-06: cycle 4번 (각 cycle 안 hit 무관)
+const SERA_FEVER_CYCLE_DURATION = 600; // 1 cycle 시간 ms — 이 안 hit 들은 같은 cycle 로 카운트
 const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
 const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
 let _seraIntroT = 0;
 let _seraStrikeIdx = 0;
 let _seraStrikeFireT = 0;
-const SERA_STRIKE_DURATION = 50; // strike 재생 가드 — 사용자 요청 2026-05-06: 모션 발동/count 정확성 위해 짧게 (가드 50ms 만, strike pose 표시는 120ms 별도)
+const SERA_STRIKE_DURATION = 260; // strike 재생 가드 (시각 안정용)
 function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
@@ -11423,21 +11425,30 @@ function notifyCharacterHit() {
     _seraIntroT = now;
     _charMissT = 0; // Sera: miss 상태 클리어 → flow 1 깨끗하게 재실행
   }
-  // Sera: strike 재생 끝나야 새 strike fire (alternated). 재생 중 hit 무시.
+  // Sera: strike 재생 끝나야 새 strike fire (alternated). 재생 중 hit 무시 (시각 안정).
   const cs = _getCharacterSkin();
   if (cs && cs.customAnim === 'sera_v1' && _charKeyCount >= 2 && now - _seraIntroT >= 50) {
+    // strike pose 가드 (시각 안정)
     if (now - _seraStrikeFireT >= SERA_STRIKE_DURATION) {
       _seraStrikeIdx ^= 1;
       _seraStrikeFireT = now;
-      // ★ fever phase hit count — 4 도달 시 phase toggle + fever_raw 표시
-      if (typeof fever !== 'undefined' && fever) {
+    }
+    // ★ fever cycle count — cycle window (600ms) 안 hit 들은 같은 cycle.
+    //   사용자 요청 2026-05-06: 1 sequence (idle→near→far) 안 hit 6번 쳐도 1 cycle.
+    //   cycle 4번 도달 시 phase toggle + fever_raw 표시.
+    if (typeof fever !== 'undefined' && fever) {
+      const sinceCycle = now - _seraFeverCycleT;
+      if (_seraFeverCycleT === 0 || sinceCycle >= SERA_FEVER_CYCLE_DURATION) {
+        // 새 cycle 시작
         _seraFeverHitCount++;
+        _seraFeverCycleT = now;
         if (_seraFeverHitCount >= SERA_FEVER_HITS_PER_PHASE) {
           _seraFeverHitCount = 0;
           _seraFeverPhase = (_seraFeverPhase === 1) ? 2 : 1;
           _seraFeverRawT = now;  // raw 표시 시작
         }
       }
+      // 같은 cycle 안 hit (sinceCycle < CYCLE_DURATION) 은 카운트 X — 무시.
     }
   }
 }
@@ -11475,6 +11486,7 @@ function notifyCharacterMiss() {
     _seraFeverHitCount = 0;
     _seraFeverPhase = 1;
     _seraFeverRawT = 0;
+    _seraFeverCycleT = 0;
   }
 }
 const _CHAR_KEYS = ['standbyNear','strikeNear','standbyFar','strikeFar',
@@ -11571,6 +11583,7 @@ function renderCharacter() {
       _seraFeverHitCount = 0;
       _seraFeverPhase = 1;
       _seraFeverRawT = 0;
+      _seraFeverCycleT = 0;
     }
     _seraWasFever = isFeverNow;
 
@@ -11691,7 +11704,16 @@ function renderCharacter() {
     }
   }
 
-  ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
+  // ★ Sera 톤 통일 overlay (사용자 요청 2026-05-06): canvas filter 로 saturation/brightness 살짝 조정
+  //   PNG 자체는 미세 차이 있어도 인게임에선 균일하게 보이도록.
+  if (cs.customAnim === 'sera_v1') {
+    ctx.save();
+    ctx.filter = 'saturate(0.93) brightness(1.02)';
+    ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
+  }
 }
 
 // ★ 히트 이펙트 스킨 활성 여부 + 키별 로드된 이미지 맵 반환.
