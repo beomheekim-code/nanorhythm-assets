@@ -1094,7 +1094,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 3;
+const FORCE_REPATCH_VERSION = 4;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=BUILD_TS query — 브라우저 cache 우회 (변경된 PNG fresh fetch).
@@ -1512,7 +1512,7 @@ async function startPatchOrTransition() {
   //   localStorage mark (force_clear_vN) 가 없으면 1회 force list 를 saved.paths 에서 제거.
   //   N 을 매 force list PNG 변경 시 +1 → 사용자 자동 re-patch 트리거.
   try {
-    const FORCE_CLEAR_VERSION = 'v4';  // PNG 변경 시 v3, v4 로 bump
+    const FORCE_CLEAR_VERSION = 'v5';  // PNG 변경 시 v3, v4 로 bump
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
