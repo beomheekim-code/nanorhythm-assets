@@ -1094,11 +1094,15 @@ const FORCE_REPATCH_LIST = [
   // 미리보기 + 앱 로고 (cache 갱신용)
   'skins/bj_sera/preview_sera.gif',
   'icon.png',
+  // 신규 한글 곡 OGG (사용자 cache 의 옛 잘못된 path stuck fix)
+  'Music/달빛_과자상자.ogg',
+  'Music/이건_아직_시작이야.ogg',
+  'Music/흐릿한_이_밤.ogg',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 19;
+const FORCE_REPATCH_VERSION = 20;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -1581,7 +1585,7 @@ async function startPatchOrTransition() {
   try {
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v20';
+                                : 'v21';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
