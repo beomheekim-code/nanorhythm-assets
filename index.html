@@ -11407,8 +11407,8 @@ let _seraFeverPhase = 1;     // 1 또는 2
 let _seraFeverHitCount = 0;  // 현재 phase 내 누적 hit (4 도달 시 phase toggle)
 let _seraFeverRawT = 0;      // fever_raw 표시 시작 시각 (>0 이면 raw 보여주는 중)
 let _seraWasFever = false;   // 직전 frame 의 fever 상태 — 진입 감지용
-const SERA_FEVER_RAW_DURATION = 280;  // fever_raw 표시 시간 ms
-const SERA_FEVER_HITS_PER_PHASE = 4;
+const SERA_FEVER_RAW_DURATION = 150;  // fever_raw 표시 시간 ms (사용자 요청 2026-05-06 단축)
+const SERA_FEVER_HITS_PER_PHASE = 8;  // 사용자 요청 2026-05-06: 각 자세 4번씩 = 한 cycle (idle+near+far) 4번 = ~8 hit
 const CHAR_HIT_HOLD = 100;   // strike 자세 유지 ms
 const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
 let _seraIntroT = 0;
