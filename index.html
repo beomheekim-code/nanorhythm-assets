@@ -11710,16 +11710,7 @@ function renderCharacter() {
     }
   }
 
-  // ★ Sera 톤 통일 overlay (사용자 요청 2026-05-06): canvas filter 로 saturation/brightness 살짝 조정
-  //   PNG 자체는 미세 차이 있어도 인게임에선 균일하게 보이도록.
-  if (cs.customAnim === 'sera_v1') {
-    ctx.save();
-    ctx.filter = 'saturate(0.93) brightness(1.02)';
-    ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
-    ctx.restore();
-  } else {
-    ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
-  }
+  ctx.drawImage(img, charX + shakeX, charY + squashY, charW, charH * scaleY);
 }
 
 // ★ 히트 이펙트 스킨 활성 여부 + 키별 로드된 이미지 맵 반환.
