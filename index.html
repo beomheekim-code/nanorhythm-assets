@@ -1366,9 +1366,11 @@ async function patchAssets(opts) {
   await Promise.all(workers);
 
   // 점진적 저장은 cancel 케이스 대비 → 성공한 것만 누적
+  // ★ saved.cdnBase 비교 제거 (FORCE_REPATCH_LIST 시스템과 일관) → 항상 누적.
+  //   이전: cdnBase mismatch 시 saved.paths 비움 → 곡 선택 진입 시 manifest 전체 재패치.
   if (succeeded.length > 0) {
     const saved = _loadPatchedSet();
-    const set = new Set(saved.cdnBase === CDN_BASE ? saved.paths : []);
+    const set = new Set(saved.paths);
     for (const p of succeeded) set.add(p);
     _savePatchedSet([...set]);
   }
