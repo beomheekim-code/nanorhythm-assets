@@ -1110,7 +1110,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 8;
+const FORCE_REPATCH_VERSION = 9;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -1551,7 +1551,7 @@ async function startPatchOrTransition() {
     //   raw 의 새 version → 사용자 환경 mark 없음 → 1회 wipe → force list 자동 patch.
     const FORCE_CLEAR_VERSION = (typeof window.__FORCE_CLEAR_VERSION === 'string' && window.__FORCE_CLEAR_VERSION)
                                 ? window.__FORCE_CLEAR_VERSION
-                                : 'v9';
+                                : 'v10';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
     if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
@@ -11639,8 +11639,11 @@ function notifyCharacterMiss() {
 }
 const _CHAR_KEYS = ['standbyNear','strikeNear','standbyFar','strikeFar',
                     'standbyNearFever','strikeNearFever','standbyFarFever','strikeFarFever','miss',
-                    // Sera 전용
-                    'idle','standbyNear1','standbyNear2','standbyFar1','standbyFar2','strikeIdle'];
+                    // Sera 전용 — fever phase 1/2 + miss 분기 + raw
+                    'idle','standbyNear1','standbyNear2','standbyFar1','standbyFar2','strikeIdle',
+                    'strikeIdleFever1','strikeNearFever1','strikeFarFever1',
+                    'strikeIdleFever2','strikeNearFever2','strikeFarFever2',
+                    'feverRaw','missIdle','missFever','missNormal'];
 let _charLastPreloadCheck = 0;
 let _charPreloadAllLoaded = false;
 let _charPreloadCachedSkin = null;
