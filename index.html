@@ -13338,21 +13338,16 @@ function _handlePatchOverlayClick(x, y) {
   const inside = (r) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   if (_patchOverlayMode === 'confirm') {
     if (inside(a.ok)) {
-      // ★ _realPrimer (첫 곡 silent play) 제거 — 사용자 보고 2026-05-06:
-      //   audio session 충돌 일으키고 titleBgm 안 들림 + preview 도 안 들림. 효과 없음.
-      //   대신 user gesture 안에서 titleBgm 명시적으로 재시작 (audio session 명확히 titleBgm 으로 점유).
-      try {
-        if (typeof titleBgm !== 'undefined' && titleBgm) {
-          if (titleBgm.paused && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
-            titleBgm.play().catch(()=>{});
-          }
-        }
-      } catch(e) {}
+      // ★ titleBgm 강제 시작 — user gesture 안에서 startTitleBgm() 명시 호출.
+      //   사용자 보고 2026-05-06: 첫 터치가 받기 click 일 때 titleBgmPlaying=false 라
+      //   기존 retry 조건 안 맞음. startTitleBgm() 자체 호출로 unconditional start.
+      try { if (typeof startTitleBgm === 'function') startTitleBgm(); } catch(e) {}
       // 패치 진행 중 titleBgm 끊김 시 재시도 (1.5s, 4s, 10s — 3회)
       const _titleBgmRetry = () => {
         try {
-          if (typeof titleBgm !== 'undefined' && titleBgm && typeof titleBgmPlaying !== 'undefined' && titleBgmPlaying) {
-            if (titleBgm.paused) titleBgm.play().catch(()=>{});
+          if (typeof titleBgm !== 'undefined' && titleBgm && titleBgm.paused) {
+            if (typeof startTitleBgm === 'function') startTitleBgm();
+            else titleBgm.play().catch(()=>{});
           }
         } catch(e) {}
       };
