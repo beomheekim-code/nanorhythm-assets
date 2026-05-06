@@ -1105,6 +1105,13 @@ function _savePatchedSet(paths) {
   try {
     safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths }));
   } catch(e) {}
+  // ★ Firebase 백업 — 모바일 KPLAY iframe 환경에서 localStorage + kplay.storage 둘 다 리셋되는 케이스
+  //   (사용자 보고 2026-05-06: 매번 패치 재다운). user 인증되어 있으면 patch 상태를 user settings 에 저장.
+  if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
+    try {
+      fbDb.ref('settings/' + currentUser + '/patchedAssets').set({ cdnBase: CDN_BASE, paths: paths || [] });
+    } catch(e) {}
+  }
 }
 
 // ★ 강제 패치 대상 manifest 생성 — songs + 보유 스킨 imagePaths + BGM/SFX.
@@ -1438,13 +1445,33 @@ async function startPatchOrTransition() {
   // ★ kplay.storage → localStorage 동기화 완료 대기 (모바일 KPLAY iframe 매번 패치 재다운 fix).
   //   _kpPullAll 은 script load 시 setTimeout(0) 으로 시작. 모바일에서 사용자가 빠르게 진입하면
   //   미완료 상태에서 getAssetsToPatch 호출 → _loadPatchedSet 가 빈 결과 → 전체 재다운로드.
-  //   5s timeout 으로 무한 대기 방지 (네트워크 끊김 등). 사용자 보고 2026-05-04.
+  //   5s timeout 으로 무한 대기 방지 (네트워크 끊김 등).
   try {
     await Promise.race([
       _kpPullAllOnce(),
       new Promise(r => setTimeout(r, 5000))
     ]);
   } catch(e) {}
+  // ★ Firebase 복원 — localStorage + kplay.storage 둘 다 비어있으면 user settings 에서 복원.
+  //   사용자 보고 2026-05-06: 매번 재다운 여전. KPLAY 환경에서 두 storage 모두 reset 되는 케이스.
+  //   3s timeout 으로 무한 대기 방지.
+  if (!safeGetItem(PATCH_STORAGE_KEY) && currentUser && fbDb) {
+    try {
+      const fbData = await Promise.race([
+        new Promise((resolve) => {
+          try {
+            fbDb.ref('settings/' + currentUser + '/patchedAssets').once('value')
+              .then(snap => resolve(snap.val()))
+              .catch(() => resolve(null));
+          } catch(e) { resolve(null); }
+        }),
+        new Promise(r => setTimeout(() => r(null), 3000)),
+      ]);
+      if (fbData && fbData.cdnBase && Array.isArray(fbData.paths)) {
+        safeSetItem(PATCH_STORAGE_KEY, JSON.stringify(fbData));
+      }
+    } catch(e) {}
+  }
   let need;
   try { need = getAssetsToPatch(); } catch(e) { need = []; }
   if (!need || need.length === 0) {
@@ -13315,7 +13342,18 @@ function _handlePatchOverlayClick(x, y) {
       // ★ iOS HTMLAudio 프라이머 — 받기 클릭은 user gesture context (마지막 gesture).
       //   silent Audio play+pause 해두면 패치 후 30초+ 뒤 자동 startPreview 가
       //   fresh gesture 없이도 audio.play() 통과 (document audio session 활성화).
-      //   사용자 보고 2026-05-04: bfa6311 의 _previewUnlocker 만으론 자동 재생 X, 수동 탭 필요.
+      //   사용자 보고 2026-05-06: silent data URI primer 만으론 부족 → 첫 곡 실제 audio 도 silent play.
+      try {
+        if (typeof songs !== 'undefined' && Array.isArray(songs) && songs[0] && songs[0].file) {
+          const _realPrimer = new Audio();
+          _realPrimer.src = assetUrl(songs[0].file);
+          _realPrimer.volume = 0;
+          _realPrimer.preload = 'auto';
+          _realPrimer.play().then(() => {
+            setTimeout(() => { try { _realPrimer.pause(); _realPrimer.removeAttribute('src'); _realPrimer.load(); } catch(e){} }, 800);
+          }).catch(()=>{});
+        }
+      } catch(e) {}
       try {
         const _primer = new Audio();
         _primer.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
