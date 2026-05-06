@@ -3072,6 +3072,7 @@ const songs = [
     stemSensitivity: { 2: 0.9, 3: 0.9 }, // vocals + instrum 매우 lenient (excludeStems 라 source 부족)
     stemMinGap: { 2: 20, 3: 20 },          // 짧은 minGap → onset 더 많이 감지
     slotSubdivision: 0.5,                  // 모든 난이도 dense (default 의 절반)
+    levelBonus: 0.4,                       // dense 옵션으로 실제 밀도 ↑ → 표시 레벨 +4~5
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
   },
