@@ -299,15 +299,10 @@ function _activatePerfOnly() {
     window.__lastUpdateCheckErr = null;
     async function _checkUpdate(){
       if (document.hidden || window.__updateAvailable) return;
-      // typeof 가 TDZ 에서도 throw → try/catch 로 보호
       try {
         if (typeof state !== 'undefined' && state === 'playing') return;
       } catch(e) { return; }
       try {
-        // ★ raw.githubusercontent.com 직접 fetch — jsdelivr 는 쿼리 캐시 키 무시 + edge
-        //   s-maxage=43200(12h) 라 매 push 갱신 안 됨. 게다가 purge API rate-limit (5분 N회)
-        //   걸려서 잦은 push 시 throttle. raw.github 는 max-age=300(5분) 으로 항상 최신 수준.
-        //   CORS Access-Control-Allow-Origin:* 지원, simple GET 이라 preflight 도 없음.
         var u = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
         var r = await fetch(u, { cache: 'no-store' });
         if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
@@ -317,8 +312,13 @@ function _activatePerfOnly() {
           var srv = parseInt(m[1]);
           window.__lastUpdateCheck = { srv: srv, t: Date.now() };
           window.__lastUpdateCheckErr = null;
-          if (srv > window.__BUILD_TS) {
-            console.log('[update] detected:', srv, '>', window.__BUILD_TS);
+          // ★ lastReceived mark — 사용자 받기 후 srv 저장. 다음 reload 시 srv <= max(KPLAY, lastReceived)
+          //   면 모달 X (이미 받음). 사용자 deploy 알림 후만 우리 raw bump → srv > lastReceived → 모달.
+          var lastReceived = 0;
+          try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
+          var threshold = Math.max(window.__BUILD_TS || 0, lastReceived);
+          if (srv > threshold) {
+            console.log('[update] detected:', srv, '>', threshold);
             window.__updateAvailable = true;
           }
         } else {
@@ -13485,6 +13485,13 @@ function _handlePatchOverlayClick(x, y) {
   const inside = (r) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   if (_patchOverlayMode === 'confirm') {
     if (inside(a.ok)) {
+      // ★ lastReceivedBuildTs mark — 사용자 받기 click 후 _checkUpdate 모달 다시 안 뜨게.
+      //   srv 값 저장 → 다음 reload 시 _checkUpdate threshold = max(KPLAY, lastReceived).
+      try {
+        if (window.__lastUpdateCheck && window.__lastUpdateCheck.srv) {
+          localStorage.setItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
+        }
+      } catch(e) {}
       // ★ titleBgm 강제 시작 — user gesture 안에서 startTitleBgm() 명시 호출.
       //   사용자 보고 2026-05-06: 첫 터치가 받기 click 일 때 titleBgmPlaying=false 라
       //   기존 retry 조건 안 맞음. startTitleBgm() 자체 호출로 unconditional start.
