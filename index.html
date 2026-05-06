@@ -11414,7 +11414,7 @@ const CHAR_MISS_FLASH = 400; // miss flash 지속 ms
 let _seraIntroT = 0;
 let _seraStrikeIdx = 0;
 let _seraStrikeFireT = 0;
-const SERA_STRIKE_DURATION = 260; // strike 재생 총 시간 (이 시간 안 hit 무시) — 사용자 요청 2026-05-06 단축
+const SERA_STRIKE_DURATION = 50; // strike 재생 가드 — 사용자 요청 2026-05-06: 모션 발동/count 정확성 위해 짧게 (가드 50ms 만, strike pose 표시는 120ms 별도)
 function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
