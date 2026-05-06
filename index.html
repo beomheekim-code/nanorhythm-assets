@@ -11422,13 +11422,16 @@ function notifyCharacterHit() {
   _charKeyCount++;
   const now = performance.now();
   _charLastHitT = now;
-  // ★ hit 성공 시 miss flag reset (사용자 요청 2026-05-06):
-  //   fever miss 후 연속 miss 동안 miss_fever 유지하다, hit 시점에 reset → 다음 모션으로 전환.
+  // ★ hit 성공 시 miss flag reset (사용자 요청 2026-05-06).
+  //   fever miss 후 hit → 인트로 (standby_1 → standby_2) 다시 재생 후 normal 모션.
+  const _wasFeverMiss = _charMissWasFever;
   _charMissWasFever = false;
   _charMissPhase = 1;
-  if (_charKeyCount === 1) {
+  if (_charKeyCount === 1 || _wasFeverMiss) {
     _seraIntroT = now;
-    _charMissT = 0; // Sera: miss 상태 클리어 → flow 1 깨끗하게 재실행
+    _charMissT = 0; // miss 상태 클리어 → 인트로 분기 진입
+    _seraStrikeFireT = 0;
+    _seraStrikeIdx = 0;
   }
   // Sera: strike 재생 끝나야 새 strike fire (alternated). 재생 중 hit 무시 (시각 안정).
   const cs = _getCharacterSkin();
