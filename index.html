@@ -13342,9 +13342,14 @@ function _handlePatchOverlayClick(x, y) {
       //   사용자 보고 2026-05-06: 첫 터치가 받기 click 일 때 titleBgmPlaying=false 라
       //   기존 retry 조건 안 맞음. startTitleBgm() 자체 호출로 unconditional start.
       try { if (typeof startTitleBgm === 'function') startTitleBgm(); } catch(e) {}
-      // 패치 진행 중 titleBgm 끊김 시 재시도 (1.5s, 4s, 10s — 3회)
+      // 패치 진행 중 titleBgm 끊김 시 재시도 (1.5s, 4s, 10s — 3회).
+      // ★ state 체크: title 화면이 아니거나 select 로 전환 중이면 재시작 X
+      //   (사용자 보고 2026-05-06: select 진입 후 retry timer 가 titleBgm 재시작
+      //    → preview 들려야 할 자리에 titleBgm 들리는 회귀 fix).
       const _titleBgmRetry = () => {
         try {
+          if (typeof state !== 'undefined' && state !== 'title') return;
+          if (typeof fadePendingState !== 'undefined' && fadePendingState && fadePendingState !== 'title') return;
           if (typeof titleBgm !== 'undefined' && titleBgm && titleBgm.paused) {
             if (typeof startTitleBgm === 'function') startTitleBgm();
             else titleBgm.play().catch(()=>{});
