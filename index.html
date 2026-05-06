@@ -11593,13 +11593,16 @@ function renderCharacter() {
     //   _charMissPhase 는 호출 측 (notifyCharacterMiss) 에서 캡쳐된 fever phase.
     if (_charMissT > 0 && sinceMiss < CHAR_MISS_FLASH) {
       if (_charMissWasFever) {
+        // fever_1 miss → missFever, fever_2 miss → miss (miss_normal.png)
         if (_charMissPhase === 1 && paths.missFever) key = 'missFever';
-        else if (paths.miss) key = 'miss';  // fever_2 miss = miss_normal
-        else if (paths.missIdle) key = 'missIdle';
+        else if (paths.miss) key = 'miss';
         else key = 'idle';
       } else {
-        if (paths.missIdle) key = 'missIdle';
+        // ★ idle_raw 상태 (hit 한 번도 안 함) miss → missIdle, normal 상태 (hit 후) miss → miss(normal)
+        //   사용자 요청 2026-05-06: idle_raw vs normal 분기.
+        if (_charKeyCount === 0 && paths.missIdle) key = 'missIdle';
         else if (paths.miss) key = 'miss';
+        else if (paths.missIdle) key = 'missIdle';
         else key = 'idle';
       }
     } else if (isFeverNow && _seraFeverRawT > 0 && (now - _seraFeverRawT) < SERA_FEVER_RAW_DURATION) {
