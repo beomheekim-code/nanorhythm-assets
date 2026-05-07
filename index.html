@@ -1087,11 +1087,13 @@ const FORCE_REPATCH_LIST = [
   // 미리보기 + 앱 로고 (cache 갱신용)
   'skins/bj_sera/preview_sera.gif',
   'icon.png',
+  // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
+  'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 25;
+const FORCE_REPATCH_VERSION = 26;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
