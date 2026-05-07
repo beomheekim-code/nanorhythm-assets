@@ -1662,12 +1662,12 @@ async function startPatchOrTransition() {
       || /\.ngrok\.io$/.test(_h) || /\.ngrok-free\.app$/.test(_h)
       || /\.trycloudflare\.com$/.test(_h));
     if (_isLocal) {
-      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v32';
+      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v33';
       if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
         safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
         localStorage.removeItem('rhythm_lastForceVersion');
         localStorage.setItem(_FULL_REPATCH_KEY, '1');
-        console.log('[FULL REPATCH v32] saved + kplay storage + Firebase override → 풀 patch overlay');
+        console.log('[FULL REPATCH v33] saved + kplay storage + Firebase override → 풀 patch overlay');
         try {
           if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
             fbDb.ref('settings/' + currentUser + '/patchedAssets').remove().catch(()=>{});
@@ -12211,8 +12211,9 @@ if (false) (function _stutterProbe() {
 })();
 // ★ 2026-05-07 minimal stutter probe (옵션 C+) — context aware 1줄 log.
 //   stutter 시점의 in-song time + 게임 상태 캡처. 변수 직접 read 만, 부담 ~0.01ms.
-//   ★ 모바일 진단 재활성 — log 자체 영향 없음 검증됨. ship 시 if(false) 복원.
-(function _stutterProbeMin() {
+//   ★ 2026-05-08 DISABLED: DevTools 콘솔 누적 stutter 라인 렌더링이 메인 스레드 점유 →
+//     피드백 루프로 stutter 가중 가능성. 시각적 부드러움 판단 우선. 진단 시 if(false) 제거.
+if (false) (function _stutterProbeMin() {
   let _lastF = 0;
   function _tick() {
     const now = performance.now();
