@@ -1117,18 +1117,6 @@ function assetUrl(path) {
 //   localStorage 키에 CDN_BASE 포함 → 빌드 업데이트 시 자동 무효화.
 //   신곡만 추가된 경우 (CDN_BASE 동일) 신곡만 fetch.
 const PATCH_STORAGE_KEY = 'rhythm_patchedAssets_v1';
-// ★ [로컬 only] 1회 풀 패치 trigger — push X. 검증 후 revert 예정.
-//   _FULL_REPATCH_KEY localStorage 가 없으면 saved 전체 wipe + lastForceVersion reset → 다음 patch overlay = 모든 asset 다운로드.
-//   idempotent — 한 번 실행 후 marker set, 다음 reload 영향 X.
-try {
-  const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v1';
-  if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
-    localStorage.removeItem(PATCH_STORAGE_KEY);
-    localStorage.removeItem('rhythm_lastForceVersion');
-    localStorage.setItem(_FULL_REPATCH_KEY, '1');
-    console.log('[FULL REPATCH] saved wipe — next patch overlay will download all assets');
-  }
-} catch(e) {}
 const PATCH_PARALLEL_DESKTOP = 4;
 const PATCH_PARALLEL_MOBILE = 4;   // ★ PC 와 동일 — 모바일에서도 빠른 patch 우선 (사용자 요구)
 const PATCH_PER_FILE_TIMEOUT = 30000;
@@ -1619,6 +1607,24 @@ async function startPatchOrTransition() {
       }
     } catch(e) {}
   }
+  // ★ [로컬 only] 1회 풀 패치 trigger — push X. _kpPullAllOnce + Firebase 복원 후 saved 전체 wipe.
+  //   safeSetItem 으로 kplay storage 도 함께 wipe (다음 sync 시 옛 saved 안 돌아옴).
+  //   idempotent — marker set 후 다음 reload 영향 X. 검증 후 revert 예정.
+  try {
+    const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v1';
+    if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
+      safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
+      localStorage.removeItem('rhythm_lastForceVersion');
+      localStorage.setItem(_FULL_REPATCH_KEY, '1');
+      console.log('[FULL REPATCH] saved + kplay storage + Firebase override → 풀 patch overlay');
+      // Firebase 의 patchedAssets 도 wipe (있으면)
+      try {
+        if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
+          fbDb.ref('settings/' + currentUser + '/patchedAssets').remove().catch(()=>{});
+        }
+      } catch(e) {}
+    }
+  } catch(e) {}
   // ★ FORCE_REPATCH 1회성 강제 clear — _kpPullAllOnce + Firebase 복원 후 호출.
   //   순서 fix: 이전엔 wipe 후 _kpPullAllOnce 가 kplay storage 의 옛 saved 본 (force list
   //   포함) 으로 덮어쓰기 → wipe 무효 회귀.
