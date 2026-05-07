@@ -1643,12 +1643,12 @@ async function startPatchOrTransition() {
   // ★ [로컬 only] 1회 풀 패치 trigger — push X. _kpPullAllOnce + Firebase 복원 후 saved 전체 wipe.
   //   marker v3 — 이전 v2 marker 있어도 새로 trigger. 검증 후 revert 예정.
   try {
-    const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v13';
+    const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v14';
     if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
       safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
       localStorage.removeItem('rhythm_lastForceVersion');
       localStorage.setItem(_FULL_REPATCH_KEY, '1');
-      console.log('[FULL REPATCH v13] saved + kplay storage + Firebase override → 풀 patch overlay');
+      console.log('[FULL REPATCH v14] saved + kplay storage + Firebase override → 풀 patch overlay');
       try {
         if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
           fbDb.ref('settings/' + currentUser + '/patchedAssets').remove().catch(()=>{});
