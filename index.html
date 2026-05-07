@@ -6073,6 +6073,15 @@ function transitionTo(newState, callback) {
     try { if (fbDb) fbDb.goOnline(); } catch(e) {}
     try { if (window._wakeLock) { window._wakeLock.release().catch(()=>{}); window._wakeLock = null; } } catch(e) {}
     try { if (window._checkUpdate) window._checkUpdate(); } catch(e) {}
+    // ★ Q1 C: particles/bursts/holdGlows 누적 leak 방지 — 인게임 종료 시 명시적 cleanup.
+    //   startSong 에서 비우긴 하지만 그 사이 result/select 화면에서 매 프레임 1383 파티클 렌더 → stutter.
+    try {
+      if (typeof particles !== 'undefined' && particles) particles.length = 0;
+      if (typeof bursts !== 'undefined' && bursts) bursts.length = 0;
+      if (typeof holdGlows !== 'undefined' && holdGlows) holdGlows.length = 0;
+      if (typeof gameParticles !== 'undefined' && gameParticles) gameParticles.length = 0;
+      if (typeof feverParticles !== 'undefined' && feverParticles) feverParticles.length = 0;
+    } catch(e) {}
   }
   // 랭킹 진입 시 주간 보상 즉시 체크 (월요일 자정 직후 새로고침 없이 보상 받게)
   if (newState === 'ranking' && currentUser) {
@@ -6921,6 +6930,8 @@ function handleSelectClick(mx, my) {
     const _ci = getCoverImage(selectedSong);
     const _coverLoading = !_ci || !_ci.complete || !_ci.naturalWidth;
     if (songLoading || _coverLoading) { playScrollTick(); return; }
+    // ★ Q2 C: 패치 진행 중 곡 진입 차단 — 부분 다운로드 상태로 진입 시 무음 BGM 회귀 방지.
+    if (typeof _patchState !== 'undefined' && _patchState && _patchState.active) { playScrollTick(); return; }
     if (isSongLocked(selectedSong)) { playScrollTick(); showUnlockPopup(selectedSong); return; }
     if (selectedSong >= FREE_SONG_COUNT && !hasActivePass()) useSongFreePlay(selectedSong);
     playScrollTick(); startSong(selectedSong); transitionTo('playing'); return;
@@ -9263,6 +9274,17 @@ function startSong(idx) {
         setTimeout(finishLoading, 2000);
         return;
       }
+      // ★ Q2 B: 10회 retry (20s) 후에도 stem 0개 decode → 무음 진입 방지. select 복귀.
+      //   기존 동작: 그냥 진행 → 무음 BGM. 사용자 보고: 네트워크 약하면 곡 진입 시 BGM/노트 키음 안 들림.
+      if (decodedCount === 0) {
+        finishLoading._retryCount = 0;
+        songLoading = false;
+        try { if (typeof _clearLoadWatchdog === 'function') _clearLoadWatchdog(); } catch(e) {}
+        try { if (typeof stopSongAudio === 'function') stopSongAudio(); } catch(e) {}
+        try { if (typeof transitionTo === 'function') transitionTo('select'); } catch(e) {}
+        try { console.warn('[song-load] all stems failed to decode after 20s — abort to select'); } catch(e) {}
+        return;
+      }
     }
     finishLoading._retryCount = 0;
     songLoading = false;
@@ -9787,6 +9809,7 @@ function update(dt) {
         const _ci = getCoverImage(selectedSong);
         const _coverLoading = !_ci || !_ci.complete || !_ci.naturalWidth;
         if (songLoading || _coverLoading) { /* swallow */ }
+        else if (typeof _patchState !== 'undefined' && _patchState && _patchState.active) { /* Q2 C: 패치 중 차단 */ }
         else if (isSongLocked(selectedSong)) { showUnlockPopup(selectedSong); }
         else {
           if (selectedSong >= FREE_SONG_COUNT && !hasActivePass()) useSongFreePlay(selectedSong);
