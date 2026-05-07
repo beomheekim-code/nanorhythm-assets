@@ -40,6 +40,15 @@ try {
     console.log('[LONGTASK observer] registered (top-level)');
   }
 } catch(e) { console.warn('[LONGTASK observer] failed:', e.message); }
+// ★ phase tracker (top-level, _dbg 무관). loop 의 update/render/updateFade 시간 누적.
+//   stutter probe 가 dump → 어느 phase 가 무거운지 식별. 영향 거의 0 (performance.now 2회/phase).
+window._phaseAcc = { update:0, render:0, updateFade:0, dbgOverlay:0 };
+window._measure = function(name, fn) {
+  const s = performance.now();
+  const r = fn();
+  window._phaseAcc[name] = (window._phaseAcc[name] || 0) + (performance.now() - s);
+  return r;
+};
 // ★ Debug mode — 3가지 활성화 경로 (kplay 임베드에선 URL 수정 불가라 제스처 필수):
 //   1) URL: ?debug=1
 //   2) localStorage: rhythm_debug='1' (한번 켜면 영구)
@@ -12014,17 +12023,17 @@ function _charPickImg(paths, key) {
           }
         } catch(e) {}
         console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString() + memInfo);
-        // ★ phase breakdown — _dbg 활성화 (?debug=1) 시 _measure 가 update/render/updateFade 시간 누적.
-        //   직전 300ms 의 phase 별 합산 → 어느 phase 가 stutter 원인인지 식별.
+        // ★ phase breakdown (top-level _phaseAcc). _dbg 무관. stutter 발생 직전까지 누적된 phase 시간.
         try {
-          if (window._dbg && window._dbg.perfEntries && window._dbg.perfEntries.length) {
-            const sums = {};
-            const cut = performance.now() - 300;
-            for (const e of window._dbg.perfEntries) {
-              if (e.t >= cut) sums[e.name] = (sums[e.name] || 0) + e.durMs;
-            }
-            const top = Object.entries(sums).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,d])=>n+'='+d.toFixed(1)).join(' ');
-            if (top) console.warn('[phase300ms]', top);
+          if (window._phaseAcc) {
+            const phases = Object.entries(window._phaseAcc)
+              .filter(([k,v]) => typeof v === 'number' && v > 1)
+              .sort((a,b)=>b[1]-a[1])
+              .map(([k,v]) => k+'='+v.toFixed(0))
+              .join(' ');
+            if (phases) console.warn('[phaseAcc since-last]', phases);
+            // reset for next interval
+            for (const k in window._phaseAcc) window._phaseAcc[k] = 0;
           }
         } catch(e) {}
         // ★ 100ms+ 큰 stutter — stack trace 자동 capture (caller 식별)
