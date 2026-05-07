@@ -304,7 +304,16 @@ function _activatePerfOnly() {
       } catch(e) { return; }
       try {
         var u = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
-        var r = await fetch(u, { cache: 'no-store' });
+        // ★ 5초 timeout — raw.github 응답 느릴 때 startPatchOrTransition await 가 1분+ block 되는 회귀 fix.
+        //   네트워크 정상 환경 (수백 ms) 영향 X. 비정상 환경에서 빠르게 fall through.
+        var _ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+        var _timer = _ctrl ? setTimeout(() => { try { _ctrl.abort(); } catch(e) {} }, 5000) : null;
+        var r;
+        try {
+          r = await fetch(u, { cache: 'no-store', signal: _ctrl ? _ctrl.signal : undefined });
+        } finally {
+          if (_timer) clearTimeout(_timer);
+        }
         if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
         var txt = await r.text();
         var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
