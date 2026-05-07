@@ -11928,6 +11928,10 @@ function _charPickImg(paths, key) {
           }
         } catch(e) {}
         console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString() + memInfo);
+        // ★ 100ms+ 큰 stutter — stack trace 자동 capture (caller 식별)
+        if (dt >= 100) {
+          try { console.warn('[stutter-trace] ' + dt.toFixed(0) + 'ms\n' + (new Error().stack || '(no stack)').split('\n').slice(0, 8).join('\n')); } catch(e){}
+        }
       }
     }
     _lastF = now;
