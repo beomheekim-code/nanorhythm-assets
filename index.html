@@ -22,6 +22,24 @@ window.addEventListener('unhandledrejection', (e) => {
   const msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason || '');
   if (msg === 'disconnect' || msg.toLowerCase().includes('disconnect')) e.preventDefault();
 });
+// ★ G (top-level, 무조건 등록): Long Task attribution. _dbg / debug mode 의존 X.
+//   stutter trace 가 RAF 경계에서만 캡처돼 caller 안 보이는 문제 보완.
+try {
+  if (typeof PerformanceObserver !== 'undefined') {
+    window._lt_po = new PerformanceObserver(list => {
+      for (const e of list.getEntries()) {
+        if (e.duration >= 50) {
+          try {
+            const attr = (e.attribution || []).map(a => (a.containerType||'?')+':'+(a.containerName||a.containerSrc||''));
+            console.warn('[LONGTASK]', e.duration.toFixed(0)+'ms', 'name='+(e.name||'?'), 'attr=['+attr.join(',')+']');
+          } catch(err){}
+        }
+      }
+    });
+    window._lt_po.observe({ entryTypes: ['longtask'] });
+    console.log('[LONGTASK observer] registered (top-level)');
+  }
+} catch(e) { console.warn('[LONGTASK observer] failed:', e.message); }
 // ★ Debug mode — 3가지 활성화 경로 (kplay 임베드에선 URL 수정 불가라 제스처 필수):
 //   1) URL: ?debug=1
 //   2) localStorage: rhythm_debug='1' (한번 켜면 영구)
@@ -65,23 +83,6 @@ function _activateDebug() {
       });
       po.observe({ entryTypes: ['longtask'] });
       window._dbg._po = po;
-    }
-  } catch(e) {}
-  // ★ G: 글로벌 ref + attribution 자동 출력 — RAF 외부 task 의 origin 식별 (script src / iframe / etc)
-  //   기존 observer 와 별개. _dbg 의존 X. 항상 등록.
-  try {
-    if (typeof PerformanceObserver !== 'undefined') {
-      window._lt_po = new PerformanceObserver(list => {
-        for (const e of list.getEntries()) {
-          if (e.duration >= 50) {
-            try {
-              const attr = (e.attribution || []).map(a => (a.containerType||'?')+':'+(a.containerName||a.containerSrc||''));
-              console.warn('[LONGTASK]', e.duration.toFixed(0)+'ms', 'name='+(e.name||'?'), 'attr=['+attr.join(',')+']');
-            } catch(err){}
-          }
-        }
-      });
-      window._lt_po.observe({ entryTypes: ['longtask'] });
     }
   } catch(e) {}
   window._dbgLog = function(label) {
