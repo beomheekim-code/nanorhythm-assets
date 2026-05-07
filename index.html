@@ -12195,7 +12195,7 @@ if (false) (function _stutterProbe() {
     const now = performance.now();
     if (_lastF > 0) {
       const dt = now - _lastF;
-      if (dt > 50) {  // ★ 30→50 — RDP/30fps 디스플레이 노이즈 제거. 실제 stutter 만.
+      if (dt > 30) {
         const d = new Date();
         const ts = d.getHours() + ':' + ('0'+d.getMinutes()).slice(-2) + ':' + ('0'+d.getSeconds()).slice(-2);
         // ★ context — 변수 직접 read. typeof 로 안전 가드 (인게임 외 상태에서도 동작).
