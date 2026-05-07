@@ -1441,18 +1441,25 @@ async function patchAssets(opts) {
                 newImg._path = path;
                 newImg._ok = null;
                 newImg._attempt = 0;
+                const _t0 = performance.now();
                 newImg.onload = () => {
                   if (newImg.naturalWidth > 0) {
+                    const _tLoad = performance.now() - _t0;
                     const finalize = () => {
                       newImg._ok = true;
-                      skinImages[path] = newImg;  // swap (옛 image 객체 GC)
+                      skinImages[path] = newImg;
+                      const _tTotal = performance.now() - _t0;
+                      console.log('[swap]', path, 'load=' + _tLoad.toFixed(0) + 'ms total=' + _tTotal.toFixed(0) + 'ms');
                     };
                     const warm = () => {
+                      const _tWarm0 = performance.now();
                       try {
                         const tmp = document.createElement('canvas');
                         tmp.width = 64; tmp.height = 64;
                         tmp.getContext('2d').drawImage(newImg, 0, 0, 64, 64);
                       } catch(e) {}
+                      const _tWarm = performance.now() - _tWarm0;
+                      if (_tWarm > 30) console.log('[swap-warm-spike]', path, _tWarm.toFixed(0) + 'ms');
                       finalize();
                     };
                     try {
@@ -11788,6 +11795,20 @@ function _charPickImg(paths, key) {
   }
   return null;
 }
+// ★ stutter 측정 — 매 frame time 50ms+ spike 시 log
+(function _stutterProbe() {
+  let _lastF = 0;
+  function _tick() {
+    const now = performance.now();
+    if (_lastF > 0) {
+      const dt = now - _lastF;
+      if (dt > 50) console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString());
+    }
+    _lastF = now;
+    requestAnimationFrame(_tick);
+  }
+  requestAnimationFrame(_tick);
+})();
 // ★ 캐릭터 격프레임 skip 제거 — sprite swap 과 race 로 깜빡임 발생 (사용자 보고).
 //   iOS GPU 부담 약간 늘지만 시각 정상.
 function renderCharacter() {
