@@ -1117,6 +1117,18 @@ function assetUrl(path) {
 //   localStorage 키에 CDN_BASE 포함 → 빌드 업데이트 시 자동 무효화.
 //   신곡만 추가된 경우 (CDN_BASE 동일) 신곡만 fetch.
 const PATCH_STORAGE_KEY = 'rhythm_patchedAssets_v1';
+// ★ [로컬 only] 1회 풀 패치 trigger — push X. 검증 후 revert 예정.
+//   _FULL_REPATCH_KEY localStorage 가 없으면 saved 전체 wipe + lastForceVersion reset → 다음 patch overlay = 모든 asset 다운로드.
+//   idempotent — 한 번 실행 후 marker set, 다음 reload 영향 X.
+try {
+  const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v1';
+  if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
+    localStorage.removeItem(PATCH_STORAGE_KEY);
+    localStorage.removeItem('rhythm_lastForceVersion');
+    localStorage.setItem(_FULL_REPATCH_KEY, '1');
+    console.log('[FULL REPATCH] saved wipe — next patch overlay will download all assets');
+  }
+} catch(e) {}
 const PATCH_PARALLEL_DESKTOP = 4;
 const PATCH_PARALLEL_MOBILE = 4;   // ★ PC 와 동일 — 모바일에서도 빠른 patch 우선 (사용자 요구)
 const PATCH_PER_FILE_TIMEOUT = 30000;
