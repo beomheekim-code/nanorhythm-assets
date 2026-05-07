@@ -11795,19 +11795,44 @@ function _charPickImg(paths, key) {
   }
   return null;
 }
-// ★ stutter 측정 — 매 frame time 50ms+ spike 시 log
+// ★ stutter 측정 — 매 frame time 50ms+ spike 시 log + 메모리 정보
 (function _stutterProbe() {
   let _lastF = 0;
   function _tick() {
     const now = performance.now();
     if (_lastF > 0) {
       const dt = now - _lastF;
-      if (dt > 50) console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString());
+      if (dt > 50) {
+        let memInfo = '';
+        try {
+          if (performance.memory) {
+            const mb = (performance.memory.usedJSHeapSize / 1048576).toFixed(0);
+            const lim = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(0);
+            memInfo = ' heap=' + mb + 'MB/' + lim + 'MB';
+          }
+        } catch(e) {}
+        console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString() + memInfo);
+      }
     }
     _lastF = now;
     requestAnimationFrame(_tick);
   }
   requestAnimationFrame(_tick);
+})();
+// ★ 30초 마다 메모리 사용량 log (누수 추적)
+(function _memProbe() {
+  setInterval(() => {
+    try {
+      if (performance.memory) {
+        const mb = (performance.memory.usedJSHeapSize / 1048576).toFixed(0);
+        const t = (performance.memory.totalJSHeapSize / 1048576).toFixed(0);
+        const lim = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(0);
+        const skinCnt = typeof skinImages === 'object' ? Object.keys(skinImages).length : 0;
+        const stemCnt = typeof stemAudioBuffers !== 'undefined' && Array.isArray(stemAudioBuffers) ? stemAudioBuffers.filter(b => b).length : 0;
+        console.log('[mem]', 'heap=' + mb + 'MB/' + t + 'MB (lim ' + lim + 'MB)', 'skinImg=' + skinCnt, 'stemBuf=' + stemCnt);
+      }
+    } catch(e) {}
+  }, 30000);
 })();
 // ★ 캐릭터 격프레임 skip 제거 — sprite swap 과 race 로 깜빡임 발생 (사용자 보고).
 //   iOS GPU 부담 약간 늘지만 시각 정상.
