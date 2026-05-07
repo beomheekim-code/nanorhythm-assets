@@ -15688,6 +15688,24 @@ function renderSelect() {
     ctx.font = `bold ${_mlSub ? sz(13) : sz(13)}px sans-serif`;
     ctx.fillStyle = '#ffd700bb';
     ctx.fillText('업적', subBtnX + subBtnW/2, subBtnY + subBtnHR/2);
+    // ★ 받기 가능 업적 카운트 배지 — unlocked 면서 미 claim 인 업적 수
+    try {
+      if (typeof ALL_ACHIEVEMENTS !== 'undefined' && typeof getUnlocked === 'function' && typeof getClaimed === 'function') {
+        const _unlk = getUnlocked(); const _clm = getClaimed();
+        let _claimable = 0;
+        for (const a of ALL_ACHIEVEMENTS) { if (_unlk[a.id] && !_clm[a.id]) _claimable++; }
+        if (_claimable > 0) {
+          const _bdR = sz(8), _bdX = subBtnX + subBtnW - _bdR - sz(4), _bdY = subBtnY + _bdR + sz(2);
+          ctx.fillStyle = '#ff4466';
+          ctx.beginPath(); ctx.arc(_bdX, _bdY, _bdR, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.font = `bold ${sz(10)}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(String(_claimable > 99 ? 99 : _claimable), _bdX, _bdY);
+          ctx.textBaseline = 'alphabetic';
+          ctx.font = `bold ${_mlSub ? sz(13) : sz(13)}px sans-serif`;
+        }
+      }
+    } catch(e) {}
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrFill(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
     ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; rrStroke(subBtnX + subBtnW + subBtnGapX, subBtnY, subBtnW, subBtnHR, _mlSub ? 5 : 8);
     ctx.font = `bold ${_mlSub ? sz(13) : sz(13)}px sans-serif`;
