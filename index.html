@@ -12034,6 +12034,9 @@ function _charPickImg(paths, key) {
     if (_lastF > 0) {
       const dt = now - _lastF;
       if (dt > 30) {
+        // ★ probe-cost 측정 — 로그 자체가 stutter 가중하는지 식별. 모든 console.* 호출
+        //   감싸서 JS 레벨 비용 측정 (DevTools UI 비용은 별도, 측정 불가).
+        const _probeS = performance.now();
         let memInfo = '';
         try {
           if (performance.memory) {
@@ -12081,6 +12084,12 @@ function _charPickImg(paths, key) {
         if (dt >= 100) {
           try { console.warn('[stutter-trace] ' + dt.toFixed(0) + 'ms\n' + (new Error().stack || '(no stack)').split('\n').slice(0, 8).join('\n')); } catch(e){}
         }
+        // ★ probe-cost 결과: 이 stutter dump 자체가 JS 레벨 N ms 걸렸음. dt 와 비교 → 로그 비중 판단.
+        //   probe-cost > 5ms 이면 logging 부담 큰 것. 10ms+ 면 logging 자체가 stutter 원인 가능.
+        try {
+          const _probeCost = performance.now() - _probeS;
+          if (_probeCost > 1) console.warn('[probe-cost] ' + _probeCost.toFixed(1) + 'ms (of ' + dt.toFixed(0) + 'ms total)');
+        } catch(e) {}
       }
     }
     _lastF = now;
@@ -12300,10 +12309,14 @@ function renderParticles() {
       const img = fx.imgs[p.spriteKey];
       if (img) {
         const s = p.size * (0.6 + 0.4 * lifeRatio);
+        // ★ renderBursts 와 동일 패턴: 256×256 pre-baked 사용. 측정 데이터 (log2):
+        //   renderParticles single-frame max 50~54ms (PC 48 입자 기준) → raw 2048 sprite GPU resampling 비용.
+        //   _getBurstBaked 결과는 캐시되며 첫 1회만 256 bake. visual 동일.
+        const baked = _getBurstBaked(img) || img;
         ctx.save();
         ctx.translate(p.x, p.y);
         if (p.rotVel !== undefined) ctx.rotate((p.rot || 0) + p.rotVel * (p.maxLife - p.life));
-        ctx.drawImage(img, -s/2, -s/2, s, s);
+        ctx.drawImage(baked, -s/2, -s/2, s, s);
         ctx.restore();
         continue;
       }
