@@ -12777,24 +12777,32 @@ function renderJudgment() {
   ctx.shadowBlur=0; ctx.globalAlpha=1; ctx.restore();
 }
 
-// ★ HUD cache (option B: static/dynamic split, 2026-05-07).
-//   기존 full cache 는 점수 변할 때마다 cache miss → 매 노트 hit 시 rebuild + 입력 씹힘.
-//   B: static (frame, container, labels, buttons) 만 cache. dynamic (score/combo/gauge fill) 매 프레임.
-//   cache key = layout + mode + speed (점수/콤보 무관) → cache hit rate 거의 100%.
-//   _renderUIBody('static') / _renderUIBody('dynamic') 분기 사용.
+// ★ HUD cache wrapper — sakura_ui procedural HUD draw 매 프레임 49.9ms/s (total 80%) 부담.
+//   score/combo/gauge/fever/speed 변할 때만 offscreen 재그리기. 안 변하면 cached drawImage.
+//   ctx swap 으로 본체 코드 변경 X (안전).
 let _hudCanvas = null, _hudCanvasCtx = null;
 let _hudCanvasKey = null;
 function renderUI() {
+  // ★ 2026-05-07 PC 만 비활성 — 사용자 보고:
+  //     1) PC HUD cache 활성 시 키 입력 씹힘 (이전 회귀)
+  //     2) 모바일 HUD cache 비활성 시 인게임 49.9ms/s 부담 → stutter 회귀 (현재 보고)
+  //   결론: PC 는 procedural (return), 모바일은 기존 cache path 사용.
+  if (!isMobile) return _renderUIBody();
   // 인게임 + select 만 cache. 그 외엔 그냥 그리기.
   if (state !== 'playing' && state !== 'select') {
     return _renderUIBody();
   }
-  // ★ static cache key — 점수/콤보 제외. layout + mode + speed 만.
-  //   재빌드 빈도: resize / mode change / speed +/- 만 (보통 게임 시작 1회 뿐).
+  // cache key — HUD 시각 영향 변수만
+  const _scoreI = (typeof score === 'number') ? (score|0) : 0;
+  const _comboI = (typeof combo === 'number') ? (combo|0) : 0;
+  const _gaugeI = (typeof gauge === 'number') ? Math.round(gauge*100) : 0;
+  const _feverI = (typeof fever !== 'undefined' && fever) ? 1 : 0;
   const _spdI = (typeof selectedSpeed === 'number') ? selectedSpeed.toFixed(2) : '1';
   const _modeI = (typeof playMode === 'string') ? playMode : '';
-  const _key = _spdI + '|' + _modeI + '|' + (W|0) + 'x' + (H|0) + '|' + (safeTop|0) + '|' + (safeBottom|0);
+  const _key = _scoreI + '|' + _comboI + '|' + _gaugeI + '|' + _feverI + '|' + _spdI + '|' + _modeI
+             + '|' + (W|0) + 'x' + (H|0) + '|' + (safeTop|0) + '|' + (safeBottom|0);
   // ★ dpr 반영 — cache canvas 가 화면 dpr * 사이즈로. drawImage 시 1:1 매핑 → 해상도 정상.
+  //   기존: cache 가 절반 해상도 → 모바일 흐릿 (사용자 보고)
   const _dprH = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
   const _wLogical = (W + 40) | 0, _hLogical = (H + safeTop + safeBottom + 40) | 0;
   const _w = (_wLogical * _dprH) | 0, _h = (_hLogical * _dprH) | 0;
@@ -12808,45 +12816,41 @@ function renderUI() {
     } catch(e) { _hudCanvas = null; _hudCanvasCtx = null; }
     _hudCanvasKey = null;  // 재그리기 강제
   }
-  // static cache rebuild — 키 바뀜 시에만 (드물게).
-  if (_hudCanvas && _hudCanvasCtx && _hudCanvasKey !== _key) {
+  // cache hit — drawImage 시 logical 사이즈로 그려서 1:1 매핑
+  if (_hudCanvas && _hudCanvasKey === _key) {
+    try { ctx.drawImage(_hudCanvas, 0, 0, _w, _h, -20, -safeTop - 20, _wLogical, _hLogical); } catch(e) { _renderUIBody(); }
+    return;
+  }
+  // cache miss — offscreen 그리기 (ctx swap)
+  if (_hudCanvas && _hudCanvasCtx) {
     _hudCanvasCtx.clearRect(0, 0, _w, _h);
     _hudCanvasCtx.save();
-    _hudCanvasCtx.scale(_dprH, _dprH);
+    _hudCanvasCtx.scale(_dprH, _dprH);  // ★ logical → physical 좌표 변환
     _hudCanvasCtx.translate(20, safeTop + 20);
     const _origCtx = ctx;
     ctx = _hudCanvasCtx;
     try {
-      _renderUIBody('static');
+      _renderUIBody();
     } catch(e) {
-      // fallback — full procedural draw
+      // fallback — 원본 ctx 로 직접 그리기
       ctx = _origCtx;
+      try { _renderUIBody(); } catch(e2) {}
       _hudCanvasCtx.restore();
       _hudCanvasKey = null;
-      _renderUIBody();
       return;
     } finally {
       ctx = _origCtx;
     }
     _hudCanvasCtx.restore();
     _hudCanvasKey = _key;
-  }
-  // 매 프레임: static cache drawImage + dynamic overlay
-  if (_hudCanvas && _hudCanvasKey === _key) {
     try { ctx.drawImage(_hudCanvas, 0, 0, _w, _h, -20, -safeTop - 20, _wLogical, _hLogical); } catch(e) {}
-    try { _renderUIBody('dynamic'); } catch(e) { _renderUIBody(); }
     return;
   }
   // canvas 생성 실패 → 원본 path
   _renderUIBody();
 }
 
-function _renderUIBody(_uiPass) {
-  // ★ B: static/dynamic 분리 — _uiPass 'static' 은 정적 부분만, 'dynamic' 은 동적만, 기본('all'/undefined) 은 전부.
-  //   PC 인게임 cache 가 점수 변경 마다 cache miss 회피 위해 정적/동적 분리 (option B).
-  //   회귀 안 나게 코드 보존, 섹션마다 if (_S) / if (_D) 로 분기.
-  const _S = (!_uiPass || _uiPass === 'all' || _uiPass === 'static');
-  const _D = (!_uiPass || _uiPass === 'all' || _uiPass === 'dynamic');
+function _renderUIBody() {
   const song = curSong;
   // HP 바 / 속도 컨트롤 기준 좌표 (프리스타일에서도 속도 컨트롤 사용)
   // HP바/속도 컨트롤: 레인 왼쪽 컬럼에 stack 배치 (HP 위, 배속 바로 밑). 세로 중앙 정렬.
@@ -12871,8 +12875,7 @@ function _renderUIBody(_uiPass) {
   // === HP(선택) + 배속 공유 컨테이너 — 왼쪽만 사다리꼴 캡, 오른쪽은 외곽 프레임 좌측 선과 공유 ===
   //   프리스타일: HP 없음 → 컨테이너는 배속 블록만 감쌈. 외곽 프레임과 동일한 sz(7) 테두리.
   //   ★ 우측 path 를 outerX 에 명시 고정 → _gcx 가 모바일에서 왼쪽 clamp 에 걸려도 레일과 항상 flush.
-  // ★ B: 정적 (frame, body, stroke). _S 일 때만 그림.
-  if (_S) {
+  {
     const _bpPal = _backplatePalette();
     // ★ _contPadX = sz(10): 컨테이너 body 좌측 엣지를 button 왼쪽에서 sz(10) 떨어지게 배치.
     //   button 이 container 의 좌/우 stroke 와 동일한 sz(6.5) gap 으로 중앙 정렬됨.
@@ -12976,8 +12979,6 @@ function _renderUIBody(_uiPass) {
   //   ★ 빈 영역은 그리지 않아서 HP 컨테이너 body 색 (HP 바 감싸는 진한 색) 이 그대로 노출됨.
   //   clip() 으로 캡슐 모양 안쪽만 제한한 후 gauge 비율만큼 아래에서 위로 초록 fill.
   if (playMode === 'normal') {
-    // === HP 게이지 fill (DYNAMIC) ===
-    if (_D) {
     const _ui = _getUiPack();
     if (_ui) {
       // ★ 벚꽃 HP 바 — 핑크 네온 직사각 segment 여러 개.
@@ -13042,9 +13043,7 @@ function _renderUIBody(_uiPass) {
         ctx.restore();
       }
     }
-    } // === end of DYNAMIC gauge fill ===
-    // ★ hp_bar.png 장식 — 컨테이너 좌측 꼭지점에 배치. (STATIC — UI 팩 의존, gauge 무관)
-    if (_S) {
+    // ★ hp_bar.png 장식 — 컨테이너 좌측 꼭지점에 배치.
     const _hpSk = _getUiPackSkin();
     const _hpDecoPath = _hpSk && _hpSk.imagePaths && _hpSk.imagePaths.hpBar;
     const _hpDecoImg = _hpDecoPath ? skinImages[_hpDecoPath] : null;
@@ -13064,10 +13063,9 @@ function _renderUIBody(_uiPass) {
         ctx.drawImage(_hpDecoImg, _decoX, _decoY, _decoW, _decoH);
       } catch(e) {}
     }
-    } // === end of STATIC HP decoration ===
     // ★ 캡슐 외곽선 제거 — 빈 영역이 HP 컨테이너 body 와 완전히 seamless 로 보이도록.
-    //   저 HP 위급 빨간 글로우만 유지 (외곽선 없이 shadow 로). (DYNAMIC — gauge 의존)
-    if (_D && gauge < 0.3) {
+    //   저 HP 위급 빨간 글로우만 유지 (외곽선 없이 shadow 로).
+    if (gauge < 0.3) {
       if (!isMobile) {
         ctx.save();
         ctx.shadowColor = '#ff3333';
@@ -13093,9 +13091,9 @@ function _renderUIBody(_uiPass) {
     const _labelSize = isMobile ? sz(8) : sz(10);
     const _valueSize = isMobile ? sz(16) : sz(22);
 
-    // 상단 액센트 glow 라인 — 기본 스킨만 (UI 팩 장착 시 가로선 제거, 유저 요청). (STATIC)
+    // 상단 액센트 glow 라인 — 기본 스킨만 (UI 팩 장착 시 가로선 제거, 유저 요청).
     const _uiAc = _getUiPack();
-    if (_S && !_uiAc) {
+    if (!_uiAc) {
       const _accentCol = '#ffffff';
       const _accentGrad = ctx.createLinearGradient(0, _panelTop, 0, _panelTop + sz(4));
       _accentGrad.addColorStop(0, _accentCol + 'cc');
@@ -13104,63 +13102,47 @@ function _renderUIBody(_uiPass) {
       ctx.fillRect(_lsxUI, _panelTop, _twUI, sz(4));
     }
 
-    // 하단 얇은 액센트 라인 (STATIC)
-    if (_S) {
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(_lsxUI + _inPad, _panelBot - sz(2), _twUI - _inPad*2, 1);
-    }
+    // 하단 얇은 액센트 라인
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(_lsxUI + _inPad, _panelBot - sz(2), _twUI - _inPad*2, 1);
 
     // SCORE/MAX COMBO — UI 팩 장착 시 procedural 분홍/흰, 미장착 시 기본 스킨 그대로
     const _uiM = _getUiPackSkin();
     const _numH = _uiM ? _valueSize * 1.7 : _valueSize;
 
-    // MAX COMBO label (STATIC) + number (DYNAMIC)
+    // MAX COMBO (좌)
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    if (_S) {
-      if (_uiM) {
-        _drawProcText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'left');
-      } else {
-        ctx.font = `bold ${_labelSize}px sans-serif`;
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45);
-      }
-    }
-    if (_D) {
-      if (_uiM) {
-        _drawAtlasNumber(null, maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35, _numH, 'left');
-      } else {
-        ctx.font = `bold ${_valueSize}px sans-serif`;
-        ctx.fillStyle = maxCombo > 0 ? '#ffd700' : 'rgba(255,255,255,0.35)';
-        ctx.fillText(maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35);
-      }
+    if (_uiM) {
+      _drawProcText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'left');
+      _drawAtlasNumber(null, maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35, _numH, 'left');
+    } else {
+      ctx.font = `bold ${_labelSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('MAX COMBO', _lsxUI + _inPad, _midY - _valueSize * 0.45);
+      ctx.font = `bold ${_valueSize}px sans-serif`;
+      ctx.fillStyle = maxCombo > 0 ? '#ffd700' : 'rgba(255,255,255,0.35)';
+      ctx.fillText(maxCombo + 'x', _lsxUI + _inPad, _midY + _valueSize * 0.35);
     }
 
-    // SCORE label (STATIC) + number (DYNAMIC)
+    // SCORE (우)
     ctx.textAlign = 'right';
-    if (_S) {
-      if (_uiM) {
-        _drawProcText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'right');
-      } else {
-        ctx.font = `bold ${_labelSize}px sans-serif`;
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45);
-      }
-    }
-    if (_D) {
-      if (_uiM) {
-        _drawAtlasNumber(null, window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35, _numH, 'right');
-      } else {
-        ctx.font = `bold ${_valueSize}px sans-serif`;
-        ctx.fillStyle = '#fff';
-        ctx.fillText(window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35);
-      }
+    if (_uiM) {
+      _drawProcText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45, _labelSize + 2, 'right');
+      _drawAtlasNumber(null, window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35, _numH, 'right');
+    } else {
+      ctx.font = `bold ${_labelSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('SCORE', _lsxUI + _twUI - _inPad, _midY - _valueSize * 0.45);
+      ctx.font = `bold ${_valueSize}px sans-serif`;
+      ctx.fillStyle = '#fff';
+      ctx.fillText(window._hudScoreStr || '0', _lsxUI + _twUI - _inPad, _midY + _valueSize * 0.35);
     }
 
     ctx.textBaseline = 'alphabetic';
   }
 
-  // Combo display — 노트 영역 상단 (DYNAMIC — 매 프레임 변함)
-  if (_D && combo > 0) {
+  // Combo display — 노트 영역 상단
+  if (combo > 0) {
     const lsx = getLaneStartX(), tw = getLaneW()*laneCount;
     const cx = lsx + tw/2, cy = getHitY() * 0.35;
     const t = Date.now();
@@ -13213,8 +13195,7 @@ function _renderUIBody(_uiPass) {
 
   // 곡 정보 + 프로그레스바 제거됨 (2026-04-16)
 
-  // === Speed control (STATIC — selectedSpeed 가 cache key 에 포함) ===
-  if (_S) {
+
   // Speed control (above note buttons, vertical stack)
   const spBtn = _spBtnSz;
   const spCx = _gcx;
@@ -13306,7 +13287,6 @@ function _renderUIBody(_uiPass) {
     ctx.fillText(devInvincible ? '무적ON' : '무적OFF', ivX + ivW/2, ivY + ivH/2);
     ctx.textBaseline = 'alphabetic';
   }
-  } // === end of STATIC: Speed control + Pause + Dev toggle ===
 }
 
 // ===== SETTINGS OVERLAY (팝업) =====
