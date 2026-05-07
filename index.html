@@ -9044,18 +9044,6 @@ function startSong(idx) {
   songLoadTotal = (curSong.stemDir && stemCount > 0) ? stemCount : 1;
   let _stemsReady = false, _energyReady = false;
   let _energyStemsDone = 0, _energyStemsTotal = stemNames.filter((_,i) => !ALWAYS_AUDIBLE_STEMS.includes(i)).length;
-  // ★ 옵션 A: decodeAudioData 모든 stem callback 완료 후에만 인게임 진입 (인게임 hot path 의 33ms+GC stutter 제거)
-  //   _stemsReady (HTMLAudio canplaythrough) 와 별개 — _decodeAllDone 가 모든 decodeAudioData callback (성공+실패) 완료 신호
-  //   stemCount === 0 (비스템곡) 이면 즉시 true (decode 자체 없음)
-  let _decodeStemsDone = 0;
-  let _decodeAllDone = (stemCount === 0);
-  function _markDecodeDone() {
-    _decodeStemsDone++;
-    if (_decodeStemsDone >= stemCount && !_decodeAllDone) {
-      _decodeAllDone = true;
-      tryFinalize();
-    }
-  }
 
   function finishLoading() {
     // ★ 네트워크 느린 경우: stem buffer 하나도 디코딩 안 되어 있으면 2초 더 기다림 (최대 10회 = 20초).
@@ -9090,8 +9078,7 @@ function startSong(idx) {
 
   function tryFinalize() {
     // 스템 + 에너지 맵 모두 완료 시 최종 노트 생성 후 시작
-    // ★ 옵션 A: _decodeAllDone — 모든 decodeAudioData callback 까지 대기 (인게임 hot path stutter 제거)
-    if (!_stemsReady || !_energyReady || !_decodeAllDone) return;
+    if (!_stemsReady || !_energyReady) return;
     // ★ 로딩 끝나고 실제 플레이 중이면 SKIP — detectOnsets 7개 + generateNodesFromOnsets 가 2-3초 블록 유발.
     //   songLoading 플래그로 로딩 중 vs 실제 플레이 구분 (로딩 중엔 정상 실행 필요).
     if (!songLoading && state === 'playing' && countdownTime <= 0) return;
@@ -9262,7 +9249,6 @@ function startSong(idx) {
             updateSongDurationFromAudio();
             onAllLoaded();
           }
-          _markDecodeDone(); // ★ 옵션 A
         }, () => {
           console.warn('iOS decodeAudioData failed:', path);
           // decode 실패 — counter 증가시켜 hang 방지
@@ -9273,9 +9259,8 @@ function startSong(idx) {
           _iosLoaded++;
           songLoadProgress = _iosLoaded;
           if (_iosLoaded === stemCount) { usingStemMode = true; onAllLoaded(); }
-          _markDecodeDone(); // ★ 옵션 A
         });
-      }).catch(()=>{ _markDecodeDone(); /* ★ 옵션 A — fetch 실패도 decode 의무 면제 */ });
+      }).catch(()=>{});
     }
     // ★ 30초 강제 진행 제거 (BGM 무음 원인). _startLoadWatchdog() 가 자동 재연결로 처리.
   } else if (curSong.stemDir && stemCount > 0) {
@@ -9337,14 +9322,12 @@ function startSong(idx) {
                 tryFinalize();
               }
             }
-            _markDecodeDone(); // ★ 옵션 A — _isEnergyStem 무관 모든 stem 카운트
           }, () => {
             // decode 실패 — energy 진행 카운터만 증가시켜 hang 방지
             if (_isEnergyStem) {
               _energyStemsDone++;
               if (_energyStemsDone >= _energyStemsTotal) { _energyReady = true; tryFinalize(); }
             }
-            _markDecodeDone(); // ★ 옵션 A
           });
         }).catch(() => {
           // fetch 실패 (CDN miss / 네트워크) — energy 진행 카운터만 증가
@@ -9352,11 +9335,7 @@ function startSong(idx) {
             _energyStemsDone++;
             if (_energyStemsDone >= _energyStemsTotal) { _energyReady = true; tryFinalize(); }
           }
-          _markDecodeDone(); // ★ 옵션 A
         });
-      } else {
-        // ★ 옵션 A: actx 가 없으면 decodeAudioData 자체 실행 안 됨 → counter 증가시켜 hang 방지
-        _markDecodeDone();
       }
       const _onStemReady = () => {
         if (a._stemLoaded) return; a._stemLoaded = true;
@@ -9377,8 +9356,6 @@ function startSong(idx) {
             if (allStemAudios[j]) { allStemAudios[j].pause(); }
           }
           allStemAudios = [];
-          // ★ 옵션 A: stem 들 폐기 + songAudio fallback → decode 의무 면제 (남은 stem callback 안 와도 진입)
-          _decodeAllDone = true;
           songAudio = new Audio(assetUrl(curSong.file));
           songAudio.volume = 0;
           songAudio.muted = true; // ★ silent play race 차단 — 진짜 재생 시작 시 풀림 (line ~16016 근처)
