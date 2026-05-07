@@ -67,6 +67,23 @@ function _activateDebug() {
       window._dbg._po = po;
     }
   } catch(e) {}
+  // ★ G: 글로벌 ref + attribution 자동 출력 — RAF 외부 task 의 origin 식별 (script src / iframe / etc)
+  //   기존 observer 와 별개. _dbg 의존 X. 항상 등록.
+  try {
+    if (typeof PerformanceObserver !== 'undefined') {
+      window._lt_po = new PerformanceObserver(list => {
+        for (const e of list.getEntries()) {
+          if (e.duration >= 50) {
+            try {
+              const attr = (e.attribution || []).map(a => (a.containerType||'?')+':'+(a.containerName||a.containerSrc||''));
+              console.warn('[LONGTASK]', e.duration.toFixed(0)+'ms', 'name='+(e.name||'?'), 'attr=['+attr.join(',')+']');
+            } catch(err){}
+          }
+        }
+      });
+      window._lt_po.observe({ entryTypes: ['longtask'] });
+    }
+  } catch(e) {}
   window._dbgLog = function(label) {
     if (!window._dbg) return;
     _dbg.loadEvents.push({ t: Math.round(performance.now()), label });
