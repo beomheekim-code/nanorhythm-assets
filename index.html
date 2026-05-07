@@ -12133,7 +12133,7 @@ function _charPickImg(paths, key) {
     } catch(e) {}
     if (_lastF > 0) {
       const dt = now - _lastF;
-      if (dt > 50) {  // ★ 30→50 — RDP 노이즈 31ms 제외, 진짜 stutter 만.
+      if (dt > 30) {
         // ★ probe-cost 측정 — 로그 자체가 stutter 가중하는지 식별. 모든 console.* 호출
         //   감싸서 JS 레벨 비용 측정 (DevTools UI 비용은 별도, 측정 불가).
         const _probeS = performance.now();
