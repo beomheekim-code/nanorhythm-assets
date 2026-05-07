@@ -9125,6 +9125,9 @@ function startSong(idx) {
       const _stemSens = curSong.stemSensitivity || {};
       const _stemMinGap = curSong.stemMinGap || {};
       const _melodySens = curSong.melodySensitivity || 1.1;
+      // ★ B fix: detectOnsets 결과 cache — 같은 곡 재진입 시 7 stem detectOnsets sync work skip (loading 끝 cluster 줄임)
+      //   key = songIdx + stemIdx + sens + mg. LRU 35 entries (5곡 × 7 stem).
+      window.__onsetCache = window.__onsetCache || new Map();
       for (let i = 0; i < stemNames.length; i++) {
         if (stemAudioBuffers[i]) {
           let _sens;
@@ -9135,8 +9138,21 @@ function startSong(idx) {
             _sens = _isMelody ? _melodySens : 1.1;
           }
           const _mg = _stemMinGap[i] !== undefined ? _stemMinGap[i] : 30;
-          onsetsByStem[i] = detectOnsets(stemAudioBuffers[i], _sens, _mg);
-          console.log('Stem', i, stemNames[i], ':', onsetsByStem[i].length, 'onsets (sens=' + _sens + ', gap=' + _mg + 'ms), first:', onsetsByStem[i][0]?.toFixed(2) + 's');
+          const _ck = curSongIdx + '_' + i + '_' + _sens + '_' + _mg;
+          const _cachedOnsets = window.__onsetCache.get(_ck);
+          if (_cachedOnsets) {
+            onsetsByStem[i] = _cachedOnsets;
+            console.log('[cache] onsets hit stem', i, stemNames[i], ':', _cachedOnsets.length, 'for', _ck);
+          } else {
+            onsetsByStem[i] = detectOnsets(stemAudioBuffers[i], _sens, _mg);
+            window.__onsetCache.set(_ck, onsetsByStem[i]);
+            console.log('Stem', i, stemNames[i], ':', onsetsByStem[i].length, 'onsets (sens=' + _sens + ', gap=' + _mg + 'ms), first:', onsetsByStem[i][0]?.toFixed(2) + 's');
+            // LRU 35 entry limit (5곡 × 7 stem). 초과 시 가장 오래된 entry 제거.
+            if (window.__onsetCache.size > 35) {
+              const _firstKey = window.__onsetCache.keys().next().value;
+              window.__onsetCache.delete(_firstKey);
+            }
+          }
         } else {
           console.log('Stem', i, stemNames[i], ': NO BUFFER');
         }
