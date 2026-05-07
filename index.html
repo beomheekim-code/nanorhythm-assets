@@ -1368,6 +1368,10 @@ function _isMobilePatch() {
 async function _patchFetchWithRetry(path, onBytes, expectedSize) {
   const delays = [1000, 3000, 8000, 20000, 30000];
   let lastErr = null;
+  // ★ 진행률 >100% 버그 fix — retry 마다 partial bytes 가 누적되던 문제.
+  //   각 attempt 의 누적 bytes 추적 → 실패 시 음수로 rollback. 성공 시 그대로 둠.
+  let attemptBytes = 0;
+  const wrappedOnBytes = (n) => { attemptBytes += n; onBytes(n); };
   for (let attempt = 0; attempt <= PATCH_PER_FILE_RETRIES; attempt++) {
     if (_patchState.cancelled) throw new Error('cancelled');
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1387,11 +1391,17 @@ async function _patchFetchWithRetry(path, onBytes, expectedSize) {
     }
     try {
       _patchState.retryingPath = attempt > 0 ? path : null;
-      const sz = await _patchFetchOne(path, onBytes, expectedSize);
+      attemptBytes = 0;
+      const sz = await _patchFetchOne(path, wrappedOnBytes, expectedSize);
       _patchState.retryingPath = null;
       return sz;
     } catch(e) {
       lastErr = e;
+      // 실패한 attempt 의 partial bytes rollback (>100% 진행률 방지)
+      if (attemptBytes > 0) {
+        onBytes(-attemptBytes);
+        attemptBytes = 0;
+      }
       if (attempt < PATCH_PER_FILE_RETRIES) {
         const d = delays[Math.min(attempt, delays.length - 1)];
         await new Promise(r => setTimeout(r, d));
@@ -9274,15 +9284,18 @@ function startSong(idx) {
         setTimeout(finishLoading, 2000);
         return;
       }
-      // ★ Q2 B: 10회 retry (20s) 후에도 stem 0개 decode → 무음 진입 방지. select 복귀.
-      //   기존 동작: 그냥 진행 → 무음 BGM. 사용자 보고: 네트워크 약하면 곡 진입 시 BGM/노트 키음 안 들림.
-      if (decodedCount === 0) {
+      // ★ Q2 B (강화): retry 후에도 stem 디코드 부족 → 무음 진입 방지. select 복귀.
+      //   기존: decodedCount === 0 (전부 실패) 만 abort. 사용자 보고: stem 일부만 성공해도 BGM/노트 키음 안 들림.
+      //   강화: BGM stem (stem 0) 누락 또는 절반 미만 decode 시 abort.
+      const _bgmMissing = !stemAudioBuffers[0];
+      const _halfMissing = decodedCount < Math.ceil(stemCount * 0.5);
+      if (decodedCount === 0 || _bgmMissing || _halfMissing) {
         finishLoading._retryCount = 0;
         songLoading = false;
         try { if (typeof _clearLoadWatchdog === 'function') _clearLoadWatchdog(); } catch(e) {}
         try { if (typeof stopSongAudio === 'function') stopSongAudio(); } catch(e) {}
         try { if (typeof transitionTo === 'function') transitionTo('select'); } catch(e) {}
-        try { console.warn('[song-load] all stems failed to decode after 20s — abort to select'); } catch(e) {}
+        try { console.warn('[song-load] decode 부족 (' + decodedCount + '/' + stemCount + ', bgm=' + (!_bgmMissing) + ') — abort to select'); } catch(e) {}
         return;
       }
     }
