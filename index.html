@@ -1611,7 +1611,7 @@ async function startPatchOrTransition() {
   //   safeSetItem 으로 kplay storage 도 함께 wipe (다음 sync 시 옛 saved 안 돌아옴).
   //   idempotent — marker set 후 다음 reload 영향 X. 검증 후 revert 예정.
   try {
-    const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v1';
+    const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v2';
     if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
       safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
       localStorage.removeItem('rhythm_lastForceVersion');
