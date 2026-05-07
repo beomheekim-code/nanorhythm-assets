@@ -3188,6 +3188,23 @@ const songs = [
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     vocalIntroRange: 'auto', chordMode: true,
   },
+  {
+    name: '夢緣 (몽연)', sub: 'AMBIENT BALLAD', bpm: 89,
+    color: '#a08cff', bg1: '#0a0820', bg2: '#1a1430',
+    bars: 63, file: 'Music/夢緣_(몽연).ogg',
+    cover: 'Music/夢緣_(몽연)/夢緣_(몽연).png',
+    stemDir: 'Music/夢緣_(몽연)/',
+    stemPrefix: '夢緣_(몽연)',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [0, 1, 4, 5, 6],
+    endCutoff: 165.7,
+    pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
+    chordMode: true,
+    stemSensitivity: { 2: 0.9, 3: 0.9 },
+    stemMinGap: { 2: 20, 3: 20 },
+    slotSubdivision: 0.5,
+    levelBonus: 0.4,
+  },
 ];
 
 // ===== SONG LOCK / SHOP SYSTEM =====
