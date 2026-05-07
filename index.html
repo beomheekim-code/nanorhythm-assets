@@ -1636,17 +1636,24 @@ async function startPatchOrTransition() {
     } catch(e) {}
   }
   // ★ [로컬 ONLY] 1회 풀 패치 trigger — hostname guard 로 라이브 영향 차단.
-  //   localhost / 127.0.0.1 에서만 실행. 라이브 (jsdelivr / 실제 도메인) 는 항상 skip.
-  //   verification 시 marker version (v24, v25, ...) 만 bump 하면 로컬에서 재트리거.
+  //   localhost / 127.0.0.1 / 192.168.x / 10.x / tunnel 도메인 만 실행.
+  //   라이브 (jsdelivr / 실제 도메인) 는 항상 skip.
+  //   verification 시 marker version (v25, v26, ...) 만 bump 하면 로컬에서 재트리거.
   try {
-    const _isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    const _h = location.hostname;
+    const _isLocal = (_h === 'localhost' || _h === '127.0.0.1'
+      || /^192\.168\./.test(_h) || /^10\./.test(_h)
+      || /\.serveousercontent\.com$/.test(_h)
+      || /\.loca\.lt$/.test(_h)
+      || /\.ngrok\.io$/.test(_h) || /\.ngrok-free\.app$/.test(_h)
+      || /\.trycloudflare\.com$/.test(_h));
     if (_isLocal) {
-      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v24';
+      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v25';
       if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
         safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
         localStorage.removeItem('rhythm_lastForceVersion');
         localStorage.setItem(_FULL_REPATCH_KEY, '1');
-        console.log('[FULL REPATCH v24] saved + kplay storage + Firebase override → 풀 patch overlay');
+        console.log('[FULL REPATCH v25] saved + kplay storage + Firebase override → 풀 patch overlay');
         try {
           if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
             fbDb.ref('settings/' + currentUser + '/patchedAssets').remove().catch(()=>{});
@@ -12145,8 +12152,8 @@ if (false) (function _stutterProbe() {
 })();
 // ★ 2026-05-07 minimal stutter probe (옵션 C+) — context aware 1줄 log.
 //   stutter 시점의 in-song time + 게임 상태 캡처. 변수 직접 read 만, 부담 ~0.01ms.
-//   ★ 2026-05-07 DISABLED: 최종 ship 상태. 재활성: if(false) 제거.
-if (false) (function _stutterProbeMin() {
+//   ★ 모바일 진단 재활성 — log 자체 영향 없음 검증됨. ship 시 if(false) 복원.
+(function _stutterProbeMin() {
   let _lastF = 0;
   function _tick() {
     const now = performance.now();
