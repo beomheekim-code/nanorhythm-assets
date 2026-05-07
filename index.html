@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260507172900;
+window.__BUILD_TS = 20260507173500;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12659,11 +12659,11 @@ function renderUI() {
   if (state !== 'playing' && state !== 'select') {
     return _renderUIBody();
   }
-  // ★ PC 는 cache 비활성 — cache hit rate 낮음 (점수 매 노트 변함) → cache miss 부담 더 큼.
-  //   PC 원본 path 가 더 빠름. 모바일만 cache 효과.
-  if (!isMobile) {
-    return _renderUIBody();
-  }
+  // ★ 2026-05-07: PC 도 cache 활성. log4 측정에서 PC renderUI single-frame max 33ms 확인 →
+  //   sakura_ui procedural draw (gradient/path/text) 가 PC 도 무거움. cache hit (점수 안 변하는 프레임)
+  //   = drawImage 1회 (~1ms). cache miss (점수 변하는 프레임) = 33ms 와 비슷. 점수 변경은 1초 5~10회
+  //   수준이므로 60fps 중 50+ 프레임 cache hit → 평균 대폭 감소.
+  //   기존 주석 "PC cache hit rate 낮음" 은 sakura_ui 도입 전 판단. 재측정 후 PC 활성으로 전환.
   // cache key — HUD 시각 영향 변수만
   const _scoreI = (typeof score === 'number') ? (score|0) : 0;
   const _comboI = (typeof combo === 'number') ? (combo|0) : 0;
