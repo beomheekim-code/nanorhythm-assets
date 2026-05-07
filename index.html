@@ -9056,6 +9056,14 @@ function startSong(idx) {
       tryFinalize();
     }
   }
+  // ★ 옵션 A 안전망 — fetchSafe 가 hang 해도 30초 후 자동 진행. loading 영원 멈춤 방지.
+  const _decodeForceTimer = setTimeout(() => {
+    if (!_decodeAllDone) {
+      console.warn('[option A] decode timeout 30s — force progress (' + _decodeStemsDone + '/' + stemCount + ')');
+      _decodeAllDone = true;
+      tryFinalize();
+    }
+  }, 30000);
 
   function finishLoading() {
     // ★ 네트워크 느린 경우: stem buffer 하나도 디코딩 안 되어 있으면 2초 더 기다림 (최대 10회 = 20초).
