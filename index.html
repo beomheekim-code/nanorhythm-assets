@@ -12014,6 +12014,19 @@ function _charPickImg(paths, key) {
           }
         } catch(e) {}
         console.log('[stutter]', dt.toFixed(0) + 'ms', new Date().toLocaleTimeString() + memInfo);
+        // ★ phase breakdown — _dbg 활성화 (?debug=1) 시 _measure 가 update/render/updateFade 시간 누적.
+        //   직전 300ms 의 phase 별 합산 → 어느 phase 가 stutter 원인인지 식별.
+        try {
+          if (window._dbg && window._dbg.perfEntries && window._dbg.perfEntries.length) {
+            const sums = {};
+            const cut = performance.now() - 300;
+            for (const e of window._dbg.perfEntries) {
+              if (e.t >= cut) sums[e.name] = (sums[e.name] || 0) + e.durMs;
+            }
+            const top = Object.entries(sums).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,d])=>n+'='+d.toFixed(1)).join(' ');
+            if (top) console.warn('[phase300ms]', top);
+          }
+        } catch(e) {}
         // ★ 100ms+ 큰 stutter — stack trace 자동 capture (caller 식별)
         if (dt >= 100) {
           try { console.warn('[stutter-trace] ' + dt.toFixed(0) + 'ms\n' + (new Error().stack || '(no stack)').split('\n').slice(0, 8).join('\n')); } catch(e){}
