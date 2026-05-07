@@ -8632,6 +8632,17 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   let maxDur = 0;
   for (const si in stemAudioBuffers) { if (stemAudioBuffers[si]) maxDur = Math.max(maxDur, stemAudioBuffers[si].duration); }
   songDuration = maxDur > 0 ? maxDur + bgmDelay + 2 : (nodes.length > 0 ? nodes[nodes.length - 1].time + 5 : 30);
+  // ★ 회귀 검출 hook — generation 결과 deterministic hash. 변경 전후 같은 곡 같은 난이도 면 동일해야 함.
+  //   옵션 A (호출 시점 이동) / 옵션 C (임시 array reuse) 등 generation logic 변경 시 검증용.
+  try {
+    let _h = 5381;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const s = `${n.time.toFixed(3)}|${n.lane}|${n.type}|${(n.endTime||0).toFixed(3)}`;
+      for (let k = 0; k < s.length; k++) _h = ((_h << 5) + _h + s.charCodeAt(k)) | 0;
+    }
+    console.log('[gen-hash]', (_h >>> 0).toString(16), 'count=' + nodes.length, 'song="' + (song.name || '') + '"', 'diff="' + (diff?.name || '') + '"');
+  } catch(e){}
 }
 
 // ===== START SONG =====
