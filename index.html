@@ -10634,10 +10634,10 @@ const _BARK_PETAL_COUNT_MOBILE = 10;
 // 트리 이미지의 pink 팔레트 (샘플링 결과 캐시). 기본값은 fallback.
 let _treePetalPalette = ['rgba(255,180,200,0.85)', 'rgba(255,140,170,0.85)', 'rgba(255,210,225,0.85)'];
 let _treePaletteSampled = null;  // 샘플링 완료된 image 객체 저장 (재샘플 방지)
+let _treePaletteFailed = false;  // ★ CORS fail 시 영구 mark — image swap 시 재시도 X
 function _sampleTreePalette(img) {
   if (_treePaletteSampled === img) return;
-  // ★ 시도 자체를 캐시 — CORS tainted 등으로 실패해도 매 frame 재시도/throw/console.warn spam 방지.
-  //    실패 시 fallback _treePetalPalette 그대로 사용 (시각 영향 0).
+  if (_treePaletteFailed) return;  // 영구 fail — fallback palette 사용
   _treePaletteSampled = img;
   try {
     const cv = document.createElement('canvas');
@@ -10668,7 +10668,7 @@ function _sampleTreePalette(img) {
       _treePetalPalette = pal;
       console.log('[bark petals] tree palette sampled:', pal);
     }
-  } catch(e) { console.warn('[bark petals] palette sample failed (using fallback, will not retry)', e && e.message); }
+  } catch(e) { _treePaletteFailed = true; console.warn('[bark petals] palette sample failed (영구 fail mark, fallback 사용)', e && e.message); }
 }
 function _updateBarkPetals(vh) {
   // ★ spawn zone = 트리 이미지 bounds × 캐노피 상단 45% 영역 (잎파리가 있는 곳에서만 흩날림)
