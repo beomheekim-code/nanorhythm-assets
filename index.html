@@ -9056,8 +9056,46 @@ function startSong(idx) {
   generateNodes(curSong, curDiff);
   stemFirstSoundTime = {};
   stemMusicalStart = {};
+  // ★ 옵션 A — 이전 stem buffer 분산 free (MAJOR GC 폭발 방지)
+  //   한 번에 reference 잃으면 V8 mark-sweep 100ms+ block. 30ms 간격 1개씩 shift → progressive GC.
+  try {
+    const _prevList = [];
+    for (const k in stemAudioBuffers) {
+      if (stemAudioBuffers[k]) _prevList.push(stemAudioBuffers[k]);
+    }
+    if (_prevList.length > 0) {
+      const _drainPrev = () => {
+        if (_prevList.length === 0) return;
+        _prevList.shift();
+        if (_prevList.length > 0) setTimeout(_drainPrev, 30);
+      };
+      setTimeout(_drainPrev, 100);
+    }
+  } catch(e) {}
   stemAudioBuffers = {};
   stemOnsetCache = {};
+  // ★ 옵션 C — loading 동안 GC hint (minor GC progressive trigger)
+  //   1MB Float32Array × 5 alloc/drop → V8 가 nursery promote / minor GC. 인게임 진입 시 major GC 안 trigger.
+  //   requestIdleCallback 사용 → idle 시만 발생 (loading 작업 영향 X). songLoading false 되면 멈춤.
+  try {
+    const _gcHint = () => {
+      if (typeof songLoading === 'undefined' || !songLoading) return;
+      for (let i = 0; i < 5; i++) {
+        let _tmp = new Float32Array(256 * 1024); // 1MB
+        _tmp = null;
+      }
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(_gcHint, { timeout: 300 });
+      } else {
+        setTimeout(_gcHint, 300);
+      }
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(_gcHint, { timeout: 300 });
+    } else {
+      setTimeout(_gcHint, 300);
+    }
+  } catch(e) {}
   score=0; combo=0; maxCombo=0; collected=0; missed=0; window._hudRawMax=0;
   keyHeld=Array(laneCount).fill(false); keyFlash=Array(laneCount).fill(0);
   // ★ 터치/포인터 상태 방어적 초기화 — 메뉴/로딩 중 쌓인 stale 엔트리 제거.
