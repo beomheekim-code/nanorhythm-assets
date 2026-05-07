@@ -1658,12 +1658,12 @@ async function startPatchOrTransition() {
       || /\.ngrok\.io$/.test(_h) || /\.ngrok-free\.app$/.test(_h)
       || /\.trycloudflare\.com$/.test(_h));
     if (_isLocal) {
-      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v27';
+      const _FULL_REPATCH_KEY = 'rhythm_full_repatch_local_v28';
       if (!localStorage.getItem(_FULL_REPATCH_KEY)) {
         safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths: [] }));
         localStorage.removeItem('rhythm_lastForceVersion');
         localStorage.setItem(_FULL_REPATCH_KEY, '1');
-        console.log('[FULL REPATCH v27] saved + kplay storage + Firebase override → 풀 patch overlay');
+        console.log('[FULL REPATCH v28] saved + kplay storage + Firebase override → 풀 patch overlay');
         try {
           if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
             fbDb.ref('settings/' + currentUser + '/patchedAssets').remove().catch(()=>{});
@@ -8178,7 +8178,13 @@ function spawnBurst(x, y, grade) {
   // ★ sakura_fx 장착 시 꽃잎 sprite 파티클로 교체 (링/플래시/스파클은 renderBursts 에서 그림).
   const fxActive = !!(currentHitFxSkin && SKINS[currentHitFxSkin]);
   if (fxActive) {
-    const petalCount = Math.floor(conf.sparks * 0.9);
+    // ★ iOS GPU 부담 축소 — 벚꽃 이펙트 hit 시 stutter (사용자 반복 보고).
+    //   기존 0.9 → iOS 0.4 (perfect 12→5, great 9→4, good 5→2). PC/Android 영향 X.
+    const _petalRatio = isIOS ? 0.4 : 0.9;
+    const petalCount = Math.floor(conf.sparks * _petalRatio);
+    // ★ particles cap 가드 — sakura 분기 누적 leak 방지 (이전 1383 leak 보고).
+    const _pCap = isMobile ? 60 : 150;
+    if (particles.length > _pCap) return;
     const _mobHF = isMobile ? 0.65 : 0.85;
     for (let i = 0; i < petalCount; i++) {
       const a = Math.PI * 2 * i / petalCount + (Math.random() - 0.5) * 0.4;
@@ -12195,7 +12201,7 @@ if (false) (function _stutterProbe() {
     const now = performance.now();
     if (_lastF > 0) {
       const dt = now - _lastF;
-      if (dt > 30) {
+      if (dt > 50) {  // ★ 50ms — RDP/디스플레이 노이즈 (31ms) 제외, 진짜 stutter 만.
         const d = new Date();
         const ts = d.getHours() + ':' + ('0'+d.getMinutes()).slice(-2) + ':' + ('0'+d.getSeconds()).slice(-2);
         // ★ context — 변수 직접 read. typeof 로 안전 가드 (인게임 외 상태에서도 동작).
