@@ -6189,8 +6189,8 @@ function checkFeverActivate() {
     fever = true; feverTimer = FEVER_DURATION;
     feverFlash = 1.0;  // ★ 플래시 강도 ↑ (0.6 → 1.0)
     _nextFeverBurstAt = performance.now() + 1500;
-    // Explosion of particles from center — 갯수 ↑ + 속도 다양화
-    const _burstCount = isMobile ? 24 : 36;
+    // Explosion of particles from center — fever stutter fix (D): 갯수 절반 (alloc cost ↓)
+    const _burstCount = isMobile ? 12 : 18;
     for (let i = 0; i < _burstCount; i++) {
       const a = (i / _burstCount) * Math.PI * 2 + Math.random() * 0.2;
       const sp = 200 + Math.random() * 500;
@@ -6198,9 +6198,9 @@ function checkFeverActivate() {
       particles.push({ x: W/2, y: H/2, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
         life: 0.8+Math.random()*0.8, maxLife: 1.6, color: col, size: 5+Math.random()*12 });
     }
-    // 추가: 판정선 높이에서 가로 전체 폭으로 shockwave 파티클
+    // 추가: 판정선 높이에서 가로 전체 폭으로 shockwave 파티클 — fever stutter fix (D): 갯수 절반
     const _hy = getHitY();
-    const _shockCount = isMobile ? 10 : 16;
+    const _shockCount = isMobile ? 5 : 8;
     for (let i = 0; i < _shockCount; i++) {
       const side = i < _shockCount/2 ? -1 : 1;
       const sp = 400 + Math.random() * 300;
