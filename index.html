@@ -6066,7 +6066,6 @@ let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 
 let noteSpeed = 0;
 let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [];
 let nodeScanStart = 0; // 활성 노트 스캔 시작 인덱스 (hit/missed prefix 스킵)
-let nodeRenderStart = 0; // ★ render 전용 시작 인덱스 — past 노트 prefix skip. nodeScanStart 와 별개 (판정 logic 무관, render 만 영향).
 // ===== 인게임 sz() precompute 전역 (renderLanes/renderNotes 등에서 접근) =====
 let _s3=0,_s5=0,_s7=0,_s8=0,_s9=0,_s10=0;
 let _fLw=0, _fLsx=0, _fLaneEnd=0, _fLaneMargin=0;
@@ -6206,7 +6205,6 @@ let songEnergyMap = null; // 0.5초 단위 에너지 (0~1), 드럼 기준
 function generateNodes(song, diff, energyMap) {
   nodes = [];
   nodeScanStart = 0;
-  nodeRenderStart = 0;
   const songIdx = songs.indexOf(song);
   const diffIdx = DIFFICULTIES.indexOf(diff);
   const seed = (songIdx + 1) * 10000 + (diffIdx + 1) * 100 + song.bpm;
@@ -8103,7 +8101,6 @@ function detectOnsets(audioBuffer, sensitivity = 1.1, minGapMs = 30) {
 function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   nodes = [];
   nodeScanStart = 0;
-  nodeRenderStart = 0;
   const songIdx = songs.indexOf(song);
   const diffIdx = DIFFICULTIES.indexOf(diff);
   const seed = (songIdx + 1) * 10000 + (diffIdx + 1) * 100 + song.bpm;
@@ -11259,28 +11256,15 @@ function renderNotes() {
 
   // 카운트다운 중에는 노드 안 그림
   if (countdownTime > 0 && !(curSong && curSong._onsetMode)) { /* skip node rendering */ }
-  else {
-    // ★ nodeRenderStart advance — past 일반 노트 (hit/missed) 또는 hold endTime 한참 지난 노트 skip.
-    //   판정 logic (nodeScanStart) 무관. render 의 array iterate 시작 시점만 줄임.
-    //   hold 노트 안전: hit && endTime > gameTime - 0.5 이면 advance X (grow tail 그림).
-    while (nodeRenderStart < nodes.length) {
-      const _nf = nodes[nodeRenderStart];
-      if (_nf.type === 'hold') {
-        if (_nf.missed || (_nf.hit && _nf.endTime < gameTime - 0.5)) nodeRenderStart++;
-        else break;
-      } else if (_nf.hit || _nf.missed) {
-        nodeRenderStart++;
-      } else break;
+  else for (const n of nodes) {
+    // 너무 먼 미래 노트: 정렬돼 있으니 break
+    // 단, 홀드 노트는 tail이 이미 화면 안에 있을 수 있으니 skip만
+    if (n.time > _topCutoff) {
+      if (n.type === 'hold') continue;
+      break;
     }
-    for (let _ni = nodeRenderStart; _ni < nodes.length; _ni++) {
-      const n = nodes[_ni];
-      // 너무 먼 미래 노트: 정렬돼 있으니 break
-      if (n.time > _topCutoff) {
-        if (n.type === 'hold') continue;
-        break;
-      }
-      // past 일반 노트 (advance loop 가 못 잡은 경우 — 안전 가드)
-      if (n.type !== 'hold' && (n.hit || n.missed)) continue;
+    // past 일반 노트는 sx 계산 전에 조기 continue — 함수 호출 절약
+    if (n.type !== 'hold' && (n.hit || n.missed)) continue;
     // 인라인 lane x 좌표 (getLaneX 함수 콜 제거 — 노트당 3 회 함수 호출 절약)
     const sx = _laneSX + n.lane * _laneW + _laneHalfW;
 
@@ -11469,8 +11453,6 @@ function renderNotes() {
       }
     }
   }
-
-  } // ★ close else block (renderNotes node iterate wrapping)
 
   // Missed flash — 최근에 missed 된 노트만 보이는 fade 구간. nodeScanStart 부터 역방향 스캔.
   // 미스 컷 시점: sy = hitY → n.time = gameTime. sy > hitY + _s80 (화면 하단 벗어남) 면 더 이상 볼 것 없음.
