@@ -9100,9 +9100,23 @@ function startSong(idx) {
           console.log('Stem', i, stemNames[i], ': NO BUFFER');
         }
       }
-      if (Object.keys(onsetsByStem).length > 0) {
+      // ★ onset / nodes cache — 동일 곡 + 난이도 plays 시 재계산 skip (deterministic seed 라 결과 동일).
+      //   cache key = songIdx_diffIdx_bpm. LRU 5곡 limit (메모리 ~250KB).
+      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm;
+      window.__nodesCache = window.__nodesCache || new Map();
+      const _cachedNodes = window.__nodesCache.get(_cacheKey);
+      if (_cachedNodes && Array.isArray(_cachedNodes)) {
+        nodes = _cachedNodes.map(n => ({ ...n }));  // shallow clone (state 격리)
+        console.log('[cache] nodes hit (' + nodes.length + ' notes) for ' + _cacheKey);
+      } else if (Object.keys(onsetsByStem).length > 0) {
         generateNodesFromOnsets(curSong, curDiff, onsetsByStem, songEnergyMap);
         console.log('Onset notes:', nodes.length, '| First note time:', nodes[0]?.time.toFixed(2) + 's');
+        // cache save (LRU)
+        window.__nodesCache.set(_cacheKey, nodes.map(n => ({ ...n })));
+        if (window.__nodesCache.size > 5) {
+          const _firstKey = window.__nodesCache.keys().next().value;
+          window.__nodesCache.delete(_firstKey);
+        }
       } else {
         console.log('No onset buffers — fallback to pattern');
         generateNodes(curSong, curDiff, songEnergyMap);
