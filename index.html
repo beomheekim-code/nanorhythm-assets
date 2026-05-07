@@ -1423,20 +1423,52 @@ async function patchAssets(opts) {
     const set = new Set(saved.paths);
     for (const p of succeeded) set.add(p);
     _savePatchedSet([...set]);
-    // ★ skinImages 객체 reset — 옛 decoded PNG 유지 회귀 fix.
-    //   force list path 의 image 객체 삭제 → loadSkinImage 재호출 → src 재설정 → fresh
-    //   fetch (cache 'PNG?v=250000' = patch 시 받은 latest hit) → 새 decode.
+    // ★ skinImages 객체 swap — 옛 decoded PNG 유지 회귀 fix + GPU 업로드 spike 분산.
+    //   delete X. 새 image 객체 fully decode + GPU warmup 후 skinImages[path] = newImg swap.
+    //   옛 image 객체 그대로 사용 (= 현재) → 새 image ready 시점에 매끄럽게 transition.
+    //   setTimeout 100ms 간격 분산 → 19 image 동시 fresh decode 시 GPU 업로드 spike ("팡!" stutter) 회피.
     try {
       const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
                     ? window.__FORCE_REPATCH_LIST
                     : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
+      let _swapIdx = 0;
       for (const p of succeeded) {
         if (force.indexOf(p) >= 0 && typeof skinImages !== 'undefined') {
-          delete skinImages[p];
-          if (typeof loadSkinImage === 'function') loadSkinImage(p);
+          ((path, idx) => {
+            setTimeout(() => {
+              try {
+                const newImg = new Image();
+                newImg._path = path;
+                newImg._ok = null;
+                newImg._attempt = 0;
+                newImg.onload = () => {
+                  if (newImg.naturalWidth > 0) {
+                    const finalize = () => {
+                      newImg._ok = true;
+                      skinImages[path] = newImg;  // swap (옛 image 객체 GC)
+                    };
+                    const warm = () => {
+                      try {
+                        const tmp = document.createElement('canvas');
+                        tmp.width = 64; tmp.height = 64;
+                        tmp.getContext('2d').drawImage(newImg, 0, 0, 64, 64);
+                      } catch(e) {}
+                      finalize();
+                    };
+                    try {
+                      if (newImg.decode) newImg.decode().then(warm).catch(warm);
+                      else warm();
+                    } catch(e) { finalize(); }
+                  } else { newImg._ok = false; }
+                };
+                newImg.onerror = () => { newImg._ok = false; };
+                newImg.src = assetUrl(path);
+              } catch(e) {}
+            }, idx * 100);  // 100ms 간격 분산
+          })(p, _swapIdx++);
         }
       }
-      console.log('[patch] skinImages reset for ' + succeeded.length + ' force paths');
+      console.log('[patch] skinImages swap (분산) for ' + _swapIdx + ' force paths over ' + (_swapIdx * 100) + 'ms');
     } catch(e) {}
     // ★ force list version mark — 받기 완료 후. 다음 reload 시 force re-patch X.
     try {
