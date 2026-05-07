@@ -6184,6 +6184,8 @@ let _nextFeverBurstAt = 0; // 다음 주기 burst 시각 (performance.now)
 
 function checkFeverActivate() {
   if (!fever && combo >= FEVER_COMBO) {
+    // ★ 첫 fever 진입 stack capture (debug)
+    try { console.warn('[fever-enter] ' + (new Error().stack || '').split('\n').slice(0, 5).join('\n')); } catch(e){}
     fever = true; feverTimer = FEVER_DURATION;
     feverFlash = 1.0;  // ★ 플래시 강도 ↑ (0.6 → 1.0)
     _nextFeverBurstAt = performance.now() + 1500;
@@ -11918,7 +11920,7 @@ function _charPickImg(paths, key) {
     const now = performance.now();
     if (_lastF > 0) {
       const dt = now - _lastF;
-      if (dt > 50) {
+      if (dt > 30) {
         let memInfo = '';
         try {
           if (performance.memory) {
