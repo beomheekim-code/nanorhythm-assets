@@ -17775,6 +17775,14 @@ function renderDimDebug() {
       // ★ handleLanePress — Turbofan 트리거용 대량 호출 (각 분기 100+ 회)
       if (typeof handleLanePress === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
         const _savedDiff = curDiff;
+        // ★ 게임 상태 save — warmup 이 combo/fever/score 를 leak 하지 않게 (사용자 보고: 타이틀 stutter 로그에 combo=140 fever=1).
+        const _savedCombo = (typeof combo === 'number') ? combo : 0;
+        const _savedScore = (typeof score === 'number') ? score : 0;
+        const _savedMaxCombo = (typeof maxCombo === 'number') ? maxCombo : 0;
+        const _savedFever = (typeof fever === 'boolean') ? fever : false;
+        const _savedFeverTimer = (typeof feverTimer === 'number') ? feverTimer : 0;
+        const _savedFeverFlash = (typeof feverFlash === 'number') ? feverFlash : 0;
+        const _savedNextFeverBurst = (typeof _nextFeverBurstAt === 'number') ? _nextFeverBurstAt : 0;
         try {
           if (!curDiff) curDiff = { hpGain: 0.01, hpDrain: 0.01, name: 'warm' };
           const _tap = gameTime || 0;
@@ -17798,6 +17806,12 @@ function renderDimDebug() {
         nodes.length = 0;
         particles.length = 0; bursts.length = 0; holdGlows.length = 0;
         curDiff = _savedDiff;
+        // ★ 게임 상태 복원 — warmup 이 combo/fever/score leak 안 하게.
+        try {
+          combo = _savedCombo; score = _savedScore; maxCombo = _savedMaxCombo;
+          fever = _savedFever; feverTimer = _savedFeverTimer; feverFlash = _savedFeverFlash;
+          _nextFeverBurstAt = _savedNextFeverBurst;
+        } catch(e) {}
       }
       // GPU 텍스처 업로드 — 로드된 스킨 PNG 전부 (작은 size 만 사용 — 큰 size 는 모바일 GPU 폭발).
       if (typeof skinImages === 'object' && skinImages) {
