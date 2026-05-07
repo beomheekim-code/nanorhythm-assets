@@ -46,8 +46,13 @@ if (false) try {
 window._phaseAcc = { update:0, render:0, updateFade:0, dbgOverlay:0 };
 window._phaseMax = {};
 window._phaseFrameLast = {};
-// ★ 2026-05-07 DISABLED: _measure no-op (인게임 로그 가설 검증). 재활성: 아래 본체 복원.
-window._measure = function(name, fn) { return fn(); };
+// ★ 2026-05-08 임시 재활성 — 63~75ms stutter origin 진단용. 진단 후 다시 no-op.
+window._measure = function(name, fn) {
+  const s = performance.now();
+  const r = fn();
+  window._phaseAcc[name] = (window._phaseAcc[name] || 0) + (performance.now() - s);
+  return r;
+};
 // ★ Debug mode — 3가지 활성화 경로 (kplay 임베드에선 URL 수정 불가라 제스처 필수):
 //   1) URL: ?debug=1
 //   2) localStorage: rhythm_debug='1' (한번 켜면 영구)
@@ -12105,8 +12110,8 @@ function _charPickImg(paths, key) {
   return null;
 }
 // ★ stutter 측정 — 매 frame time 50ms+ spike 시 log + 메모리 정보
-//   ★ 2026-05-07 DISABLED: 인게임 로그 비활성 — IIFE 호출 안 함. 재활성: `})();` 복원.
-if (false) (function _stutterProbe() {
+//   ★ 2026-05-08 임시 재활성 — phase 별 시간 dump (어느 phase 가 stutter origin 인지).
+(function _stutterProbe() {
   let _lastF = 0;
   function _tick() {
     const now = performance.now();
