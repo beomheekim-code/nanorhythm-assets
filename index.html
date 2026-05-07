@@ -17428,15 +17428,28 @@ function renderDimDebug() {
         }
       } catch(e) {}
       particles.length = 0; bursts.length = 0; holdGlows.length = 0;
-      // renderNotes — dummy nodes + 200회
+      // renderNotes — dummy nodes + 200회 (일반 + fever 모드 둘 다)
       if (typeof renderNotes === 'function' && typeof nodes !== 'undefined' && nodes.length === 0) {
         try {
           nodes.push(
             { type: 'tap',  lane: 0, time: 999, hit: false, missed: false },
+            { type: 'tap',  lane: 1, time: 999, hit: false, missed: false },
+            { type: 'tap',  lane: 2, time: 999, hit: false, missed: false },
+            { type: 'tap',  lane: 3, time: 999, hit: false, missed: false },
             { type: 'hold', lane: 0, time: 999, endTime: 999.5, hit: false, missed: false, holding: false }
           );
           ctx.save(); ctx.globalAlpha = 0;
+          // 일반 모드 200회
           for (let _i = 0; _i < 200; _i++) renderNotes();
+          // ★ fever 모드 100회 — fever flicker / radial gradient / fever sprite path JIT.
+          //   첫 피버 stutter (59ms) 의 cold path 잡음.
+          const _savedFever = (typeof fever !== 'undefined') ? fever : false;
+          try {
+            fever = true;
+            for (let _i = 0; _i < 100; _i++) renderNotes();
+          } finally {
+            fever = _savedFever;
+          }
           ctx.restore();
         } catch(e) {}
         nodes.length = 0;
