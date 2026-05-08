@@ -328,36 +328,39 @@ function _activatePerfOnly() {
       try {
         if (typeof state !== 'undefined' && state === 'playing') return;
       } catch(e) { return; }
-      try {
-        var u = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
-        // ★ 5초 timeout — raw.github 응답 느릴 때 startPatchOrTransition await 가 1분+ block 되는 회귀 fix.
-        //   네트워크 정상 환경 (수백 ms) 영향 X. 비정상 환경에서 빠르게 fall through.
-        var _ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-        var _timer = _ctrl ? setTimeout(() => { try { _ctrl.abort(); } catch(e) {} }, 5000) : null;
-        var r;
+      // ★ 두 소스 fetch — raw.github (origin canonical) + 현재 URL (KPLAY 업로드본).
+      //   둘 중 더 큰 BUILD_TS 가 srv. 사용자가 KPLAY 에 업로드만 해도 update 팝업 자동 트리거.
+      async function _fetchTs(u){
         try {
-          r = await fetch(u, { cache: 'no-store', signal: _ctrl ? _ctrl.signal : undefined });
-        } finally {
-          if (_timer) clearTimeout(_timer);
-        }
-        if (!r.ok) { window.__lastUpdateCheckErr = 'HTTP ' + r.status; return; }
-        var txt = await r.text();
-        var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
-        // ★ dynamic 추출 제거 (2026-05-06): 사용자 명시 — admin upload 전 사용자 환경 영향 X.
-        //   force list / version / clear 모두 사용자 KPLAY 빌드 의 const 만 사용. raw 변경 자동 도달 X.
-        if (m) {
-          var srv = parseInt(m[1]);
-          window.__lastUpdateCheck = { srv: srv, t: Date.now() };
+          var _ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+          var _timer = _ctrl ? setTimeout(() => { try { _ctrl.abort(); } catch(e) {} }, 5000) : null;
+          var r;
+          try {
+            r = await fetch(u, { cache: 'no-store', signal: _ctrl ? _ctrl.signal : undefined });
+          } finally { if (_timer) clearTimeout(_timer); }
+          if (!r.ok) return 0;
+          var txt = await r.text();
+          var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
+          return m ? parseInt(m[1]) : 0;
+        } catch(e) { return 0; }
+      }
+      try {
+        var rawUrl = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
+        var sameUrl = location.href.split('?')[0].split('#')[0] + '?__chk=' + Date.now();
+        var [tsRaw, tsSame] = await Promise.all([_fetchTs(rawUrl), _fetchTs(sameUrl)]);
+        var srv = Math.max(tsRaw, tsSame);
+        if (srv > 0) {
+          window.__lastUpdateCheck = { srv: srv, t: Date.now(), raw: tsRaw, same: tsSame };
           window.__lastUpdateCheckErr = null;
           var lastReceived = 0;
           try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
           var threshold = Math.max(window.__BUILD_TS || 0, lastReceived);
           if (srv > threshold) {
-            console.log('[update] detected:', srv, '>', threshold);
+            console.log('[update] detected:', srv, '>', threshold, '(raw=' + tsRaw + ' same=' + tsSame + ')');
             window.__updateAvailable = true;
           }
         } else {
-          window.__lastUpdateCheckErr = 'NO_BUILD_TS (wrapper?)';
+          window.__lastUpdateCheckErr = 'NO_BUILD_TS (양쪽 모두)';
         }
       } catch(e) {
         window.__lastUpdateCheckErr = (e && e.message) ? e.message.slice(0,40) : 'FETCH_ERR';
