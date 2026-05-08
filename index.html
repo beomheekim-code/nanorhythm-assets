@@ -1584,7 +1584,9 @@ async function _patchIdleSettle() {
 // 받을 거 없음 → 바로 transitionTo('select').
 // title BGM 은 유저가 'back/cancel' 선택해서 타이틀에 남으면 그대로 유지 (적막함 방지).
 function _gotoSelectFromPatch() {
-  try { if (typeof stopTitleBgm === 'function') stopTitleBgm(); } catch(e) {}
+  // ★ stopTitleBgm 제거 (재적용 a9db6f6 + state guard) — titleBgm session 살려서 startPreview 인계.
+  //   이전 회귀 원인: inner setTimeout 이 state 무관하게 titleBgm.pause() → title 잔류 시 BGM 끊김.
+  //   해결: 모든 setTimeout 콜백에서 state==='select' 가드.
   try { transitionTo('select'); } catch(e) {}
 }
 // ★ 자동 reload 제거 — 사용자 짜증 + reload loop 위험. 메모리 영향은 _patchIdleSettle (3s) 로 완화.
@@ -6160,9 +6162,40 @@ function updateFade(dt) {
       const _lay = getSelectLayout();
       selectScrollX = _dPos(selectedSong) * (_lay.cardW + _lay.gap);
       // 프리뷰 첫 로드 지연: 화면 전환 완료 후 시작 (첫 스크롤 끊김 방지)
+      // ★ titleBgm audio session 인계 (재적용 + state guard) — startPreview 의 new Audio.play() 가
+      //   살아있는 audio session 인계받아 첫 진입 시 BGM 자동재생.
+      //   이전 회귀 원인: inner setTimeout 이 state 무관하게 titleBgm.pause() → title 잔류 시 BGM 끊김.
+      //   해결: 모든 콜백에서 state==='select' 가드.
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
-      _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
+      try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+      _previewDebounce = setTimeout(() => {
+        if (state !== 'select') return;  // ★ state guard — title 복귀 시 BGM 흐름 방해 X
+        try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+        try { startPreview(selectedSong); } catch(e) {}
+        // titleBgm cleanup — state 가 여전히 select 일 때만 pause
+        setTimeout(() => {
+          if (state !== 'select') return;  // ★ state guard
+          try {
+            if (typeof titleBgm !== 'undefined' && titleBgm && !titleBgm.paused) titleBgm.pause();
+            if (typeof titleBgmPlaying !== 'undefined') titleBgmPlaying = false;
+          } catch(e) {}
+        }, 100);
+        // 다중 retry — 첫 play() 차단 시 활성 audio session 안에서 재시도
+        const _retryPlay = () => {
+          if (state !== 'select') return;  // ★ state guard
+          try {
+            if (typeof songPreviewAudio !== 'undefined' && songPreviewAudio
+                && songPreviewAudio.paused && !songPreviewAudio._aborted) {
+              try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+              songPreviewAudio.play().catch(() => {});
+            }
+          } catch(e) {}
+        };
+        setTimeout(_retryPlay, 600);
+        setTimeout(_retryPlay, 1500);
+        setTimeout(_retryPlay, 3000);
+      }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
       //   앞서있을 수 있으므로 Math.max 로 역행 방지.
