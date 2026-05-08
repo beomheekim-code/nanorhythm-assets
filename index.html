@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260508120000;
+window.__BUILD_TS = 20260508131000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -345,12 +345,13 @@ function _activatePerfOnly() {
         } catch(e) { return 0; }
       }
       try {
-        var rawUrl = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
+        // ★ sameUrl 만 사용 — 사용자 reload 가 항상 sameUrl 로 가니 그게 truth.
+        //   raw.github 비교는 무한 popup 루프 유발 (push 했지만 KPLAY 업로드 안 한 경우).
+        //   라이브는 KPLAY 만 있으니 raw 체크 불필요.
         var sameUrl = location.href.split('?')[0].split('#')[0] + '?__chk=' + Date.now();
-        var [tsRaw, tsSame] = await Promise.all([_fetchTs(rawUrl), _fetchTs(sameUrl)]);
-        var srv = Math.max(tsRaw, tsSame);
+        var srv = await _fetchTs(sameUrl);
         if (srv > 0) {
-          window.__lastUpdateCheck = { srv: srv, t: Date.now(), raw: tsRaw, same: tsSame };
+          window.__lastUpdateCheck = { srv: srv, t: Date.now(), same: srv };
           window.__lastUpdateCheckErr = null;
           var lastReceived = 0;
           try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
@@ -7499,7 +7500,7 @@ const _pointerLaneMap = new Map(); // pointerId → {lane, x, y}
 let _recentGestureHits = []; // 페어링용 단기 큐 {x,y,t}
 // ★ 60ms 가 빠른 연타 (16분 BPM 240 = 62ms) 정상 입력 dedup → 씹힘 더 빈번 (사용자 보고).
 //   40ms 복원. 두 번 눌림은 배속/pause 분기 dedup (19716da) 으로 따로 잡음.
-const _DEDUP_MS = 40;
+const _DEDUP_MS = 200;  // ★ 40→200 — AOS Chrome touch/pointer 간격 50~150ms 케이스 커버 (이중 fire fix)
 const _DEDUP_PX = 3;   // 같은 제스처의 pointer/touch는 동일 좌표. 서브픽셀 여유만.
 let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart resume 방지
 // ★ 레인별 마지막 hit 시각 — 같은 탭의 pointerdown↔touchstart 이중 호출 방지.
