@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260508151500;
+window.__BUILD_TS = 20260508153000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -336,7 +336,12 @@ function _activatePerfOnly() {
           var _timer = _ctrl ? setTimeout(() => { try { _ctrl.abort(); } catch(e) {} }, 5000) : null;
           var r;
           try {
-            r = await fetch(u, { cache: 'no-store', signal: _ctrl ? _ctrl.signal : undefined });
+            // ★ 강한 cache-bust — KPLAY proxy 가 query 만 무시할 수 있어 헤더도 같이 보냄.
+            r = await fetch(u, {
+              cache: 'no-store',
+              headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
+              signal: _ctrl ? _ctrl.signal : undefined,
+            });
           } finally { if (_timer) clearTimeout(_timer); }
           if (!r.ok) return 0;
           var txt = await r.text();
@@ -345,14 +350,13 @@ function _activatePerfOnly() {
         } catch(e) { return 0; }
       }
       try {
-        // ★ raw.github 만 사용 — KPLAY 의 sameUrl fetch 는 캐시/프록시 stale 이슈로 신뢰 X.
-        //   raw.github 은 항상 origin/main 의 최신값 반환.
-        //   popup 루프 방지: 사용자가 update modal 클릭 시 lastReceivedBuildTs = srv 저장 →
-        //   threshold = max(local, lastReceived). 다음 check 시 srv == threshold → 추가 popup X.
-        var rawUrl = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/index.html?__chk=' + Date.now();
-        var srv = await _fetchTs(rawUrl);
+        // ★ sameUrl (KPLAY 의 현재 호스트) 만 사용 — 사용자 의도: KPLAY 업로드 전엔 popup 안 뜸.
+        //   raw.github 사용 시 Claude push 만으로 popup 트리거 → 사용자 의도 위반.
+        //   KPLAY 캐시 stale 방지 위해 강한 cache-bust 헤더.
+        var sameUrl = location.href.split('?')[0].split('#')[0] + '?__chk=' + Date.now();
+        var srv = await _fetchTs(sameUrl);
         if (srv > 0) {
-          window.__lastUpdateCheck = { srv: srv, t: Date.now(), raw: srv };
+          window.__lastUpdateCheck = { srv: srv, t: Date.now(), same: srv };
           window.__lastUpdateCheckErr = null;
           var lastReceived = 0;
           try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
@@ -7287,6 +7291,9 @@ addEventListener('mousedown', e => {
   if (state === 'playing' && gamePaused) {
     // ★ vConsole 탭은 무시 — 일시정지 상태에서 콘솔 조작 허용 (pause 풀림 방지).
     if (window._isVcEvent && window._isVcEvent(e)) return;
+    // ★ touchstart 가 방금 일으킨 pause 제스처는 pointerdown 으로 resume 안 되게 차단 (AOS).
+    //   touch handler 와 동일 패턴.
+    if (_pauseGestureAt && performance.now() - _pauseGestureAt < 500) return;
     // 일시정지 오버레이: 볼륨 슬라이더 확인 (tap to set)
     if (window._pauseVolHits) {
       const vh = window._pauseVolHits;
@@ -7314,8 +7321,9 @@ addEventListener('mousedown', e => {
     const _pbW = sz(48), _pbH = sz(36);
     const _pbX = W - _pbW - sz(4), _pbY = -safeTop + sz(2);
     if (hitTest(e.clientX, gameY(e.clientY), _pbX, _pbY, _pbW, _pbH)) {
-      // ★ AOS pointer + touch 이중 fire dedup — 시각 기반 (250ms 내 무시).
+      // ★ AOS pointer + touch 이중 fire dedup — 시각 기반.
       if (_btnDedupHit('pause')) return;
+      _pauseGestureAt = performance.now();  // ★ touch handler 와 대칭 — bubble touchstart 의 resume 차단
       pauseGame(); return;
     }
     // [DEV] 무적 토글
@@ -7675,7 +7683,7 @@ document.addEventListener('touchstart', e => {
   if (window._isVcEvent && window._isVcEvent(e)) return;  // vConsole 탭은 전 경로 skip
   if (state === 'playing' && gamePaused) {
     // pointerdown이 방금 일으킨 pause 제스처는 resume으로 이어지지 않도록 차단
-    if (_pauseGestureAt && performance.now() - _pauseGestureAt < 250) return;
+    if (_pauseGestureAt && performance.now() - _pauseGestureAt < 500) return;
     const t0 = e.changedTouches[0];
     // 볼륨 슬라이더 확인 (touch)
     if (window._pauseVolHits) {
