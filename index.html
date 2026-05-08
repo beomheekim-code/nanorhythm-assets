@@ -16,7 +16,8 @@
 // pre-commit hook: BUILD_TS auto-bump (KST + 단조증가 보장) on every index.html commit.
 // update popup E2E 검증용 무영향 주석 — corrupt lastReceived 가드 배포 후 30초 polling 트리거 확인.
 // E2E 2차 — KPLAY 토큰 URL fix (142412) 적용 후 popup 정상 트리거 검증.
-window.__BUILD_TS = 20260508161927;
+// E2E 3차 — plain fetch (161927) 적용 후 srv > local 트리거 popup 동작 검증.
+window.__BUILD_TS = 20260508163332;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
