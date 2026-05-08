@@ -19,7 +19,7 @@
 // E2E 3차 — plain fetch (161927) 적용 후 srv > local 트리거 popup 동작 검증.
 // E2E 4차 — Firebase deploy flag (165401) 적용 후 본인 진입 → 다른 디바이스 popup 검증.
 // E2E 5차 — Firebase rules 통과 후 정상 동작 + PC 마이그레이션 검증.
-window.__BUILD_TS = 20260508171814;
+window.__BUILD_TS = 20260508171908;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -17737,7 +17737,7 @@ function loop(time) {
     // 보조 안내
     ctx.fillStyle = 'rgba(255,200,120,0.7)'; ctx.font = `${sz(11)}px sans-serif`;
     ctx.fillText('앱(탭)을 닫고 다시 열거나', _umX + _umW/2, _umY + sz(150));
-    ctx.fillText('카플레이 메인에서 게임을 다시 실행', _umX + _umW/2, _umY + sz(170));
+    ctx.fillText('KPlay 메인에서 게임을 다시 실행', _umX + _umW/2, _umY + sz(170));
     ctx.textBaseline = 'alphabetic';
     window._updateModalBtn = null;
   } else {
