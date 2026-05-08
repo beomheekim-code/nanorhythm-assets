@@ -20,7 +20,7 @@
 // E2E 4차 — Firebase deploy flag (165401) 적용 후 본인 진입 → 다른 디바이스 popup 검증.
 // E2E 5차 — Firebase rules 통과 후 정상 동작 + PC 마이그레이션 검증.
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
-window.__BUILD_TS = 20260508173921;
+window.__BUILD_TS = 20260508174954;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -748,17 +748,29 @@ class KPlayAPI {
           //   다른 사용자 디바이스 30초 polling → popup 트리거 (KPLAY 일회용 토큰 메커니즘 우회).
           //   transaction 으로 newer 만 set (옛 share URL 진입 시 regress 방지).
           if (data.userId === '1uFkOxhco0dG1YfDwRTkDRD1gsIjFpnM') {
+            // ★ 라이브 share URL (R2 hosted) 환경에서만 Firebase set.
+            //   Preview (`/games/<id>/current/`) 에선 set X — 사용자가 KPlay 에 Publish 안 했는데
+            //   본인 디바이스 BUILD_TS 가 Firebase 에 박히면 라이브 유저들 가짜 popup (2026-05-08 발견).
+            var _isLiveShare = false;
             try {
-              var _ts = window.__BUILD_TS || 0;
-              if (_ts > 0 && typeof firebase !== 'undefined' && firebase.database) {
-                firebase.database().ref('rhythm/deploy/lastDeployedBuildTs').transaction(function(cur) {
-                  return Math.max(parseInt(cur) || 0, _ts);
-                }, function(err, committed, snap) {
-                  if (err) console.warn('[deploy] flag set failed:', err);
-                  else console.log('[deploy] flag updated to', _ts, '(server now=' + (snap && snap.val()) + ')');
-                });
-              }
-            } catch(e) { console.warn('[deploy] flag set err:', e); }
+              _isLiveShare = (typeof location !== 'undefined') &&
+                (location.pathname.indexOf('/shares/') === 0 || location.hostname.indexOf('r2.dev') >= 0);
+            } catch(e) {}
+            if (!_isLiveShare) {
+              try { console.log('[deploy] flag set skipped (preview/non-live env). pathname=' + location.pathname); } catch(e) {}
+            } else {
+              try {
+                var _ts = window.__BUILD_TS || 0;
+                if (_ts > 0 && typeof firebase !== 'undefined' && firebase.database) {
+                  firebase.database().ref('rhythm/deploy/lastDeployedBuildTs').transaction(function(cur) {
+                    return Math.max(parseInt(cur) || 0, _ts);
+                  }, function(err, committed, snap) {
+                    if (err) console.warn('[deploy] flag set failed:', err);
+                    else console.log('[deploy] flag updated to', _ts, '(server now=' + (snap && snap.val()) + ')');
+                  });
+                }
+              } catch(e) { console.warn('[deploy] flag set err:', e); }
+            }
           }
           break;
         case 'purchase-result':
