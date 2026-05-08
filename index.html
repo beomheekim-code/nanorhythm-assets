@@ -1564,11 +1564,7 @@ async function _patchIdleSettle() {
 // 받을 거 없음 → 바로 transitionTo('select').
 // title BGM 은 유저가 'back/cancel' 선택해서 타이틀에 남으면 그대로 유지 (적막함 방지).
 function _gotoSelectFromPatch() {
-  // ★ stopTitleBgm 제거 (재적용 2026-05-08, a9db6f6 fix): titleBgm 의 audio session 살아있는
-  //   상태로 select 진입 → startPreview 의 new Audio 가 audio session 자동 인계 (iOS 정책).
-  //   titleBgm 자체는 select 진입 후 startPreview 시작 시점에 명시적 pause (updateFade 안에서).
-  //   기존 stopTitleBgm 으로 audio session 끊긴 후 transitionTo 800ms+fade 동안 비어있어
-  //   user gesture 없이 새 Audio play 차단되던 회귀 fix.
+  try { if (typeof stopTitleBgm === 'function') stopTitleBgm(); } catch(e) {}
   try { transitionTo('select'); } catch(e) {}
 }
 // ★ 자동 reload 제거 — 사용자 짜증 + reload loop 위험. 메모리 영향은 _patchIdleSettle (3s) 로 완화.
@@ -6123,22 +6119,9 @@ function updateFade(dt) {
       const _lay = getSelectLayout();
       selectScrollX = _dPos(selectedSong) * (_lay.cardW + _lay.gap);
       // 프리뷰 첫 로드 지연: 화면 전환 완료 후 시작 (첫 스크롤 끊김 방지)
-      // ★ titleBgm audio session 인계 (재적용 a9db6f6) — startPreview 의 new Audio.play() 가
-      //   살아있는 audio session 인계받아 iOS gesture 없이 자동재생.
       previewSongIdx = selectedSong;
       if (_previewDebounce) clearTimeout(_previewDebounce);
-      try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
-      _previewDebounce = setTimeout(() => {
-        try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
-        try { startPreview(selectedSong); } catch(e) {}
-        // titleBgm 명시 cleanup (PC 자동 pause 안 될 수 있음)
-        setTimeout(() => {
-          try {
-            if (typeof titleBgm !== 'undefined' && titleBgm && !titleBgm.paused) titleBgm.pause();
-            if (typeof titleBgmPlaying !== 'undefined') titleBgmPlaying = false;
-          } catch(e) {}
-        }, 100);
-      }, 800);
+      _previewDebounce = setTimeout(() => { startPreview(selectedSong); }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
       //   앞서있을 수 있으므로 Math.max 로 역행 방지.
