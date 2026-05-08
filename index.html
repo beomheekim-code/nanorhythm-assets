@@ -13,7 +13,7 @@
 <script>
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
-window.__BUILD_TS = 20260508135000;
+window.__BUILD_TS = 20260508140000;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1641,7 +1641,13 @@ async function _runPatchExecution(need) {
   _reloadAfterPatch();
 }
 
+let _patchOrTransitionRunning = false;
 async function startPatchOrTransition() {
+  // ★ AOS 더블 fire 방지 — touch + pointer 가 inputQueue 에 'confirm' 2개 push → 2번 호출.
+  //   비동기 await 후 transitionTo 2번 → fade 두 번. 가드로 차단.
+  if (_patchOrTransitionRunning) return;
+  _patchOrTransitionRunning = true;
+  setTimeout(() => { _patchOrTransitionRunning = false; }, 5000);  // 5s 후 자동 해제 (실패 케이스 대비)
   // ★ dynamic 추출 강제
   try { if (typeof _checkUpdate === 'function') await _checkUpdate(); } catch(e) {}
   // ★ kplay.storage → localStorage 동기화 완료 대기 (모바일 KPLAY iframe 매번 패치 재다운 fix).
@@ -7501,7 +7507,7 @@ let _pauseGestureAt = 0; // pointerdown으로 pause 직후 bubble touchstart res
 // ★ 버튼별 시각 dedup — touch/pointer 이중 fire 차단 (좌표 dedup 보다 robust).
 //   AOS 사용자 보고: pause/speed 한 번 눌러도 2회 입력. 250ms 내 같은 버튼 무시.
 let _btnDedup = { pause: 0, speedDown: 0, speedUp: 0 };
-const _BTN_DEDUP_MS = 250;
+const _BTN_DEDUP_MS = 400;  // ★ 250→400 AOS 안전 마진
 function _btnDedupHit(name) {
   const now = performance.now();
   if (now - (_btnDedup[name] || 0) < _BTN_DEDUP_MS) return true;
