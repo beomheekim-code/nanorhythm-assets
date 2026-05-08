@@ -941,8 +941,13 @@ async function _kpPullAll() {
   }
   // ★ 안전 모드 키들 — local 이 비어있을 때만 kplay.storage 에서 복원.
   //   stale kplay.storage 가 fresh local 을 덮어쓰는 회귀 방지.
-  //   patch 추적 / 우편함 / 수령기록 — KPLAY iframe localStorage 리셋 시에만 폴백.
-  const safeRestoreKeys = ['rhythm_patchedAssets_v1'];
+  //   patch 추적 / 우편함 / 수령기록 / force list 버전 / build ts — KPLAY iframe localStorage 리셋 시 폴백.
+  // ★ 2026-05-08: lastForceVersion / lastReceivedBuildTs 추가 — 사용자 보고 KPLAY 앱에서 매번 패치 재다운로드 fix.
+  const safeRestoreKeys = [
+    'rhythm_patchedAssets_v1',
+    'rhythm_lastForceVersion',
+    'rhythm_lastReceivedBuildTs',
+  ];
   if (u) safeRestoreKeys.push('rhythm_mailbox_' + u, 'rhythm_claimedMailIds_' + u);
   for (const k of safeRestoreKeys) {
     try {
