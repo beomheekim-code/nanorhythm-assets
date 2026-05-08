@@ -1609,11 +1609,9 @@ async function _runPatchExecution(need) {
     result = { ok:false, cancelled:false, failed:need.length, failedList:need.slice(), downloaded:0 };
   }
   if (result.cancelled) {
-    if (result.downloaded > 0) {
-      _patchIdleSettle().then(() => { _closePatchOverlay(); _reloadAfterPatch(); });
-    } else {
-      _closePatchOverlay();
-    }
+    // ★ 취소 = 사용자 의도적 중단 → 항상 title 잔류. select 자동 진입 X.
+    //   기존: downloaded > 0 시 _reloadAfterPatch → _gotoSelectFromPatch → select 진입 (혼란).
+    _patchIdleSettle().then(() => { _closePatchOverlay(); });
     return;
   }
   if (result.failed > 0) {
