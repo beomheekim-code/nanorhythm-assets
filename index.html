@@ -17,7 +17,7 @@
 // update popup E2E 검증용 무영향 주석 — corrupt lastReceived 가드 배포 후 30초 polling 트리거 확인.
 // E2E 2차 — KPLAY 토큰 URL fix (142412) 적용 후 popup 정상 트리거 검증.
 // E2E 3차 — plain fetch (161927) 적용 후 srv > local 트리거 popup 동작 검증.
-window.__BUILD_TS = 20260508163332;
+window.__BUILD_TS = 20260508165401;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -357,16 +357,19 @@ function _activatePerfOnly() {
         } catch(e) { return 0; }
       }
       try {
-        // ★ sameUrl (KPLAY 의 현재 호스트) 만 사용 — 사용자 의도: KPLAY 업로드 전엔 popup 안 뜸.
-        //   raw.github 사용 시 Claude push 만으로 popup 트리거 → 사용자 의도 위반.
-        // ★ KPLAY 일회용 토큰 URL (예: ?_v=1778215819379) — query 변경 시 KPLAY 가 토큰
-        //   검증 실패 404 (2026-05-08 사용자 콘솔 스샷에서 확인). location.href 그대로 사용.
-        //   캐시 무력화는 fetch cache:'no-store' + Cache-Control 헤더에 의존.
-        var sameUrl = location.href;
-        var srv = await _fetchTs(sameUrl);
+        // ★ Firebase deploy flag 폴링 (2026-05-08 신규) — KPLAY 일회용 토큰 메커니즘으로
+        //   sameUrl fetch 가 페이지 로드 후 모두 404 (콘솔 스샷 확정). sameUrl 폴링 폐기.
+        //   대신: 본인 KPLAY 진입 시 user-info 핸들러가 firebase 의 lastDeployedBuildTs 를 set →
+        //   다른 디바이스가 이 노드 polling 으로 srv 받음. push 만으로 trigger X (사용자 의도 살림).
+        if (typeof firebase === 'undefined' || !firebase.database) {
+          window.__lastUpdateCheckErr = 'NO_FB';
+          return;
+        }
+        var snap = await firebase.database().ref('rhythm/deploy/lastDeployedBuildTs').once('value');
+        var srv = parseInt(snap.val()) || 0;
         if (srv > 0) {
           var _lc = window.__BUILD_TS || 0;
-          // ★ corrupt lastReceived 가드 — 이전 세션 미래값(예: 154500) 박힌 채 KPLAY regress 시
+          // ★ corrupt lastReceived 가드 — 이전 세션 미래값(예: 154500) 박힌 채 deploy flag regress 시
           //   threshold = lastReceived > srv → popup 영영 X. local < lastReceived 면 stale 로 간주, reset.
           //   reload 정상 케이스: local = 직전 srv = lastReceived → local >= lastReceived (영향 X).
           var lastReceived = 0;
@@ -378,17 +381,17 @@ function _activatePerfOnly() {
             lastReceived = 0;
           }
           var threshold = Math.max(_lc, lastReceived);
-          window.__lastUpdateCheck = { srv: srv, t: Date.now(), same: srv, local: _lc, lastReceived: lastReceived, threshold: threshold };
+          window.__lastUpdateCheck = { srv: srv, t: Date.now(), local: _lc, lastReceived: lastReceived, threshold: threshold };
           window.__lastUpdateCheckErr = null;
           if (srv > threshold) {
             console.log('[update] detected:', srv, '>', threshold);
             window.__updateAvailable = true;
           }
         } else {
-          window.__lastUpdateCheckErr = 'NO_BUILD_TS (raw fetch fail)';
+          window.__lastUpdateCheckErr = 'NO_DEPLOY_FLAG';
         }
       } catch(e) {
-        window.__lastUpdateCheckErr = (e && e.message) ? e.message.slice(0,40) : 'FETCH_ERR';
+        window.__lastUpdateCheckErr = (e && e.message) ? e.message.slice(0,40) : 'FB_ERR';
         console.warn('[update] check failed:', e);
       }
     }
@@ -738,6 +741,22 @@ class KPlayAPI {
           this.user = { userId: data.userId, name: data.name, credits: data.credits ?? 0 };
           this._onUserInfo?.(this.user);
           if (data.userId) this._syncStorageFromServer();
+          // ★ 게임 운영자 (본인) KPLAY 진입 시 → Firebase 의 lastDeployedBuildTs 갱신.
+          //   다른 사용자 디바이스 30초 polling → popup 트리거 (KPLAY 일회용 토큰 메커니즘 우회).
+          //   transaction 으로 newer 만 set (옛 share URL 진입 시 regress 방지).
+          if (data.userId === '1uFkOxhco0dG1YfDwRTkDRD1gsIjFpnM') {
+            try {
+              var _ts = window.__BUILD_TS || 0;
+              if (_ts > 0 && typeof firebase !== 'undefined' && firebase.database) {
+                firebase.database().ref('rhythm/deploy/lastDeployedBuildTs').transaction(function(cur) {
+                  return Math.max(parseInt(cur) || 0, _ts);
+                }, function(err, committed, snap) {
+                  if (err) console.warn('[deploy] flag set failed:', err);
+                  else console.log('[deploy] flag updated to', _ts, '(server now=' + (snap && snap.val()) + ')');
+                });
+              }
+            } catch(e) { console.warn('[deploy] flag set err:', e); }
+          }
           break;
         case 'purchase-result':
           if (data.success) this.user.credits = data.balance;
