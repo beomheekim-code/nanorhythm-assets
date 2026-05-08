@@ -6138,20 +6138,15 @@ function updateFade(dt) {
             if (typeof titleBgmPlaying !== 'undefined') titleBgmPlaying = false;
           } catch(e) {}
         }, 100);
-        // ★ 다중 retry — 첫 play() 차단된 케이스 (Chrome KPLAY) 활성 audio session 재시도.
-        //   600ms / 1500ms / 3000ms 세 번. 각 retry 마다 resumeAudio() 로 audio context 보강.
-        const _retryPlay = () => {
+        // ★ 600ms 후 retry — 첫 play() 차단된 케이스 (Chrome KPLAY) 활성 audio session 재시도.
+        setTimeout(() => {
           try {
             if (typeof songPreviewAudio !== 'undefined' && songPreviewAudio
                 && songPreviewAudio.paused && !songPreviewAudio._aborted) {
-              try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
               songPreviewAudio.play().catch(() => {});
             }
           } catch(e) {}
-        };
-        setTimeout(_retryPlay, 600);
-        setTimeout(_retryPlay, 1500);
-        setTimeout(_retryPlay, 3000);
+        }, 600);
       }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
