@@ -20,7 +20,7 @@
 // E2E 4차 — Firebase deploy flag (165401) 적용 후 본인 진입 → 다른 디바이스 popup 검증.
 // E2E 5차 — Firebase rules 통과 후 정상 동작 + PC 마이그레이션 검증.
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
-window.__BUILD_TS = 20260508173455;
+window.__BUILD_TS = 20260508173921;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7443,6 +7443,14 @@ addEventListener('mouseup', e => {
     }
     return;
   }
+  // ★ 검색 dropdown 영역 탭 — mousedown 가드로 selectDragX 안 set 된 케이스. handleSelectClick 직접 호출.
+  if (state === 'select' && searchActive && searchText && searchFiltered.length > 0) {
+    const _sdb = window._searchDropBounds;
+    if (_sdb && hitTest(e.clientX, gameY(e.clientY), _sdb.x, _sdb.y, _sdb.w, _sdb.h)) {
+      handleSelectClick(e.clientX, gameY(e.clientY));
+      return;
+    }
+  }
   selectDragX = -1;
 });
 addEventListener('mousemove', e => {
@@ -8182,6 +8190,19 @@ document.addEventListener('touchend', e => {
            const t = e.changedTouches[0];
       handleSelectClick(t.clientX, gameY(t.clientY));
     }
+    return;
+  }
+  // ★ 검색 dropdown 영역 탭/드래그 끝 — touchstart 가드로 selectDragX 안 set 된 케이스.
+  //   드래그 거리 작으면 = tap → dropdown 항목 처리. 크면 = 스크롤만 (이미 touchmove 에서 처리됨).
+  if (state === 'select' && _listTouchMode === 'searchDrop') {
+    const t = e.changedTouches[0];
+    if (t) {
+      const dy = Math.abs(gameY(t.clientY) - _listTouchStartY);
+      if (dy < DRAG_THRESHOLD) {
+        handleSelectClick(t.clientX, gameY(t.clientY));
+      }
+    }
+    _listTouchMode = '';
     return;
   }
   selectDragX = -1;
