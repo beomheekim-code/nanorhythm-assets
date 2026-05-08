@@ -15,7 +15,7 @@
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
 // pre-commit hook: BUILD_TS auto-bump (KST + 단조증가 보장) on every index.html commit.
 // update popup E2E 검증용 무영향 주석 — corrupt lastReceived 가드 배포 후 30초 polling 트리거 확인.
-window.__BUILD_TS = 20260508135116;
+window.__BUILD_TS = 20260508142412;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -354,8 +354,10 @@ function _activatePerfOnly() {
       try {
         // ★ sameUrl (KPLAY 의 현재 호스트) 만 사용 — 사용자 의도: KPLAY 업로드 전엔 popup 안 뜸.
         //   raw.github 사용 시 Claude push 만으로 popup 트리거 → 사용자 의도 위반.
-        //   KPLAY 캐시 stale 방지 위해 강한 cache-bust 헤더.
-        var sameUrl = location.href.split('?')[0].split('#')[0] + '?__chk=' + Date.now();
+        // ★ KPLAY 일회용 토큰 URL (예: ?_v=1778215819379) — query 변경 시 KPLAY 가 토큰
+        //   검증 실패 404 (2026-05-08 사용자 콘솔 스샷에서 확인). location.href 그대로 사용.
+        //   캐시 무력화는 fetch cache:'no-store' + Cache-Control 헤더에 의존.
+        var sameUrl = location.href;
         var srv = await _fetchTs(sameUrl);
         if (srv > 0) {
           var _lc = window.__BUILD_TS || 0;
