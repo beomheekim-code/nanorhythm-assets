@@ -21,7 +21,7 @@
 // E2E 5차 — Firebase rules 통과 후 정상 동작 + PC 마이그레이션 검증.
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
-window.__BUILD_TS = 20260508180127;
+window.__BUILD_TS = 20260508180317;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7210,14 +7210,16 @@ addEventListener('mousedown', e => {
     handleKickedPopupClick(e.clientX, gameY(e.clientY));
     return;
   }
-  // ★ 업데이트 모달 버튼 — 인게임 중 아닐 때 최우선 처리 (touchstart 핸들러와 대칭)
-  if (window.__updateAvailable && window._updateModalBtn && state !== 'playing') {
-    const btn = window._updateModalBtn;
-    if (hitTest(e.clientX, gameY(e.clientY), btn.x, btn.y, btn.w, btn.h)) {
-      _doUpdateReload();
-      return;
+  // ★ 업데이트 모달 — 인게임 중 아닐 때 모든 입력 차단 (전체 화면 검은 오버레이).
+  //   2026-05-08: 자동 reload 버튼 제거 후 _updateModalBtn=null. 조건에서 btn 빼고 모달 떠있으면 무조건 차단.
+  if (window.__updateAvailable && state !== 'playing') {
+    if (window._updateModalBtn) {
+      const btn = window._updateModalBtn;
+      if (hitTest(e.clientX, gameY(e.clientY), btn.x, btn.y, btn.w, btn.h)) {
+        _doUpdateReload();
+        return;
+      }
     }
-    // 모달 떠 있으면 다른 입력 차단
     return;
   }
   // ★ 패치 오버레이 — 활성 시 모든 입력 차단 + 자체 버튼 처리
@@ -7802,15 +7804,17 @@ document.addEventListener('touchstart', e => {
     if (t0) _handlePatchOverlayClick(t0.clientX, gameY(t0.clientY));
     return;
   }
-  // ★ 업데이트 모달 버튼 — 인게임 중 아닐 때 최우선 처리
-  if (window.__updateAvailable && window._updateModalBtn && state !== 'playing') {
-    const t0 = e.changedTouches[0];
-    const btn = window._updateModalBtn;
-    if (t0 && hitTest(t0.clientX, gameY(t0.clientY), btn.x, btn.y, btn.w, btn.h)) {
-      _doUpdateReload();
-      return;
+  // ★ 업데이트 모달 — 인게임 중 아닐 때 모든 입력 차단 (전체 화면 검은 오버레이).
+  //   2026-05-08: 자동 reload 버튼 제거 후 _updateModalBtn=null. 조건에서 btn 빼고 모달 떠있으면 무조건 차단.
+  if (window.__updateAvailable && state !== 'playing') {
+    if (window._updateModalBtn) {
+      const t0 = e.changedTouches[0];
+      const btn = window._updateModalBtn;
+      if (t0 && hitTest(t0.clientX, gameY(t0.clientY), btn.x, btn.y, btn.w, btn.h)) {
+        _doUpdateReload();
+        return;
+      }
     }
-    // 모달 떠 있으면 다른 입력 전부 무시
     return;
   }
   // iOS 알람/전화 후 BGM 복구 (사용자 제스처 컨텍스트)
