@@ -20,7 +20,7 @@
 // E2E 4차 — Firebase deploy flag (165401) 적용 후 본인 진입 → 다른 디바이스 popup 검증.
 // E2E 5차 — Firebase rules 통과 후 정상 동작 + PC 마이그레이션 검증.
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
-window.__BUILD_TS = 20260508172741;
+window.__BUILD_TS = 20260508173455;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -7284,6 +7284,14 @@ addEventListener('mousedown', e => {
   if (state === 'ranking') { handleRankingClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'achievement') { handleAchievementClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'select') {
+    // ★ 검색 결과 dropdown 영역 hit — 뒷 카드/화살표 hitTest 차단 (drag 도 시작 X).
+    //   영역 안 탭은 mouseup 의 handleSelectClick 에서 처리. drag 시 카드 스크롤 회귀 방지.
+    if (searchActive && searchText && searchFiltered.length > 0) {
+      const _sdb = window._searchDropBounds;
+      if (_sdb && hitTest(e.clientX, gameY(e.clientY), _sdb.x, _sdb.y, _sdb.w, _sdb.h)) {
+        return;
+      }
+    }
     // 화살표 hold 검사 — 글리프 중심 기준 히트 영역
     {
       const lay = getSelectLayout();
@@ -7915,6 +7923,14 @@ document.addEventListener('touchstart', e => {
   if (state === 'inventory') { const t = e.changedTouches[0]; if (t) handleInventoryClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'select') {
     const t = e.changedTouches[0];
+    // ★ 검색 결과 dropdown 영역 hit — 뒷 카드 drag / 화살표 hitTest 차단.
+    //   영역 안 탭 / 드래그는 위쪽 _listTouchMode='searchDrop' 분기가 처리.
+    if (searchActive && searchText && searchFiltered.length > 0) {
+      const _sdb = window._searchDropBounds;
+      if (_sdb && t && hitTest(t.clientX, gameY(t.clientY), _sdb.x, _sdb.y, _sdb.w, _sdb.h)) {
+        return;
+      }
+    }
     // 화살표 hold 검사 — 글리프 중심 기준 히트 영역
     {
       const lay = getSelectLayout();
