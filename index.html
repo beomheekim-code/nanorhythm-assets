@@ -1534,7 +1534,7 @@ async function patchAssets(opts) {
       const verToMark = (typeof window.__FORCE_REPATCH_VERSION === 'number')
                         ? window.__FORCE_REPATCH_VERSION
                         : ((typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0);
-      if (verToMark) localStorage.setItem('rhythm_lastForceVersion', String(verToMark));
+      if (verToMark) safeSetItem('rhythm_lastForceVersion', String(verToMark));
     } catch(e) {}
   }
 
@@ -6138,6 +6138,15 @@ function updateFade(dt) {
             if (typeof titleBgmPlaying !== 'undefined') titleBgmPlaying = false;
           } catch(e) {}
         }, 100);
+        // ★ 600ms 후 retry — 첫 play() 차단된 케이스 (Chrome KPLAY) 활성 audio session 재시도.
+        setTimeout(() => {
+          try {
+            if (typeof songPreviewAudio !== 'undefined' && songPreviewAudio
+                && songPreviewAudio.paused && !songPreviewAudio._aborted) {
+              songPreviewAudio.play().catch(() => {});
+            }
+          } catch(e) {}
+        }, 600);
       }, 800);
       // 차트 강제 갱신 — Firebase에서 최신 plays 데이터 강제 fetch.
       //   단 optimistic 로컬 값(recordPlay 에서 +1 선반영)이 서버 동기화 보다
@@ -6630,7 +6639,7 @@ function _doUpdateReload() {
   // ★ lastReceivedBuildTs mark — _checkUpdate 모달 다시 안 뜨게.
   try {
     if (window.__lastUpdateCheck && window.__lastUpdateCheck.srv) {
-      localStorage.setItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
+      safeSetItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
     }
   } catch(e) {}
   // ★ saved.paths 의 force list wipe — reload 후 select 진입 시 force list patch overlay 자동.
@@ -14167,7 +14176,7 @@ function _handlePatchOverlayClick(x, y) {
       //   srv 값 저장 → 다음 reload 시 _checkUpdate threshold = max(KPLAY, lastReceived).
       try {
         if (window.__lastUpdateCheck && window.__lastUpdateCheck.srv) {
-          localStorage.setItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
+          safeSetItem('rhythm_lastReceivedBuildTs', String(window.__lastUpdateCheck.srv));
         }
       } catch(e) {}
       // ★ titleBgm 강제 시작 — user gesture 안에서 startTitleBgm() 명시 호출.
