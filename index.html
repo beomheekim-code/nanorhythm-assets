@@ -14,7 +14,7 @@
 // ★ 빌드 타임스탬프 — 매 index.html 업데이트 시 자동 증가. 업데이트 감지용.
 // diag: gamble revert + 업데이트 감지 진단 강화 (__BUILD_TS 선곡화면 노출)
 // pre-commit hook: BUILD_TS auto-bump (KST + 단조증가 보장) on every index.html commit.
-window.__BUILD_TS = 20260508133859;
+window.__BUILD_TS = 20260508134912;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -357,11 +357,21 @@ function _activatePerfOnly() {
         var sameUrl = location.href.split('?')[0].split('#')[0] + '?__chk=' + Date.now();
         var srv = await _fetchTs(sameUrl);
         if (srv > 0) {
-          window.__lastUpdateCheck = { srv: srv, t: Date.now(), same: srv };
-          window.__lastUpdateCheckErr = null;
+          var _lc = window.__BUILD_TS || 0;
+          // ★ corrupt lastReceived 가드 — 이전 세션 미래값(예: 154500) 박힌 채 KPLAY regress 시
+          //   threshold = lastReceived > srv → popup 영영 X. local < lastReceived 면 stale 로 간주, reset.
+          //   reload 정상 케이스: local = 직전 srv = lastReceived → local >= lastReceived (영향 X).
           var lastReceived = 0;
           try { lastReceived = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
-          var threshold = Math.max(window.__BUILD_TS || 0, lastReceived);
+          if (lastReceived > _lc && _lc > 0) {
+            try { localStorage.removeItem('rhythm_lastReceivedBuildTs'); } catch(e) {}
+            try { if (window.kplay && window.kplay.storage) window.kplay.storage.removeItem('rhythm_lastReceivedBuildTs'); } catch(e) {}
+            console.log('[update] cleared corrupt lastReceived', lastReceived, '> local', _lc);
+            lastReceived = 0;
+          }
+          var threshold = Math.max(_lc, lastReceived);
+          window.__lastUpdateCheck = { srv: srv, t: Date.now(), same: srv, local: _lc, lastReceived: lastReceived, threshold: threshold };
+          window.__lastUpdateCheckErr = null;
           if (srv > threshold) {
             console.log('[update] detected:', srv, '>', threshold);
             window.__updateAvailable = true;
@@ -15519,7 +15529,11 @@ function renderTitle() {
   if (window.__lastUpdateCheckErr) {
     _vLabel += ' !' + String(window.__lastUpdateCheckErr).slice(0, 16);
   } else if (window.__lastUpdateCheck) {
-    _vLabel += ' ✓' + String(window.__lastUpdateCheck.srv).slice(-6);
+    var _uc = window.__lastUpdateCheck;
+    _vLabel += ' ✓' + String(_uc.srv).slice(-6);
+    if (_uc.threshold && _uc.threshold !== _uc.srv) {
+      _vLabel += '/t' + String(_uc.threshold).slice(-6);
+    }
   }
   ctx.fillText(_vLabel, 6, H + safeBottom - 4);
 
