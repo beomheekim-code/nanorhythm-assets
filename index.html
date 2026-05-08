@@ -16,7 +16,7 @@
 // pre-commit hook: BUILD_TS auto-bump (KST + 단조증가 보장) on every index.html commit.
 // update popup E2E 검증용 무영향 주석 — corrupt lastReceived 가드 배포 후 30초 polling 트리거 확인.
 // E2E 2차 — KPLAY 토큰 URL fix (142412) 적용 후 popup 정상 트리거 검증.
-window.__BUILD_TS = 20260508142540;
+window.__BUILD_TS = 20260508161927;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -339,14 +339,17 @@ function _activatePerfOnly() {
           var _timer = _ctrl ? setTimeout(() => { try { _ctrl.abort(); } catch(e) {} }, 5000) : null;
           var r;
           try {
-            // ★ 강한 cache-bust — KPLAY proxy 가 query 만 무시할 수 있어 헤더도 같이 보냄.
+            // ★ KPLAY 일회용 토큰 URL 환경 — cache-bust 옵션/헤더 추가 시 KPLAY 토큰 검증
+            //   결과 404 (2026-05-08 사용자 콘솔 스샷). plain fetch 로 시도.
+            //   캐시는 KPLAY 토큰 자체가 매 세션 다르므로 자연 무력화.
             r = await fetch(u, {
-              cache: 'no-store',
-              headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
               signal: _ctrl ? _ctrl.signal : undefined,
             });
           } finally { if (_timer) clearTimeout(_timer); }
-          if (!r.ok) return 0;
+          if (!r.ok) {
+            window.__lastUpdateCheckErr = 'HTTP_' + r.status;
+            return 0;
+          }
           var txt = await r.text();
           var m = txt.match(/window\.__BUILD_TS\s*=\s*(\d+)/);
           return m ? parseInt(m[1]) : 0;
