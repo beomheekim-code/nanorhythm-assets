@@ -1183,7 +1183,14 @@ function _savePatchedSet(paths) {
   //   (사용자 보고 2026-05-06: 매번 패치 재다운). user 인증되어 있으면 patch 상태를 user settings 에 저장.
   if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb) {
     try {
-      fbDb.ref('settings/' + currentUser + '/patchedAssets').set({ cdnBase: CDN_BASE, paths: paths || [] });
+      // ★ lastForceVer / lastBuildTs 같이 저장 — KPLAY Chrome 환경에서 storage 둘 다 리셋되는 케이스 fallback.
+      let _lfv = 0, _lbt = 0;
+      try { _lfv = parseInt(localStorage.getItem('rhythm_lastForceVersion') || '0') || 0; } catch(e) {}
+      try { _lbt = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
+      fbDb.ref('settings/' + currentUser + '/patchedAssets').set({
+        cdnBase: CDN_BASE, paths: paths || [],
+        lastForceVer: _lfv, lastBuildTs: _lbt,
+      });
     } catch(e) {}
   }
 }
@@ -1535,6 +1542,19 @@ async function patchAssets(opts) {
                         ? window.__FORCE_REPATCH_VERSION
                         : ((typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0);
       if (verToMark) safeSetItem('rhythm_lastForceVersion', String(verToMark));
+      // ★ Firebase 백업 재호출 — _savePatchedSet 이미 저장했지만 lastForceVer=0 상태였을 수
+      //   있으니 verToMark 마크 후 한 번 더 저장 (KPLAY Chrome 환경 force list 재다운 fix).
+      if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb && verToMark) {
+        try {
+          const _savedNow = _loadPatchedSet();
+          let _lbtNow = 0;
+          try { _lbtNow = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
+          fbDb.ref('settings/' + currentUser + '/patchedAssets').set({
+            cdnBase: CDN_BASE, paths: _savedNow.paths || [],
+            lastForceVer: verToMark, lastBuildTs: _lbtNow,
+          });
+        } catch(e) {}
+      }
     } catch(e) {}
   }
 
@@ -1633,7 +1653,9 @@ async function startPatchOrTransition() {
   // ★ Firebase 복원 — localStorage + kplay.storage 둘 다 비어있으면 user settings 에서 복원.
   //   사용자 보고 2026-05-06: 매번 재다운 여전. KPLAY 환경에서 두 storage 모두 reset 되는 케이스.
   //   3s timeout 으로 무한 대기 방지.
-  if (!safeGetItem(PATCH_STORAGE_KEY) && currentUser && fbDb) {
+  // ★ Firebase 복원 — patchedAssets 없을 때 OR lastForceVer/lastBuildTs 누락 시.
+  //   KPLAY Chrome 에서 localStorage / kplay.storage 둘 다 휘발 시 마지막 fallback.
+  if (currentUser && fbDb) {
     try {
       const fbData = await Promise.race([
         new Promise((resolve) => {
@@ -1645,8 +1667,27 @@ async function startPatchOrTransition() {
         }),
         new Promise(r => setTimeout(() => r(null), 3000)),
       ]);
-      if (fbData && fbData.cdnBase && Array.isArray(fbData.paths)) {
-        safeSetItem(PATCH_STORAGE_KEY, JSON.stringify(fbData));
+      if (fbData) {
+        // patchedAssets 본체 — 로컬 비어있을 때만
+        if (!safeGetItem(PATCH_STORAGE_KEY) && fbData.cdnBase && Array.isArray(fbData.paths)) {
+          safeSetItem(PATCH_STORAGE_KEY, JSON.stringify(fbData));
+        }
+        // lastForceVersion — Firebase 값이 더 크면 복원
+        if (typeof fbData.lastForceVer === 'number' && fbData.lastForceVer > 0) {
+          let _localVer = 0;
+          try { _localVer = parseInt(localStorage.getItem('rhythm_lastForceVersion') || '0') || 0; } catch(e) {}
+          if (_localVer < fbData.lastForceVer) {
+            safeSetItem('rhythm_lastForceVersion', String(fbData.lastForceVer));
+          }
+        }
+        // lastReceivedBuildTs — Firebase 값이 더 크면 복원
+        if (typeof fbData.lastBuildTs === 'number' && fbData.lastBuildTs > 0) {
+          let _localTs = 0;
+          try { _localTs = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
+          if (_localTs < fbData.lastBuildTs) {
+            safeSetItem('rhythm_lastReceivedBuildTs', String(fbData.lastBuildTs));
+          }
+        }
       }
     } catch(e) {}
   }
