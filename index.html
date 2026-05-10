@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260510121516;
+window.__BUILD_TS = 20260510122125;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12779,6 +12779,11 @@ function _hitFxDraw(fx, key, dx, dy, dw, dh) {
 
 function renderParticles() {
   const fx = _hitFxData();
+  // ★ setTransform 사용을 위한 base transform 캐시 — 매 sprite particle save/restore 비용 누적 회피.
+  //   루프 후 한 번만 base 복원 (렌더 함수 진입 시 이미 setTransform(dpr,0,0,dpr,0,safeTop*dpr) 호출됨).
+  const _dpr = (typeof _cappedDPR === 'function') ? _cappedDPR() : (window.devicePixelRatio || 1);
+  const _safeY = (typeof safeTop === 'number') ? safeTop : 0;
+  let _spriteTransformed = false;
   for (const p of particles) {
     const lifeRatio = Math.max(0, p.life/p.maxLife);
     ctx.globalAlpha = lifeRatio;
@@ -12790,13 +12795,27 @@ function renderParticles() {
         //   renderParticles single-frame max 50~54ms (PC 48 입자 기준) → raw 2048 sprite GPU resampling 비용.
         //   _getBurstBaked 결과는 캐시되며 첫 1회만 256 bake. visual 동일.
         const baked = _getBurstBaked(img) || img;
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        if (p.rotVel !== undefined) ctx.rotate((p.rot || 0) + p.rotVel * (p.maxLife - p.life));
-        ctx.drawImage(baked, -s/2, -s/2, s, s);
-        ctx.restore();
+        // ★ setTransform 사용 — save/restore 비용 (state 전체 push/pop) 회피, transform matrix 만 변경.
+        if (p.rotVel !== undefined) {
+          const angle = (p.rot || 0) + p.rotVel * (p.maxLife - p.life);
+          const cos = Math.cos(angle), sin = Math.sin(angle);
+          ctx.setTransform(cos*_dpr, sin*_dpr, -sin*_dpr, cos*_dpr, p.x*_dpr, (p.y + _safeY)*_dpr);
+          ctx.drawImage(baked, -s/2, -s/2, s, s);
+          _spriteTransformed = true;
+        } else {
+          if (_spriteTransformed) {
+            ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
+            _spriteTransformed = false;
+          }
+          ctx.drawImage(baked, p.x - s/2, p.y - s/2, s, s);
+        }
         continue;
       }
+    }
+    // ★ rotate sprite 직후 일반 분기 진입 시 base transform 복원
+    if (_spriteTransformed) {
+      ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
+      _spriteTransformed = false;
     }
     // ★ 방울(drop) — 원형, 개별 랜덤 크기. 홀드 중 판정선 아래로 흘러내리는 연출용.
     if (p.kind === 'drop') {
@@ -12810,6 +12829,10 @@ function renderParticles() {
     ctx.fillStyle = p.color;
     const s = p.size * lifeRatio;
     ctx.fillRect(p.x-s/2, p.y-s/2, s, s);
+  }
+  // ★ 루프 종료 후 base transform 복원 (sprite 회전 마지막 particle 의 변환 잔존 회피)
+  if (_spriteTransformed) {
+    ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
   }
   ctx.globalAlpha = 1;
 }
