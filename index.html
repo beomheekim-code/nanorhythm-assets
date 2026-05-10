@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260510122125;
+window.__BUILD_TS = 20260510122819;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12860,11 +12860,13 @@ function _getBurstBaked(img) {
 }
 function renderBursts() {
   const fx = _hitFxData();
+  // ★ setTransform 사용 — outer save/restore 비용 회피 (renderParticles 와 동일 패턴, 시각 영향 0).
+  const _dpr = (typeof _cappedDPR === 'function') ? _cappedDPR() : (window.devicePixelRatio || 1);
+  const _safeY = (typeof safeTop === 'number') ? safeTop : 0;
   for (const b of bursts) {
     const t = b.time / b.maxTime;
     const alpha = 1 - t;
-    ctx.save();
-    ctx.translate(b.x, b.y);
+    ctx.setTransform(_dpr, 0, 0, _dpr, b.x*_dpr, (b.y+_safeY)*_dpr);
 
     if (fx) {
       // ★ 벚꽃 sprite 버스트 — 링 2개(핑크+금) + 코어 플래시 + 스파클 방사
@@ -12914,7 +12916,7 @@ function renderBursts() {
           ctx.drawImage(sparkleBaked, sx - ss/2, sy - ss/2, ss, ss);
         }
       }
-      ctx.restore();
+      // ctx.restore() 제거됨 — setTransform 사용. 다음 burst 의 setTransform 또는 루프 후 base 복원에서 처리.
       continue;
     }
 
@@ -12974,8 +12976,10 @@ function renderBursts() {
       ctx.restore();
     }
 
-    ctx.restore();
+    // outer ctx.restore() 제거됨 — setTransform 사용
   }
+  // ★ 루프 종료 후 base transform 복원 (다음 render 함수 안전)
+  ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
   ctx.globalAlpha = 1;
 }
 
@@ -12987,12 +12991,14 @@ function renderSakuraHoldGlowBg() {
   if (!fx) return;
   // 모바일 skip 제거 — gradient 1회만 매 frame 호출이라 비용 작음.
   // 단, 모바일은 ellipse 크기 줄여 fillrate 절약.
+  // ★ setTransform 사용 — save/restore 비용 회피
+  const _dpr = (typeof _cappedDPR === 'function') ? _cappedDPR() : (window.devicePixelRatio || 1);
+  const _safeY = (typeof safeTop === 'number') ? safeTop : 0;
   for (const g of holdGlows) {
     const t = g.time / g.maxTime;
     const alpha = (1 - t);
     const hw = g.w / 2;
-    ctx.save();
-    ctx.translate(g.x, g.y);
+    ctx.setTransform(_dpr, 0, 0, _dpr, g.x*_dpr, (g.y+_safeY)*_dpr);
     const glowH = _s80 * (0.45 + t * 0.55);
     ctx.globalAlpha = alpha * 0.65;
     const grd = ctx.createRadialGradient(0, glowH*0.1, 0, 0, glowH*0.15, hw * (1.3 + t * 0.8));
@@ -13004,19 +13010,22 @@ function renderSakuraHoldGlowBg() {
     ctx.beginPath();
     ctx.ellipse(0, glowH * 0.15, hw * (1.4 + t * 0.9), glowH, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
   }
+  // base 복원
+  ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
   ctx.globalAlpha = 1;
 }
 
 function renderHoldGlows() {
   const fx = _hitFxData();
+  // ★ setTransform 사용 — outer save/restore 비용 회피
+  const _dpr = (typeof _cappedDPR === 'function') ? _cappedDPR() : (window.devicePixelRatio || 1);
+  const _safeY = (typeof safeTop === 'number') ? safeTop : 0;
   for (const g of holdGlows) {
     const t = g.time / g.maxTime;
     const alpha = (1 - t);
     const hw = g.w / 2;
-    ctx.save();
-    ctx.translate(g.x, g.y);
+    ctx.setTransform(_dpr, 0, 0, _dpr, g.x*_dpr, (g.y+_safeY)*_dpr);
 
     if (fx && fx.imgs.holdLineGlow) {
       // ★ 벚꽃 라인 글로우 — 판정선 중앙 sprite 1장만.
@@ -13026,7 +13035,7 @@ function renderHoldGlows() {
       const h = _s40 * (1 - t * 0.2) * _mobG;
       ctx.globalAlpha = alpha * 0.95;
       ctx.drawImage(fx.imgs.holdLineGlow, -w/2, -h/2, w, h);
-      ctx.restore();
+      // ctx.restore() 제거됨 — setTransform 사용
       continue;
     }
 
@@ -13078,8 +13087,10 @@ function renderHoldGlows() {
       }
     }
 
-    ctx.restore();
+    // ctx.restore() 제거됨 — setTransform 사용
   }
+  // base 복원
+  ctx.setTransform(_dpr, 0, 0, _dpr, 0, _safeY*_dpr);
   ctx.globalAlpha = 1;
 }
 
