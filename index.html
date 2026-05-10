@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260510104357;
+window.__BUILD_TS = 20260510104604;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1257,9 +1257,11 @@ function _loadPatchedSet() {
     // ★ fingerprint 검증 — 다른 디바이스 saved.paths (KPlay/Firebase 복원) 신뢰 X.
     //   디스크 캐시는 디바이스별 독립이라 saved.paths 가 박혀도 실제 파일 없으면 false-positive.
     //   동일 디바이스 휘발 후 복원 시 fingerprint 동일 → saved 신뢰 → 디스크 캐시 활용 (회귀 회피).
+    //   ★ 강제 마이그레이션 (2026-05-10) — fingerprint 없는 옛 saved 도 무효 처리.
+    //   기존 사용자 1회 풀패치 부담이지만, 모든 사용자 즉시 정상 동작 보장.
     const myFp = _getDeviceFingerprint();
-    if (obj.fingerprint && obj.fingerprint !== myFp) {
-      try { console.log('[patch] fingerprint mismatch, treating as fresh device. saved=' + obj.fingerprint + ' my=' + myFp); } catch(e) {}
+    if (!obj.fingerprint || obj.fingerprint !== myFp) {
+      try { console.log('[patch] fingerprint mismatch or missing, treating as fresh device. saved=' + (obj.fingerprint || 'none') + ' my=' + myFp); } catch(e) {}
       return { cdnBase: null, paths: [] };
     }
     return { cdnBase: obj.cdnBase || null, paths: Array.isArray(obj.paths) ? obj.paths : [] };
