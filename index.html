@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260510104604;
+window.__BUILD_TS = 20260510110046;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1064,8 +1064,17 @@ function readEnvSafeArea() {
     right: parseFloat(cs.paddingRight) || 0,
   };
 }
+// ★ DPR cap — 4K/2K 모니터 dpr=2 시 canvas 내부 픽셀 4배 → render 부담 ↑.
+//   하드웨어 기반 동적 cap: cores < 8 면 더 강하게 (1.5), 그 외 2.0.
+//   raw dpr 이 cap 보다 작으면 그대로 (1080p 등 영향 X).
+function _cappedDPR() {
+  var raw = window.devicePixelRatio || 1;
+  var cores = navigator.hardwareConcurrency || 8;
+  var cap = cores < 8 ? 1.5 : 2.0;
+  return Math.min(raw, cap);
+}
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = _cappedDPR();
   const fullW = innerWidth;
   const fullH = innerHeight;
   canvas.width = fullW * dpr;
@@ -6277,6 +6286,10 @@ function updateFade(dt) {
       _previewDebounce = setTimeout(() => {
         if (state !== 'select') return;  // ★ state guard — title 복귀 시 BGM 흐름 방해 X
         try { if (typeof resumeAudio === 'function') resumeAudio(); } catch(e) {}
+        // ★ BGM 혼재 방지 (2026-05-10) — preview 시작 직전 titleBgm 강제 mute (volume=0).
+        //   updateTitleBgmFade 가 800ms 안에 완전 0 으로 못 떨어뜨릴 때 둘 다 들림.
+        //   audio session 은 살아있어서 startPreview 인계 가능 (pause 가 아닌 mute).
+        try { if (typeof titleBgm !== 'undefined' && titleBgm) titleBgm.volume = 0; } catch(e) {}
         try { startPreview(selectedSong); } catch(e) {}
         // titleBgm cleanup — state 가 여전히 select 일 때만 pause
         setTimeout(() => {
@@ -10672,7 +10685,7 @@ function renderDebugOverlay() {
   ctx.restore();
 }
 function render() {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = _cappedDPR();
   ctx.setTransform(dpr, 0, 0, dpr, 0, safeTop * dpr);
   ctx.save();
   ctx.translate(shakeX, shakeY);
@@ -13091,7 +13104,7 @@ function renderUI() {
              + '|' + (W|0) + 'x' + (H|0) + '|' + (safeTop|0) + '|' + (safeBottom|0);
   // ★ dpr 반영 — cache canvas 가 화면 dpr * 사이즈로. drawImage 시 1:1 매핑 → 해상도 정상.
   //   기존: cache 가 절반 해상도 → 모바일 흐릿 (사용자 보고)
-  const _dprH = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+  const _dprH = (typeof _cappedDPR === 'function') ? _cappedDPR() : ((typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1);
   const _wLogical = (W + 40) | 0, _hLogical = (H + safeTop + safeBottom + 40) | 0;
   const _w = (_wLogical * _dprH) | 0, _h = (_hLogical * _dprH) | 0;
   // canvas 사이즈 변경 (resize 등) 또는 첫 호출 → 새 canvas
@@ -17875,7 +17888,7 @@ function loop(time) {
   // 중복 로그인 킥 팝업 — 모든 것 위에
   if (_kickedPopupOpen) {
     ctx.save();
-    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, safeTop * (window.devicePixelRatio || 1));
+    ctx.setTransform(_cappedDPR(), 0, 0, _cappedDPR(), 0, safeTop * _cappedDPR());
     renderKickedPopup();
     ctx.restore();
   }
@@ -17888,7 +17901,7 @@ function loop(time) {
   try {
     if (window._dbg && window._dbg._perfFrameTimes && typeof _renderPerfOverlay === 'function') {
       ctx.save();
-      ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, safeTop * (window.devicePixelRatio || 1));
+      ctx.setTransform(_cappedDPR(), 0, 0, _cappedDPR(), 0, safeTop * _cappedDPR());
       _renderPerfOverlay();
       ctx.restore();
     }
