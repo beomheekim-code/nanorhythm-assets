@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260508180538;
+window.__BUILD_TS = 20260510104357;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1229,19 +1229,47 @@ let _patchState = {
   failedList: [],
 };
 
+// ★ 디바이스 fingerprint — 다른 디바이스 saved.paths 가 KPlay/Firebase 동기화로 복원되는 케이스 차단.
+//   userAgent + hardwareConcurrency 기반. 동일 디바이스 localStorage 휘발 후에도 동일 값 (디바이스 특성 기반).
+//   다른 디바이스 = 다른 값 → saved.paths 무효 → 풀패치 (사양 회복).
+//   2026-05-10 도입 — 사용자 보고: 새 PC 첫 진입에서 7개만 패치되고 곡 진입 시 lazy load 부담.
+function _getDeviceFingerprint() {
+  try {
+    var ua = (navigator.userAgent || '').slice(0, 80);
+    var hw = navigator.hardwareConcurrency || 0;
+    var key = ua + '|' + hw;
+    var h = 0;
+    for (var i = 0; i < key.length; i++) {
+      h = ((h << 5) - h + key.charCodeAt(i)) | 0;
+    }
+    return 'fp_' + (h >>> 0).toString(36);
+  } catch(e) {
+    return 'fp_unknown';
+  }
+}
+
 function _loadPatchedSet() {
   try {
     const raw = safeGetItem(PATCH_STORAGE_KEY);
     if (!raw) return { cdnBase: null, paths: [] };
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== 'object') return { cdnBase: null, paths: [] };
+    // ★ fingerprint 검증 — 다른 디바이스 saved.paths (KPlay/Firebase 복원) 신뢰 X.
+    //   디스크 캐시는 디바이스별 독립이라 saved.paths 가 박혀도 실제 파일 없으면 false-positive.
+    //   동일 디바이스 휘발 후 복원 시 fingerprint 동일 → saved 신뢰 → 디스크 캐시 활용 (회귀 회피).
+    const myFp = _getDeviceFingerprint();
+    if (obj.fingerprint && obj.fingerprint !== myFp) {
+      try { console.log('[patch] fingerprint mismatch, treating as fresh device. saved=' + obj.fingerprint + ' my=' + myFp); } catch(e) {}
+      return { cdnBase: null, paths: [] };
+    }
     return { cdnBase: obj.cdnBase || null, paths: Array.isArray(obj.paths) ? obj.paths : [] };
   } catch(e) { return { cdnBase: null, paths: [] }; }
 }
 function _savePatchedSet(paths) {
   // ★ safeSetItem 사용 — kplay.storage 도 같이 저장. KPLAY iframe localStorage 리셋되어도 복원.
+  const myFp = _getDeviceFingerprint();
   try {
-    safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths }));
+    safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: CDN_BASE, paths, fingerprint: myFp }));
   } catch(e) {}
   // ★ Firebase 백업 — 모바일 KPLAY iframe 환경에서 localStorage + kplay.storage 둘 다 리셋되는 케이스
   //   (사용자 보고 2026-05-06: 매번 패치 재다운). user 인증되어 있으면 patch 상태를 user settings 에 저장.
@@ -1253,6 +1281,7 @@ function _savePatchedSet(paths) {
       try { _lbt = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0; } catch(e) {}
       fbDb.ref('settings/' + currentUser + '/patchedAssets').set({
         cdnBase: CDN_BASE, paths: paths || [],
+        fingerprint: myFp,
         lastForceVer: _lfv, lastBuildTs: _lbt,
       });
     } catch(e) {}
@@ -1738,9 +1767,15 @@ async function startPatchOrTransition() {
         new Promise(r => setTimeout(() => r(null), 3000)),
       ]);
       if (fbData) {
-        // patchedAssets 본체 — 로컬 비어있을 때만
+        // patchedAssets 본체 — 로컬 비어있을 때만 + fingerprint 일치할 때만 복원.
+        // ★ fingerprint mismatch = 다른 디바이스 데이터. 디스크 캐시는 디바이스별 독립이라 신뢰 X.
         if (!safeGetItem(PATCH_STORAGE_KEY) && fbData.cdnBase && Array.isArray(fbData.paths)) {
-          safeSetItem(PATCH_STORAGE_KEY, JSON.stringify(fbData));
+          const _myFp = _getDeviceFingerprint();
+          if (fbData.fingerprint && fbData.fingerprint !== _myFp) {
+            try { console.log('[patch] firebase fingerprint mismatch, skip restore. saved=' + fbData.fingerprint + ' my=' + _myFp); } catch(e) {}
+          } else {
+            safeSetItem(PATCH_STORAGE_KEY, JSON.stringify(fbData));
+          }
         }
         // lastForceVersion — Firebase 값이 더 크면 복원
         if (typeof fbData.lastForceVer === 'number' && fbData.lastForceVer > 0) {
