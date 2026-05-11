@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511173200;
+window.__BUILD_TS = 20260511173419;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11652,27 +11652,16 @@ function renderBackplatePostNotes() {
     const _uiBP = _getUiPack();
     const _pnlTop = _getBackplateTop();
     const _pnlW = outerR - outerX;
-    // 1) panel 색 = 사이드 영역만 (lane column 안은 lane bg 채움 — 사용자: 레일 아래까지).
+    // 1) 베이스 완전 불투명 차콜/와인 — panel 전체 (사용자: 빽판 건들지 마).
     ctx.fillStyle = _uiBP ? 'rgba(30,12,20,1)' : 'rgba(28,28,34,1)';
-    if (lsx > outerX) ctx.fillRect(outerX, _pnlTop, lsx - outerX, outerB - _pnlTop);
-    if (outerR > lsx + totalLW) ctx.fillRect(lsx + totalLW, _pnlTop, outerR - (lsx + totalLW), outerB - _pnlTop);
-    // 1.5) lane column 영역 = lane bg 그라데이션 (panel 박스 위/좌/우 테두리 그대로 + 안에 lane 색).
-    const _sgBPN = curSong || songs[0];
-    const _laneBgGradBPN = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
-    _laneBgGradBPN.addColorStop(0, _sgBPN.bg1 || '#000');
-    _laneBgGradBPN.addColorStop(1, _sgBPN.bg2 || '#111');
-    ctx.fillStyle = _laneBgGradBPN;
-    for (let i = 0; i < laneCount; i++) {
-      ctx.fillRect(lsx + i * lw, _pnlTop, lw, outerB - _pnlTop);
-    }
-    // 2) 입체감 그라데이션 — 사이드 panel 영역만 (lane column 은 skip)
+    ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
+    // 2) 상단→하단 수직 그라데이션 (입체감)
     const _g = ctx.createLinearGradient(0, _pnlTop, 0, outerB);
     _g.addColorStop(0, _uiBP ? 'rgba(80,30,50,0.28)' : 'rgba(60,60,72,0.25)');
     _g.addColorStop(0.5, 'rgba(20,20,26,0)');
     _g.addColorStop(1, 'rgba(0,0,0,0.35)');
     ctx.fillStyle = _g;
-    if (lsx > outerX) ctx.fillRect(outerX, _pnlTop, lsx - outerX, outerB - _pnlTop);
-    if (outerR > lsx + totalLW) ctx.fillRect(lsx + totalLW, _pnlTop, outerR - (lsx + totalLW), outerB - _pnlTop);
+    ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
 
     // 기본 좌/우 세로 액센트 — 차콜. 새 panel top (_pnlTop) 기준으로 panel 안에 그림.
     if (!_uiBP) {
