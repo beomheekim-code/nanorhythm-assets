@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511095556;
+window.__BUILD_TS = 20260511124210;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4713,9 +4713,10 @@ function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2;
 function _btnBottomPad() { return isMobile ? (isIOS ? sz(18) : sz(4)) : sz(2); }
 function getBtnH() { return Math.min(getLaneW() * 1.4, (H + safeBottom) * 0.22); }
 function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
-// 판정선 — 탭 버튼 위 sz(44) 로 띄워 노트 낙하 여유 공간 확보. 모바일 landscape 에서도
-// sz() 스케일에 따라 비례 축소되어 적절한 거리 유지.
-function getHitY() { return getBtnY() - sz(44); }
+// 판정선 — 탭 버튼 위 sz(80) 로 띄워 노트 낙하 여유 공간 + 노트 모양 가이드 (정사각형) 표시 공간 확보.
+// 모바일 landscape 에서도 sz() 스케일에 따라 비례 축소되어 적절한 거리 유지.
+// 2026-05-11: sz(44) → sz(80) 로 변경 (사용자 요청 — 노트 모양 시각 가이드 추가에 맞춰 위로).
+function getHitY() { return getBtnY() - sz(80); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -11833,6 +11834,24 @@ function renderHitLine() {
       ctx.strokeStyle = LANE_COLORS[i] + (held ? 'ee' : '55'); ctx.lineWidth = 2.5; ctx.strokeRect(cx-rw/2, hitY-rh/2, rw, rh);
     }
   }
+
+  // ★ 노트 모양 시각 가이드 (2026-05-11) — 판정선 위 lane 별로 노트 sprite 약하게.
+  //   노트가 떨어지면서 가이드 위로 정확히 일치 시점 = perfect timing 인식 보조.
+  //   alpha 0.22 (자연스럽게), 사이즈 = _noteW × _noteW (노트 standard).
+  //   판정 로직 영향 X (시각 가이드만). 매 frame lane 수 (4~8) × drawImage = sub-ms.
+  try {
+    const _guideAlpha = 0.22;
+    const _gW = _noteW;
+    const _gH = _noteW;  // 정사각형 가이드 (스킨별 노트 sprite 비율 무관)
+    ctx.globalAlpha = _guideAlpha;
+    for (let i = 0; i < laneCount; i++) {
+      const cx = lsx + i * lw + lw / 2;
+      if (typeof drawSkinSprite === 'function') {
+        drawSkinSprite('note', i, cx - _gW/2, hitY - _gH/2, _gW, _gH);
+      }
+    }
+    ctx.globalAlpha = 1;
+  } catch(e) {}
 }
 
 // 판정선 좌/우 데코 — renderHitLine 보다 늦은 뎁스로 렌더 (노트/파티클/버튼 위).
