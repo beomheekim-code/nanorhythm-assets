@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511143822;
+window.__BUILD_TS = 20260511145045;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4713,10 +4713,16 @@ function getLaneX(i) { return getLaneStartX() + i * getLaneW() + getLaneW() / 2;
 function _btnBottomPad() { return isMobile ? (isIOS ? sz(18) : sz(4)) : sz(2); }
 function getBtnH() { return Math.min(getLaneW() * 1.4, (H + safeBottom) * 0.22); }
 function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
-// 판정선 — 탭 버튼 위 sz(80) 로 띄워 노트 낙하 여유 공간 + 노트 모양 가이드 (정사각형) 표시 공간 확보.
-// 모바일 landscape 에서도 sz() 스케일에 따라 비례 축소되어 적절한 거리 유지.
-// 2026-05-11: sz(44) → sz(80) 로 변경 (사용자 요청 — 노트 모양 시각 가이드 추가에 맞춰 위로).
-function getHitY() { return getBtnY() - sz(80); }
+// 판정선 시각 위치 (직선 데코) — 기존 그대로.
+function _getVisualHitLineY() { return getBtnY() - sz(80); }
+// 판정 위치 (= 가이드 center, 노트 도달 perfect 시점) — 가이드 위쪽으로 _gH/2 만큼 위.
+// 가이드 사이즈 _gH ≈ _noteW (lane 너비 - sz(8)). 동적 계산.
+// 2026-05-11: 판정 위치 = 가이드 center 로 옮김. 판정선 직선 = 데코.
+function getHitY() {
+  const _lwH = getLaneW();
+  const _gHEst = _lwH - sz(8);  // 가이드 정사각형 추정 사이즈
+  return _getVisualHitLineY() - _gHEst / 2;
+}
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -11802,7 +11808,9 @@ function _bakeGuideStrip(lw, gW, gH) {
 }
 
 function renderHitLine() {
-  const lw = getLaneW(), lsx = getLaneStartX(), tw = lw * laneCount, hitY = getHitY();
+  const lw = getLaneW(), lsx = getLaneStartX(), tw = lw * laneCount;
+  const hitY = getHitY();  // 판정 위치 = 가이드 center
+  const _visY = _getVisualHitLineY();  // 판정선 직선 시각 위치 (= 기존)
   // UI 팩 테마 — 벚꽃이면 핑크/살구 판정선.
   const _ui = _getUiPack();
   const _mainCol  = _ui ? (_ui.hitLineMain  || 'rgba(255,255,255,0.8)') : 'rgba(255,255,255,0.8)';
@@ -11828,14 +11836,14 @@ function renderHitLine() {
       if (_strip) _guideStripBakery.set(_stripKey, _strip);
     }
     if (_strip) {
-      ctx.drawImage(_strip, Math.round(lsx), Math.round(hitY - _gH));
+      ctx.drawImage(_strip, Math.round(lsx), Math.round(hitY - _gH/2));  // center = hitY
     } else {
       // fallback (베이크 실패) — lane 별 fillRect (이전 방식)
       ctx.globalAlpha = 0.35;
       for (let i = 0; i < laneCount; i++) {
         const cx = lsx + i * lw + lw / 2;
         const gx = Math.round(cx - _gW/2);
-        const gy = Math.round(hitY - _gH);
+        const gy = Math.round(hitY - _gH/2);  // center = hitY
         ctx.fillStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? LANE_COLORS[i] : '#fff';
         ctx.fillRect(gx, gy, _gW, _gH);
       }
@@ -11844,33 +11852,28 @@ function renderHitLine() {
   } catch(e) {}
 
   // 판정선 바 — procedural 핑크 네온 (sakura_ui) / 기본 흰 라인 (그 외).
+  //   시각 위치 = _visY (= 기존). 판정 위치 (hitY = 가이드 center) 와 분리.
   const _uiSkinJL = _getUiPackSkin();
   if (_uiSkinJL) {
-    // ★ 레일 thin 으로 생긴 좌우 empty gap (lsx~outerX, lsx+tw~outerR) 도 판정선 band 로 메움.
     const _pad = sz(3);
     const _outL = Math.max(_pad, lsx - sz(6));
     const _outR = Math.min(W - _pad, lsx + tw + sz(6));
     const _bandX = _outL;
     const _bandW = _outR - _outL;
-    // 네온 제거 (유저 요청) — shadowBlur 안 씀.
-    // 바깥 halo — 부드러운 로즈
     ctx.fillStyle = 'rgba(217,122,160,0.22)';
-    ctx.fillRect(_bandX, hitY - _s7, _bandW, _s14);
-    // 중간 핑크 band
+    ctx.fillRect(_bandX, _visY - _s7, _bandW, _s14);
     ctx.fillStyle = _glowCol;
-    ctx.fillRect(_bandX, hitY - _s3, _bandW, _s5);
-    // 코어 밝은 라인
+    ctx.fillRect(_bandX, _visY - _s3, _bandW, _s5);
     ctx.fillStyle = _mainCol;
-    ctx.fillRect(_bandX, hitY - 1, _bandW, 2);
+    ctx.fillRect(_bandX, _visY - 1, _bandW, 2);
   } else {
-    // 기본 — 흰 라인 + soft glow
     if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lsx, _visY); ctx.lineTo(lsx+tw, _visY); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = _glowCol.length === 7 ? (_glowCol + '44') : _glowCol;
     ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(lsx, hitY); ctx.lineTo(lsx+tw, hitY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lsx, _visY); ctx.lineTo(lsx+tw, _visY); ctx.stroke();
   }
 
   // ※ 판정선 좌/우 데코는 renderJudgeLineDecos() 에서 뎁스 위로 올려서 렌더.
@@ -13261,7 +13264,10 @@ function renderJudgment() {
   if (judgmentTimer <= 0) return;
   const scale = Math.max(0.8, 1 + (0.5 - judgmentTimer)*0.3);
   ctx.save();
-  ctx.translate(W/2, getHitY() - _s40);
+  // 판정 텍스트 = 가이드 위. 가이드 center = getHitY(), 가이드 위쪽 = getHitY() - _gHEst/2.
+  // 텍스트 = 가이드 위쪽 - sz(20) 여유.
+  const _gHEstJ = getLaneW() - sz(8);
+  ctx.translate(W/2, getHitY() - _gHEstJ/2 - _s20);
   ctx.scale(scale, scale);
   ctx.globalAlpha = Math.min(1, judgmentTimer*3);
 
