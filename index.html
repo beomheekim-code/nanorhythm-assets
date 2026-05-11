@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511143127;
+window.__BUILD_TS = 20260511143409;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9364,14 +9364,16 @@ function startSong(idx) {
           }
           ctx.globalAlpha = 1;
         }
-        // ★ 노트 모양 가이드 사이즈 prewarm (renderHitLine 의 시각 가이드용, cold start stutter 회피)
+        // ★ 노트 모양 가이드 prewarm — 가이드 코드와 사이즈 정확 일치 (cache hit 보장).
+        //   가이드: _noteHW = (_fLaneW - _s8)/2, _noteHH = min(sz(10), round(_fLaneW * 0.14))
         const _vsP = SKINS[currentSkin]?.visualSize?.note;
-        const _pNw = _vsP?.widthMul ? Math.round((_laneW - 8) / 2) * _vsP.widthMul : Math.round((_laneW - 8) / 2);
+        const _pNwBase = (_laneW - sz(8)) / 2;
+        const _pNhBase = Math.min(sz(10), Math.round(_laneW * 0.14));
+        const _pNw = _vsP?.widthMul ? _pNwBase * _vsP.widthMul : _pNwBase;
         const _pNh = _vsP?.heightRatio ? _pNw * _vsP.heightRatio
-                   : _vsP?.heightMul ? Math.min(10, Math.round(_laneW * 0.14)) * _vsP.heightMul
-                   : Math.min(10, Math.round(_laneW * 0.14));
-        const _pW = Math.round(_pNw * 2);
-        const _pH = Math.round(_pNh * 2);
+                   : _vsP?.heightMul ? _pNhBase * _vsP.heightMul : _pNhBase;
+        const _pW = _pNw * 2;
+        const _pH = _pNh * 2;
         for (let li = 0; li < laneCount; li++) {
           ctx.globalAlpha = 0;
           if (typeof drawSkinSprite === 'function') {
