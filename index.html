@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511175741;
+window.__BUILD_TS = 20260511180431;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11621,12 +11621,8 @@ function renderBackplate() {
     const laneX = lsx + i * lw;
     ctx.fillRect(laneX, outerY + sz(4), lw, _getBackplateTop() - outerY - sz(4));
   }
-  // ★ 벚꽃 UI: 사이드 회색 띠 복원 (= 레일 양옆 테두리, 사용자 요구).
-  if (_getUiPack()) {
-    ctx.fillStyle = 'rgba(85,85,95,0.98)';
-    if (lsx > outerX) ctx.fillRect(outerX, outerY, lsx - outerX, hitY - outerY);
-    if (outerR > lsx + totalLW) ctx.fillRect(lsx + totalLW, outerY, outerR - (lsx + totalLW), hitY - outerY);
-  }
+  // ★ 사이드 회색 띠 제거 — 사이드 영역 = bark bg (lane bg 색 alpha 1.0) + 트리 visible.
+  //   사용자: "노트 내려오는 공간 사이 배경이미지 나오는곳 인식".
 
   ctx.restore();
   // 테두리 stroke 는 renderBackplateBorder() 에서 판정선 위에 그림
