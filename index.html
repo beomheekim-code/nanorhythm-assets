@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511170913;
+window.__BUILD_TS = 20260511171248;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4730,10 +4730,8 @@ function _getGuideHalfH() {
 function getHitY() {
   return _getVisualHitLineY() - _getGuideHalfH();
 }
-// 빽판 panel 위쪽 = 가이드 sprite 아래 (= _visY + 가이드 sprite 두께).
-// 사용자 요구: 레일을 가이드 이미지 아래 영역까지 늘림.
-// _getGuideHalfH() * 2 = 가이드 sprite 두께 (= _gH). lane fill 이 sprite bottom 아래 _gH 까지.
-function _getBackplateTop() { return _getVisualHitLineY() + _getGuideHalfH() * 2; }
+// 빽판 panel 위쪽 = _visY + sz(2) (= 기존 위치 그대로). 사용자: "빽판 내리지 마".
+function _getBackplateTop() { return _getVisualHitLineY() + sz(2); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -11651,6 +11649,18 @@ function renderBackplatePostNotes() {
     // 1) 베이스 완전 불투명 차콜/와인 — 사이드 bark bg / 트리 비치는 거 차단.
     ctx.fillStyle = _uiBP ? 'rgba(30,12,20,1)' : 'rgba(28,28,34,1)';
     ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
+    // 1.5) ★ lane bg 그라데이션 overlay (alpha 0.5) — panel 영역 안에 lane 색 visible.
+    //   사용자 요구: 빽판 영역 그대로 + 레일 영역만 panel 안까지 시각 확장.
+    //   panel 색 + lane 색 둘 다 visible (= 색 섞임).
+    const _sgBPN = curSong || songs[0];
+    const _laneOverlayGrad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
+    _laneOverlayGrad.addColorStop(0, _sgBPN.bg1 || '#000');
+    _laneOverlayGrad.addColorStop(1, _sgBPN.bg2 || '#111');
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = _laneOverlayGrad;
+    ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
+    ctx.restore();
     // 2) 상단→하단 수직 그라데이션 (입체감)
     const _g = ctx.createLinearGradient(0, _pnlTop, 0, outerB);
     _g.addColorStop(0, _uiBP ? 'rgba(80,30,50,0.28)' : 'rgba(60,60,72,0.25)');
