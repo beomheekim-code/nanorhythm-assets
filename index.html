@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511184655;
+window.__BUILD_TS = 20260511184900;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11765,26 +11765,29 @@ function renderBackplateBorder() {
 function renderLanes() {
   const lw = getLaneW(), lsx = getLaneStartX(), hitY = getHitY();
   const laneTop = -safeTop; // 안전영역 위쪽부터 시작
+  // ★ lane fill bottom = panel top (= _getBackplateTop()). 사용자: 레일 = 검정/회색 alternating,
+  //   기존 hitY+_s10 까지였는데 panel top 까지 연장 (= 빈 공간 없이 panel 까지 닿게).
+  const _laneBot = _getBackplateTop();
 
   // Lane backgrounds — 불투명 차콜 (교대 약간 명도차)
   for (let i = 0; i < laneCount; i++) {
     const x = lsx + i * lw;
     ctx.fillStyle = i % 2 === 0 ? '#16161c' : '#1c1c22';
-    ctx.fillRect(x, laneTop, lw, hitY + _s10 - laneTop);
+    ctx.fillRect(x, laneTop, lw, _laneBot - laneTop);
 
     // Vertical lane dividers — 회색 두껍게 (사용자 요청)
     ctx.strokeStyle = 'rgba(180,180,190,0.4)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(x, laneTop); ctx.lineTo(x, hitY+_s10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, laneTop); ctx.lineTo(x, _laneBot); ctx.stroke();
 
     // Flash on press
     if (keyFlash[i] > 0) {
       ctx.fillStyle = LANE_COLORS[i] + '15';
-      ctx.fillRect(x, laneTop, lw, hitY + _s10 - laneTop);
+      ctx.fillRect(x, laneTop, lw, _laneBot - laneTop);
     }
   }
   // Right border
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, laneTop); ctx.lineTo(lsx + lw*laneCount, hitY+_s10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lsx + lw*laneCount, laneTop); ctx.lineTo(lsx + lw*laneCount, _laneBot); ctx.stroke();
 
   // 레일 가로선 (노트 속도에 맞춰 흘러내림 — 일시정지 시 gameTime과 함께 멈춤)
   if (state === 'playing' && noteSpeed > 0) {
