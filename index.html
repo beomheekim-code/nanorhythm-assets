@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511145045;
+window.__BUILD_TS = 20260511150959;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4715,13 +4715,20 @@ function getBtnH() { return Math.min(getLaneW() * 1.4, (H + safeBottom) * 0.22);
 function getBtnY() { return H + safeBottom - getBtnH() - _btnBottomPad(); }
 // 판정선 시각 위치 (직선 데코) — 기존 그대로.
 function _getVisualHitLineY() { return getBtnY() - sz(80); }
-// 판정 위치 (= 가이드 center, 노트 도달 perfect 시점) — 가이드 위쪽으로 _gH/2 만큼 위.
-// 가이드 사이즈 _gH ≈ _noteW (lane 너비 - sz(8)). 동적 계산.
-// 2026-05-11: 판정 위치 = 가이드 center 로 옮김. 판정선 직선 = 데코.
-function getHitY() {
+// 가이드 sprite 의 반-높이 (= _gH/2). 스킨별 visualSize 정확 반영.
+function _getGuideHalfH() {
+  const _vsH = SKINS[currentSkin]?.visualSize?.note;
   const _lwH = getLaneW();
-  const _gHEst = _lwH - sz(8);  // 가이드 정사각형 추정 사이즈
-  return _getVisualHitLineY() - _gHEst / 2;
+  const _noteHW_H = (_lwH - sz(8)) / 2;
+  const _noteHH_H = Math.min(sz(10), Math.round(_lwH * 0.14));
+  const _gNw_H = _vsH?.widthMul ? _noteHW_H * _vsH.widthMul : _noteHW_H;
+  const _gNh_H = _vsH?.heightRatio ? _gNw_H * _vsH.heightRatio
+               : _vsH?.heightMul ? _noteHH_H * _vsH.heightMul : _noteHH_H;
+  return _gNh_H;  // = _gH/2 (renderHitLine 의 _gH = _gNh * 2 와 일치)
+}
+// 판정 위치 = 가이드 center = 판정선 직선 위치 - 가이드 반-높이.
+function getHitY() {
+  return _getVisualHitLineY() - _getGuideHalfH();
 }
 
 // ===== KEY COUNT SCORE BONUS =====
@@ -13264,10 +13271,8 @@ function renderJudgment() {
   if (judgmentTimer <= 0) return;
   const scale = Math.max(0.8, 1 + (0.5 - judgmentTimer)*0.3);
   ctx.save();
-  // 판정 텍스트 = 가이드 위. 가이드 center = getHitY(), 가이드 위쪽 = getHitY() - _gHEst/2.
-  // 텍스트 = 가이드 위쪽 - sz(20) 여유.
-  const _gHEstJ = getLaneW() - sz(8);
-  ctx.translate(W/2, getHitY() - _gHEstJ/2 - _s20);
+  // 판정 텍스트 = 가이드 위쪽 + 여유. 정확한 _gH/2 사용 (스킨별 visualSize 반영).
+  ctx.translate(W/2, getHitY() - _getGuideHalfH() - _s20);
   ctx.scale(scale, scale);
   ctx.globalAlpha = Math.min(1, judgmentTimer*3);
 
@@ -13605,7 +13610,9 @@ function _renderUIBody() {
   {
     const _lsxUI = getLaneStartX();
     const _twUI = getLaneW() * laneCount;
-    const _panelTop = getHitY() + sz(2);
+    // ★ panel 위치 = 판정선 직선 (_visY) 아래 (사용자 요구: 기존 판정선 위치 넘지 X).
+    //   getHitY() 가 가이드 center 위치로 옮겨졌으나 panel 은 _visY 기준 유지.
+    const _panelTop = _getVisualHitLineY() + sz(2);
     const _panelBot = getBtnY();
     const _midY = _panelTop + (_panelBot - _panelTop) / 2;
     const _inPad = sz(12);
