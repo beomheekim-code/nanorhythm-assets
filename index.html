@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511162308;
+window.__BUILD_TS = 20260511163405;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11436,32 +11436,30 @@ function _drawBarkPetals() {
   const img1 = fx && fx.imgs.petal1;
   const img2 = fx && fx.imgs.petal2;
   const pal = _treePetalPalette;
+  // ★ perf (2026-05-11 trace 기반) — inner save/restore 매 petal × 2회 = restore 293ms self time.
+  //   outer save 1회 + inner setTransform 패턴 (renderBursts / renderHoldGlows 와 동일).
+  const _dpr = (typeof _cappedDPR === 'function') ? _cappedDPR() : (window.devicePixelRatio || 1);
+  ctx.save();
   for (const p of _barkPetals) {
     // 페이드 — maxY 근처 20% 에서 alpha 점진 감소 → 부드럽게 사라짐
     let alpha = 0.78;
     if (p._maxY != null) {
-      const range = p._maxY + safeTop;  // spawn 0 ~ maxY 전체 높이
-      const fadeStart = p._maxY - range * 0.25;  // 아래 25% 에서 페이드 시작
+      const range = p._maxY + safeTop;
+      const fadeStart = p._maxY - range * 0.25;
       if (p.y > fadeStart) {
         const t = (p.y - fadeStart) / (p._maxY - fadeStart);
         alpha = 0.78 * Math.max(0, 1 - t);
       }
     }
-    // sakura_fx sprite 우선
+    const cos = Math.cos(p.rot), sin = Math.sin(p.rot);
+    // setTransform = (a, b, c, d, e, f) → (cos*dpr, sin*dpr, -sin*dpr, cos*dpr, x*dpr, (y+safeTop)*dpr)
+    ctx.setTransform(cos * _dpr, sin * _dpr, -sin * _dpr, cos * _dpr, p.x * _dpr, (p.y + safeTop) * _dpr);
+    ctx.globalAlpha = alpha;
     const img = (p.colIdx % 2 === 0) ? img1 : img2;
     if (img) {
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rot);
-      ctx.globalAlpha = alpha;
       ctx.drawImage(img, -p.size/2, -p.size/2, p.size, p.size);
-      ctx.restore();
     } else {
-      // sakura_fx 미장착 시: 트리 이미지에서 샘플링한 팔레트로 procedural 타원
       const col = pal[p.colIdx % pal.length];
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rot);
       ctx.fillStyle = col;
       ctx.beginPath();
       ctx.ellipse(0, 0, p.size * 0.35, p.size * 0.55, 0, 0, Math.PI * 2);
@@ -11472,10 +11470,12 @@ function _drawBarkPetals() {
       ctx.moveTo(0, -p.size * 0.5);
       ctx.lineTo(0, p.size * 0.5);
       ctx.stroke();
-      ctx.restore();
     }
   }
+  // reset transform to outer (= dpr scale + safeTop offset)
+  ctx.setTransform(_dpr, 0, 0, _dpr, 0, safeTop * _dpr);
   ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function renderBackplate() {
@@ -11606,18 +11606,15 @@ function renderBackplate() {
     ctx.fill('evenodd');
   }
 
-  // 2) 레인 채널만 게임 BG 그라데이션으로 되살리기. ★ 채널 하단을 hitY 까지로 제한 →
-  //    판정선 아래는 다시 outer frame 차콜(별도 백판) 이 보이게 됨.
+  // 2) 레인 채널 = 게임 BG 그라데이션. ★ 사용자 요구: 사이드 (lane 외 영역) 까지
+  //    outer frame 폭으로 확장 = outerX ~ outerR. 단일 fillRect 1회 (perf 최적).
+  //    채널 하단 = 빽판 위쪽 (hitY+sz(2)). 갭 제거.
   const _sg = curSong || songs[0];
   const _bgGrad = ctx.createLinearGradient(0, -safeTop, 0, H + safeBottom);
   _bgGrad.addColorStop(0, _sg.bg1 || '#000');
   _bgGrad.addColorStop(1, _sg.bg2 || '#111');
   ctx.fillStyle = _bgGrad;
-  for (let i = 0; i < laneCount; i++) {
-    const laneX = lsx + i * lw;
-    // lane 채널 = outerY+4 ~ 빽판 위쪽 (hitY+sz(2)). 갭 제거 (사용자 요구).
-    ctx.fillRect(laneX, outerY + sz(4), lw, (hitY + sz(2)) - outerY - sz(4));
-  }
+  ctx.fillRect(outerX, outerY + sz(4), outerW, (hitY + sz(2)) - outerY - sz(4));
   // ★ 벚꽃 UI: gap 회색 단색 — outerY 부터 hitY 까지 전체 (위쪽 sz(4) 마진 제거 — 빈 공간 메움).
   if (_getUiPack()) {
     ctx.fillStyle = 'rgba(85,85,95,0.98)';
