@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511163405;
+window.__BUILD_TS = 20260511163859;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4730,6 +4730,9 @@ function _getGuideHalfH() {
 function getHitY() {
   return _getVisualHitLineY() - _getGuideHalfH();
 }
+// 빽판 panel 위쪽 = 판정선 직선 아래 sz(25) (= MAX COMBO 라벨 위 직전).
+// lane 영역과 panel 영역 사이 panel 색 띠 제거 (사용자 요구: 레일과 텍스트 사이 배경 안 보임).
+function _getBackplateTop() { return _getVisualHitLineY() + sz(25); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -11614,7 +11617,9 @@ function renderBackplate() {
   _bgGrad.addColorStop(0, _sg.bg1 || '#000');
   _bgGrad.addColorStop(1, _sg.bg2 || '#111');
   ctx.fillStyle = _bgGrad;
-  ctx.fillRect(outerX, outerY + sz(4), outerW, (hitY + sz(2)) - outerY - sz(4));
+  // ★ lane fill bottom = _getBackplateTop() (= _visY + sz(25), MAX COMBO 라벨 위 직전).
+  //   사용자 요구: 레일과 MAX COMBO 텍스트 사이 panel 색 띠 제거.
+  ctx.fillRect(outerX, outerY + sz(4), outerW, _getBackplateTop() - outerY - sz(4));
   // ★ 벚꽃 UI: gap 회색 단색 — outerY 부터 hitY 까지 전체 (위쪽 sz(4) 마진 제거 — 빈 공간 메움).
   if (_getUiPack()) {
     ctx.fillStyle = 'rgba(85,85,95,0.98)';
@@ -11634,16 +11639,17 @@ function renderBackplatePostNotes() {
   const lsx = _fLsx || getLaneStartX();
   const lw  = _fLw  || getLaneW();
   const totalLW = lw * laneCount;
-  // ★ 빽판 위쪽 = 기존 판정선 자리 (_visY). 사용자 요구.
+  // ★ 빽판 위쪽 = _getBackplateTop() (= _visY + sz(25), MAX COMBO 라벨 위 직전).
+  //   기존 _visY+sz(2) → sz(25) 로 내림. lane 영역과 panel 영역 사이 panel 색 띠 제거.
   const hitY = _getVisualHitLineY();
   const pad = sz(3);
   const outerX = Math.max(pad, lsx - sz(6));
   const outerR = Math.min(W - pad, lsx + totalLW + sz(6));
   const outerB = H + safeBottom;
-  if (hitY + sz(2) < outerB) {
+  if (_getBackplateTop() < outerB) {
     // Procedural — 판정선 밑 리듬게임 스타일 패널 (deck_base.png 제거됨)
     const _uiBP = _getUiPack();
-    const _pnlTop = hitY + sz(2);
+    const _pnlTop = _getBackplateTop();
     const _pnlW = outerR - outerX;
     // 1) 베이스 완전 불투명 차콜/와인 — 사이드 bark bg / 트리 비치는 거 차단.
     ctx.fillStyle = _uiBP ? 'rgba(30,12,20,1)' : 'rgba(28,28,34,1)';
@@ -11656,11 +11662,11 @@ function renderBackplatePostNotes() {
     ctx.fillStyle = _g;
     ctx.fillRect(outerX, _pnlTop, _pnlW, outerB - _pnlTop);
 
-    // 기본 좌/우 세로 액센트 — 차콜 (사용자 요구: 흰선 → 차콜). 판정선 자체 색은 무관.
+    // 기본 좌/우 세로 액센트 — 차콜. 새 panel top (_pnlTop) 기준으로 panel 안에 그림.
     if (!_uiBP) {
-      ctx.fillStyle = _backplatePalette().border;  // 라이트 차콜
-      ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
-      ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
+      ctx.fillStyle = _backplatePalette().border;
+      ctx.fillRect(outerX + sz(2), _pnlTop + sz(2), sz(2), outerB - _pnlTop - sz(6));
+      ctx.fillRect(outerR - sz(4), _pnlTop + sz(2), sz(2), outerB - _pnlTop - sz(6));
     }
     // ★ 빽판 위/좌/우 테두리 — UI 팩 (벚꽃) = 갈색 / 기본 스킨 = 차콜 (palette.border)
     //   stroke 위 끝 = _pnlTop 정확. 즉 stroke 의 중심선 Y = _pnlTop + lineWidth/2.
@@ -13626,9 +13632,9 @@ function _renderUIBody() {
   {
     const _lsxUI = getLaneStartX();
     const _twUI = getLaneW() * laneCount;
-    // ★ panel 위치 = 판정선 직선 (_visY) 아래 (사용자 요구: 기존 판정선 위치 넘지 X).
-    //   getHitY() 가 가이드 center 위치로 옮겨졌으나 panel 은 _visY 기준 유지.
-    const _panelTop = _getVisualHitLineY() + sz(2);
+    // ★ panel 위치 = _getBackplateTop() (= _visY + sz(25), MAX COMBO 라벨 위 직전).
+    //   레일과 MAX COMBO 텍스트 사이 panel 색 띠 제거 (사용자 요구).
+    const _panelTop = _getBackplateTop();
     const _panelBot = getBtnY();
     const _midY = _panelTop + (_panelBot - _panelTop) / 2;
     const _inPad = sz(12);
