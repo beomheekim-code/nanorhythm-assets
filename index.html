@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511164857;
+window.__BUILD_TS = 20260511165539;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4730,10 +4730,9 @@ function _getGuideHalfH() {
 function getHitY() {
   return _getVisualHitLineY() - _getGuideHalfH();
 }
-// 빽판 panel 위쪽 = 판정선 직선 아래 sz(50) (= 큰 변화로 시각 확실히 인지).
-// 사용자 요구: 레일이 빽판 panel 까지 닿아야 + panel 색 영역이 텍스트 주위만.
-// 이전 sz(25) = 변화 미미. sz(50) 로 명확히 확장.
-function _getBackplateTop() { return _getVisualHitLineY() + sz(50); }
+// 빽판 panel 위쪽 = _visY + sz(2) (= 기존 위치 그대로).
+// 사용자 요구: 빽판 영역 그대로 + 레일 영역만 확장 (panel 안에 lane bg overlay).
+function _getBackplateTop() { return _getVisualHitLineY() + sz(2); }
 
 // ===== KEY COUNT SCORE BONUS =====
 // 키 수가 많을수록 점수 배율 증가 (랭킹 공정성)
@@ -11621,12 +11620,8 @@ function renderBackplate() {
   // ★ lane fill bottom = _getBackplateTop() (= _visY + sz(25), MAX COMBO 라벨 위 직전).
   //   사용자 요구: 레일과 MAX COMBO 텍스트 사이 panel 색 띠 제거.
   ctx.fillRect(outerX, outerY + sz(4), outerW, _getBackplateTop() - outerY - sz(4));
-  // ★ 벚꽃 UI: gap 회색 단색 — outerY 부터 hitY 까지 전체 (위쪽 sz(4) 마진 제거 — 빈 공간 메움).
-  if (_getUiPack()) {
-    ctx.fillStyle = 'rgba(85,85,95,0.98)';
-    if (lsx > outerX) ctx.fillRect(outerX, outerY, lsx - outerX, hitY - outerY);
-    if (outerR > lsx + totalLW) ctx.fillRect(lsx + totalLW, outerY, outerR - (lsx + totalLW), hitY - outerY);
-  }
+  // ★ 벚꽃 UI gap 회색 단색 제거 — lane fill (line 11622) 이 이미 사이드 까지 lane bg
+  //   그라데이션 으로 fill. 회색이 위에 덮어쓰면 사용자 시각상 "레일 확장 안 됨" 인식.
 
   ctx.restore();
   // 테두리 stroke 는 renderBackplateBorder() 에서 판정선 위에 그림
