@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511155204;
+window.__BUILD_TS = 20260511155840;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11615,7 +11615,8 @@ function renderBackplate() {
   ctx.fillStyle = _bgGrad;
   for (let i = 0; i < laneCount; i++) {
     const laneX = lsx + i * lw;
-    ctx.fillRect(laneX, outerY + sz(4), lw, hitY - outerY - sz(4));
+    // lane 채널 = outerY+4 ~ 빽판 위쪽 (hitY+sz(2)). 갭 제거 (사용자 요구).
+    ctx.fillRect(laneX, outerY + sz(4), lw, (hitY + sz(2)) - outerY - sz(4));
   }
   // ★ 벚꽃 UI: gap 회색 단색 — outerY 부터 hitY 까지 전체 (위쪽 sz(4) 마진 제거 — 빈 공간 메움).
   if (_getUiPack()) {
@@ -11665,6 +11666,16 @@ function renderBackplatePostNotes() {
       ctx.fillRect(outerX + sz(2), hitY + sz(4), sz(2), outerB - hitY - sz(8));
       ctx.fillRect(outerR - sz(4), hitY + sz(4), sz(2), outerB - hitY - sz(8));
     }
+    // ★ 빽판 위/좌/우 테두리 — UI 팩 (벚꽃) = 갈색 / 기본 스킨 = 차콜 (palette.border)
+    const _bdCol = _uiBP ? '#5a3a2a' : _backplatePalette().border;
+    ctx.strokeStyle = _bdCol;
+    ctx.lineWidth = sz(3);
+    ctx.beginPath();
+    ctx.moveTo(outerX, outerB);
+    ctx.lineTo(outerX, _pnlTop);
+    ctx.lineTo(outerR, _pnlTop);
+    ctx.lineTo(outerR, outerB);
+    ctx.stroke();
   }
 }
 
