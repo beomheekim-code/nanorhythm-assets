@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511124958;
+window.__BUILD_TS = 20260511125540;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11761,6 +11761,29 @@ function renderHitLine() {
   const _shadowCol = _ui ? (_ui.hitLineGlow || '#ffffff') : '#ffffff';
   const _gradTop  = _ui ? (_ui.hitLineGrad  || 'rgba(255,255,255,0.06)') : 'rgba(255,255,255,0.06)';
 
+  // ★ 노트 모양 시각 가이드 (2026-05-11) — 판정선 직선 그리기 전 (= 판정선이 위 뎁스).
+  //   현재 사용 중인 노트 스킨 sprite alpha 약하게. center = hitY.
+  //   판정 로직 영향 X (timing 기반 그대로). 판정선 직선이 가이드 위로 그려져 데코 역할.
+  try {
+    const _gW = _noteW;
+    const _gH = _noteW;
+    ctx.globalAlpha = 0.35;
+    for (let i = 0; i < laneCount; i++) {
+      const cx = lsx + i * lw + lw / 2;
+      const gx = Math.round(cx - _gW/2);
+      const gy = Math.round(hitY - _gH/2);
+      const _drew = (typeof drawSkinSprite === 'function')
+                    ? drawSkinSprite('note', i, gx, gy, _gW, _gH)
+                    : false;
+      if (!_drew) {
+        // fallback — lane 색 사각형 (기본 스킨, 노트 그리기와 동일 패턴)
+        ctx.fillStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? LANE_COLORS[i] : '#fff';
+        ctx.fillRect(gx, gy, _gW, _gH);
+      }
+    }
+    ctx.globalAlpha = 1;
+  } catch(e) {}
+
   // 판정선 바 — procedural 핑크 네온 (sakura_ui) / 기본 흰 라인 (그 외).
   const _uiSkinJL = _getUiPackSkin();
   if (_uiSkinJL) {
@@ -11835,31 +11858,6 @@ function renderHitLine() {
     }
   }
 
-  // ★ 노트 모양 시각 가이드 (2026-05-11) — hitY 위치에 lane 별 노트 outline.
-  //   가이드 center = hitY (= timing perfect 위치). 노트 도달 = 가이드 정확 일치 = perfect 인식.
-  //   판정선 직선은 시각 데코로 유지. 판정 로직은 timing (audio.currentTime) 기반 그대로.
-  //   sprite 있는 스킨 = outline 베이크 사용. 없는 스킨 = lane 색 box outline fallback.
-  try {
-    const _gW = _noteW;
-    const _gH = _noteW;
-    const _gAlpha = 0.6;
-    ctx.globalAlpha = _gAlpha;
-    for (let i = 0; i < laneCount; i++) {
-      const cx = lsx + i * lw + lw / 2;
-      const gx = Math.round(cx - _gW/2);
-      const gy = Math.round(hitY - _gH/2);  // center = hitY (timing perfect 위치)
-      const baked = _bakeNoteOutline(i, _gW, _gH);
-      if (baked) {
-        ctx.drawImage(baked, gx, gy);
-      } else {
-        // fallback — 기본 스킨 / sprite 없는 환경: lane 색 box outline
-        ctx.strokeStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? (LANE_COLORS[i] + 'aa') : 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(gx, gy, _gW, _gH);
-      }
-    }
-    ctx.globalAlpha = 1;
-  } catch(e) {}
 }
 
 // ★ 노트 outline 베이크 캐시 — sprite 의 검정 픽셀 (outline) 만 보존, fill 영역 투명.
