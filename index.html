@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511184900;
+window.__BUILD_TS = 20260511185050;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2737,13 +2737,13 @@ const songs = [
   },
   {
     name: 'Glitch Heartbeat', sub: 'GLITCH/ELECTRO', bpm: 138, color: '#00ffc8',
-    bg1: '#000d0a', bg2: '#001a14', bars: 61,
+    bg1: '#000d0a', bg2: '#001a14', bars: 63,
     cover: 'Music/Glitch_Heartbeat/Glitch_Heartbeat.png',
     file: 'Music/Glitch_Heartbeat.ogg',
     stemDir: 'Music/Glitch_Heartbeat/',
     stemPrefix: 'Glitch_Heartbeat',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 105.7,
+    endCutoff: 107.3,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0],
   },
   {
