@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511174312;
+window.__BUILD_TS = 20260511174821;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12104,19 +12104,7 @@ function renderNotes() {
         } else if (n.holdComplete) {
           ctx.fillStyle = col + '33';
           rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
-        } else if (n.missed) {
-          // miss 시도 흘러가게 — alpha 낮춰 회색조 sprite.
-          const _barH = Math.max(0, barBot - barTop);
-          ctx.save();
-          ctx.globalAlpha = 0.35;
-          const _vsBM = SKINS[currentSkin]?.visualSize?.holdBody;
-          const _bwVisM = _vsBM?.widthMul ? bw * _vsBM.widthMul : bw;
-          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVisM/2, barTop, _bwVisM, _barH)) {
-            ctx.fillStyle = col + '55';
-            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
-          }
-          ctx.restore();
-        } else if (!n.hit) {
+        } else if (!n.hit) {  // miss 시도 같은 분기 (= 색 변경 X, 그냥 흘러감)
           const _barH = Math.max(0, barBot - barTop);
           const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
