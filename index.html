@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511125904;
+window.__BUILD_TS = 20260511142420;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11763,10 +11763,16 @@ function renderHitLine() {
 
   // ★ 노트 모양 시각 가이드 (2026-05-11) — 판정선 직선 그리기 전 (= 판정선이 위 뎁스).
   //   현재 사용 중인 노트 스킨 sprite alpha 약하게. center = hitY.
-  //   판정 로직 영향 X (timing 기반 그대로). 판정선 직선이 가이드 위로 그려져 데코 역할.
+  //   가이드 크기 = renderNotes 의 실제 노트 크기와 일치 (스킨별 visualSize 적용).
+  //   판정 로직 영향 X (timing 기반 그대로). 판정선 직선이 가이드 위로 그려져 데코.
   try {
-    const _gW = _noteW;
-    const _gH = _noteW;
+    // 노트 실제 크기 계산 (renderNotes line 12133~12136 와 동일 패턴)
+    const _vsG = SKINS[currentSkin]?.visualSize?.note;
+    const _gNw = _vsG?.widthMul ? _noteHW * _vsG.widthMul : _noteHW;
+    const _gNh = _vsG?.heightRatio ? _gNw * _vsG.heightRatio
+               : _vsG?.heightMul ? _noteHH * _vsG.heightMul : _noteHH;
+    const _gW = _gNw * 2;
+    const _gH = _gNh * 2;
     ctx.globalAlpha = 0.35;
     for (let i = 0; i < laneCount; i++) {
       const cx = lsx + i * lw + lw / 2;
@@ -11776,7 +11782,7 @@ function renderHitLine() {
                     ? drawSkinSprite('note', i, gx, gy, _gW, _gH)
                     : false;
       if (!_drew) {
-        // fallback — lane 색 사각형 (기본 스킨, 노트 그리기와 동일 패턴)
+        // fallback — lane 색 사각형 (기본 스킨, 노트 그리기와 동일)
         ctx.fillStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? LANE_COLORS[i] : '#fff';
         ctx.fillRect(gx, gy, _gW, _gH);
       }
@@ -13547,8 +13553,10 @@ function _renderUIBody() {
     const _labelSize = isMobile ? sz(8) : sz(10);
     const _valueSize = isMobile ? sz(16) : sz(22);
 
-    // ★ 백판 배경 (2026-05-11) — SCORE/MAX COMBO 영역 불투명 패널 (텍스트 가독성).
-    ctx.fillStyle = 'rgba(15,10,25,0.92)';
+    // ★ 백판 배경 (2026-05-11) — SCORE/MAX COMBO 영역 불투명 패널.
+    //   UI 팩 (벚꽃 등) 사용 시 그 톤 유지 + 불투명. 기본 스킨은 어두운 톤.
+    const _uiBgPack = _getUiPack();
+    ctx.fillStyle = _uiBgPack ? 'rgba(50,25,40,0.92)' : 'rgba(15,10,25,0.92)';
     ctx.fillRect(_lsxUI, _panelTop, _twUI, _panelBot - _panelTop);
 
     // 상단 액센트 glow 라인 — 기본 스킨만 (UI 팩 장착 시 가로선 제거, 유저 요청).
