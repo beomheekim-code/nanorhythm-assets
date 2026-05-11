@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511173719;
+window.__BUILD_TS = 20260511174312;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11864,14 +11864,16 @@ function renderHitLine() {
       if (_strip) _guideStripBakery.set(_stripKey, _strip);
     }
     if (_strip) {
-      ctx.drawImage(_strip, Math.round(lsx), Math.round(hitY - _gH/2));  // center = hitY
+      // ★ sprite bottom = hitY (= 새 판정선). center = hitY - _gH/2 (위쪽 으로 _gH/2 이동).
+      //   사용자: "판정선 올린만큼 빈공간 생긴 거 lane 색 채워". sprite 위로 → sprite 아래 영역 lane bg visible.
+      ctx.drawImage(_strip, Math.round(lsx), Math.round(hitY - _gH));
     } else {
       // fallback (베이크 실패) — lane 별 fillRect (이전 방식)
       ctx.globalAlpha = 0.35;
       for (let i = 0; i < laneCount; i++) {
         const cx = lsx + i * lw + lw / 2;
         const gx = Math.round(cx - _gW/2);
-        const gy = Math.round(hitY - _gH/2);  // center = hitY
+        const gy = Math.round(hitY - _gH);  // sprite bottom = hitY (위쪽 으로 _gH/2 이동)
         ctx.fillStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? LANE_COLORS[i] : '#fff';
         ctx.fillRect(gx, gy, _gW, _gH);
       }
@@ -12071,15 +12073,18 @@ function renderNotes() {
     const sx = _laneSX + n.lane * _laneW + _laneHalfW;
 
     // Draw hold bar (even while holding/complete)
-    if (n.type === 'hold' && !n.missed) {
+    if (n.type === 'hold') {  // !n.missed 제거 — miss 시도 body 흘러가게.
       const headY = hitY - (n.time - gameTime) * noteSpeed;
       const tailY = hitY - (n.endTime - gameTime) * noteSpeed;
       const col = LANE_COLORS[n.lane];
       const barTop = Math.max(-40, tailY);
-      // ★ body bottom 분기 — 사용자: hit 안 하면 흘려보내야지, hit 시만 판정선에서 사라짐.
-      //   n.holding (= hit 후 키 누름 중) → 판정선까지만 (= 짧아짐 / fade out).
-      //   외 (= 떨어지는 중 or miss) → 판정선 아래 80px 까지 (기존 = 자연 통과).
-      const barBot = n.holding ? Math.min(hitY, headY) : Math.min(hitY + 80, headY);
+      // ★ body bottom 분기:
+      //   n.holding (= hit 후 키 누름) → 판정선까지만 (= 짧아짐 / fade)
+      //   n.missed → 화면 끝까지 흘러감 (headY 그대로)
+      //   외 (= 떨어지는 중) → 판정선 아래 80px (자연 통과)
+      const barBot = n.holding ? Math.min(hitY, headY)
+                   : n.missed ? headY
+                   : Math.min(hitY + 80, headY);
 
       // ★ z-order: Body → Tail(body 위) → Head(최상단)
       //   tail/head 모두 flower sprite, body 위에 올라가 "위로 올라온 뎁스".
@@ -12099,6 +12104,18 @@ function renderNotes() {
         } else if (n.holdComplete) {
           ctx.fillStyle = col + '33';
           rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
+        } else if (n.missed) {
+          // miss 시도 흘러가게 — alpha 낮춰 회색조 sprite.
+          const _barH = Math.max(0, barBot - barTop);
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          const _vsBM = SKINS[currentSkin]?.visualSize?.holdBody;
+          const _bwVisM = _vsBM?.widthMul ? bw * _vsBM.widthMul : bw;
+          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVisM/2, barTop, _bwVisM, _barH)) {
+            ctx.fillStyle = col + '55';
+            rrFill(sx - bw/2, barTop, bw, _barH, _s7);
+          }
+          ctx.restore();
         } else if (!n.hit) {
           const _barH = Math.max(0, barBot - barTop);
           const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
