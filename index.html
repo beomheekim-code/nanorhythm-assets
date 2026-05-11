@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511183313;
+window.__BUILD_TS = 20260511183855;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2609,7 +2609,7 @@ function getLaneStems() { return LANE_STEMS[laneCount] || LANE_STEMS[4]; }
 const songs = [
   {
     name: 'Cherry Blossom', sub: 'ENERGETIC', bpm: 152, color: '#ff69b4',
-    bg1: '#1a0010', bg2: '#300025', bars: 56, cover: 'Music/Cherry Blossom/cherry blossom.png',
+    bg1: '#1a0010', bg2: '#300025', bars: 70, cover: 'Music/Cherry Blossom/cherry blossom.png',
     file: 'Music/Cherry_Blossom_Sprint.ogg',
     stemDir: 'Music/Cherry Blossom/',
     stemPrefix: 'cherry blossom',
@@ -2619,7 +2619,7 @@ const songs = [
   },
   {
     name: 'Insert Coin Go Hard', sub: 'ARCADE', bpm: 140, color: '#00e5ff',
-    bg1: '#000520', bg2: '#001040', bars: 52, cover: 'Music/Insert_Coin_Go_Hard/Insert_Coin_Go_Hard.png',
+    bg1: '#000520', bg2: '#001040', bars: 91, cover: 'Music/Insert_Coin_Go_Hard/Insert_Coin_Go_Hard.png',
     file: 'Music/Insert_Coin_Go_Hard.ogg',
     stemDir: 'Music/Insert_Coin_Go_Hard/',
     stemPrefix: 'insert_coin_go_hard',
@@ -2629,7 +2629,7 @@ const songs = [
   },
   {
     name: 'CLIMB TO THE CROWN', sub: 'ROCK/ELECTRO', bpm: 160, color: '#ff2200',
-    bg1: '#1a0500', bg2: '#350a00', bars: 60, cover: 'Music/CLIMB_TO_THE_CROWN/CLIMB_TO_THE_CROWN.png',
+    bg1: '#1a0500', bg2: '#350a00', bars: 72, cover: 'Music/CLIMB_TO_THE_CROWN/CLIMB_TO_THE_CROWN.png',
     file: 'Music/CLIMB_TO_THE_CROWN.ogg',
     stemDir: 'Music/CLIMB_TO_THE_CROWN/',
     stemPrefix: 'CLIMB_TO_THE_CROWN',
@@ -2639,7 +2639,7 @@ const songs = [
   },
   {
     name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 89, color: '#ffb7d5',
-    bg1: '#0f0808', bg2: '#1e1215', bars: 32, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
+    bg1: '#0f0808', bg2: '#1e1215', bars: 66, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
     file: 'Music/어깨_위에_내려앉은_봄.ogg',
     stemDir: 'Music/어깨_위에_내려앉은_봄/',
     stemPrefix: '어깨_위에_내려앉은_봄',
@@ -2658,7 +2658,7 @@ const songs = [
   },
   {
     name: '止まれない鼓動', sub: 'J-ROCK', bpm: 155, color: '#e63946',
-    bg1: '#120008', bg2: '#250010', bars: 56, cover: 'Music/止まれない鼓動/止まれない鼓動.png',
+    bg1: '#120008', bg2: '#250010', bars: 83, cover: 'Music/止まれない鼓動/止まれない鼓動.png',
     file: 'Music/止まれない鼓動.ogg',
     stemDir: 'Music/止まれない鼓動/',
     stemPrefix: '止まれない鼓動',
@@ -2677,7 +2677,7 @@ const songs = [
   },
   {
     name: 'The Clock Face Shakes', sub: 'SYNTH/ELECTRONIC', bpm: 135, color: '#7b2ff7',
-    bg1: '#0a0020', bg2: '#150040', bars: 48, cover: 'Music/The_Clock_Face_Shakes/The_Clock_Face_Shakes.png',
+    bg1: '#0a0020', bg2: '#150040', bars: 67, cover: 'Music/The_Clock_Face_Shakes/The_Clock_Face_Shakes.png',
     file: 'Music/The_Clock_Face_Shakes.ogg',
     stemDir: 'Music/The_Clock_Face_Shakes/',
     stemPrefix: 'The_Clock_Face_Shakes',
@@ -2687,7 +2687,7 @@ const songs = [
   },
   {
     name: 'Breaking Gravity', sub: 'EDM/BASS', bpm: 145, color: '#00e0ff',
-    bg1: '#000a14', bg2: '#001428', bars: 52, cover: 'Music/Breaking_Gravity/Breaking_Gravity.png',
+    bg1: '#000a14', bg2: '#001428', bars: 63, cover: 'Music/Breaking_Gravity/Breaking_Gravity.png',
     file: 'Music/Breaking_Gravity.ogg',
     stemDir: 'Music/Breaking_Gravity/',
     stemPrefix: 'Breaking_Gravity',
@@ -2697,7 +2697,7 @@ const songs = [
   },
   {
     name: '손 끝 아래', sub: 'K-EMOTION', bpm: 120, color: '#e8a0c0',
-    bg1: '#0c0515', bg2: '#1a0a25', bars: 44, cover: 'Music/손_끝_아래/손_끝_아래.png',
+    bg1: '#0c0515', bg2: '#1a0a25', bars: 57, cover: 'Music/손_끝_아래/손_끝_아래.png',
     file: 'Music/손_끝_아래.ogg',
     stemDir: 'Music/손_끝_아래/',
     stemPrefix: '손_끝_아래',
@@ -2707,7 +2707,7 @@ const songs = [
   },
   {
     name: '멈춘 시계', sub: 'K-AMBIENT', bpm: 123, color: '#8ba4b8',
-    bg1: '#060a10', bg2: '#0e1520', bars: 62, cover: 'Music/멈춘_시계/멈춘_시계.png',
+    bg1: '#060a10', bg2: '#0e1520', bars: 73, cover: 'Music/멈춘_시계/멈춘_시계.png',
     file: 'Music/멈춘_시계.ogg',
     stemDir: 'Music/멈춘_시계/',
     stemPrefix: '멈춘_시계',
@@ -2737,18 +2737,18 @@ const songs = [
   },
   {
     name: 'Glitch Heartbeat', sub: 'GLITCH/ELECTRO', bpm: 138, color: '#00ffc8',
-    bg1: '#000d0a', bg2: '#001a14', bars: 53,
+    bg1: '#000d0a', bg2: '#001a14', bars: 61,
     cover: 'Music/Glitch_Heartbeat/Glitch_Heartbeat.png',
     file: 'Music/Glitch_Heartbeat.ogg',
     stemDir: 'Music/Glitch_Heartbeat/',
     stemPrefix: 'Glitch_Heartbeat',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 92.7,
+    endCutoff: 104.42,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0],
   },
   {
     name: 'Midnight Boulevard', sub: 'CHILL/LOFI', bpm: 96, color: '#5566cc',
-    bg1: '#05051a', bg2: '#0a0a30', bars: 36,
+    bg1: '#05051a', bg2: '#0a0a30', bars: 43,
     cover: 'Music/Midnight_Boulevard/Midnight_Boulevard.png',
     file: 'Music/Midnight_Boulevard.ogg',
     stemDir: 'Music/Midnight_Boulevard/',
@@ -2770,7 +2770,7 @@ const songs = [
   },
   {
     name: 'Ten Thousand Taps', sub: 'SPEEDCORE', bpm: 175, color: '#ff3355',
-    bg1: '#1a0005', bg2: '#33000a', bars: 64,
+    bg1: '#1a0005', bg2: '#33000a', bars: 82,
     cover: 'Music/Ten_Thousand_Taps/Ten_Thousand_Taps.png',
     file: 'Music/Ten_Thousand_Taps.ogg',
     stemDir: 'Music/Ten_Thousand_Taps/',
@@ -2781,7 +2781,7 @@ const songs = [
   },
   {
     name: 'The Final Sprint', sub: 'EPIC/CINEMATIC', bpm: 148, color: '#ffaa00',
-    bg1: '#0f0800', bg2: '#1e1000', bars: 54,
+    bg1: '#0f0800', bg2: '#1e1000', bars: 66,
     cover: 'Music/The_Final_Sprint/The_Final_Sprint.png',
     file: 'Music/The_Final_Sprint.ogg',
     stemDir: 'Music/The_Final_Sprint/',
@@ -2802,7 +2802,7 @@ const songs = [
   },
   {
     name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 117, color: '#ff6699',
-    bg1: '#0e0408', bg2: '#1c0810', bars: 45,
+    bg1: '#0e0408', bg2: '#1c0810', bars: 53,
     cover: 'Music/Heart_On_The_Line/Heart_On_The_Line.png',
     file: 'Music/Heart_On_The_Line.ogg',
     stemDir: 'Music/Heart_On_The_Line/',
@@ -2925,7 +2925,7 @@ const songs = [
     stemDir: 'Music/Catch_The_Sky/',
     stemPrefix: 'Catch_The_Sky',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 111.7,
+    endCutoff: 116.75,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
   },
   {
@@ -2984,7 +2984,7 @@ const songs = [
     stemDir: 'Music/Pebbles_To_Granite/',
     stemPrefix: 'Pebbles_To_Granite',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 111.2,
+    endCutoff: 116.5,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
     excludeStems: [5], chordMode: true,
   },
@@ -11018,6 +11018,7 @@ function render() {
     _measure('renderLanes', () => renderLanes());
     _measure('renderNotes', () => renderNotes());
     _measure('renderBackplatePostNotes', () => renderBackplatePostNotes());
+    _measure('renderLaneFillBelow', () => renderLaneFillBelow());
     _measure('renderHitLine', () => renderHitLine());
     _measure('renderBackplateBorder', () => renderBackplateBorder());
     _measure('renderButtons', () => renderButtons());
