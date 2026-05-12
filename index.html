@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512114831;
+window.__BUILD_TS = 20260512115938;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12268,26 +12268,35 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
-          // ★ paw_mouse: hold body = holdhead sprite 전체를 vertical stretch (= 3D 기둥 느낌).
-          //   사용자: paw_mouse_holdhead.png 의 모양이 기둥처럼 계속 나옴.
+          // ★ paw_mouse: hold body = holdhead sprite 정 사이즈 + 위→아래 반복 (alpha gradient).
+          //   사용자: stretch X, 정 사이즈 유지. 그라데이션 모양이 연속 이어짐.
           const _barH = Math.max(0, barBot - barTop);
           const _hPath = _skinHBg.imagePaths?.holdHead;
           const _hImg = _hPath ? skinImages[_hPath] : null;
           if (_hImg && _hImg.complete && _hImg.naturalWidth) {
             const _vsT = _skinHBg.visualSize?.holdHead;
             const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+            const _hH = _vsT?.heightRatio ? _hW * _vsT.heightRatio : _hW;  // 정 사이즈
+            const _step = _hH * 0.35;  // sprite 사이 거리 (= 겹침)
             let _fadeAlpha = 1.0;
             if (n.holding) {
               const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
-              _fadeAlpha = Math.max(0, 1 - _hp);  // 진행 따라 1→0
+              _fadeAlpha = Math.max(0, 1 - _hp);
             } else if (n.holdComplete) {
               _fadeAlpha = 0.2;
             }
-            if (_fadeAlpha > 0.02) {
+            if (_fadeAlpha > 0.02 && _step > 0) {
+              const _count = Math.min(40, Math.ceil(_barH / _step) + 1);
               ctx.save();
-              ctx.globalAlpha = _fadeAlpha;
-              // sprite 전체 vertical stretch — 화난 쥐 모양 그대로 길게 늘어짐.
-              ctx.drawImage(_hImg, sx - _hW/2, barTop, _hW, _barH);
+              for (let _i = 0; _i < _count; _i++) {
+                const _y = barBot - _i * _step;
+                if (_y + _hH < barTop) break;
+                // alpha: 아래쪽 (= barBot 근처) 진함, 위쪽 (= barTop 근처) 흐림.
+                const _tNorm = _i / Math.max(1, _count - 1);
+                const _a = (1 - _tNorm * 0.7) * _fadeAlpha;  // 1.0 → 0.3 그라데이션
+                ctx.globalAlpha = _a;
+                ctx.drawImage(_hImg, sx - _hW/2, _y - _hH, _hW, _hH);
+              }
               ctx.restore();
             }
           }
