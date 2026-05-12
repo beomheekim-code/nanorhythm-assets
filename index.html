@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512151535;
+window.__BUILD_TS = 20260512151837;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1209,8 +1209,8 @@ const FORCE_REPATCH_LIST = [
   'icon.png',
   // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
   'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
-  // paw_mouse holdbody atlas v8 — head 색 + cap 균일 + stripe strong gradient (baked, offscreen 제거)
-  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v8.png',
+  // paw_mouse holdbody atlas v9 — horizontal shading 입체 + vertical alpha gradient
+  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v9.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -4185,7 +4185,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v8.png',  // 600×240, v8 = head 색 + cap 균일 + stripe strong gradient (atlas baked)
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v9.png',  // 600×240, v9 = horizontal RGB shading 입체 + vertical alpha gradient
     },
     sprites: {
       note: [
@@ -12312,12 +12312,11 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ atlas v8 = cap+stripe, head 색, baked gradient (cap 균일 0.5 + stripe strong 0.55→1.0).
-            //   body bottom = barBot - hW*0.2 (= 귀밑 끝, head 머리 침범 X).
-            //   잘린 끝이 head sprite (그 위에 layer) 와 자연 연결 — 닿는 연출 유지.
-            //   offscreen canvas 제거 (perf 회귀 fix).
+            // ★ atlas v9 = horizontal shading 입체 + vertical alpha gradient.
+            //   평소 body bottom = barBot - hW*0.2 (귀밑 끝, head 머리 침범 X).
+            //   holding 시 body bottom = barBot (= 판정선까지 확장 — 닿는 연출).
             const _bodyTop = barTop;
-            const _bodyBottom = barBot - _hW * 0.2;
+            const _bodyBottom = n.holding ? barBot : (barBot - _hW * 0.2);
             const _bodyH = Math.max(0, _bodyBottom - _bodyTop);
             if (_bodyH > 0) {
               const _scaleX = _hW / _bImg.naturalWidth;
