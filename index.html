@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512181330;
+window.__BUILD_TS = 20260512181610;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11867,12 +11867,12 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: 각 holding hold note 의 우측 상단에 남은 % (안 거슬리게 작게)
+// ★ paw_mouse 전용: 각 holding hold note 의 상단 중앙에 진행 % (0→100, 가이드 위 depth)
 function renderPawHoldPercent() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
   ctx.save();
-  ctx.font = 'bold ' + sz(11) + 'px sans-serif';
-  ctx.textAlign = 'left';
+  ctx.font = `bold ${sz(18)}px sans-serif`;
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   const _vsH = SKINS.paw_mouse?.visualSize?.holdHead;
   const _hwBase = _vsH?.widthMul ? _noteHW * _vsH.widthMul : _noteHW;
@@ -11880,13 +11880,12 @@ function renderPawHoldPercent() {
   const hY = getHitY();
   for (const n of nodes) {
     if (!n.holding || n.endTime <= n.time) continue;
-    const remaining = Math.max(0, 1 - (gameTime - n.time) / (n.endTime - n.time));
-    const txt = Math.round(remaining * 100) + '%';
-    const sx = getLaneX(n.lane);
-    const tx = sx + _hwBase * 0.95;  // head sprite 우측 끝
-    const ty = hY - _hhBase * 0.85;  // head sprite 상단
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillText(txt, tx + 1, ty + 1);
+    const progress = Math.min(1, Math.max(0, (gameTime - n.time) / (n.endTime - n.time)));  // 0 → 1
+    const txt = Math.round(progress * 100) + '%';
+    const tx = getLaneX(n.lane);
+    const ty = hY - _hhBase * 1.25;  // 노트 위쪽 살짝 띄움
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillText(txt, tx + 2, ty + 2);
     ctx.fillStyle = '#fff';
     ctx.fillText(txt, tx, ty);
   }
