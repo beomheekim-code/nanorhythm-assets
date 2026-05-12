@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512095022;
+window.__BUILD_TS = 20260512095503;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11815,11 +11815,12 @@ function _bakeGuideStrip(lw, gW, gH) {
     cv.width = totalW;
     cv.height = Math.round(gH);
     const sctx = cv.getContext('2d');
-    sctx.globalAlpha = 0.15;
+    sctx.globalAlpha = 0.8;  // 윤곽 진하게 (사용자: 가이드 투명화 + 테두리만)
     // ctx 일시 swap — drawSkinSprite 가 전역 ctx 사용. let ctx 라 swap 가능.
     const _origCtx = ctx;
     ctx = sctx;
     try {
+      // 1) sprite 그림 (= 노트 모양 fill, alpha 0.8)
       for (let i = 0; i < laneCount; i++) {
         const cx = i * lw + lw / 2;
         const gx = Math.round(cx - gW/2);
@@ -11831,6 +11832,25 @@ function _bakeGuideStrip(lw, gW, gH) {
           sctx.fillRect(gx, 0, Math.round(gW), Math.round(gH));
         }
       }
+      // 2) 안쪽 erase (= sprite 작게 그려서 윤곽만 남김). 두께 sz(2).
+      sctx.globalCompositeOperation = 'destination-out';
+      sctx.globalAlpha = 1.0;
+      const _shrinkW = 2, _shrinkH = 2;
+      for (let i = 0; i < laneCount; i++) {
+        const cx = i * lw + lw / 2;
+        const gx = Math.round(cx - gW/2);
+        const _innerDrew = (typeof drawSkinSprite === 'function')
+                           ? drawSkinSprite('note', i, gx + _shrinkW, _shrinkH,
+                                            Math.max(1, gW - _shrinkW*2),
+                                            Math.max(1, gH - _shrinkH*2))
+                           : false;
+        if (!_innerDrew) {
+          sctx.fillRect(gx + _shrinkW, _shrinkH,
+                        Math.max(1, gW - _shrinkW*2),
+                        Math.max(1, gH - _shrinkH*2));
+        }
+      }
+      sctx.globalCompositeOperation = 'source-over';
     } finally {
       ctx = _origCtx;
     }
@@ -12040,9 +12060,9 @@ function renderJudgeLineDecos() {
       const _key = _rPath + ':' + _dw + ':' + _dh;
       let _baked = _judgeLineDecoBakery.get(_key);
       if (!_baked) { _baked = _bakeJudgeLineDeco(_rImg, _dw, _dh); _judgeLineDecoBakery.set(_key, _baked); }
-      // 우측 deco: 판정선 오른쪽 끝까지 (사용자 요구). deco 왼쪽 끝 = lsx + tw + sz(6) ~ 외쪽.
-      //   deco 의 안쪽 0% (= 모두 외쪽). 좌측 deco 의 외쪽 70% 와 비대칭이지만 사용자 의도.
-      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.3), Math.round(_decoY - _dh / 2));
+      // 우측 deco bottom-left = 판정선 오른쪽 끝 (사용자 시선: deco 왼쪽 아래 코너 = lsx+tw, hitY).
+      //   draw x = lsx + tw, y = hitY - _dh.
+      ctx.drawImage(_baked, Math.round(lsx + tw), Math.round(_decoY - _dh));
     } catch(e) {}
   }
 }
