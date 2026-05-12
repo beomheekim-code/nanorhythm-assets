@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512111829;
+window.__BUILD_TS = 20260512112542;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12266,35 +12266,17 @@ function renderNotes() {
           const _skinHB = SKINS[currentSkin];
           const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          // ★ paw_mouse: hold body = holdhead sprite 를 vertical stretch + alpha 그라데이션.
-          //   사용자 요구: 그라데이션처럼 길게 늘어진 이미지 느낌.
+          // ★ paw_mouse: hold body = lane color 단순 그라데이션 기둥. tail (= 위쪽 끝) 은 별도 sprite.
+          //   perf 영향 0 (= 임시 canvas X, fillRect 1회 + createLinearGradient 1회).
+          //   holdhead sprite 는 renderNotes 의 tail 분기 (line 12283+) 가 자동 그림 (= 모양 이미지).
           if (_skinHB?.holdBodyStyle === 'trail') {
-            const _hPath = _skinHB.imagePaths?.holdHead;
-            const _hImg = _hPath ? skinImages[_hPath] : null;
-            if (_hImg && _hImg.complete && _hImg.naturalWidth) {
-              const _vsT = _skinHB.visualSize?.holdHead;
-              const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-              const _hh = Math.max(1, Math.round(_barH));
-              const _hw = Math.max(1, Math.round(_hW));
-              if (!window._pawTrailCV || window._pawTrailCV.width !== _hw || window._pawTrailCV.height !== _hh) {
-                window._pawTrailCV = document.createElement('canvas');
-                window._pawTrailCV.width = _hw;
-                window._pawTrailCV.height = _hh;
-              }
-              const _tcv = window._pawTrailCV;
-              const _tctx = _tcv.getContext('2d');
-              _tctx.clearRect(0, 0, _hw, _hh);
-              _tctx.drawImage(_hImg, 0, 0, _hw, _hh);
-              _tctx.globalCompositeOperation = 'destination-in';
-              const _grad = _tctx.createLinearGradient(0, 0, 0, _hh);
-              _grad.addColorStop(0, 'rgba(0,0,0,0.15)');   // top 흐림
-              _grad.addColorStop(0.7, 'rgba(0,0,0,0.7)');
-              _grad.addColorStop(1, 'rgba(0,0,0,1)');      // bottom 진함
-              _tctx.fillStyle = _grad;
-              _tctx.fillRect(0, 0, _hw, _hh);
-              _tctx.globalCompositeOperation = 'source-over';
-              ctx.drawImage(_tcv, sx - _hW/2, barTop);
-            }
+            const _bw = _bwVis;
+            const _g = ctx.createLinearGradient(0, barTop, 0, barBot);
+            _g.addColorStop(0, col + '22');   // 위 흐림 (alpha ~0.13)
+            _g.addColorStop(0.7, col + '88'); // 중간 (alpha ~0.53)
+            _g.addColorStop(1, col + 'cc');   // 아래 진함 (alpha ~0.80)
+            ctx.fillStyle = _g;
+            rrFill(sx - _bw/2, barTop, _bw, _barH, _s7);
           } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
             ctx.fillStyle = col + '55';
             rrFill(sx - bw/2, barTop, bw, _barH, _s7);
