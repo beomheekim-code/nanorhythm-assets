@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512120509;
+window.__BUILD_TS = 20260512120744;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12268,11 +12268,10 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
-          // ★ paw_mouse: hold body = procedural 캡슐 + vertical gradient (sprite drawImage X).
-          //   사용자: 새 도형 + 간격 X 빼곡히 + 그라데이션. 단일 rrFill = perf 0 + 빈틈 X.
+          // ★ paw_mouse: hold body = procedural 좁은 캡슐 기둥 + vertical gradient.
+          //   사용자: 머리 모양 X (= 좁은 vertical 기둥). 폭 = lane 폭의 35%.
           const _barH = Math.max(0, barBot - barTop);
-          const _vsT = _skinHBg.visualSize?.holdHead;
-          const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+          const _bWcol = bw * 0.5;  // 좁게 (= lane 폭 의 50%, 노트 폭 절반)
           let _fadeAlpha = 1.0;
           if (n.holding) {
             const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
@@ -12288,8 +12287,8 @@ function renderNotes() {
             _g.addColorStop(0.5, col + '99');
             _g.addColorStop(1, col + 'ee');
             ctx.fillStyle = _g;
-            const _rad = Math.min(_hW / 2, _barH / 2);  // capsule (= 양 끝 둥근 cap)
-            rrFill(sx - _hW/2, barTop, _hW, _barH, _rad);
+            const _rad = Math.min(_bWcol / 2, _barH / 2);
+            rrFill(sx - _bWcol/2, barTop, _bWcol, _barH, _rad);
             ctx.restore();
           }
           if (n.holding && Math.random() < 0.1 && particles.length < 80) {
@@ -12438,9 +12437,11 @@ function renderNotes() {
           ctx.fillStyle = col;
           ctx.fillRect(sx-nw, sy-nh, nw*2, nh*2);
         }
-        // 상단 하이라이트 (피버 글로우는 sprite 위에도 덧입힘)
-        ctx.fillStyle = `rgba(255,255,200,${0.4*flicker})`;
-        ctx.fillRect(sx-nw+2, sy-nh+1, nw*2-4, nh*0.7);
+        // 상단 하이라이트 (피버 글로우는 sprite 위에도 덧입힘) — 사각 fillRect 라 paw_mouse 시 skip.
+        if (!_spriteGlow) {
+          ctx.fillStyle = `rgba(255,255,200,${0.4*flicker})`;
+          ctx.fillRect(sx-nw+2, sy-nh+1, nw*2-4, nh*0.7);
+        }
       } else {
         // 일반 노트 — flower skin 은 radial glow (사각 안 비침 + 떨어지는 느낌 유지)
         const _vsN = SKINS[currentSkin]?.visualSize?.note;
