@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512135039;
+window.__BUILD_TS = 20260512135212;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12008,10 +12008,10 @@ function _bakeGuideStrip(lw, gW, gH) {
           sctx.fillRect(gx, 0, Math.round(gW), Math.round(gH));
         }
       }
-      // 2) 안쪽 erase (= sprite 작게 그려서 윤곽만 남김). 두께 sz(2).
+      // 2) 안쪽 erase (= sprite 작게 그려서 윤곽만 남김). paw_mouse = 더 두꺼움 (sz(2)→sz(6)).
       sctx.globalCompositeOperation = 'destination-out';
       sctx.globalAlpha = 1.0;
-      const _shrinkW = 2, _shrinkH = 2;
+      const _shrinkW = _pawUni ? 6 : 2, _shrinkH = _pawUni ? 6 : 2;
       for (let i = 0; i < laneCount; i++) {
         const cx = i * lw + lw / 2;
         const gx = Math.round(cx - gW/2);
@@ -12302,27 +12302,24 @@ function renderNotes() {
           if (_bImg && _bImg.complete && _bImg.naturalWidth) {
             const _vsT = _skinHBg.visualSize?.holdHead;
             const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-            let _fadeAlpha = 1.0;
+            // ★ holding 시 body 가 head 근처 (= 아래쪽) 부터 차근차근 사라짐. alpha 변화 X (= 색 유지).
+            let _holdProgress = 0;
             if (n.holding) {
               const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
-              _fadeAlpha = Math.max(0, 1 - _hp);
+              _holdProgress = Math.max(0, Math.min(1, _hp));
             } else if (n.holdComplete) {
-              _fadeAlpha = 0.2;
+              _holdProgress = 1.0;
             }
-            if (_fadeAlpha > 0.02 && _barH > 0) {
-              // ★ ATLAS 화 — atlas (600×4000): 위쪽 cap + 아래쪽 양쪽 귀 stripe.
-              //   body dest = barTop ~ (barBot - _hH). head sprite 와 겹치는 영역 (= 아래쪽 _hH) 제외.
+            if (_barH > 0 && _holdProgress < 1) {
               const _scale = _hW / _bImg.naturalWidth;
-              const _spriteH = _hW;  // head sprite 사이즈 (= square)
-              const _bodyEffH = Math.max(0, _barH - _spriteH);
+              const _spriteH = _hW;
+              const _bodyBase = Math.max(0, _barH - _spriteH);
+              const _bodyEffH = _bodyBase * (1 - _holdProgress);  // 위쪽 부분만 남김
               if (_bodyEffH > 0) {
                 const _srcH = Math.min(_bImg.naturalHeight, Math.round(_bodyEffH / _scale));
-                ctx.save();
-                ctx.globalAlpha = _fadeAlpha;
                 ctx.drawImage(_bImg,
                               0, 0, _bImg.naturalWidth, _srcH,
                               sx - _hW/2, barTop, _hW, _bodyEffH);
-                ctx.restore();
               }
             }
           }
