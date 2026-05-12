@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512171529;
+window.__BUILD_TS = 20260512171738;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12312,21 +12312,26 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ atlas v20 = cap(0~90) + stripe(90~end). drawImage 2번 — cap 자연 비율 고정.
-            //   body bottom = barBot - hW*0.21 (= head sprite visible top). 침범 visual X.
-            const _bH = barBot - barTop - _hW * 0.21;
-            if (_bH > 0 && _holdProgress < 1) {
-              const _aH = _bImg.naturalHeight;
-              const _aW = _bImg.naturalWidth;
-              const _capH = Math.min(_hW * 0.3, _bH);
-              ctx.drawImage(_bImg, 0, 0, _aW, 90, sx - _hW/2, barTop, _hW, _capH);
-              const _stH = _bH - _capH;
-              if (_stH > 0) ctx.drawImage(_bImg, 0, 90, _aW, _aH - 90, sx - _hW/2, barTop + _capH, _hW, _stH);
+            // ★ paw_mouse 신규 컨셉: body+cap atlas 제거. head sprite 만 판정선에 머무름.
+            //   hold 동안 강한 이펙트 (glow pulse + particle 증가).
+            //   hold release → spawnPawDeadFx 가 holdHeadDead sprite 자동 출력 (기존 path).
+            if (n.holding) {
+              // glow pulse (head 주위 빛 효과)
+              const _pulse = 0.5 + 0.5 * Math.sin(gameTime * 8);
+              const _gR = _hW * (0.9 + 0.15 * _pulse);
+              const _gr = ctx.createRadialGradient(sx, hitY, 0, sx, hitY, _gR);
+              _gr.addColorStop(0, col + '00');
+              _gr.addColorStop(0.4, col + (Math.floor(100 + 80 * _pulse).toString(16)).padStart(2, '0'));
+              _gr.addColorStop(1, col + '00');
+              ctx.fillStyle = _gr;
+              ctx.fillRect(sx - _gR, hitY - _gR, _gR * 2, _gR * 2);
+              // particle 증가 (빈도 0.1 → 0.3)
+              if (Math.random() < 0.3 && particles.length < 100) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = _hW * 0.4 * Math.random();
+                spawnParticles(sx + Math.cos(angle) * r, hitY + Math.sin(angle) * r, col, 2);
+              }
             }
-          }
-          if (n.holding && Math.random() < 0.1 && particles.length < 80) {
-            const py = barTop + Math.random() * (hitY - barTop);
-            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
           }
         } else if (n.holding) {
           ctx.fillStyle = col + '40';
