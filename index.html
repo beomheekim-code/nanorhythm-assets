@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512094510;
+window.__BUILD_TS = 20260512095022;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12040,7 +12040,9 @@ function renderJudgeLineDecos() {
       const _key = _rPath + ':' + _dw + ':' + _dh;
       let _baked = _judgeLineDecoBakery.get(_key);
       if (!_baked) { _baked = _bakeJudgeLineDeco(_rImg, _dw, _dh); _judgeLineDecoBakery.set(_key, _baked); }
-      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.7), Math.round(_decoY - _dh / 2));
+      // 우측 deco: 판정선 오른쪽 끝까지 (사용자 요구). deco 왼쪽 끝 = lsx + tw + sz(6) ~ 외쪽.
+      //   deco 의 안쪽 0% (= 모두 외쪽). 좌측 deco 의 외쪽 70% 와 비대칭이지만 사용자 의도.
+      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.3), Math.round(_decoY - _dh / 2));
     } catch(e) {}
   }
 }
