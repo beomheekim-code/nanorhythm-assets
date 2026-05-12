@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512113331;
+window.__BUILD_TS = 20260512113753;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8566,7 +8566,7 @@ function handleLanePress(lane, src) {
     if (judgmentPriority < 2) { judgmentText = txt; judgmentTimer = 0.5; judgmentColor = col; judgmentPriority = 0; }
     playerAnim = 0.2;
     spawnParticles(getLaneX(lane), hitY, LANE_COLORS[lane], 6);
-    spawnPawDeadFx(getLaneX(lane), hitY, lane);  // ★ paw_mouse: 홀드 시작 hit 시도 dead fx
+    // 홀드 시작 hit = dead fx X (= 마지막 release 시에만, 사용자 요구).
   } else {
     let pts, txt, col;
     let grade;
@@ -12273,8 +12273,9 @@ function renderNotes() {
           const _skinHB = SKINS[currentSkin];
           const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          // ★ paw_mouse: hold body = holdhead 의 가운데 1px row 를 vertical stretch.
-          //   기본 노트 sprite 와 자연스럽게 이어지는 기둥 (= 위/아래 cap + 그 사이 stretch).
+          // ★ paw_mouse: hold body = sprite 위쪽 절반 (= 귀 + head 위쪽) vertical stretch.
+          //   자연스러운 그라데이션 (sprite 자체 색 변화 = 귀→head). tail (위쪽 끝) =
+          //   자동으로 sprite 위쪽 가장자리 (= 둥근 모양 cap). tail 분기는 paw_mouse 시 skip.
           //   perf 영향 0 (= drawImage 1번. cache 무관).
           if (_skinHB?.holdBodyStyle === 'trail') {
             const _hPath = _skinHB.imagePaths?.holdHead;
@@ -12282,10 +12283,9 @@ function renderNotes() {
             if (_hImg && _hImg.complete && _hImg.naturalWidth) {
               const _vsT = _skinHB.visualSize?.holdHead;
               const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-              // source = sprite 의 가운데 horizontal 1px row (입/코 부근).
-              const _srcY = Math.round(_hImg.naturalHeight * 0.5);
+              const _srcH = Math.round(_hImg.naturalHeight * 0.5);  // 위쪽 절반 (귀+head 위쪽)
               ctx.drawImage(_hImg,
-                0, _srcY, _hImg.naturalWidth, 1,
+                0, 0, _hImg.naturalWidth, _srcH,
                 sx - _hW/2, barTop, _hW, _barH);
             }
           } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
@@ -12297,8 +12297,8 @@ function renderNotes() {
         }
       }
 
-      // ── 2) Tail (body 위 z) — head 와 동일 꽃 sprite.
-      if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete) {
+      // ── 2) Tail (body 위 z) — head 와 동일 꽃 sprite. paw_mouse 는 body 의 위쪽 끝이 자동 cap.
+      if (tailY > -30 && tailY < hitY + 60 && !n.holdComplete && SKINS[currentSkin]?.holdBodyStyle !== 'trail') {
         const _vsT = SKINS[currentSkin]?.visualSize?.holdHead;
         const _twVis = _vsT?.widthMul ? _noteHW * _vsT.widthMul : _noteHW;
         const _thVis = _vsT?.heightRatio ? _twVis * _vsT.heightRatio
