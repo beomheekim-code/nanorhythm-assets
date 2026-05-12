@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512145005;
+window.__BUILD_TS = 20260512145413;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1209,8 +1209,8 @@ const FORCE_REPATCH_LIST = [
   'icon.png',
   // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
   'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
-  // paw_mouse holdbody atlas v2 — 새 path (cache 강제 무효화)
-  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v2.png',
+  // paw_mouse holdbody atlas v3 — 봉긋한 귀 + cache 강제 무효화
+  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v3.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -4185,7 +4185,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v2.png',  // 600×600 atlas (cap + stripe), v2 = cache bust
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v3.png',  // 600×240 (cap 180 자연 비율 + stripe 60), v3 = 봉긋한 귀
     },
     sprites: {
       note: [
@@ -12312,15 +12312,15 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ atlas = cap (위쪽 둥근 귀) + stripe (양쪽 귀 column).
-            //   body 가 판정선(barBot)부터 위로 사라짐 — hold 진행 시 dest bottom 이 위로 줄어듦.
-            //   _baseBodyH = full hold body 길이, _bodyH = _baseBodyH * (1 - holdProgress)
+            // ★ atlas = cap (위쪽 봉긋한 귀 자연 비율) + stripe (양쪽 귀 column).
+            //   body bottom = barBot - hW*0.2 (head sprite 귀밑 끝, 머리 침범 X).
+            //   추가 fade 제거 — 자연 hold 만 (tail 자연 내려옴 = 서서히 사라짐).
             const _bodyTop = barTop;
-            const _baseBodyH = Math.max(0, barBot - _bodyTop);
-            const _bodyH = _baseBodyH * (1 - _holdProgress);  // 판정선부터 위로 fade
+            const _bodyBottom = barBot - _hW * 0.2;
+            const _bodyH = Math.max(0, _bodyBottom - _bodyTop);
             if (_bodyH > 0) {
               const _scaleX = _hW / _bImg.naturalWidth;
-              const CAP_SRC_H = 90;
+              const CAP_SRC_H = 180;  // v3 atlas cap height (자연 비율)
               const _capDestH = Math.min(CAP_SRC_H * _scaleX, _bodyH);
               ctx.drawImage(_bImg, 0, 0, _bImg.naturalWidth, CAP_SRC_H,
                             sx - _hW/2, _bodyTop, _hW, _capDestH);
