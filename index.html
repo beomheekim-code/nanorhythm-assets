@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512120923;
+window.__BUILD_TS = 20260512121507;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4170,6 +4170,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody.png',  // 720×720 silhouette
     },
     sprites: {
       note: [
@@ -12276,28 +12277,37 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
-          // ★ paw_mouse: hold body = procedural 좁은 캡슐 기둥 + vertical gradient.
-          //   사용자: 머리 모양 X (= 좁은 vertical 기둥). 폭 = lane 폭의 35%.
+          // ★ paw_mouse: hold body = holdbody.png silhouette 빼곡 반복 + vertical gradient.
+          //   사용자: silhouette sprite 만든 거 이어붙임. step = sprite height (= 간격 0).
           const _barH = Math.max(0, barBot - barTop);
-          const _bWcol = bw * 0.5;  // 좁게 (= lane 폭 의 50%, 노트 폭 절반)
-          let _fadeAlpha = 1.0;
-          if (n.holding) {
-            const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
-            _fadeAlpha = Math.max(0, 1 - _hp);
-          } else if (n.holdComplete) {
-            _fadeAlpha = 0.2;
-          }
-          if (_fadeAlpha > 0.02 && _barH > 0) {
-            ctx.save();
-            ctx.globalAlpha = _fadeAlpha;
-            const _g = ctx.createLinearGradient(0, barTop, 0, barBot);
-            _g.addColorStop(0, col + '33');
-            _g.addColorStop(0.5, col + '99');
-            _g.addColorStop(1, col + 'ee');
-            ctx.fillStyle = _g;
-            const _rad = Math.min(_bWcol / 2, _barH / 2);
-            rrFill(sx - _bWcol/2, barTop, _bWcol, _barH, _rad);
-            ctx.restore();
+          const _bPath = _skinHBg.imagePaths?.holdBody;
+          const _bImg = _bPath ? skinImages[_bPath] : null;
+          if (_bImg && _bImg.complete && _bImg.naturalWidth) {
+            const _vsT = _skinHBg.visualSize?.holdHead;
+            const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+            const _hH = _hW;  // 정 사이즈 (square sprite)
+            const _step = _hH;  // 빼곡 (= 간격 0)
+            let _fadeAlpha = 1.0;
+            if (n.holding) {
+              const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
+              _fadeAlpha = Math.max(0, 1 - _hp);
+            } else if (n.holdComplete) {
+              _fadeAlpha = 0.2;
+            }
+            if (_fadeAlpha > 0.02 && _step > 0) {
+              const _count = Math.min(40, Math.ceil(_barH / _step) + 1);
+              ctx.save();
+              for (let _i = 0; _i < _count; _i++) {
+                const _y = barBot - _i * _step;
+                if (_y + _hH < barTop) break;
+                // alpha: 아래쪽 (= barBot) 진함 1.0, 위쪽 (= barTop) 흐림 0.25.
+                const _tNorm = _count > 1 ? _i / (_count - 1) : 0;
+                const _a = (1 - _tNorm * 0.75) * _fadeAlpha;
+                ctx.globalAlpha = _a;
+                ctx.drawImage(_bImg, sx - _hW/2, _y - _hH, _hW, _hH);
+              }
+              ctx.restore();
+            }
           }
           if (n.holding && Math.random() < 0.1 && particles.length < 80) {
             const py = barTop + Math.random() * (hitY - barTop);
