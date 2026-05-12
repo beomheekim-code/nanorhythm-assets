@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512120313;
+window.__BUILD_TS = 20260512120509;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4934,15 +4934,15 @@ function _ensureSongLevelCache() {
   _songLevelCache = map;
   return map;
 }
-// 곡+난이도별 레벨: percentile + 키수 보정 → 해당 난이도 범위에 매핑
+// ★ 곡 레벨: 난이도 무관 단일 레벨 (사용자 요구). 실제 체감 난이도 = raw score + levelBonus.
+//   diffIdx 인자는 backward-compat 으로 유지하되 무시. 모든 난이도 = 동일 레벨.
 function calcLevel(songIdx, diffIdx) {
   const pct = _ensureSongLevelCache()[songIdx] != null ? _songLevelCache[songIdx] : 0.5;
-  // 키 수 보정: 4=-0.18, 5=-0.09, 6=0, 7=+0.09, 8=+0.18 — 키 수 차이로 명확히 레벨 분리
-  const laneAdj = (laneCount - 6) * 0.09;
+  const laneAdj = (laneCount - 6) * 0.09;  // 키 수 보정
   const score = Math.max(0, Math.min(1, pct + laneAdj));
-  const [lo, hi] = DIFF_LEVEL_RANGES[diffIdx] || [1, 15];
-  const lvl = Math.round(lo + score * (hi - lo));
-  return Math.max(lo, Math.min(hi, lvl));
+  // 단일 range = 1~15. raw score 0~1 → level 1~15.
+  const lvl = Math.round(1 + score * 14);
+  return Math.max(1, Math.min(15, lvl));
 }
 let selectedDiff = 1;
 let selectedSpeed = 1.0;
