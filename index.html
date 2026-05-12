@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512123514;
+window.__BUILD_TS = 20260512123814;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12310,19 +12310,22 @@ function renderNotes() {
               _fadeAlpha = 0.2;
             }
             if (_fadeAlpha > 0.02 && _barH > 0) {
-              // pattern cache (= ctx + img 동일 시 재사용)
+              // pattern cache (= 1회 생성 + matrix property 만 수정).
               if (!window._pawHoldBodyPattern || window._pawHoldBodyPattern._ctx !== ctx || window._pawHoldBodyPattern._img !== _bImg) {
                 window._pawHoldBodyPattern = ctx.createPattern(_bImg, 'repeat');
                 window._pawHoldBodyPattern._ctx = ctx;
                 window._pawHoldBodyPattern._img = _bImg;
+                window._pawHoldBodyMatrix = new DOMMatrix();
               }
               const _scale = _hW / _bImg.naturalWidth;
+              const _m = window._pawHoldBodyMatrix;
+              _m.a = _scale; _m.d = _scale; _m.b = 0; _m.c = 0;
+              _m.e = sx - _hW/2; _m.f = barTop;
+              window._pawHoldBodyPattern.setTransform(_m);
               ctx.save();
               ctx.globalAlpha = _fadeAlpha;
-              ctx.translate(sx - _hW/2, barTop);
-              ctx.scale(_scale, _scale);
               ctx.fillStyle = window._pawHoldBodyPattern;
-              ctx.fillRect(0, 0, _bImg.naturalWidth, _barH / _scale);
+              ctx.fillRect(sx - _hW/2, barTop, _hW, _barH);
               ctx.restore();
             }
           }
