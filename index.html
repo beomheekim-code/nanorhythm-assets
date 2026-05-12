@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512181610;
+window.__BUILD_TS = 20260512181728;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11181,8 +11181,9 @@ function render() {
     _measure('renderParticles', () => renderParticles());
     _measure('renderHoldGlows', () => renderHoldGlows());
     _measure('renderJudgeLineDecos', () => renderJudgeLineDecos());
-    _measure('renderPawDeadFx', () => renderPawDeadFx());
-    _measure('renderBursts', () => renderBursts());
+    _measure('renderPawHoldHead', () => renderPawHoldHead());  // ★ 판정선 위 + hit fx 아래
+    _measure('renderPawDeadFx', () => renderPawDeadFx());       // ★ 판정선 위 + hit fx 아래
+    _measure('renderBursts', () => renderBursts());              // hit fx (최상단)
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
     _measure('renderPawHoldPercent', () => renderPawHoldPercent());
@@ -11199,8 +11200,9 @@ function render() {
     renderParticles();
     renderHoldGlows();
     renderJudgeLineDecos();
-    renderPawDeadFx();
-    renderBursts();
+    renderPawHoldHead();  // ★ 판정선 위 + hit fx 아래
+    renderPawDeadFx();    // ★ 판정선 위 + hit fx 아래
+    renderBursts();       // hit fx (최상단)
     renderJudgment();
     renderUI();
     renderPawHoldPercent();
@@ -11892,7 +11894,7 @@ function renderPawHoldPercent() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: holding 중 head sprite 별도 render (z-order 위 + 심장 박동 bounce pulse).
+// ★ paw_mouse 전용: holding 중 head sprite 별도 render (판정선 위 + hit fx 아래 + 심장 박동 bounce).
 function renderPawHoldHead() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
   const s = SKINS.paw_mouse;
@@ -12415,10 +12417,9 @@ function renderNotes() {
       }
 
       // ── 3) Head (최상단) — skip if already hit or missed
-      // ★ paw_mouse trail: hit 후 holding 시에도 head 그림 (sy = hitY) + falling 부터 bounce pulse 적용
-      const _isPawHead = !n.missed && SKINS[currentSkin]?.holdBodyStyle === 'trail' && n.holding;
-      if ((!n.hit && !n.missed) || _isPawHead) {
-        const sy = _isPawHead ? hitY : headY;
+      // ★ paw_mouse trail + holding 의 head 는 renderPawHoldHead 에서 별도 그림 (판정선 위 + hit fx 아래)
+      if (!n.hit && !n.missed) {
+        const sy = headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
           const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
