@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512182234;
+window.__BUILD_TS = 20260512182433;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10803,10 +10803,20 @@ function update(dt) {
     holdGlows.length = _w;
   }
   // ★ paw_mouse dead fx — fade out (= 동일 write-pointer 패턴)
+  //   + 같은 lane 다음 노트 hit line 근접 시 즉시 제거 (= dead 연출 끊고 새 노트 visual)
   {
     let _w = 0;
     for (let i = 0; i < pawDeadFx.length; i++) {
       pawDeadFx[i].time += dt;
+      let _overlap = false;
+      for (const n of nodes) {
+        if (n.hit || n.missed) continue;
+        if (n.lane !== pawDeadFx[i].lane) continue;
+        if (n.time - gameTime > 0.3) break;  // 미래 0.3초 이내만
+        const _dist = Math.abs(n.time - gameTime) * noteSpeed;
+        if (_dist < 60) { _overlap = true; break; }
+      }
+      if (_overlap) continue;
       if (pawDeadFx[i].time < pawDeadFx[i].maxTime) {
         if (_w !== i) pawDeadFx[_w] = pawDeadFx[i];
         _w++;
