@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512160145;
+window.__BUILD_TS = 20260512164026;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1209,8 +1209,8 @@ const FORCE_REPATCH_LIST = [
   'icon.png',
   // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
   'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
-  // paw_mouse holdbody atlas v17 — cap dome + cosine transition (볼륨감 + 매끄러움)
-  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v17.png',
+  // paw_mouse holdbody atlas v18 — 가운데 음영 (concave 파인 효과) + 양쪽 ears 봉긋
+  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v18.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -4185,7 +4185,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v17.png',  // v17 = cap dome → cosine transition (볼륨감 + 매끄러운 경계)
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v18.png',  // v18 = 가운데 음영 (concave) + 양쪽 ears 봉긋
     },
     sprites: {
       note: [
@@ -12312,9 +12312,10 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ atlas v17 = cap(0~90) + stripe(90~600). drawImage 2번 — cap 자연 비율 고정 (안 움직임).
-            //   body bottom = barBot (판정선까지 hit 연출). hit 후 head sprite 도 그려지니 침범 visual X.
-            const _bH = barBot - barTop;
+            // ★ atlas v18 = cap(0~90) + stripe(90~600). drawImage 2번 — cap 자연 비율 고정.
+            //   body bottom = barBot - hW*0.21 (= head sprite visible top, y=50/600).
+            //   body 가 head sprite 의 transparent 영역 (= 양쪽 귀 사이) 안 들어감 → 침범 visual 회피.
+            const _bH = barBot - barTop - _hW * 0.21;
             if (_bH > 0 && _holdProgress < 1) {
               const _capH = Math.min(_hW * 0.3, _bH);
               ctx.drawImage(_bImg, 0, 0, 600, 90, sx - _hW/2, barTop, _hW, _capH);
