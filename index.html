@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512174256;
+window.__BUILD_TS = 20260512175011;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1218,7 +1218,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 35;
+const FORCE_REPATCH_VERSION = 36;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -11181,9 +11181,8 @@ function render() {
     _measure('renderParticles', () => renderParticles());
     _measure('renderHoldGlows', () => renderHoldGlows());
     _measure('renderJudgeLineDecos', () => renderJudgeLineDecos());
-    _measure('renderPawHoldHead', () => renderPawHoldHead());  // ★ head depth high (hit fx 다음)
-    _measure('renderPawDeadFx', () => renderPawDeadFx());       // ★ dead depth high
-    _measure('renderBursts', () => renderBursts());              // hit fx 최상단
+    _measure('renderPawDeadFx', () => renderPawDeadFx());
+    _measure('renderBursts', () => renderBursts());
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
   } else {
@@ -11199,9 +11198,8 @@ function render() {
     renderParticles();
     renderHoldGlows();
     renderJudgeLineDecos();
-    renderPawHoldHead();  // ★ head depth high (hit fx 다음)
-    renderPawDeadFx();    // ★ dead depth high
-    renderBursts();        // hit fx 최상단
+    renderPawDeadFx();
+    renderBursts();
     renderJudgment();
     renderUI();
   }
@@ -12337,26 +12335,9 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ paw_mouse 신규 컨셉: body+cap atlas 제거. head sprite 만 판정선에 머무름.
-            //   hold 동안 강한 이펙트 (glow pulse + particle 증가).
-            //   hold release → spawnPawDeadFx 가 holdHeadDead sprite 자동 출력 (기존 path).
-            if (n.holding) {
-              // glow pulse (head 주위 빛 효과)
-              const _pulse = 0.5 + 0.5 * Math.sin(gameTime * 8);
-              const _gR = _hW * (0.9 + 0.15 * _pulse);
-              const _gr = ctx.createRadialGradient(sx, hitY, 0, sx, hitY, _gR);
-              _gr.addColorStop(0, col + '00');
-              _gr.addColorStop(0.4, col + (Math.floor(100 + 80 * _pulse).toString(16)).padStart(2, '0'));
-              _gr.addColorStop(1, col + '00');
-              ctx.fillStyle = _gr;
-              ctx.fillRect(sx - _gR, hitY - _gR, _gR * 2, _gR * 2);
-              // particle 증가 (빈도 0.1 → 0.3)
-              if (Math.random() < 0.3 && particles.length < 100) {
-                const angle = Math.random() * Math.PI * 2;
-                const r = _hW * 0.4 * Math.random();
-                spawnParticles(sx + Math.cos(angle) * r, hitY + Math.sin(angle) * r, col, 2);
-              }
-            }
+            // ★ paw_mouse 신규 컨셉: body+cap atlas 제거. head sprite 만 그려짐.
+            //   bounce pulse 는 head 그리기 path 에서 (= falling + holding 둘 다).
+            //   별도 glow/particle 이펙트 제거.
           }
         } else if (n.holding) {
           ctx.fillStyle = col + '40';
@@ -12407,15 +12388,22 @@ function renderNotes() {
       }
 
       // ── 3) Head (최상단) — skip if already hit or missed
-      // ★ paw_mouse trail + holding 의 head 는 renderPawHoldHead 에서 별도 그림 (z-order 위 + bounce pulse).
-      if (!n.hit && !n.missed) {
-        const sy = headY;
+      // ★ paw_mouse trail: hit 후 holding 시에도 head 그림 (sy = hitY) + falling 부터 bounce pulse 적용
+      const _isPawHead = !n.missed && SKINS[currentSkin]?.holdBodyStyle === 'trail' && n.holding;
+      if ((!n.hit && !n.missed) || _isPawHead) {
+        const sy = _isPawHead ? hitY : headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
           const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
-          const _hwVis = _vsH?.widthMul ? hw * _vsH.widthMul : hw;
-          const _hhVis = _vsH?.heightRatio ? _hwVis * _vsH.heightRatio
-                       : _vsH?.heightMul ? hh * _vsH.heightMul : hh;
+          let _hwVis = _vsH?.widthMul ? hw * _vsH.widthMul : hw;
+          let _hhVis = _vsH?.heightRatio ? _hwVis * _vsH.heightRatio
+                     : _vsH?.heightMul ? hh * _vsH.heightMul : hh;
+          // ★ paw_mouse trail: 떨어질 때부터 심장 박동 bounce pulse (= 항상 적용)
+          if (SKINS[currentSkin]?.holdBodyStyle === 'trail') {
+            const _bouncePulse = 1 + 0.12 * Math.sin(gameTime * 7);
+            _hwVis *= _bouncePulse;
+            _hhVis *= _bouncePulse;
+          }
           // Glow — flower skin 은 radial, 기본은 rect
           const _glowStyle = SKINS[currentSkin]?.glowStyle;
           if (_glowStyle === 'radial') {
