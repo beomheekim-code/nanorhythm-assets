@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512121815;
+window.__BUILD_TS = 20260512121957;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -15341,6 +15341,13 @@ function handleShopClick(mx, my) {
       return;
     }
   }
+  // 스킨 서브탭 클릭 (노트/UI/히트이펙트)
+  for (const t of _shopSkinSubTabAreas) {
+    if (hitTest(mx, my, t.x, t.y, t.w, t.h)) {
+      if (shopSkinSubTab !== t.id) { shopSkinSubTab = t.id; shopScroll = 0; playScrollTick(); }
+      return;
+    }
+  }
   // localhost 구독 취소
   if (isTestEnv && shopCancelArea && hitTest(mx, my, shopCancelArea.x, shopCancelArea.y, shopCancelArea.w, shopCancelArea.h)) { cancelPass(); shopCancelArea = null; return; }
   // localhost 스킨 보유 취소 (버튼이 구매 카드 영역과 겹치므로 먼저 검사)
@@ -15370,12 +15377,19 @@ function handleShopClick(mx, my) {
   const _shopHeaderH = _shopMobile ? (sz(44) + safeTop) : sz(56);
   const _tabY = _shopHeaderTop + _shopHeaderH + sz(8);
   const _tabH = sz(28);
-  const _shopContentTop = _tabY + _tabH + sz(8);
+  // 스킨 서브탭 차감 — renderShop 과 동일 계산
+  let _subBot = _tabY + _tabH;
+  if (shopTab === '스킨') _subBot = _tabY + _tabH + sz(6) + sz(24);
+  const _shopContentTop = _subBot + sz(8);
   const cw = Math.min(sz(360), W * 0.92);
   const cx = (W - cw) / 2;
   let y = _shopContentTop + sz(14) - shopScroll;
-  // ★ 현재 탭만 필터 (renderShop 과 동일) — 탭 분리 후 좌표 어긋남 버그 fix
-  const items = getShopItems().filter(it => it.section === shopTab);
+  // ★ 현재 탭 + 스킨 서브탭 필터 (renderShop 과 동일)
+  const items = getShopItems().filter(it => {
+    if (it.section !== shopTab) return false;
+    if (shopTab === '스킨' && it.skinCategory && it.skinCategory !== shopSkinSubTab) return false;
+    return true;
+  });
   let lastSec = '';
   for (const item of items) {
     if (item.section && item.section !== lastSec) { lastSec = item.section; y += sz(24); }
@@ -15593,8 +15607,12 @@ function renderShop() {
   ctx.clip();
   const cw = Math.min(sz(360), W * 0.92), cx = (W - cw) / 2;
   let y = _contentTop + sz(14) - shopScroll;
-  // 현재 탭에 해당하는 item 만 필터
-  const items = getShopItems().filter(it => it.section === shopTab);
+  // 현재 탭에 해당하는 item 만 필터 (+ 스킨 탭은 서브탭으로 추가 필터)
+  const items = getShopItems().filter(it => {
+    if (it.section !== shopTab) return false;
+    if (shopTab === '스킨' && it.skinCategory && it.skinCategory !== shopSkinSubTab) return false;
+    return true;
+  });
   let lastSection = '';
   shopCancelArea = null;
   _shopSkinCancelAreas.length = 0;
