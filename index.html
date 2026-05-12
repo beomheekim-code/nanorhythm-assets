@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512120744;
+window.__BUILD_TS = 20260512120923;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4920,27 +4920,35 @@ function _songRawDifficulty(song) {
   if (typeof song.levelBonus === 'number') raw += song.levelBonus; // 곡별 레벨 가산 (실제 onset 기반 난이도 반영)
   return raw;
 }
-// 모든 곡 raw score 캐시 + 정렬된 인덱스 (퍼센타일 매핑용)
+// ★ 모든 (song, diff) 조합의 score 캐시 + 전체 percentile 매핑.
+//   사용자: A곡 보통 = 3 > B곡 지옥 = 2 가능. 절대 비교 = 전체 (song, diff) 분포 기반.
 let _songLevelCache = null;
 function _ensureSongLevelCache() {
-  if (_songLevelCache && _songLevelCache.length === songs.length) return _songLevelCache;
-  const arr = songs.map((s, i) => ({ idx: i, raw: _songRawDifficulty(s) }));
-  arr.sort((a, b) => a.raw - b.raw);
-  // 각 곡에 percentile 부여 (0~1)
-  const map = new Array(songs.length);
-  for (let r = 0; r < arr.length; r++) {
-    map[arr[r].idx] = arr.length > 1 ? r / (arr.length - 1) : 0.5;
+  if (_songLevelCache && _songLevelCache.n === songs.length) return _songLevelCache;
+  const arr = [];
+  for (let s = 0; s < songs.length; s++) {
+    const raw = _songRawDifficulty(songs[s]);
+    for (let d = 0; d < DIFFICULTIES.length; d++) {
+      const mul = DIFFICULTIES[d].noteDensity || 0.5;
+      arr.push({ s, d, score: raw * mul });
+    }
   }
-  _songLevelCache = map;
-  return map;
+  arr.sort((a, b) => a.score - b.score);
+  const map = {};
+  for (let r = 0; r < arr.length; r++) {
+    const p = arr.length > 1 ? r / (arr.length - 1) : 0.5;
+    map[arr[r].s + '_' + arr[r].d] = p;
+  }
+  _songLevelCache = { n: songs.length, map };
+  return _songLevelCache;
 }
-// ★ 곡 레벨: 난이도 무관 단일 레벨 (사용자 요구). 실제 체감 난이도 = raw score + levelBonus.
-//   diffIdx 인자는 backward-compat 으로 유지하되 무시. 모든 난이도 = 동일 레벨.
+// ★ 곡+난이도 레벨: 모든 (song, diff) 절대 비교. 1~15.
 function calcLevel(songIdx, diffIdx) {
-  const pct = _ensureSongLevelCache()[songIdx] != null ? _songLevelCache[songIdx] : 0.5;
-  const laneAdj = (laneCount - 6) * 0.09;  // 키 수 보정
+  const cache = _ensureSongLevelCache();
+  const key = songIdx + '_' + (diffIdx != null ? diffIdx : 1);
+  const pct = cache.map[key] != null ? cache.map[key] : 0.5;
+  const laneAdj = (laneCount - 6) * 0.05;  // 키 수 보정 (약하게)
   const score = Math.max(0, Math.min(1, pct + laneAdj));
-  // 단일 range = 1~15. raw score 0~1 → level 1~15.
   const lvl = Math.round(1 + score * 14);
   return Math.max(1, Math.min(15, lvl));
 }
