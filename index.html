@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512155825;
+window.__BUILD_TS = 20260512160145;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12313,8 +12313,8 @@ function renderNotes() {
               _holdProgress = 1.0;
             }
             // ★ atlas v17 = cap(0~90) + stripe(90~600). drawImage 2번 — cap 자연 비율 고정 (안 움직임).
-            //   body bottom = barBot - hW*0.2 (귀밑 끝, head 머리 침범 X). head layer 위에서 자연 연결.
-            const _bH = barBot - barTop - _hW * 0.2;
+            //   body bottom = barBot (판정선까지 hit 연출). hit 후 head sprite 도 그려지니 침범 visual X.
+            const _bH = barBot - barTop;
             if (_bH > 0 && _holdProgress < 1) {
               const _capH = Math.min(_hW * 0.3, _bH);
               ctx.drawImage(_bImg, 0, 0, 600, 90, sx - _hW/2, barTop, _hW, _capH);
@@ -12375,8 +12375,10 @@ function renderNotes() {
       }
 
       // ── 3) Head (최상단) — skip if already hit or missed
-      if (!n.hit && !n.missed) {
-        const sy = headY;
+      // ★ paw_mouse trail: hit 후 hold 중에도 head sprite 그림 (= body 침범 visual 회피).
+      const _isPawHead = !n.missed && SKINS[currentSkin]?.holdBodyStyle === 'trail' && n.holding;
+      if ((!n.hit && !n.missed) || _isPawHead) {
+        const sy = _isPawHead ? hitY : headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
           const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
