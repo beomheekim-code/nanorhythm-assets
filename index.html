@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512181728;
+window.__BUILD_TS = 20260512182028;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1218,7 +1218,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 41;
+const FORCE_REPATCH_VERSION = 42;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -8637,7 +8637,7 @@ function spawnPawDeadFx(x, y, lane, kind) {
   for (let i = pawDeadFx.length - 1; i >= 0; i--) {
     if (pawDeadFx[i].lane === lane) pawDeadFx.splice(i, 1);
   }
-  pawDeadFx.push({ x, y, lane, kind: kind || 'note', time: 0, maxTime: 0.5 });
+  pawDeadFx.push({ x, y, lane, kind: kind || 'note', time: 0, maxTime: 1.0 });
 }
 
 function spawnBurst(x, y, grade) {
@@ -11859,7 +11859,8 @@ function renderPawDeadFx() {
   ctx.save();
   for (const fx of pawDeadFx) {
     const t = fx.time / fx.maxTime;
-    const alpha = 1 - t;
+    // 처음 0.6 동안 alpha 1.0 유지 (명확 visible), 마지막 0.4 동안 fade out
+    const alpha = t < 0.6 ? 1.0 : Math.max(0, 1 - (t - 0.6) / 0.4);
     const scale = 1 + t * 0.15;
     const w = _nW * scale, h = _nH * scale;
     ctx.globalAlpha = alpha;
@@ -11869,26 +11870,37 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: 각 holding hold note 의 상단 중앙에 진행 % (0→100, 가이드 위 depth)
+// ★ paw_mouse 전용: 각 holding hold note 의 상단 중앙에 진행 % (백판 + 노란 텍스트)
 function renderPawHoldPercent() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
   ctx.save();
-  ctx.font = `bold ${sz(18)}px sans-serif`;
+  const _fs = sz(18);
+  ctx.font = `bold ${_fs}px sans-serif`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
+  ctx.textBaseline = 'middle';
   const _vsH = SKINS.paw_mouse?.visualSize?.holdHead;
   const _hwBase = _vsH?.widthMul ? _noteHW * _vsH.widthMul : _noteHW;
   const _hhBase = _vsH?.heightRatio ? _hwBase * _vsH.heightRatio : _hwBase;
   const hY = getHitY();
+  const _pad = sz(8);
+  const _bh = _fs + _pad;
+  const _br = sz(6);
   for (const n of nodes) {
     if (!n.holding || n.endTime <= n.time) continue;
-    const progress = Math.min(1, Math.max(0, (gameTime - n.time) / (n.endTime - n.time)));  // 0 → 1
+    const progress = Math.min(1, Math.max(0, (gameTime - n.time) / (n.endTime - n.time)));
     const txt = Math.round(progress * 100) + '%';
     const tx = getLaneX(n.lane);
-    const ty = hY - _hhBase * 1.25;  // 노트 위쪽 살짝 띄움
+    const ty = hY - _hhBase * 1.4;
+    const _bw = ctx.measureText(txt).width + _pad * 2;
+    // 백판 - 검정 반투명 라운드 박스
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillText(txt, tx + 2, ty + 2);
-    ctx.fillStyle = '#fff';
+    rrFill(tx - _bw/2, ty - _bh/2, _bw, _bh, _br);
+    // 테두리 - paw_mouse 빨강 톤
+    ctx.strokeStyle = 'rgba(218,109,109,0.9)';
+    ctx.lineWidth = 2;
+    rrStroke(tx - _bw/2, ty - _bh/2, _bw, _bh, _br);
+    // 텍스트 - 노란
+    ctx.fillStyle = '#ffd966';
     ctx.fillText(txt, tx, ty);
   }
   ctx.restore();
