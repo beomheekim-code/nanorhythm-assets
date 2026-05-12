@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512113753;
+window.__BUILD_TS = 20260512114404;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4166,10 +4166,10 @@ const SKINS = {
     category: 'note',
     price: 2000,  // 벚꽃 노트와 동일
     imagePaths: {
-      note:     'skins/paw_mouse/note/paw_mouse_note_atlas.png',      // 1200×600, 2셀
-      noteDead: 'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png', // 1200×600, 2셀 dead
-      holdHead: 'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',  // 600×600 (화난 쥐)
-      // holdBody = 별도 image X. renderNotes 의 paw_mouse 분기에서 holdhead stretch.
+      note:         'skins/paw_mouse/note/paw_mouse_note_atlas.png',
+      noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
+      holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
+      holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead.png',
     },
     sprites: {
       note: [
@@ -4181,6 +4181,10 @@ const SKINS = {
         [600, 0, 600, 600],
       ],
       holdHead: [
+        [0, 0, 600, 600],
+        [0, 0, 600, 600],
+      ],
+      holdHeadDead: [
         [0, 0, 600, 600],
         [0, 0, 600, 600],
       ],
@@ -8598,10 +8602,11 @@ function spawnParticles(x, y, color, count) {
   }
 }
 // ★ paw_mouse 전용: hit 시 dead sprite 짧게 표시 + fade out.
-function spawnPawDeadFx(x, y, lane) {
+//   kind: 'note' (일반 hit) | 'holdhead' (홀드 release).
+function spawnPawDeadFx(x, y, lane, kind) {
   if (currentSkin !== 'paw_mouse') return;
-  if (pawDeadFx.length > 30) return;  // cap
-  pawDeadFx.push({ x, y, lane, time: 0, maxTime: 0.5 });
+  if (pawDeadFx.length > 30) return;
+  pawDeadFx.push({ x, y, lane, kind: kind || 'note', time: 0, maxTime: 0.5 });
 }
 
 function spawnBurst(x, y, grade) {
@@ -10628,20 +10633,20 @@ function update(dt) {
         judgmentText = 'PERFECT'; judgmentTimer = 0.6; judgmentColor = '#ffd700'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'perfect');
         spawnParticles(getLaneX(n.lane), getHitY(), LANE_COLORS[n.lane], fever ? 10 : 6);
-        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane, 'holdhead');
         playerAnim = 0.3;
       } else if (endDist < 52 * hs) {
         score += Math.floor(150 * fm * getKeyBonus()); combo++; if (combo > maxCombo) maxCombo = combo;
         checkFeverActivate(); gauge = Math.min(1, gauge + curDiff.hpGain * fm);
         judgmentText = 'GREAT'; judgmentTimer = 0.5; judgmentColor = '#00d4ff'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'great');
-        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane, 'holdhead');
         playerAnim = 0.2;
       } else if (endDist < getHitWindow()) {
         score += Math.floor(80 * fm * getKeyBonus());
         judgmentText = 'GOOD'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
-        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane, 'holdhead');
       } else {
         nanoMiss();
         collected--; missed++; combo = 0; if (fever) { _charMissWasFever = true; _charMissPhase = _seraFeverPhase; } fever = false; feverTimer = 0;
@@ -11819,11 +11824,12 @@ function renderPawDeadFx() {
   ctx.save();
   for (const fx of pawDeadFx) {
     const t = fx.time / fx.maxTime;
-    const alpha = 1 - t;  // 1 → 0 fade out
-    const scale = 1 + t * 0.15;  // 살짝 확대 (= 시각 효과)
+    const alpha = 1 - t;
+    const scale = 1 + t * 0.15;
     const w = _nW * scale, h = _nH * scale;
     ctx.globalAlpha = alpha;
-    drawSkinSprite('noteDead', fx.lane, fx.x - w/2, fx.y - h/2, w, h);
+    const _type = fx.kind === 'holdhead' ? 'holdHeadDead' : 'noteDead';
+    drawSkinSprite(_type, fx.lane, fx.x - w/2, fx.y - h/2, w, h);
   }
   ctx.restore();
 }
@@ -12256,7 +12262,41 @@ function renderNotes() {
       // ── 1) Body
       if (barTop < barBot + 10) {
         const bw = _noteW;
-        if (n.holding) {
+        const _skinHBg = SKINS[currentSkin];
+        const _isPawTrail = _skinHBg?.holdBodyStyle === 'trail';
+        // ★ paw_mouse: body 모든 분기 통합 — lane color vertical gradient 캡슐 (= 둥근 사각형 + 반지름).
+        //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
+        //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
+        if (_isPawTrail) {
+          const _barH = Math.max(0, barBot - barTop);
+          const _vsT = _skinHBg.visualSize?.holdHead;
+          const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+          // holding 진행도 (= 시작 ~ 끝)
+          let _fadeAlpha = 1.0;
+          if (n.holding) {
+            const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
+            _fadeAlpha = Math.max(0, 1 - _hp);  // 진행 따라 1→0
+          } else if (n.holdComplete) {
+            _fadeAlpha = 0.2;
+          }
+          if (_fadeAlpha > 0.02) {
+            ctx.save();
+            ctx.globalAlpha = _fadeAlpha;
+            const _g = ctx.createLinearGradient(0, barTop, 0, barBot);
+            _g.addColorStop(0, col + '33');   // 위 흐림
+            _g.addColorStop(0.5, col + '88');
+            _g.addColorStop(1, col + 'dd');   // 아래 진함
+            ctx.fillStyle = _g;
+            // 캡슐 모양 (= 위/아래 둥근 cap = radius 폭의 절반)
+            const _rad = _hW / 2;
+            rrFill(sx - _hW/2, barTop, _hW, _barH, _rad);
+            ctx.restore();
+          }
+          if (n.holding && Math.random() < 0.1 && particles.length < 80) {
+            const py = barTop + Math.random() * (hitY - barTop);
+            spawnParticles(sx + (Math.random()-0.5)*10, py, col, 1);
+          }
+        } else if (n.holding) {
           ctx.fillStyle = col + '40';
           rrFill(sx - bw/2 - 4, barTop - 2, bw + 8, Math.max(0, barBot - barTop) + 4, _s9);
           ctx.fillStyle = col + 'bb';
@@ -12273,22 +12313,7 @@ function renderNotes() {
           const _skinHB = SKINS[currentSkin];
           const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          // ★ paw_mouse: hold body = sprite 위쪽 절반 (= 귀 + head 위쪽) vertical stretch.
-          //   자연스러운 그라데이션 (sprite 자체 색 변화 = 귀→head). tail (위쪽 끝) =
-          //   자동으로 sprite 위쪽 가장자리 (= 둥근 모양 cap). tail 분기는 paw_mouse 시 skip.
-          //   perf 영향 0 (= drawImage 1번. cache 무관).
-          if (_skinHB?.holdBodyStyle === 'trail') {
-            const _hPath = _skinHB.imagePaths?.holdHead;
-            const _hImg = _hPath ? skinImages[_hPath] : null;
-            if (_hImg && _hImg.complete && _hImg.naturalWidth) {
-              const _vsT = _skinHB.visualSize?.holdHead;
-              const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-              const _srcH = Math.round(_hImg.naturalHeight * 0.5);  // 위쪽 절반 (귀+head 위쪽)
-              ctx.drawImage(_hImg,
-                0, 0, _hImg.naturalWidth, _srcH,
-                sx - _hW/2, barTop, _hW, _barH);
-            }
-          } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
+          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
             ctx.fillStyle = col + '55';
             rrFill(sx - bw/2, barTop, bw, _barH, _s7);
             ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
@@ -12381,9 +12406,17 @@ function renderNotes() {
         const _nwV_fv = _vsN_fv?.widthMul ? nw * _vsN_fv.widthMul : nw;
         const _nhV_fv = _vsN_fv?.heightRatio ? _nwV_fv * _vsN_fv.heightRatio
                       : _vsN_fv?.heightMul ? nh * _vsN_fv.heightMul : nh;
-        // flower skin: radial 화염 글로우 (직사각 fillRect 대신)
+        // ★ paw_mouse: sprite 모양 따라 shadow blur glow (= 사용자: 노트 스킨 모양에 맞게).
         const _glowFv = SKINS[currentSkin]?.glowStyle;
-        if (_glowFv === 'radial') {
+        const _spriteGlow = SKINS[currentSkin]?.holdBodyStyle === 'trail';
+        if (_spriteGlow) {
+          ctx.save();
+          ctx.shadowColor = `rgba(255,${80+Math.floor(flicker*80)},0,${0.85*flicker})`;
+          ctx.shadowBlur = 14;
+          drawSkinSprite('note', n.lane, sx-_nwV_fv, sy-_nhV_fv, _nwV_fv*2, _nhV_fv*2);
+          ctx.restore();
+          _drewNote = true;
+        } else if (_glowFv === 'radial') {
           const _fr = `rgba(255,${80+Math.floor(flicker*80)},0,${0.35*flicker})`;
           const _fy = `rgba(255,${150+Math.floor(flicker*60)},30,${0.25*flicker})`;
           const _gOuter = ctx.createRadialGradient(sx, sy, 0, sx, sy, _nwV_fv * 1.5);
