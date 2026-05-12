@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512121507;
+window.__BUILD_TS = 20260512121815;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3764,6 +3764,14 @@ let shopScroll = 0;
 const SHOP_TABS = ['스킨','음표','구독','캐릭터'];
 let shopTab = '스킨';
 let _shopTabAreas = [];
+// ★ 스킨 탭 안 소분류 (note/ui/hit_effect). skinCategory 와 동일 키.
+const SHOP_SKIN_SUBTABS = [
+  { id: 'note',       label: '노트' },
+  { id: 'ui_pack',    label: 'UI 팩' },
+  { id: 'hit_effect', label: '히트 이펙트' },
+];
+let shopSkinSubTab = 'note';
+let _shopSkinSubTabAreas = [];
 
 function showUnlockPopup(idx) { unlockPopupOpen = true; unlockPopupSongIdx = idx; }
 function closeUnlockPopup() { unlockPopupOpen = false; unlockPopupSongIdx = -1; }
@@ -12286,7 +12294,7 @@ function renderNotes() {
             const _vsT = _skinHBg.visualSize?.holdHead;
             const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
             const _hH = _hW;  // 정 사이즈 (square sprite)
-            const _step = _hH;  // 빼곡 (= 간격 0)
+            const _step = _hH * 0.3;  // 빼곡 = sprite 30% 위치 (= 70% 겹침, 빈틈 X)
             let _fadeAlpha = 1.0;
             if (n.holding) {
               const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
@@ -15539,6 +15547,36 @@ function renderShop() {
     _shopTabAreas.push({ name: tname, x: tx + sz(2), y: tabY, w: tabW - sz(4), h: tabH });
   }
 
+  // ===== 스킨 소분류 탭 (note / ui_pack / hit_effect) — 스킨 탭일 때만 =====
+  _shopSkinSubTabAreas.length = 0;
+  let _subTabBottom = tabY + tabH;
+  if (shopTab === '스킨') {
+    const _subTabH = sz(24);
+    const _subTabY = tabY + tabH + sz(6);
+    const _subN = SHOP_SKIN_SUBTABS.length;
+    // 가로 폭: 모바일/PC 동일 — 전체 폭 / N 균등.
+    const _subFontSize = isMobile ? sz(10) : sz(12);
+    ctx.font = `bold ${_subFontSize}px sans-serif`;
+    const _subTotalW = Math.min(sz(360), W * 0.92);
+    const _subStartX = (W - _subTotalW) / 2;
+    const _subW = _subTotalW / _subN;
+    for (let i = 0; i < _subN; i++) {
+      const st = SHOP_SKIN_SUBTABS[i];
+      const sx_ = _subStartX + i * _subW;
+      const active = st.id === shopSkinSubTab;
+      ctx.fillStyle = active ? 'rgba(122,77,255,0.32)' : 'rgba(255,255,255,0.04)';
+      rrFill(sx_ + sz(2), _subTabY, _subW - sz(4), _subTabH, sz(5));
+      ctx.strokeStyle = active ? 'rgba(180,140,255,0.85)' : 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = active ? 1.3 : 1;
+      rrStroke(sx_ + sz(2), _subTabY, _subW - sz(4), _subTabH, sz(5));
+      ctx.fillStyle = active ? '#fff' : 'rgba(255,255,255,0.55)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(st.label, sx_ + _subW/2, _subTabY + _subTabH/2);
+      _shopSkinSubTabAreas.push({ id: st.id, x: sx_ + sz(2), y: _subTabY, w: _subW - sz(4), h: _subTabH });
+    }
+    _subTabBottom = _subTabY + _subTabH;
+  }
+
   // ===== 상품 목록 =====
   // 스크롤 상한 클램프 (이전 프레임에 저장한 콘텐츠 높이 기준)
   if (window._shopMaxScroll != null) {
@@ -15546,7 +15584,7 @@ function renderShop() {
     if (shopScroll < 0) shopScroll = 0;
   }
   // 콘텐츠 영역 정의 (탭 아래 ~ 뒤로가기 버튼 위)
-  const _contentTop = tabY + tabH + sz(8);
+  const _contentTop = _subTabBottom + sz(8);
   const _contentBottom = isMobile ? (H + safeBottom - sz(48)) : (H - 56);
   // 콘텐츠 영역에 클립 — 카드가 헤더/바텀 영역 침범 방지
   ctx.save();
