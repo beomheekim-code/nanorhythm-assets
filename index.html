@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512114404;
+window.__BUILD_TS = 20260512114831;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4169,7 +4169,7 @@ const SKINS = {
       note:         'skins/paw_mouse/note/paw_mouse_note_atlas.png',
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
-      holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead.png',
+      holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
     },
     sprites: {
       note: [
@@ -12268,29 +12268,28 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
+          // ★ paw_mouse: hold body = holdhead sprite 전체를 vertical stretch (= 3D 기둥 느낌).
+          //   사용자: paw_mouse_holdhead.png 의 모양이 기둥처럼 계속 나옴.
           const _barH = Math.max(0, barBot - barTop);
-          const _vsT = _skinHBg.visualSize?.holdHead;
-          const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-          // holding 진행도 (= 시작 ~ 끝)
-          let _fadeAlpha = 1.0;
-          if (n.holding) {
-            const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
-            _fadeAlpha = Math.max(0, 1 - _hp);  // 진행 따라 1→0
-          } else if (n.holdComplete) {
-            _fadeAlpha = 0.2;
-          }
-          if (_fadeAlpha > 0.02) {
-            ctx.save();
-            ctx.globalAlpha = _fadeAlpha;
-            const _g = ctx.createLinearGradient(0, barTop, 0, barBot);
-            _g.addColorStop(0, col + '33');   // 위 흐림
-            _g.addColorStop(0.5, col + '88');
-            _g.addColorStop(1, col + 'dd');   // 아래 진함
-            ctx.fillStyle = _g;
-            // 캡슐 모양 (= 위/아래 둥근 cap = radius 폭의 절반)
-            const _rad = _hW / 2;
-            rrFill(sx - _hW/2, barTop, _hW, _barH, _rad);
-            ctx.restore();
+          const _hPath = _skinHBg.imagePaths?.holdHead;
+          const _hImg = _hPath ? skinImages[_hPath] : null;
+          if (_hImg && _hImg.complete && _hImg.naturalWidth) {
+            const _vsT = _skinHBg.visualSize?.holdHead;
+            const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+            let _fadeAlpha = 1.0;
+            if (n.holding) {
+              const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
+              _fadeAlpha = Math.max(0, 1 - _hp);  // 진행 따라 1→0
+            } else if (n.holdComplete) {
+              _fadeAlpha = 0.2;
+            }
+            if (_fadeAlpha > 0.02) {
+              ctx.save();
+              ctx.globalAlpha = _fadeAlpha;
+              // sprite 전체 vertical stretch — 화난 쥐 모양 그대로 길게 늘어짐.
+              ctx.drawImage(_hImg, sx - _hW/2, barTop, _hW, _barH);
+              ctx.restore();
+            }
           }
           if (n.holding && Math.random() < 0.1 && particles.length < 80) {
             const py = barTop + Math.random() * (hitY - barTop);
