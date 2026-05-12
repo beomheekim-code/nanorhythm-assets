@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512144643;
+window.__BUILD_TS = 20260512145005;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1209,8 +1209,8 @@ const FORCE_REPATCH_LIST = [
   'icon.png',
   // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
   'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
-  // paw_mouse holdbody atlas — cap chroma 잔흔 정화 + outline align + ears outline 추가
-  'skins/paw_mouse/note/paw_mouse_holdbody_atlas.png',
+  // paw_mouse holdbody atlas v2 — 새 path (cache 강제 무효화)
+  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v2.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -4185,7 +4185,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas.png',  // 720×4000 atlas (위 cap + 아래 양쪽 귀 stripe)
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v2.png',  // 600×600 atlas (cap + stripe), v2 = cache bust
     },
     sprites: {
       note: [
@@ -12313,13 +12313,12 @@ function renderNotes() {
               _holdProgress = 1.0;
             }
             // ★ atlas = cap (위쪽 둥근 귀) + stripe (양쪽 귀 column).
-            //   body bottom = head sprite 의 귀밑 끝 위치 (= head 의 위쪽 약 30% 안쪽까지).
-            //   head sprite top = barBot - hW/2, 귀밑 끝 = sprite y=180/600 ≈ barBot - hW*0.2.
-            //   추가 fade 제거 — 자연 hold + spawnPawDeadFx 가 hit 효과 담당.
+            //   body 가 판정선(barBot)부터 위로 사라짐 — hold 진행 시 dest bottom 이 위로 줄어듦.
+            //   _baseBodyH = full hold body 길이, _bodyH = _baseBodyH * (1 - holdProgress)
             const _bodyTop = barTop;
-            const _bodyBottom = barBot - _hW * 0.2;  // head sprite 의 귀밑 끝 (sprite y=180 위치)
-            const _bodyH = Math.max(0, _bodyBottom - _bodyTop);
-            if (_bodyH > 0 && _holdProgress < 1) {
+            const _baseBodyH = Math.max(0, barBot - _bodyTop);
+            const _bodyH = _baseBodyH * (1 - _holdProgress);  // 판정선부터 위로 fade
+            if (_bodyH > 0) {
               const _scaleX = _hW / _bImg.naturalWidth;
               const CAP_SRC_H = 90;
               const _capDestH = Math.min(CAP_SRC_H * _scaleX, _bodyH);
