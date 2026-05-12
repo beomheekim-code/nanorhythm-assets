@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512112542;
+window.__BUILD_TS = 20260512113137;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12266,17 +12266,21 @@ function renderNotes() {
           const _skinHB = SKINS[currentSkin];
           const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          // ★ paw_mouse: hold body = lane color 단순 그라데이션 기둥. tail (= 위쪽 끝) 은 별도 sprite.
-          //   perf 영향 0 (= 임시 canvas X, fillRect 1회 + createLinearGradient 1회).
-          //   holdhead sprite 는 renderNotes 의 tail 분기 (line 12283+) 가 자동 그림 (= 모양 이미지).
+          // ★ paw_mouse: hold body = holdhead 의 가운데 1px row 를 vertical stretch.
+          //   기본 노트 sprite 와 자연스럽게 이어지는 기둥 (= 위/아래 cap + 그 사이 stretch).
+          //   perf 영향 0 (= drawImage 1번. cache 무관).
           if (_skinHB?.holdBodyStyle === 'trail') {
-            const _bw = _bwVis;
-            const _g = ctx.createLinearGradient(0, barTop, 0, barBot);
-            _g.addColorStop(0, col + '22');   // 위 흐림 (alpha ~0.13)
-            _g.addColorStop(0.7, col + '88'); // 중간 (alpha ~0.53)
-            _g.addColorStop(1, col + 'cc');   // 아래 진함 (alpha ~0.80)
-            ctx.fillStyle = _g;
-            rrFill(sx - _bw/2, barTop, _bw, _barH, _s7);
+            const _hPath = _skinHB.imagePaths?.holdHead;
+            const _hImg = _hPath ? skinImages[_hPath] : null;
+            if (_hImg && _hImg.complete && _hImg.naturalWidth) {
+              const _vsT = _skinHB.visualSize?.holdHead;
+              const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+              // source = sprite 의 가운데 horizontal 1px row (입/코 부근).
+              const _srcY = Math.round(_hImg.naturalHeight * 0.5);
+              ctx.drawImage(_hImg,
+                0, _srcY, _hImg.naturalWidth, 1,
+                sx - _hW/2, barTop, _hW, _barH);
+            }
           } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
             ctx.fillStyle = col + '55';
             rrFill(sx - bw/2, barTop, bw, _barH, _s7);
