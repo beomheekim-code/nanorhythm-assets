@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512100354;
+window.__BUILD_TS = 20260512100541;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12042,7 +12042,8 @@ function renderJudgeLineDecos() {
   const lsx = getLaneStartX(), tw = getLaneW() * laneCount;
   const _decoY = getHitY();
   const _decoSize = sz(44);
-  // ★ 좌측 deco 만 우측 위치에 그림 (사용자: 우측 deco 제거 + 좌측 deco 우측으로 이동).
+  // ★ 좌측 deco 만 우측 위치에 그림 — 좌측 원래 위치와 정확 대칭.
+  //   좌측 원래: lsx - _dw*0.7, _decoY - _dh/2.  대칭 우측: lsx + tw - _dw*0.3, _decoY - _dh/2.
   if (_lReady) {
     try {
       const _aR = _lImg.naturalHeight / _lImg.naturalWidth;
@@ -12050,7 +12051,7 @@ function renderJudgeLineDecos() {
       const _key = _lPath + ':' + _dw + ':' + _dh;
       let _baked = _judgeLineDecoBakery.get(_key);
       if (!_baked) { _baked = _bakeJudgeLineDeco(_lImg, _dw, _dh); _judgeLineDecoBakery.set(_key, _baked); }
-      ctx.drawImage(_baked, Math.round(lsx + tw + sz(6)), Math.round(_decoY - _dh));
+      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.3), Math.round(_decoY - _dh / 2));
     } catch(e) {}
   }
 }
