@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512104523;
+window.__BUILD_TS = 20260512105627;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4158,6 +4158,44 @@ const SKINS = {
     skipKeyBase: true,
     // rect 글로우 대신 radial(원형) glow — flower 뒤에 사각형 안 비치면서 "떨어지는 느낌" 유지.
     glowStyle: 'radial',
+  },
+  // ★ paw_mouse 노트 스킨 — 회색 쥐 (odd lane) + 흰 쥐 with bow (even lane). hold body = 잔상.
+  paw_mouse: {
+    id: 'paw_mouse',
+    name: '쥐 발자국',
+    category: 'note',
+    price: 2000,  // 벚꽃 노트와 동일
+    imagePaths: {
+      note:     'skins/paw_mouse/note/paw_mouse_note_atlas.png',     // 1200×600, 2셀 (회색/흰)
+      holdHead: 'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png', // 600×600, 단일 셀 (화난 쥐)
+      // holdBody = 별도 image X. renderNotes 의 paw_mouse 분기에서 잔상 효과 (note sprite 반복).
+    },
+    sprites: {
+      note: [
+        [0,   0, 600, 600],  // 0 = 회색 쥐 (odd lane)
+        [600, 0, 600, 600],  // 1 = 흰 쥐 with bow (even lane)
+      ],
+      holdHead: [
+        [0, 0, 600, 600],  // 모든 lane 동일 (화난 쥐)
+        [0, 0, 600, 600],
+      ],
+    },
+    palette: ['#9aa0b8', '#f5e0e8'],  // 0 = 회색, 1 = 분홍-흰
+    laneMapping: {
+      4: [0, 1, 0, 1],
+      5: [0, 1, 0, 1, 0],
+      6: [0, 1, 0, 1, 0, 1],
+      7: [0, 1, 0, 1, 0, 1, 0],
+      8: [0, 1, 0, 1, 0, 1, 0, 1],
+    },
+    visualSize: {
+      note:     { widthMul: 1.11, heightRatio: 1.0 },
+      holdHead: { widthMul: 1.11, heightRatio: 1.0 },
+    },
+    skipKeyBase: true,
+    glowStyle: 'radial',
+    noteShape: 'flower',
+    holdBodyStyle: 'trail',  // ★ paw_mouse 전용: hold body = note sprite 잔상 반복 (renderNotes 분기)
   },
   // ★ 히트 이펙트 스킨 — 낱개 PNG 파일 방식 (시트 좌표 관리 오류 회피).
   //   각 항목을 imagePaths 에 개별 등록 → _hitFxData 가 필요한 이미지만 조회해서
@@ -12178,9 +12216,28 @@ function renderNotes() {
           rrFill(sx - bw/2, barTop, bw, Math.max(0, barBot - barTop), _s7);
         } else if (!n.hit) {  // miss 시도 같은 분기 (= 색 변경 X, 그냥 흘러감)
           const _barH = Math.max(0, barBot - barTop);
-          const _vsB = SKINS[currentSkin]?.visualSize?.holdBody;
+          const _skinHB = SKINS[currentSkin];
+          const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
+          // ★ paw_mouse: hold body = note sprite 잔상 반복 (기둥 X).
+          if (_skinHB?.holdBodyStyle === 'trail') {
+            const _vsN = _skinHB.visualSize?.note;
+            const _nW = _vsN?.widthMul ? _noteHW * 2 * _vsN.widthMul : _noteHW * 2;
+            const _nH = _vsN?.heightRatio ? _nW * _vsN.heightRatio : _nW;
+            const _step = _nH * 0.55;  // 잔상 간격 (sprite 높이의 55%)
+            const _alphas = [0.18, 0.30, 0.45, 0.62, 0.80];  // 위→아래 점진 진하게
+            let y = barBot;
+            let i = 0;
+            ctx.save();
+            while (y >= barTop && i < 40) {
+              const a = _alphas[Math.min(i, _alphas.length - 1)];
+              ctx.globalAlpha = a;
+              drawSkinSprite('note', n.lane, sx - _nW/2, y - _nH, _nW, _nH);
+              y -= _step;
+              i++;
+            }
+            ctx.restore();
+          } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
             ctx.fillStyle = col + '55';
             rrFill(sx - bw/2, barTop, bw, _barH, _s7);
             ctx.strokeStyle = col + '88'; ctx.lineWidth = 1.5;
@@ -14934,6 +14991,20 @@ function getShopItems() {
       getStatus: () => ownsSkin('note', 'neon') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('note', 'neon'),
       onBuy: () => buySkinWithCoins('note', 'neon', 2000, '벚꽃 노트'),
+    },
+    {
+      id: 'skin_paw_mouse', type: 'skin', section: '스킨',
+      label: '쥐 발자국',
+      desc: '귀여운 쥐 노트. odd lane = 회색, even lane = 흰 쥐. 홀드는 잔상 효과.',
+      price: '2000 ♪',
+      priceType: 'coins',
+      color: '#9aa0b8', icon: '🐭',
+      iconImage: 'skins/paw_mouse/note/paw_mouse_note_atlas.png',
+      iconSrc: [0, 0, 600, 600],
+      skinCategory: 'note', skinId: 'paw_mouse', coinCost: 2000,
+      getStatus: () => ownsSkin('note', 'paw_mouse') ? { text: '보유중', color: '#44dd66' } : null,
+      canBuy: () => !ownsSkin('note', 'paw_mouse'),
+      onBuy: () => buySkinWithCoins('note', 'paw_mouse', 2000, '쥐 발자국'),
     },
     {
       id: 'skin_sakura_fx', type: 'skin', section: '스킨',
