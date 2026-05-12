@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512113137;
+window.__BUILD_TS = 20260512113331;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8566,6 +8566,7 @@ function handleLanePress(lane, src) {
     if (judgmentPriority < 2) { judgmentText = txt; judgmentTimer = 0.5; judgmentColor = col; judgmentPriority = 0; }
     playerAnim = 0.2;
     spawnParticles(getLaneX(lane), hitY, LANE_COLORS[lane], 6);
+    spawnPawDeadFx(getLaneX(lane), hitY, lane);  // ★ paw_mouse: 홀드 시작 hit 시도 dead fx
   } else {
     let pts, txt, col;
     let grade;
@@ -10634,11 +10635,13 @@ function update(dt) {
         checkFeverActivate(); gauge = Math.min(1, gauge + curDiff.hpGain * fm);
         judgmentText = 'GREAT'; judgmentTimer = 0.5; judgmentColor = '#00d4ff'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'great');
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
         playerAnim = 0.2;
       } else if (endDist < getHitWindow()) {
         score += Math.floor(80 * fm * getKeyBonus());
         judgmentText = 'GOOD'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
       } else {
         nanoMiss();
         collected--; missed++; combo = 0; if (fever) { _charMissWasFever = true; _charMissPhase = _seraFeverPhase; } fever = false; feverTimer = 0;
@@ -11959,11 +11962,14 @@ function _bakeGuideStrip(lw, gW, gH) {
     ctx = sctx;
     try {
       // 1) sprite 그림 (= 노트 모양 fill, alpha 0.8)
+      //   ★ paw_mouse: 모든 lane 가이드 = lane 0 의 sprite (= 회색 note.png) 통일 (사용자 요구).
+      const _pawUni = (currentSkin === 'paw_mouse');
       for (let i = 0; i < laneCount; i++) {
         const cx = i * lw + lw / 2;
         const gx = Math.round(cx - gW/2);
+        const _srcIdx = _pawUni ? 0 : i;
         const _drew = (typeof drawSkinSprite === 'function')
-                      ? drawSkinSprite('note', i, gx, 0, gW, gH)
+                      ? drawSkinSprite('note', _srcIdx, gx, 0, gW, gH)
                       : false;
         if (!_drew) {
           sctx.fillStyle = (typeof LANE_COLORS !== 'undefined' && LANE_COLORS[i]) ? LANE_COLORS[i] : '#fff';
@@ -11977,8 +11983,9 @@ function _bakeGuideStrip(lw, gW, gH) {
       for (let i = 0; i < laneCount; i++) {
         const cx = i * lw + lw / 2;
         const gx = Math.round(cx - gW/2);
+        const _srcIdx = _pawUni ? 0 : i;
         const _innerDrew = (typeof drawSkinSprite === 'function')
-                           ? drawSkinSprite('note', i, gx + _shrinkW, _shrinkH,
+                           ? drawSkinSprite('note', _srcIdx, gx + _shrinkW, _shrinkH,
                                             Math.max(1, gW - _shrinkW*2),
                                             Math.max(1, gH - _shrinkH*2))
                            : false;
