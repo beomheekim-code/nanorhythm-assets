@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512095503;
+window.__BUILD_TS = 20260512100036;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11911,13 +11911,12 @@ function renderHitLine() {
     const _outR = Math.min(W - _pad, lsx + tw + sz(6));
     const _bandX = _outL;
     const _bandW = _outR - _outL;
-    // 벚꽃 UI 판정선 두께 증가 (사용자 요구) — 본체 2 → 5, glow sz(5) → sz(7).
     ctx.fillStyle = 'rgba(217,122,160,0.22)';
     ctx.fillRect(_bandX, hitY - _s7, _bandW, _s14);
     ctx.fillStyle = _glowCol;
-    ctx.fillRect(_bandX, hitY - sz(4), _bandW, sz(7));
+    ctx.fillRect(_bandX, hitY - _s3, _bandW, _s5);
     ctx.fillStyle = _mainCol;
-    ctx.fillRect(_bandX, hitY - 3, _bandW, 5);
+    ctx.fillRect(_bandX, hitY - 1, _bandW, 2);
   } else {
     if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
@@ -12060,9 +12059,8 @@ function renderJudgeLineDecos() {
       const _key = _rPath + ':' + _dw + ':' + _dh;
       let _baked = _judgeLineDecoBakery.get(_key);
       if (!_baked) { _baked = _bakeJudgeLineDeco(_rImg, _dw, _dh); _judgeLineDecoBakery.set(_key, _baked); }
-      // 우측 deco bottom-left = 판정선 오른쪽 끝 (사용자 시선: deco 왼쪽 아래 코너 = lsx+tw, hitY).
-      //   draw x = lsx + tw, y = hitY - _dh.
-      ctx.drawImage(_baked, Math.round(lsx + tw), Math.round(_decoY - _dh));
+      // 우측 deco: 판정선 끝 + 약간 더 우측 (사용자 요구).
+      ctx.drawImage(_baked, Math.round(lsx + tw + sz(6)), Math.round(_decoY - _dh));
     } catch(e) {}
   }
 }
@@ -13674,10 +13672,10 @@ function _renderUIBody() {
     const _labelSize = isMobile ? sz(8) : sz(10);
     const _valueSize = isMobile ? sz(16) : sz(22);
 
-    // 상단 액센트 glow 라인 — 기본 스킨만 (UI 팩 장착 시 가로선 제거, 유저 요청).
+    // 상단 액센트 glow 라인 — 기본 스킨 = 차콜 (사용자: 흰색 → 차콜). UI 팩 장착 시 가로선 제거.
     const _uiAc = _getUiPack();
     if (!_uiAc) {
-      const _accentCol = '#ffffff';
+      const _accentCol = '#3a3a44';  // 차콜
       const _accentGrad = ctx.createLinearGradient(0, _panelTop, 0, _panelTop + sz(4));
       _accentGrad.addColorStop(0, _accentCol + 'cc');
       _accentGrad.addColorStop(1, _accentCol + '00');
