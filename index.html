@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512131606;
+window.__BUILD_TS = 20260512135039;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12310,17 +12310,20 @@ function renderNotes() {
               _fadeAlpha = 0.2;
             }
             if (_fadeAlpha > 0.02 && _barH > 0) {
-              // ★ ATLAS 화 — atlas (720×4000): 위쪽 cap + 아래쪽 양쪽 귀 stripe seamless.
-              //   drawImage 1번. source = atlas 의 위쪽 N% (= body height 비례) crop.
-              //   dest = body 영역 전체. atlas 위쪽 cap → body 위 / stripe → body 아래.
+              // ★ ATLAS 화 — atlas (600×4000): 위쪽 cap + 아래쪽 양쪽 귀 stripe.
+              //   body dest = barTop ~ (barBot - _hH). head sprite 와 겹치는 영역 (= 아래쪽 _hH) 제외.
               const _scale = _hW / _bImg.naturalWidth;
-              const _srcH = Math.min(_bImg.naturalHeight, Math.round(_barH / _scale));
-              ctx.save();
-              ctx.globalAlpha = _fadeAlpha;
-              ctx.drawImage(_bImg,
-                            0, 0, _bImg.naturalWidth, _srcH,
-                            sx - _hW/2, barTop, _hW, _barH);
-              ctx.restore();
+              const _spriteH = _hW;  // head sprite 사이즈 (= square)
+              const _bodyEffH = Math.max(0, _barH - _spriteH);
+              if (_bodyEffH > 0) {
+                const _srcH = Math.min(_bImg.naturalHeight, Math.round(_bodyEffH / _scale));
+                ctx.save();
+                ctx.globalAlpha = _fadeAlpha;
+                ctx.drawImage(_bImg,
+                              0, 0, _bImg.naturalWidth, _srcH,
+                              sx - _hW/2, barTop, _hW, _bodyEffH);
+                ctx.restore();
+              }
             }
           }
           if (n.holding && Math.random() < 0.1 && particles.length < 80) {
