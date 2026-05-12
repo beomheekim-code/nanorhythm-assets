@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512122730;
+window.__BUILD_TS = 20260512122918;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12290,8 +12290,8 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
-          // ★ paw_mouse: body = holdbody.png 의 가운데 horizontal row 1px → vertical stretch.
-          //   빈틈 X 3D 기둥. PNG 자체 색 #9a98a3 + vertical alpha gradient (0.4→1.0).
+          // ★ paw_mouse: body = holdbody.png 전체 sprite vertical stretch (= 모양 + 양쪽 귀 visible).
+          //   width 동일 + height = body 영역 (vertical stretch). PNG 자체 색 #9a98a3 + alpha gradient.
           const _barH = Math.max(0, barBot - barTop);
           const _bPath = _skinHBg.imagePaths?.holdBody;
           const _bImg = _bPath ? skinImages[_bPath] : null;
@@ -12306,12 +12306,10 @@ function renderNotes() {
               _fadeAlpha = 0.2;
             }
             if (_fadeAlpha > 0.02 && _barH > 0) {
-              const _srcY = Math.round(_bImg.naturalHeight * 0.5);  // 가운데 row
               ctx.save();
               ctx.globalAlpha = _fadeAlpha;
-              ctx.drawImage(_bImg,
-                0, _srcY, _bImg.naturalWidth, 1,
-                sx - _hW/2, barTop, _hW, _barH);
+              // sprite 전체 → body 영역 vertical stretch (머리+귀 silhouette 보임).
+              ctx.drawImage(_bImg, sx - _hW/2, barTop, _hW, _barH);
               ctx.restore();
             }
           }
