@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512131319;
+window.__BUILD_TS = 20260512131606;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4183,7 +4183,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody.png',  // 720×720 silhouette
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas.png',  // 720×4000 atlas (위 cap + 아래 양쪽 귀 stripe)
     },
     sprites: {
       note: [
@@ -12310,19 +12310,16 @@ function renderNotes() {
               _fadeAlpha = 0.2;
             }
             if (_fadeAlpha > 0.02 && _barH > 0) {
-              // ★ 그림2 레퍼런스 — sprite 위쪽 22% (= 양쪽 귀만, 머리 X) crop → N장 빼곡 stack.
+              // ★ ATLAS 화 — atlas (720×4000): 위쪽 cap + 아래쪽 양쪽 귀 stripe seamless.
+              //   drawImage 1번. source = atlas 의 위쪽 N% (= body height 비례) crop.
+              //   dest = body 영역 전체. atlas 위쪽 cap → body 위 / stripe → body 아래.
               const _scale = _hW / _bImg.naturalWidth;
-              const _srcH = Math.round(_bImg.naturalHeight * 0.22);  // 위쪽 22% = 귀 만
-              const _earH = Math.max(1, _srcH * _scale);
-              const _count = Math.min(30, Math.ceil(_barH / _earH) + 1);
+              const _srcH = Math.min(_bImg.naturalHeight, Math.round(_barH / _scale));
               ctx.save();
               ctx.globalAlpha = _fadeAlpha;
-              for (let _i = 0; _i < _count; _i++) {
-                const _y = barBot - _i * _earH;
-                if (_y + _earH < barTop) break;
-                ctx.drawImage(_bImg, 0, 0, _bImg.naturalWidth, _srcH,
-                              sx - _hW/2, _y - _earH, _hW, _earH);
-              }
+              ctx.drawImage(_bImg,
+                            0, 0, _bImg.naturalWidth, _srcH,
+                            sx - _hW/2, barTop, _hW, _barH);
               ctx.restore();
             }
           }
