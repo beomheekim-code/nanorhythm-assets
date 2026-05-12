@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512121957;
+window.__BUILD_TS = 20260512122506;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12285,16 +12285,14 @@ function renderNotes() {
         //   holding 중 = alpha 점점 줄어듦 (= 기둥 사라지는 연출). holdComplete = 거의 X.
         //   기둥 + 끝 동일 모양 (rrFill radius = 폭의 절반 = 캡슐).
         if (_isPawTrail) {
-          // ★ paw_mouse: hold body = holdbody.png silhouette 빼곡 반복 + vertical gradient.
-          //   사용자: silhouette sprite 만든 거 이어붙임. step = sprite height (= 간격 0).
+          // ★ paw_mouse: body = holdbody.png 의 가운데 horizontal row 1px → vertical stretch.
+          //   빈틈 X 3D 기둥. PNG 자체 색 #9a98a3 + vertical alpha gradient (0.4→1.0).
           const _barH = Math.max(0, barBot - barTop);
           const _bPath = _skinHBg.imagePaths?.holdBody;
           const _bImg = _bPath ? skinImages[_bPath] : null;
           if (_bImg && _bImg.complete && _bImg.naturalWidth) {
             const _vsT = _skinHBg.visualSize?.holdHead;
             const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
-            const _hH = _hW;  // 정 사이즈 (square sprite)
-            const _step = _hH * 0.3;  // 빼곡 = sprite 30% 위치 (= 70% 겹침, 빈틈 X)
             let _fadeAlpha = 1.0;
             if (n.holding) {
               const _hp = n.endTime > n.time ? (gameTime - n.time) / (n.endTime - n.time) : 0;
@@ -12302,18 +12300,13 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _fadeAlpha = 0.2;
             }
-            if (_fadeAlpha > 0.02 && _step > 0) {
-              const _count = Math.min(40, Math.ceil(_barH / _step) + 1);
+            if (_fadeAlpha > 0.02 && _barH > 0) {
+              const _srcY = Math.round(_bImg.naturalHeight * 0.5);  // 가운데 row
               ctx.save();
-              for (let _i = 0; _i < _count; _i++) {
-                const _y = barBot - _i * _step;
-                if (_y + _hH < barTop) break;
-                // alpha: 아래쪽 (= barBot) 진함 1.0, 위쪽 (= barTop) 흐림 0.25.
-                const _tNorm = _count > 1 ? _i / (_count - 1) : 0;
-                const _a = (1 - _tNorm * 0.75) * _fadeAlpha;
-                ctx.globalAlpha = _a;
-                ctx.drawImage(_bImg, sx - _hW/2, _y - _hH, _hW, _hH);
-              }
+              ctx.globalAlpha = _fadeAlpha;
+              ctx.drawImage(_bImg,
+                0, _srcY, _bImg.naturalWidth, 1,
+                sx - _hW/2, barTop, _hW, _barH);
               ctx.restore();
             }
           }
