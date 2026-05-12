@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512182712;
+window.__BUILD_TS = 20260512183009;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10673,8 +10673,8 @@ function update(dt) {
         spawnBurst(getLaneX(n.lane), getHitY(), 'great');
         spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane, 'holdhead');
         playerAnim = 0.2;
-      } else if (endDist < 150 * hs) {
-        // GOOD 범위 확장 — 조금 일찍 떼도 판정 (기존 hitWindow=90 → 150)
+      } else if (endDist < getHitWindow()) {
+        // GOOD — 일반 노트 hit 판정과 동일 범위 (= < hitWindow 90*hs)
         score += Math.floor(80 * fm * getKeyBonus());
         judgmentText = 'GOOD'; judgmentTimer = 0.3; judgmentColor = '#44dd66'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'good');
