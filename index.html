@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260511185050;
+window.__BUILD_TS = 20260512094510;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2667,7 +2667,7 @@ const songs = [
   },
   {
     name: '境界線を蹴り飛ばして', sub: 'J-PUNK', bpm: 170, color: '#ff6a00',
-    bg1: '#1a0800', bg2: '#301500', bars: 60, cover: 'Music/境界線を蹴り飛ばして/境界線を蹴り飛ばして.png',
+    bg1: '#1a0800', bg2: '#301500', bars: 83, cover: 'Music/境界線を蹴り飛ばして/境界線を蹴り飛ばして.png',
     file: 'Music/境界線を蹴り飛ばして.ogg',
     stemDir: 'Music/境界線を蹴り飛ばして/',
     stemPrefix: '境界線を蹴り飛ばして',
@@ -11891,12 +11891,13 @@ function renderHitLine() {
     const _outR = Math.min(W - _pad, lsx + tw + sz(6));
     const _bandX = _outL;
     const _bandW = _outR - _outL;
+    // 벚꽃 UI 판정선 두께 증가 (사용자 요구) — 본체 2 → 5, glow sz(5) → sz(7).
     ctx.fillStyle = 'rgba(217,122,160,0.22)';
     ctx.fillRect(_bandX, hitY - _s7, _bandW, _s14);
     ctx.fillStyle = _glowCol;
-    ctx.fillRect(_bandX, hitY - _s3, _bandW, _s5);
+    ctx.fillRect(_bandX, hitY - sz(4), _bandW, sz(7));
     ctx.fillStyle = _mainCol;
-    ctx.fillRect(_bandX, hitY - 1, _bandW, 2);
+    ctx.fillRect(_bandX, hitY - 3, _bandW, 5);
   } else {
     if (!isMobile) { ctx.shadowColor = _shadowCol; ctx.shadowBlur = 6; }
     ctx.strokeStyle = _mainCol; ctx.lineWidth = 2;
@@ -12039,7 +12040,7 @@ function renderJudgeLineDecos() {
       const _key = _rPath + ':' + _dw + ':' + _dh;
       let _baked = _judgeLineDecoBakery.get(_key);
       if (!_baked) { _baked = _bakeJudgeLineDeco(_rImg, _dw, _dh); _judgeLineDecoBakery.set(_key, _baked); }
-      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.3), Math.round(_decoY - _dh / 2));
+      ctx.drawImage(_baked, Math.round(lsx + tw - _dw * 0.7), Math.round(_decoY - _dh / 2));
     } catch(e) {}
   }
 }
