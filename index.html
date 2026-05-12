@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512153314;
+window.__BUILD_TS = 20260512155215;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1209,8 +1209,8 @@ const FORCE_REPATCH_LIST = [
   'icon.png',
   // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
   'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
-  // paw_mouse holdbody atlas v16 — 롤케잌 (cap+stripe 동일 cosine, drawImage 1번)
-  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v16.png',
+  // paw_mouse holdbody atlas v17 — cap dome + cosine transition (볼륨감 + 매끄러움)
+  'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v17.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
@@ -4185,7 +4185,7 @@ const SKINS = {
       noteDead:     'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png',
       holdHead:     'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
       holdHeadDead: 'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas.png',
-      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v16.png',  // v16 = 롤케잌 (cap+stripe 동일 원통 cosine)
+      holdBody:     'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v17.png',  // v17 = cap dome → cosine transition (볼륨감 + 매끄러운 경계)
     },
     sprites: {
       note: [
@@ -12312,14 +12312,11 @@ function renderNotes() {
             } else if (n.holdComplete) {
               _holdProgress = 1.0;
             }
-            // ★ atlas v14 = stretch-resistant cap (90px) + stripe (510px). drawImage 1번 만 (perf fix).
-            //   평소 body bottom = barBot - hW*0.2 (귀밑 끝). holding 시 = barBot (판정선까지).
-            const _bodyTop = barTop;
-            const _bodyBottom = n.holding ? barBot : (barBot - _hW * 0.2);
-            const _bodyH = Math.max(0, _bodyBottom - _bodyTop);
-            if (_bodyH > 0) {
-              ctx.drawImage(_bImg, 0, 0, _bImg.naturalWidth, _bImg.naturalHeight,
-                            sx - _hW/2, _bodyTop, _hW, _bodyH);
+            // ★ atlas v17 = cap dome + cosine transition + stripe cosine. drawImage 1번 (perf).
+            //   body bottom = barBot - hW*0.2 고정 (holding 분기 제거 = 기둥 밀림 fix).
+            const _bH = barBot - barTop - _hW * 0.2;
+            if (_bH > 0 && _holdProgress < 1) {
+              ctx.drawImage(_bImg, sx - _hW/2, barTop, _hW, _bH);
             }
           }
           if (n.holding && Math.random() < 0.1 && particles.length < 80) {
