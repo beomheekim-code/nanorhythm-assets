@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512105627;
+window.__BUILD_TS = 20260512111829;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4166,17 +4166,22 @@ const SKINS = {
     category: 'note',
     price: 2000,  // 벚꽃 노트와 동일
     imagePaths: {
-      note:     'skins/paw_mouse/note/paw_mouse_note_atlas.png',     // 1200×600, 2셀 (회색/흰)
-      holdHead: 'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png', // 600×600, 단일 셀 (화난 쥐)
-      // holdBody = 별도 image X. renderNotes 의 paw_mouse 분기에서 잔상 효과 (note sprite 반복).
+      note:     'skins/paw_mouse/note/paw_mouse_note_atlas.png',      // 1200×600, 2셀
+      noteDead: 'skins/paw_mouse/note/paw_mouse_note_dead_atlas.png', // 1200×600, 2셀 dead
+      holdHead: 'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',  // 600×600 (화난 쥐)
+      // holdBody = 별도 image X. renderNotes 의 paw_mouse 분기에서 holdhead stretch.
     },
     sprites: {
       note: [
-        [0,   0, 600, 600],  // 0 = 회색 쥐 (odd lane)
-        [600, 0, 600, 600],  // 1 = 흰 쥐 with bow (even lane)
+        [0,   0, 600, 600],
+        [600, 0, 600, 600],
+      ],
+      noteDead: [
+        [0,   0, 600, 600],
+        [600, 0, 600, 600],
       ],
       holdHead: [
-        [0, 0, 600, 600],  // 모든 lane 동일 (화난 쥐)
+        [0, 0, 600, 600],
         [0, 0, 600, 600],
       ],
     },
@@ -6495,7 +6500,7 @@ if (currentUser) {
 let curSong = null, curSongIdx = 0, curDiff = null;
 let score = 0, combo = 0, maxCombo = 0, totalNodes = 0, collected = 0, missed = 0;
 let noteSpeed = 0;
-let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [];
+let nodes = [], particles = [], bursts = [], holdGlows = [], gameParticles = [], pawDeadFx = [];
 let nodeScanStart = 0; // 활성 노트 스캔 시작 인덱스 (hit/missed prefix 스킵)
 // ===== 인게임 sz() precompute 전역 (renderLanes/renderNotes 등에서 접근) =====
 let _s3=0,_s5=0,_s7=0,_s8=0,_s9=0,_s10=0;
@@ -8579,6 +8584,7 @@ function handleLanePress(lane, src) {
     playerAnim = 0.3;
     spawnParticles(getLaneX(lane), hitY, LANE_COLORS[lane], fever ? 8 : 5);
     spawnBurst(getLaneX(lane), hitY, grade);
+    spawnPawDeadFx(getLaneX(lane), hitY, lane);
   }
 }
 
@@ -8589,6 +8595,12 @@ function spawnParticles(x, y, color, count) {
     particles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp-60,
       life: 0.4+Math.random()*0.3, maxLife: 0.7, color, size: 3+Math.random()*5 });
   }
+}
+// ★ paw_mouse 전용: hit 시 dead sprite 짧게 표시 + fade out.
+function spawnPawDeadFx(x, y, lane) {
+  if (currentSkin !== 'paw_mouse') return;
+  if (pawDeadFx.length > 30) return;  // cap
+  pawDeadFx.push({ x, y, lane, time: 0, maxTime: 0.5 });
 }
 
 function spawnBurst(x, y, grade) {
@@ -9676,7 +9688,7 @@ function startSong(idx) {
   _lastLaneHitAt.length = 0;
   _pauseGestureAt = 0;
   _inputEventTime = 0;
-  particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; countdownTime=0; gameTime=0;
+  particles=[]; bursts=[]; holdGlows=[]; gameParticles=[]; pawDeadFx=[]; countdownTime=0; gameTime=0;
   nextSixteenth=0; songStartTime=0; lastTime=0;
   judgmentText=''; judgmentTimer=0; judgmentPriority=0; playerAnim=0; gauge=1; fever=false; feverTimer=0; feverFlash=0; feverParticles=[];
   usingStemMode = false;
@@ -10615,6 +10627,7 @@ function update(dt) {
         judgmentText = 'PERFECT'; judgmentTimer = 0.6; judgmentColor = '#ffd700'; judgmentPriority = 0;
         spawnBurst(getLaneX(n.lane), getHitY(), 'perfect');
         spawnParticles(getLaneX(n.lane), getHitY(), LANE_COLORS[n.lane], fever ? 10 : 6);
+        spawnPawDeadFx(getLaneX(n.lane), getHitY(), n.lane);
         playerAnim = 0.3;
       } else if (endDist < 52 * hs) {
         score += Math.floor(150 * fm * getKeyBonus()); combo++; if (combo > maxCombo) maxCombo = combo;
@@ -10748,6 +10761,18 @@ function update(dt) {
       }
     }
     holdGlows.length = _w;
+  }
+  // ★ paw_mouse dead fx — fade out (= 동일 write-pointer 패턴)
+  {
+    let _w = 0;
+    for (let i = 0; i < pawDeadFx.length; i++) {
+      pawDeadFx[i].time += dt;
+      if (pawDeadFx[i].time < pawDeadFx[i].maxTime) {
+        if (_w !== i) pawDeadFx[_w] = pawDeadFx[i];
+        _w++;
+      }
+    }
+    pawDeadFx.length = _w;
   }
 
   // 프리스타일: HP 게임오버 없음. 곡 종료로만 result 전환
@@ -11109,6 +11134,7 @@ function render() {
     _measure('renderLanes', () => renderLanes());
     _measure('renderNotes', () => renderNotes());
     _measure('renderBackplatePostNotes', () => renderBackplatePostNotes());
+    _measure('renderPawDeadFx', () => renderPawDeadFx());
     _measure('renderHitLine', () => renderHitLine());
     _measure('renderBackplateBorder', () => renderBackplateBorder());
     _measure('renderButtons', () => renderButtons());
@@ -11125,6 +11151,7 @@ function render() {
     renderLanes();
     renderNotes();
     renderBackplatePostNotes();
+    renderPawDeadFx();
     renderHitLine();
     renderBackplateBorder();
     renderButtons();
@@ -11778,6 +11805,26 @@ function renderBackplatePostNotes() {
   }
 }
 
+// ★ paw_mouse 전용: hit 시 dead sprite 짧게 + fade out.
+function renderPawDeadFx() {
+  if (state !== 'playing' || currentSkin !== 'paw_mouse' || pawDeadFx.length === 0) return;
+  const s = SKINS.paw_mouse;
+  if (!s) return;
+  const _vsN = s.visualSize?.note;
+  const _nW = _vsN?.widthMul ? _noteHW * 2 * _vsN.widthMul : _noteHW * 2;
+  const _nH = _vsN?.heightRatio ? _nW * _vsN.heightRatio : _nW;
+  ctx.save();
+  for (const fx of pawDeadFx) {
+    const t = fx.time / fx.maxTime;
+    const alpha = 1 - t;  // 1 → 0 fade out
+    const scale = 1 + t * 0.15;  // 살짝 확대 (= 시각 효과)
+    const w = _nW * scale, h = _nH * scale;
+    ctx.globalAlpha = alpha;
+    drawSkinSprite('noteDead', fx.lane, fx.x - w/2, fx.y - h/2, w, h);
+  }
+  ctx.restore();
+}
+
 // 외곽 프레임 테두리 — 판정선/노트/히트 이펙트 위에 렌더. 좌측 중 HP 컨테이너 Y 범위
 // (=두 프레임 공유 엣지) 만 sz(2) 얇게, 나머지는 sz(7) 두껍게.
 function renderBackplateBorder() {
@@ -12219,24 +12266,35 @@ function renderNotes() {
           const _skinHB = SKINS[currentSkin];
           const _vsB = _skinHB?.visualSize?.holdBody;
           const _bwVis = _vsB?.widthMul ? bw * _vsB.widthMul : bw;
-          // ★ paw_mouse: hold body = note sprite 잔상 반복 (기둥 X).
+          // ★ paw_mouse: hold body = holdhead sprite 를 vertical stretch + alpha 그라데이션.
+          //   사용자 요구: 그라데이션처럼 길게 늘어진 이미지 느낌.
           if (_skinHB?.holdBodyStyle === 'trail') {
-            const _vsN = _skinHB.visualSize?.note;
-            const _nW = _vsN?.widthMul ? _noteHW * 2 * _vsN.widthMul : _noteHW * 2;
-            const _nH = _vsN?.heightRatio ? _nW * _vsN.heightRatio : _nW;
-            const _step = _nH * 0.55;  // 잔상 간격 (sprite 높이의 55%)
-            const _alphas = [0.18, 0.30, 0.45, 0.62, 0.80];  // 위→아래 점진 진하게
-            let y = barBot;
-            let i = 0;
-            ctx.save();
-            while (y >= barTop && i < 40) {
-              const a = _alphas[Math.min(i, _alphas.length - 1)];
-              ctx.globalAlpha = a;
-              drawSkinSprite('note', n.lane, sx - _nW/2, y - _nH, _nW, _nH);
-              y -= _step;
-              i++;
+            const _hPath = _skinHB.imagePaths?.holdHead;
+            const _hImg = _hPath ? skinImages[_hPath] : null;
+            if (_hImg && _hImg.complete && _hImg.naturalWidth) {
+              const _vsT = _skinHB.visualSize?.holdHead;
+              const _hW = _vsT?.widthMul ? _noteHW * 2 * _vsT.widthMul : _noteHW * 2;
+              const _hh = Math.max(1, Math.round(_barH));
+              const _hw = Math.max(1, Math.round(_hW));
+              if (!window._pawTrailCV || window._pawTrailCV.width !== _hw || window._pawTrailCV.height !== _hh) {
+                window._pawTrailCV = document.createElement('canvas');
+                window._pawTrailCV.width = _hw;
+                window._pawTrailCV.height = _hh;
+              }
+              const _tcv = window._pawTrailCV;
+              const _tctx = _tcv.getContext('2d');
+              _tctx.clearRect(0, 0, _hw, _hh);
+              _tctx.drawImage(_hImg, 0, 0, _hw, _hh);
+              _tctx.globalCompositeOperation = 'destination-in';
+              const _grad = _tctx.createLinearGradient(0, 0, 0, _hh);
+              _grad.addColorStop(0, 'rgba(0,0,0,0.15)');   // top 흐림
+              _grad.addColorStop(0.7, 'rgba(0,0,0,0.7)');
+              _grad.addColorStop(1, 'rgba(0,0,0,1)');      // bottom 진함
+              _tctx.fillStyle = _grad;
+              _tctx.fillRect(0, 0, _hw, _hh);
+              _tctx.globalCompositeOperation = 'source-over';
+              ctx.drawImage(_tcv, sx - _hW/2, barTop);
             }
-            ctx.restore();
           } else if (!drawSkinSprite('holdBody', n.lane, sx - _bwVis/2, barTop, _bwVis, _barH)) {
             ctx.fillStyle = col + '55';
             rrFill(sx - bw/2, barTop, bw, _barH, _s7);
