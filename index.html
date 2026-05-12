@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512175011;
+window.__BUILD_TS = 20260512175124;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11185,6 +11185,7 @@ function render() {
     _measure('renderBursts', () => renderBursts());
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
+    _measure('renderPawHoldPercent', () => renderPawHoldPercent());
   } else {
     renderBackplate();
     renderLanes();
@@ -11202,6 +11203,7 @@ function render() {
     renderBursts();
     renderJudgment();
     renderUI();
+    renderPawHoldPercent();
   }
 
   // Fever overlay — safeTop/Bottom 포함 전체 화면
@@ -11862,6 +11864,29 @@ function renderPawDeadFx() {
     const _type = fx.kind === 'holdhead' ? 'holdHeadDead' : 'noteDead';
     drawSkinSprite(_type, fx.lane, fx.x - w/2, fx.y - h/2, w, h);
   }
+  ctx.restore();
+}
+
+// ★ paw_mouse 전용: 우측 상단에 hold body 남은 지속시간 % 표시
+function renderPawHoldPercent() {
+  if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
+  let pct = -1;
+  for (const n of nodes) {
+    if (n.holding && n.endTime > n.time) {
+      const remaining = Math.max(0, 1 - (gameTime - n.time) / (n.endTime - n.time));
+      if (remaining > pct) pct = remaining;
+    }
+  }
+  if (pct < 0) return;
+  const txt = Math.round(pct * 100) + '%';
+  ctx.save();
+  ctx.font = 'bold ' + sz(22) + 'px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillText(txt, W - sz(18), safeTop + sz(18));
+  ctx.fillStyle = '#ff6680';
+  ctx.fillText(txt, W - sz(20), safeTop + sz(20));
   ctx.restore();
 }
 
