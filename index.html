@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512101002;
+window.__BUILD_TS = 20260512102459;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3435,6 +3435,46 @@ const songs = [
     stemMinGap: { 2: 20, 3: 20 },
     slotSubdivision: 0.5,
     levelBonus: 0.4,
+  },
+  {
+    name: 'Artificial Sky', sub: 'INDIE/POP', bpm: 96, color: '#6a8cff',
+    bg1: '#0a0e1a', bg2: '#141a2e', bars: 55,
+    cover: 'Music/Artificial_Sky/Artificial_Sky.png',
+    file: 'Music/Artificial_Sky.ogg',
+    stemDir: 'Music/Artificial_Sky/',
+    stemPrefix: 'Artificial_Sky',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [4, 5],
+    chordMode: true, chordMinGap: 2.5,
+    vocalIntroRange: 'auto',
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
+  },
+  {
+    name: 'Red Light', sub: 'ROCK/EDM', bpm: 152, color: '#ff3a5c',
+    bg1: '#1a0008', bg2: '#2e0014', bars: 73,
+    cover: 'Music/Red_Light/Red_Light.png',
+    file: 'Music/Red_Light.ogg',
+    stemDir: 'Music/Red_Light/',
+    stemPrefix: 'Red_Light',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [4, 5],
+    chordMode: true, chordMinGap: 2.0,
+    vocalIntroRange: 'auto',
+    endCutoff: 113.2,
+    pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: 'Static On The Road', sub: 'SYNTH/POP', bpm: 129, color: '#4dd0e1',
+    bg1: '#001218', bg2: '#00242e', bars: 66,
+    cover: 'Music/Static_On_The_Road/Static_On_The_Road.png',
+    file: 'Music/Static_On_The_Road.ogg',
+    stemDir: 'Music/Static_On_The_Road/',
+    stemPrefix: 'Static_On_The_Road',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [4, 5],
+    chordMode: true, chordMinGap: 2.2,
+    vocalIntroRange: 'auto',
+    pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
   },
 ];
 
