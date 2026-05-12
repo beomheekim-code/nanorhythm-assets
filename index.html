@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512183009;
+window.__BUILD_TS = 20260512183357;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4094,7 +4094,7 @@ const SKINS = {
   default: null,
   neon: {
     id: 'neon',
-    name: '벚꽃 네온',
+    name: '벚꽃 노트',
     category: 'note',      // 속하는 스킨 카테고리 (인벤토리 탭)
     price: 2000,           // 음표(코인) 가격
     // ★ 3개 스트립 분리 구조 — 유저가 수동 크롭 + 스크립트로 배경 투명화
@@ -4180,7 +4180,7 @@ const SKINS = {
   // ★ paw_mouse 노트 스킨 — 회색 쥐 (odd lane) + 흰 쥐 with bow (even lane). hold body = 잔상.
   paw_mouse: {
     id: 'paw_mouse',
-    name: '쥐 발자국',
+    name: '쥐 왕국의 습격',
     category: 'note',
     price: 2000,  // 벚꽃 노트와 동일
     imagePaths: {
@@ -15168,11 +15168,10 @@ function getShopItems() {
     {
       id: 'skin_neon_note', type: 'skin', section: '스킨',
       label: '벚꽃 노트',
-      desc: '봄을 느낄 수 있는 벚꽃 노트 스킨',
+      desc: '봄날의 벚꽃을 느껴보세요!',
       price: '2000 ♪',
       priceType: 'coins',
       color: '#b33f64', icon: '🌸',
-      // atlas 내 cleaned 꽃 셀 (3200×400 중 x=2800, 400×400) — 배경 투명 + 중앙 정렬
       iconImage: 'skins/neon/note/neon_note.png',
       iconSrc: [2800, 0, 400, 400],
       previewGif: 'skins/neon/preview_note.gif',
@@ -15183,17 +15182,16 @@ function getShopItems() {
     },
     {
       id: 'skin_paw_mouse', type: 'skin', section: '스킨',
-      label: '쥐 발자국',
-      desc: '귀여운 쥐 노트. odd lane = 회색, even lane = 흰 쥐. 홀드는 잔상 효과.',
+      label: '쥐 왕국의 습격',
+      desc: '쥐 왕국의 습격을 막아주세요!',
       price: '2000 ♪',
       priceType: 'coins',
       color: '#9aa0b8', icon: '🐭',
-      iconImage: 'skins/paw_mouse/note/paw_mouse_note_atlas.png',
-      iconSrc: [0, 0, 600, 600],
+      iconImage: 'skins/paw_mouse/note/paw_mouse_holdhead.png.png',
       skinCategory: 'note', skinId: 'paw_mouse', coinCost: 2000,
       getStatus: () => ownsSkin('note', 'paw_mouse') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('note', 'paw_mouse'),
-      onBuy: () => buySkinWithCoins('note', 'paw_mouse', 2000, '쥐 발자국'),
+      onBuy: () => buySkinWithCoins('note', 'paw_mouse', 2000, '쥐 왕국의 습격'),
     },
     {
       id: 'skin_sakura_fx', type: 'skin', section: '스킨',
