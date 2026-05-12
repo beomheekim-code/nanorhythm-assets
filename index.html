@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512171738;
+window.__BUILD_TS = 20260512172309;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11170,16 +11170,17 @@ function render() {
     _measure('renderLanes', () => renderLanes());
     _measure('renderNotes', () => renderNotes());
     _measure('renderBackplatePostNotes', () => renderBackplatePostNotes());
-    _measure('renderPawDeadFx', () => renderPawDeadFx());
     _measure('renderHitLine', () => renderHitLine());
     _measure('renderBackplateBorder', () => renderBackplateBorder());
     _measure('renderButtons', () => renderButtons());
     _measure('renderCharacter', () => renderCharacter());
     _measure('renderSakuraHoldGlowBg', () => renderSakuraHoldGlowBg());
     _measure('renderParticles', () => renderParticles());
-    _measure('renderBursts', () => renderBursts());
     _measure('renderHoldGlows', () => renderHoldGlows());
     _measure('renderJudgeLineDecos', () => renderJudgeLineDecos());
+    _measure('renderPawHoldHead', () => renderPawHoldHead());  // ★ head depth high (hit fx 다음)
+    _measure('renderPawDeadFx', () => renderPawDeadFx());       // ★ dead depth high
+    _measure('renderBursts', () => renderBursts());              // hit fx 최상단
     _measure('renderJudgment', () => renderJudgment());
     _measure('renderUI', () => renderUI());
   } else {
@@ -11187,16 +11188,17 @@ function render() {
     renderLanes();
     renderNotes();
     renderBackplatePostNotes();
-    renderPawDeadFx();
     renderHitLine();
     renderBackplateBorder();
     renderButtons();
     renderCharacter();
     renderSakuraHoldGlowBg();
     renderParticles();
-    renderBursts();
     renderHoldGlows();
     renderJudgeLineDecos();
+    renderPawHoldHead();  // ★ head depth high (hit fx 다음)
+    renderPawDeadFx();    // ★ dead depth high
+    renderBursts();        // hit fx 최상단
     renderJudgment();
     renderUI();
   }
@@ -11862,6 +11864,26 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
+// ★ paw_mouse 전용: holding 중 head sprite 별도 render (z-order 위 + 심장 박동 bounce pulse).
+function renderPawHoldHead() {
+  if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
+  const s = SKINS.paw_mouse;
+  if (!s) return;
+  const _vsH = s.visualSize?.holdHead;
+  const _hwBase = _vsH?.widthMul ? _noteHW * _vsH.widthMul : _noteHW;
+  const _hhBase = _vsH?.heightRatio ? _hwBase * _vsH.heightRatio : _hwBase;
+  const _pulse = 1 + 0.12 * Math.sin(gameTime * 7);  // 심장 박동 7Hz
+  const hY = getHitY();
+  for (const n of nodes) {
+    if (!n.holding || n.missed) continue;
+    const lane = n.lane;
+    const sx = getLaneX(lane);
+    const hwB = _hwBase * _pulse;
+    const hhB = _hhBase * _pulse;
+    drawSkinSprite('holdHead', lane, sx - hwB, hY - hhB, hwB * 2, hhB * 2);
+  }
+}
+
 // 외곽 프레임 테두리 — 판정선/노트/히트 이펙트 위에 렌더. 좌측 중 HP 컨테이너 Y 범위
 // (=두 프레임 공유 엣지) 만 sz(2) 얇게, 나머지는 sz(7) 두껍게.
 function renderBackplateBorder() {
@@ -12382,10 +12404,9 @@ function renderNotes() {
       }
 
       // ── 3) Head (최상단) — skip if already hit or missed
-      // ★ paw_mouse trail: hit 후 hold 중에도 head sprite 그림 (= body 침범 visual 회피).
-      const _isPawHead = !n.missed && SKINS[currentSkin]?.holdBodyStyle === 'trail' && n.holding;
-      if ((!n.hit && !n.missed) || _isPawHead) {
-        const sy = _isPawHead ? hitY : headY;
+      // ★ paw_mouse trail + holding 의 head 는 renderPawHoldHead 에서 별도 그림 (z-order 위 + bounce pulse).
+      if (!n.hit && !n.missed) {
+        const sy = headY;
         if (sy > -_noteTopMargin && sy < hitY + 60) {
           const hw = _noteHW, hh = _noteHH;
           const _vsH = SKINS[currentSkin]?.visualSize?.holdHead;
