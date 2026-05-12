@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260512183357;
+window.__BUILD_TS = 20260512183732;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1214,11 +1214,13 @@ const FORCE_REPATCH_LIST = [
   // paw_mouse holdhead 신규 이미지 (왕관 화난 표정 + chroma/워터마크 제거)
   'skins/paw_mouse/note/paw_mouse_holdhead_atlas.png',
   'skins/paw_mouse/note/paw_mouse_holdhead_dead_atlas_v2.png',
+  // paw_mouse 상점/가방 아이콘
+  'skins/paw_mouse/note/paw_mouse_holdhead.png.png',
 ];
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 42;
+const FORCE_REPATCH_VERSION = 43;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -4230,7 +4232,7 @@ const SKINS = {
   //   drawImage 전체 사용. 파일 누락 시 해당 요소는 fallback 으로 자동 전환.
   sakura_fx: {
     id: 'sakura_fx',
-    name: '벚꽃 히트 이펙트',
+    name: '벚꽃 이펙트',
     category: 'hit_effect',
     price: 1000,
     imagePaths: {
@@ -15195,8 +15197,8 @@ function getShopItems() {
     },
     {
       id: 'skin_sakura_fx', type: 'skin', section: '스킨',
-      label: '벚꽃 히트 이펙트',
-      desc: '노트 히트 시 벚꽃잎이 휘날립니다.',
+      label: '벚꽃 이펙트',
+      desc: '노트 적중 시 벚꽃잎이 흩날립니다.',
       price: '1000 ♪',
       priceType: 'coins',
       color: '#ff4d94', icon: '🌸',
@@ -15206,12 +15208,12 @@ function getShopItems() {
       skinCategory: 'hit_effect', skinId: 'sakura_fx', coinCost: 1000,
       getStatus: () => ownsSkin('hit_effect', 'sakura_fx') ? { text: '보유중', color: '#44dd66' } : null,
       canBuy: () => !ownsSkin('hit_effect', 'sakura_fx'),
-      onBuy: () => buySkinWithCoins('hit_effect', 'sakura_fx', 1000, '벚꽃 히트 이펙트'),
+      onBuy: () => buySkinWithCoins('hit_effect', 'sakura_fx', 1000, '벚꽃 이펙트'),
     },
     {
       id: 'skin_sakura_ui', type: 'skin', section: '스킨',
       label: '벚꽃 UI 팩',
-      desc: '인게임 UI를 벚꽃 느낌으로 꾸며줍니다.',
+      desc: '인게임 디자인을 벚꽃 느낌으로 꾸며줍니다.',
       price: '3000 ♪',
       priceType: 'coins',
       color: '#ff7aa8', icon: '🌸',
