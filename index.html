@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513113920;
+window.__BUILD_TS = 20260513114052;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11898,17 +11898,22 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: holding hold note 상단에 % (perf: fillRect, measureText 캐시)
+// ★ paw_mouse 전용: holding hold note 상단에 % + holdhead dead fx 출력 중 100% 유지
 function renderPawHoldPercent() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
-  // holding 노트 찾기 — nodeScanStart 가 hold 진행 중 노트 지나갔을 수 있어 nodes 전체 순회
+  // holding 노트
   let hasHolding = false;
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (n.holding && n.endTime > n.time) { hasHolding = true; break; }
   }
-  if (!hasHolding) return;
+  // holdhead dead fx (= hit release 후 fade out 중) 도 % 박스 유지
+  const _holdDeadFx = [];
+  for (const fx of pawDeadFx) {
+    if (fx.kind === 'holdhead') _holdDeadFx.push(fx);
+  }
+  if (!hasHolding && _holdDeadFx.length === 0) return;
   ctx.save();
   const _fs = sz(18);
   ctx.font = `bold ${_fs}px sans-serif`;
@@ -11931,9 +11936,21 @@ function renderPawHoldPercent() {
     const txt = ((progress < 0 ? 0 : progress > 1 ? 100 : (progress * 100)) | 0) + '%';
     const tx = getLaneX(n.lane);
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);  // rrFill → fillRect (perf)
+    ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
     ctx.fillStyle = '#ffd966';
     ctx.fillText(txt, tx, ty);
+  }
+  // holdhead dead fx 출력 중 — 100% 박스 유지 (fx fade 따라 alpha)
+  for (const fx of _holdDeadFx) {
+    const tFx = fx.time / fx.maxTime;
+    const alpha = tFx < 0.6 ? 1.0 : Math.max(0, 1 - (tFx - 0.6) / 0.4);
+    if (alpha <= 0) continue;
+    ctx.globalAlpha = alpha;
+    const tx = getLaneX(fx.lane);
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
+    ctx.fillStyle = '#ffd966';
+    ctx.fillText('100%', tx, ty);
   }
   ctx.restore();
 }
