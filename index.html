@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513103050;
+window.__BUILD_TS = 20260513103901;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2048,7 +2048,7 @@ let shopBgm = null;
 let shopBgmPlaying = false;
 function ensureShopBgm() {
   if (!shopBgm) {
-    shopBgm = new Audio(assetUrl("Music/Let's_Go_Shopping!.ogg"));
+    shopBgm = new Audio(assetUrl('Music/Lets_Go_Shopping.ogg'));
     shopBgm.loop = true;
     shopBgm.volume = 0.55 * volBgm;
   }
@@ -15989,6 +15989,8 @@ function _getSkinPreview(id) {
   const s = SKINS[id];
   if (!s) return null;
   if (id === 'neon') return { path: 'skins/neon/note/neon_note.png', src: [2800, 0, 400, 400] };
+  // 쥐 왕국의 습격 — 상점 아이콘과 동일
+  if (id === 'paw_mouse') return { path: 'skins/paw_mouse/note/paw_mouse_icon.png', src: null };
   // 벚꽃 히트 이펙트 — 상점 아이콘(petal_01) 과 동일
   if (id === 'sakura_fx') return { path: 'skins/neon/hit_effect/petal_01.png', src: null };
   // 벚꽃 UI 팩 — 상점 아이콘(hp_bar) 과 동일
