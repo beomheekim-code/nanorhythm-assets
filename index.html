@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513113148;
+window.__BUILD_TS = 20260513113555;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2038,6 +2038,8 @@ function ensureInventoryBgm() {
     inventoryBgm = new Audio(assetUrl('Music/The_Last_Quarter.ogg'));
     inventoryBgm.loop = true;
     inventoryBgm.volume = 0.55 * volBgm;
+    inventoryBgm.preload = 'auto';
+    try { inventoryBgm.load(); } catch(e) {}
   }
   return inventoryBgm;
 }
@@ -2058,6 +2060,8 @@ function ensureShopBgm() {
     shopBgm = new Audio(assetUrl('Music/Lets_Go_Shopping.ogg'));
     shopBgm.loop = true;
     shopBgm.volume = 0.55 * volBgm;
+    shopBgm.preload = 'auto';
+    try { shopBgm.load(); } catch(e) {}
   }
   return shopBgm;
 }
@@ -10715,7 +10719,7 @@ function update(dt) {
   const missTimeThresh = gameTime - missCut; // n.time < missTimeThresh 이면 MISS
   const futureCut = gameTime + 0.5; // 0.5초 이후 미래 노트는 스캔 불필요
   // 앞쪽 dead prefix 자동 advance
-  while (nodeScanStart < nodes.length && (nodes[nodeScanStart].hit || nodes[nodeScanStart].missed)) {
+  while (nodeScanStart < nodes.length && (nodes[nodeScanStart].missed || (nodes[nodeScanStart].hit && !nodes[nodeScanStart].holding))) {
     nodeScanStart++;
   }
   for (let i = nodeScanStart; i < nodes.length; i++) {
@@ -11894,12 +11898,12 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: holding hold note 상단에 % (perf: fillRect, measureText 캐시, holding 없으면 즉시 return)
+// ★ paw_mouse 전용: holding hold note 상단에 % (perf: fillRect, measureText 캐시)
 function renderPawHoldPercent() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
-  // 빠른 early exit: holding 노트 없으면 nodes 순회 X
+  // holding 노트 찾기 — nodeScanStart 가 hold 진행 중 노트 지나갔을 수 있어 nodes 전체 순회
   let hasHolding = false;
-  for (let i = nodeScanStart; i < nodes.length; i++) {
+  for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (n.holding && n.endTime > n.time) { hasHolding = true; break; }
@@ -11919,7 +11923,7 @@ function renderPawHoldPercent() {
   // 4자리 (100%) measureText 1회 → 전체 박스 폭 고정 (cost 절감)
   const _bw = ctx.measureText('100%').width + _pad * 2;
   const ty = hY - _hhBase * 1.4;
-  for (let i = nodeScanStart; i < nodes.length; i++) {
+  for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.endTime <= n.time) continue;
@@ -11948,8 +11952,8 @@ function renderPawHoldHead() {
   const hhB = _hhBase * _pulse;
   const dW = hwB * 2;
   const dH = hhB * 2;
-  // scanStart + futureCut break — nodes 전체 순회 회피
-  for (let i = nodeScanStart; i < nodes.length; i++) {
+  // holding 노트 검색 — nodeScanStart 가 hold 진행 중 노트 지나갔을 수 있어 0 부터 순회
+  for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.missed) continue;
