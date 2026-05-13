@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513105055;
+window.__BUILD_TS = 20260513105900;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1664,11 +1664,18 @@ async function patchAssets(opts) {
       console.log('[patch] skinImages swap (분산) for ' + _swapIdx + ' force paths over ' + (_swapIdx * 100) + 'ms');
     } catch(e) {}
     // ★ force list version mark — 받기 완료 후. 다음 reload 시 force re-patch X.
+    //   ★ 일부 force 실패 시 mark X — 다음 reload 시 실패한 path 재시도 가능.
     try {
       const verToMark = (typeof window.__FORCE_REPATCH_VERSION === 'number')
                         ? window.__FORCE_REPATCH_VERSION
                         : ((typeof FORCE_REPATCH_VERSION !== 'undefined') ? FORCE_REPATCH_VERSION : 0);
-      if (verToMark) safeSetItem('rhythm_lastForceVersion', String(verToMark));
+      const _force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
+                     ? window.__FORCE_REPATCH_LIST
+                     : ((typeof FORCE_REPATCH_LIST !== 'undefined') ? FORCE_REPATCH_LIST : []);
+      const _succSet = new Set(succeeded);
+      const _allForceOk = _force.every(p => _succSet.has(p) || (saved && (saved.paths || []).indexOf(p) >= 0));
+      if (verToMark && _allForceOk) safeSetItem('rhythm_lastForceVersion', String(verToMark));
+      else if (verToMark && !_allForceOk) console.log('[patch] force list 일부 실패 → lastForceVersion mark skip (다음 reload 재시도 가능)');
       // ★ Firebase 백업 재호출 — _savePatchedSet 이미 저장했지만 lastForceVer=0 상태였을 수
       //   있으니 verToMark 마크 후 한 번 더 저장 (KPLAY Chrome 환경 force list 재다운 fix).
       if (typeof currentUser !== 'undefined' && currentUser && typeof fbDb !== 'undefined' && fbDb && verToMark) {
