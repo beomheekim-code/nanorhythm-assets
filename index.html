@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513143024;
+window.__BUILD_TS = 20260513144949;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1404,17 +1404,23 @@ function getAssetsToPatch() {
 }
 
 // 단일 파일 fetch — Content-Length 사이즈 측정 + arrayBuffer 까지 강제 (HTTP 캐시 데움)
-async function _patchFetchOne(path, onBytes, expectedSize) {
+async function _patchFetchOne(path, onBytes, expectedSize, attempt) {
   // ★ 모바일 _patchViaAudio 제거 (사용자 보고 2026-05-06):
   //   audio.load() 가 iOS audio session 점유 → 패치 중 titleBgm 무음 + 패치 후 preview 자동재생 차단.
   //   모바일 4개 병렬 audio.load 가 audio session 을 BGM 으로부터 빼앗음.
   //   fetch 로 통일 → audio session 영향 없음. audio cache 데우는 효과 손실 가능하지만
   //   사용자 인지 가능한 BGM 끊김이 더 큰 문제.
-  return _patchViaFetch(path, onBytes);
+  return _patchViaFetch(path, onBytes, attempt);
 }
 
-async function _patchViaFetch(path, onBytes) {
-  const url = assetUrl(path);
+async function _patchViaFetch(path, onBytes, attempt) {
+  // ★ retry attempt 마다 query 변경 — jsdelivr edge 의 query-specific negative cache 회피.
+  //   사용자 환경 / jsdelivr edge 가 옛 404 응답 cache 한 경우 다른 query 로 재시도 시 새 fetch.
+  //   첫 시도 (attempt 0 or undef) 는 기존 URL 그대로 — 정상 케이스 cache 활용.
+  let url = assetUrl(path);
+  if (attempt && attempt > 0) {
+    url += (url.indexOf('?') >= 0 ? '&' : '?') + 'r=' + attempt + '_' + Date.now();
+  }
   const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch(e) {} }, PATCH_PER_FILE_TIMEOUT) : null;
   try {
@@ -1540,7 +1546,7 @@ async function _patchFetchWithRetry(path, onBytes, expectedSize) {
     try {
       _patchState.retryingPath = attempt > 0 ? path : null;
       attemptBytes = 0;
-      const sz = await _patchFetchOne(path, wrappedOnBytes, expectedSize);
+      const sz = await _patchFetchOne(path, wrappedOnBytes, expectedSize, attempt);
       _patchState.retryingPath = null;
       return sz;
     } catch(e) {
