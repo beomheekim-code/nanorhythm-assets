@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513114301;
+window.__BUILD_TS = 20260513114528;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2074,26 +2074,32 @@ function stopShopBgm() {
   if (shopBgmPlaying && shopBgm) { shopBgm.pause(); shopBgmPlaying = false; }
 }
 
-// ★ visibility 시 BGM pause/resume — background / 다른 탭 시 BGM 멈춤
+// ★ visibility/pagehide/blur 시 BGM pause/resume — background / 다른 탭 / window blur 시 BGM 멈춤
 (function _setupBgmVisibility() {
   if (window._bgmVisibilitySetup) return;
   window._bgmVisibilitySetup = true;
+  function pauseAll() {
+    try { if (titleBgmPlaying && titleBgm) titleBgm.pause(); } catch(e) {}
+    try { if (shopBgmPlaying && shopBgm) shopBgm.pause(); } catch(e) {}
+    try { if (inventoryBgmPlaying && inventoryBgm) inventoryBgm.pause(); } catch(e) {}
+    try { if (achievementBgmPlaying && achievementBgm) achievementBgm.pause(); } catch(e) {}
+    try { if (rankingBgmPlaying && rankingBgm) rankingBgm.pause(); } catch(e) {}
+    try { if (typeof songPreviewAudio !== 'undefined' && songPreviewAudio) songPreviewAudio.pause(); } catch(e) {}
+  }
+  function resumeAll() {
+    try { if (titleBgmPlaying && titleBgm) titleBgm.play().catch(()=>{}); } catch(e) {}
+    try { if (shopBgmPlaying && shopBgm) shopBgm.play().catch(()=>{}); } catch(e) {}
+    try { if (inventoryBgmPlaying && inventoryBgm) inventoryBgm.play().catch(()=>{}); } catch(e) {}
+    try { if (achievementBgmPlaying && achievementBgm) achievementBgm.play().catch(()=>{}); } catch(e) {}
+    try { if (rankingBgmPlaying && rankingBgm) rankingBgm.play().catch(()=>{}); } catch(e) {}
+    // preview 는 자체 schedulePreview 가 다음 frame 자동 resume
+  }
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      try { if (titleBgmPlaying && titleBgm) titleBgm.pause(); } catch(e) {}
-      try { if (shopBgmPlaying && shopBgm) shopBgm.pause(); } catch(e) {}
-      try { if (inventoryBgmPlaying && inventoryBgm) inventoryBgm.pause(); } catch(e) {}
-      try { if (achievementBgmPlaying && achievementBgm) achievementBgm.pause(); } catch(e) {}
-      try { if (rankingBgmPlaying && rankingBgm) rankingBgm.pause(); } catch(e) {}
-      try { if (typeof pauseSongPreview === 'function') pauseSongPreview(); } catch(e) {}
-    } else {
-      try { if (titleBgmPlaying && titleBgm) titleBgm.play().catch(()=>{}); } catch(e) {}
-      try { if (shopBgmPlaying && shopBgm) shopBgm.play().catch(()=>{}); } catch(e) {}
-      try { if (inventoryBgmPlaying && inventoryBgm) inventoryBgm.play().catch(()=>{}); } catch(e) {}
-      try { if (achievementBgmPlaying && achievementBgm) achievementBgm.play().catch(()=>{}); } catch(e) {}
-      try { if (rankingBgmPlaying && rankingBgm) rankingBgm.play().catch(()=>{}); } catch(e) {}
-    }
+    if (document.hidden) pauseAll(); else resumeAll();
   });
+  window.addEventListener('blur', pauseAll);
+  window.addEventListener('focus', resumeAll);
+  window.addEventListener('pagehide', pauseAll);
 })();
 
 function startTitleBgm() {
