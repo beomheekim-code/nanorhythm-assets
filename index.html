@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513100227;
+window.__BUILD_TS = 20260513100411;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10812,10 +10812,13 @@ function update(dt) {
     for (let i = 0; i < pawDeadFx.length; i++) {
       pawDeadFx[i].time += dt;
       let _overlap = false;
-      for (const n of nodes) {
+      const _fxLane = pawDeadFx[i].lane;
+      // scanStart 부터 + 미래 0.3s break (= cost 절감)
+      for (let j = nodeScanStart; j < nodes.length; j++) {
+        const n = nodes[j];
+        if (n.time - gameTime > 0.3) break;
         if (n.hit || n.missed) continue;
-        if (n.lane !== pawDeadFx[i].lane) continue;
-        if (n.time - gameTime > 0.3) break;  // 미래 0.3초 이내만
+        if (n.lane !== _fxLane) continue;
         const _dist = Math.abs(n.time - gameTime) * noteSpeed;
         if (_dist < 60) { _overlap = true; break; }
       }
@@ -11884,9 +11887,17 @@ function renderPawDeadFx() {
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: 각 holding hold note 의 상단 중앙에 진행 % (백판 + 노란 텍스트)
+// ★ paw_mouse 전용: holding hold note 상단에 % (perf: fillRect, measureText 캐시, holding 없으면 즉시 return)
 function renderPawHoldPercent() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
+  // 빠른 early exit: holding 노트 없으면 nodes 순회 X
+  let hasHolding = false;
+  for (let i = nodeScanStart; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.time > gameTime + 0.5) break;
+    if (n.holding && n.endTime > n.time) { hasHolding = true; break; }
+  }
+  if (!hasHolding) return;
   ctx.save();
   const _fs = sz(18);
   ctx.font = `bold ${_fs}px sans-serif`;
@@ -11898,29 +11909,25 @@ function renderPawHoldPercent() {
   const hY = getHitY();
   const _pad = sz(8);
   const _bh = _fs + _pad;
-  const _br = sz(6);
-  for (const n of nodes) {
+  // 4자리 (100%) measureText 1회 → 전체 박스 폭 고정 (cost 절감)
+  const _bw = ctx.measureText('100%').width + _pad * 2;
+  const ty = hY - _hhBase * 1.4;
+  for (let i = nodeScanStart; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.endTime <= n.time) continue;
-    const progress = Math.min(1, Math.max(0, (gameTime - n.time) / (n.endTime - n.time)));
-    const txt = Math.round(progress * 100) + '%';
+    const progress = (gameTime - n.time) / (n.endTime - n.time);
+    const txt = ((progress < 0 ? 0 : progress > 1 ? 100 : (progress * 100)) | 0) + '%';
     const tx = getLaneX(n.lane);
-    const ty = hY - _hhBase * 1.4;
-    const _bw = ctx.measureText(txt).width + _pad * 2;
-    // 백판 - 검정 반투명 라운드 박스
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    rrFill(tx - _bw/2, ty - _bh/2, _bw, _bh, _br);
-    // 테두리 - paw_mouse 빨강 톤
-    ctx.strokeStyle = 'rgba(218,109,109,0.9)';
-    ctx.lineWidth = 2;
-    rrStroke(tx - _bw/2, ty - _bh/2, _bw, _bh, _br);
-    // 텍스트 - 노란
+    ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);  // rrFill → fillRect (perf)
     ctx.fillStyle = '#ffd966';
     ctx.fillText(txt, tx, ty);
   }
   ctx.restore();
 }
 
-// ★ paw_mouse 전용: holding 중 head sprite 별도 render (판정선 위 + hit fx 아래 + 심장 박동 bounce).
+// ★ paw_mouse 전용: holding head sprite 별도 render (판정선 위 + hit fx 아래 + 심장 박동 bounce).
 function renderPawHoldHead() {
   if (state !== 'playing' || currentSkin !== 'paw_mouse') return;
   const s = SKINS.paw_mouse;
@@ -11928,15 +11935,19 @@ function renderPawHoldHead() {
   const _vsH = s.visualSize?.holdHead;
   const _hwBase = _vsH?.widthMul ? _noteHW * _vsH.widthMul : _noteHW;
   const _hhBase = _vsH?.heightRatio ? _hwBase * _vsH.heightRatio : _hwBase;
-  const _pulse = 1 + 0.12 * Math.sin(gameTime * 7);  // 심장 박동 7Hz
+  const _pulse = 1 + 0.12 * Math.sin(gameTime * 7);
   const hY = getHitY();
-  for (const n of nodes) {
+  const hwB = _hwBase * _pulse;
+  const hhB = _hhBase * _pulse;
+  const dW = hwB * 2;
+  const dH = hhB * 2;
+  // scanStart + futureCut break — nodes 전체 순회 회피
+  for (let i = nodeScanStart; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.missed) continue;
-    const lane = n.lane;
-    const sx = getLaneX(lane);
-    const hwB = _hwBase * _pulse;
-    const hhB = _hhBase * _pulse;
-    drawSkinSprite('holdHead', lane, sx - hwB, hY - hhB, hwB * 2, hhB * 2);
+    const sx = getLaneX(n.lane);
+    drawSkinSprite('holdHead', n.lane, sx - hwB, hY - hhB, dW, dH);
   }
 }
 
