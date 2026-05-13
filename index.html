@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513115820;
+window.__BUILD_TS = 20260513120524;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1207,8 +1207,8 @@ const FORCE_REPATCH_LIST = [
   // 앱 로고 (cache 갱신용)
   // 'skins/bj_sera/preview_sera.gif',  // ★ 제거: jsdelivr 가 10MB GIF 처리 X (404). lazy load 로 fallback.
   'icon.png',
-  // 이건_아직_시작이야 vocals stem click 제거 (첫 10ms silence + 100ms fade)
-  'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
+  // 이건_아직_시작이야 vocals stem click 제거 — jsdelivr 한글 path 400 지속. lazy load fallback.
+  // 'Music/이건_아직_시작이야/이건_아직_시작이야_vocals.ogg',
   // paw_mouse holdbody atlas v25 — ears 영역 wider + 가운데 dim 좁게
   'skins/paw_mouse/note/paw_mouse_holdbody_atlas_v25.png',
   // paw_mouse holdhead 신규 이미지 (왕관 화난 표정 + chroma/워터마크 제거)
@@ -1222,7 +1222,7 @@ const FORCE_REPATCH_LIST = [
 // ★ FORCE_REPATCH_VERSION — 매 force list PNG 변경 시 +1.
 //   사용자 환경 lastForceVersion < 이 값 이면 force list 의 PNG 자동 re-patch.
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
-const FORCE_REPATCH_VERSION = 49;
+const FORCE_REPATCH_VERSION = 50;
 
 function assetUrl(path) {
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
@@ -15046,7 +15046,7 @@ function _renderPatchProgress() {
   if (_patchState.offlineWaiting) extra = '📡 오프라인 — 연결 복구 대기 중';
   else if (_patchState.retryingPath) extra = '🔄 재시도 중...';
   else if (_patchState.failed > 0) extra = '실패 ' + _patchState.failed + '개 (계속 진행)';
-  else if (pct >= 0.999 && tb > 0) extra = '✓ 완료 — 곧 시작합니다';
+  else if (pct >= 0.999 && tb > 0 && _patchState.done >= _patchState.total) extra = '✓ 완료 — 곧 시작합니다';
   if (extra) {
     ctx.font = `${sz(11)}px sans-serif`; ctx.fillStyle = '#ffb86b';
     ctx.fillText(extra, W/2, by + bh + sz(36));
