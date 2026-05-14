@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514155824;
+window.__BUILD_TS = 20260514160547;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -715,6 +715,13 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
         const res = await fetch(_actualUrl, fetchOpts);
         clearTimeout(t);
         if (!res.ok) {
+          // ★ jsdelivr 의 403/404 는 definitive (그 edge 에 파일 없음) — 같은 jsdelivr 재시도 무의미.
+          //   즉시 마지막 attempt (raw github) 로 점프 + backoff 생략 → 곡 진입 지연 대폭 절감.
+          if ((res.status === 403 || res.status === 404) && attempt < maxRetries
+              && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+            attempt = maxRetries;
+            continue;
+          }
           // 5xx / 408 / 429 / 404 / 403 → retry
           if (attempt < maxRetries && (res.status >= 500 || res.status === 408 || res.status === 429 || res.status === 404 || res.status === 403)) {
             throw new Error('retryable ' + res.status);
@@ -848,7 +855,10 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
   window._stemCachePut = function(path, buffer) {
     if (_cacheDisabled) return;
     try {
-      _stemPutQueue.push({ path: path, buffer: buffer });
+      // ★ decodeAudioData 가 입력 ArrayBuffer 를 detach → 나중 put 시 DataCloneError → 캐시 영구 비활성.
+      //   slice(0) 로 즉시 복사본 큐잉 — 호출자의 decode 가 원본을 detach 해도 복사본은 유효.
+      const _copy = (buffer && typeof buffer.slice === 'function') ? buffer.slice(0) : buffer;
+      _stemPutQueue.push({ path: path, buffer: _copy });
       if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(_processStemPutQueue, { timeout: 5000 });
       } else {
