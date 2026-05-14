@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514141429;
+window.__BUILD_TS = 20260514142628;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -701,13 +701,12 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       let _actualUrl = url;
       const _JS_DELIVR_PREFIX = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
       const _RAW_PREFIX = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
-      // ★ jsdelivr URL 첫 시도부터 raw.githubusercontent.com 으로 직접 fetch.
-      //   jsdelivr 가 사용자 region edge 에서 한글/특수 path 403/404 영구.
-      //   raw github = anon 60/h rate limit. stem lazy 라 곡당 7 req → 시간당 8곡 미만 OK.
-      if (url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+      // ★ 첫 시도 ~ 중간 attempts = jsdelivr (안정 CDN), 마지막 attempt 만 raw github fallback.
+      //   6fc5ca1 의 raw 직접 사용 회귀 — raw 가 사용자 환경 rate limit/정책 fail 가능.
+      //   jsdelivr 가 사용자 region 영구 fail 일 때만 마지막 raw 시도 (안정 + 안전망).
+      if (attempt === maxRetries && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
         _actualUrl = _RAW_PREFIX + url.substring(_JS_DELIVR_PREFIX.length);
-      }
-      if (attempt > 0) {
+      } else if (attempt > 0) {
         _actualUrl += (_actualUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + attempt + '_' + Date.now();
       }
       try {
@@ -790,18 +789,22 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
     try {
       const db = await window._openStemDB();
       if (!db) return;
-      await new Promise((resolve) => {
+      // ★ requestIdleCallback 분산 — 큰 buffer (2MB+) structured clone main thread block 회피.
+      //   7 stem 동시 put → RAF handler 100ms+ violation. idle 시점에 put 으로 분산.
+      const _doPut = () => {
         try {
           const tx = db.transaction(STEM_STORE, 'readwrite');
-          const store = tx.objectStore(STEM_STORE);
-          store.put({ path: path, buffer: buffer, ts: Date.now() });
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-          tx.onabort = () => resolve();
-        } catch(e) { resolve(); }
-      });
-      // LRU 제거 (size 한도 초과 시 oldest 부터)
-      window._stemCacheEvictIfNeeded();
+          tx.objectStore(STEM_STORE).put({ path: path, buffer: buffer, ts: Date.now() });
+          tx.oncomplete = () => {
+            try { window._stemCacheEvictIfNeeded(); } catch(_) {}
+          };
+        } catch(_) {}
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(_doPut, { timeout: 5000 });
+      } else {
+        setTimeout(_doPut, 100);
+      }
     } catch(e) {}
   };
   window._stemCacheEvict = async function(path) {
