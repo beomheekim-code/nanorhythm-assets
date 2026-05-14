@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514144320;
+window.__BUILD_TS = 20260514144605;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -721,6 +721,15 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
           }
           // 마지막 attempt 까지 fail → throw (caller 가 4xx HTML body 를 decodeAudioData 시도 차단)
           throw new Error('fetch fail HTTP ' + res.status);
+        }
+        // ★ 자동 RAW 등록 — 마지막 attempt (raw URL) 가 성공한 경우 jsdelivr fail 영구 인식
+        //   다음 진입부터 그 path 첫 시도 raw 직접. 곡별 hardcode 불필요.
+        if (attempt === maxRetries && _actualUrl.indexOf(_RAW_PREFIX) === 0 && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+          try {
+            const _origPath = decodeURI(url.substring(_JS_DELIVR_PREFIX.length).split('?')[0]);
+            if (typeof window._markPathRawAuto === 'function') window._markPathRawAuto(_origPath);
+            else if (typeof _markPathRawAuto === 'function') _markPathRawAuto(_origPath);
+          } catch(_) {}
         }
         return res;
       } catch(e) {
@@ -1441,18 +1450,39 @@ const FORCE_REPATCH_VERSION = 52;
 //   증상: jsdelivr 가 region edge 에 propagation 안 됨 → 404 / 403 영구.
 //   raw.githubusercontent.com 는 GitHub origin 직접 → 항상 200. rate limit 60/h anonymous.
 //   file 별 사용자 reload 당 1 req → force list cache 데움 후엔 browser cache 사용.
+// ★ 하드코드 RAW_FALLBACK — 알려진 영구 fail file (자동 등록 mechanism 으로 대부분 대체).
+//   image 의 onerror 가 없는 일부 path (preview gif 등) 만 유지. stem path 는 자동 mechanism.
 const RAW_FALLBACK_PATHS = new Set([
-  'skins/bj_sera/preview_sera.gif',  // 2.88MB GIF, jsdelivr 영구 404 확인 (2026-05-13)
-  'Music/Burn_It_All_Down/Burn_It_All_Down_piano.ogg',  // jsdelivr 403 영구 (2026-05-14)
+  'skins/bj_sera/preview_sera.gif',  // 2.88MB GIF, jsdelivr 영구 404 (image src 첫 진입 raw 필요)
 ]);
 const RAW_BASE = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
+const RAW_AUTO_KEY = 'rhythm_raw_auto_fallback';
+
+// ★ 자동 RAW fallback 등록 — fetchSafe 의 jsdelivr fail 후 raw 성공 시 자동 mark.
+//   사용자 환경 jsdelivr region edge fail file 한 번 fetch 후 영구 raw 직접. 곡별 hardcode 불필요.
+function _markPathRawAuto(path) {
+  try {
+    const list = JSON.parse(localStorage.getItem(RAW_AUTO_KEY) || '[]');
+    if (list.indexOf(path) < 0) {
+      list.push(path);
+      if (list.length > 200) list.shift();
+      localStorage.setItem(RAW_AUTO_KEY, JSON.stringify(list));
+    }
+  } catch(e) {}
+}
+function _isPathRawAuto(path) {
+  try {
+    const list = JSON.parse(localStorage.getItem(RAW_AUTO_KEY) || '[]');
+    return list.indexOf(path) >= 0;
+  } catch(e) { return false; }
+}
 
 function assetUrl(path) {
   // ★ path encoding — space / 한글 / 특수문자 자동 인코딩 (encodeURI 가 / 유지).
   //   "Music/Cherry Blossom/..." 같은 space path 가 fetch fail 하던 회귀 fix.
   const _enc = encodeURI(path);
-  // ★ jsdelivr 영구 실패 file 은 raw 직접
-  if (RAW_FALLBACK_PATHS.has(path)) {
+  // ★ 영구 실패 file (hardcode + 자동 등록) raw 직접
+  if (RAW_FALLBACK_PATHS.has(path) || _isPathRawAuto(path)) {
     return RAW_BASE + _enc;
   }
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
