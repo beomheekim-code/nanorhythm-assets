@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514150813;
+window.__BUILD_TS = 20260514151519;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12314,22 +12314,19 @@ function renderPawHoldPercent() {
   // 4자리 (100%) measureText 1회 → 전체 박스 폭 고정 (cost 절감)
   const _bw = ctx.measureText('100%').width + _pad * 2;
   const ty = hY - _hhBase * 1.4;
-  // ★ 100% 도달 시 빨강/노랑 깜빡 — 0.15s 주기
-  const _blinkRed = (Math.floor(gameTime / 0.15) % 2) === 0;
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.endTime <= n.time) continue;
     const progress = (gameTime - n.time) / (n.endTime - n.time);
-    const _isFull = progress >= 1;
     const txt = ((progress < 0 ? 0 : progress > 1 ? 100 : (progress * 100)) | 0) + '%';
     const tx = getLaneX(n.lane);
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
-    ctx.fillStyle = _isFull ? (_blinkRed ? '#ff3030' : '#ffd966') : '#ffd966';
+    ctx.fillStyle = '#ffd966';
     ctx.fillText(txt, tx, ty);
   }
-  // holdhead dead fx 출력 중 — 100% 박스 유지 (fx fade 따라 alpha) + 빨강/노랑 깜빡
+  // holdhead dead fx 출력 중 — 100% 박스 유지 (fx fade 따라 alpha)
   for (const fx of _holdDeadFx) {
     const tFx = fx.time / fx.maxTime;
     const alpha = tFx < 0.6 ? 1.0 : Math.max(0, 1 - (tFx - 0.6) / 0.4);
@@ -12338,7 +12335,7 @@ function renderPawHoldPercent() {
     const tx = getLaneX(fx.lane);
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
-    ctx.fillStyle = _blinkRed ? '#ff3030' : '#ffd966';
+    ctx.fillStyle = '#ffd966';
     ctx.fillText('100%', tx, ty);
   }
   ctx.restore();
