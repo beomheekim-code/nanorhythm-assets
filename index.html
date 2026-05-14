@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514124722;
+window.__BUILD_TS = 20260514125222;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1258,9 +1258,12 @@ const RAW_FALLBACK_PATHS = new Set([
 const RAW_BASE = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
 
 function assetUrl(path) {
+  // ★ path encoding — space / 한글 / 특수문자 자동 인코딩 (encodeURI 가 / 유지).
+  //   "Music/Cherry Blossom/..." 같은 space path 가 fetch fail 하던 회귀 fix.
+  const _enc = encodeURI(path);
   // ★ jsdelivr 영구 실패 file 은 raw 직접
   if (RAW_FALLBACK_PATHS.has(path)) {
-    return RAW_BASE + path;
+    return RAW_BASE + _enc;
   }
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
   //   → cache miss → fresh fetch. 받기 안 한 첫 image src 는 BUILD_TS query.
@@ -1273,9 +1276,9 @@ function assetUrl(path) {
       const last = parseInt(localStorage.getItem('rhythm_lastReceivedBuildTs') || '0') || 0;
       if (last > ver) ver = last;
     } catch(e) {}
-    return CDN_BASE + path + '?v=' + ver;
+    return CDN_BASE + _enc + '?v=' + ver;
   }
-  return CDN_BASE + path;
+  return CDN_BASE + _enc;
 }
 
 // ===== ASSET PATCH SYSTEM =====
