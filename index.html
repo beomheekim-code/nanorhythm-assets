@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514143136;
+window.__BUILD_TS = 20260514143605;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -742,12 +742,24 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
   const STEM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
   let _stemDB = null;
   let _stemDBOpening = null;
+  // ★ 사용자 환경 IndexedDB 실패 (quota / 정책 / lock) 시 자동 비활성 — 기존 fetchSafe 흐름 폴백.
+  //   회귀 사용자 보고: 71% stuck + SSE 끊김. cache 자체가 사용자 환경 부하 원인 가능 → 즉시 비활성.
+  let _cacheDisabled = false;
+  function _markCacheDisabled(reason) {
+    if (!_cacheDisabled) {
+      _cacheDisabled = true;
+      try { console.warn('[stem-cache] disabled:', reason || ''); } catch(_) {}
+    }
+  }
   window._openStemDB = function() {
+    if (_cacheDisabled) return Promise.resolve(null);
     if (_stemDB) return Promise.resolve(_stemDB);
     if (_stemDBOpening) return _stemDBOpening;
     _stemDBOpening = new Promise((resolve) => {
       try {
-        if (typeof indexedDB === 'undefined') { resolve(null); return; }
+        if (typeof indexedDB === 'undefined') { _markCacheDisabled('no indexedDB'); resolve(null); return; }
+        // ★ open 5초 timeout — 사용자 환경 lock/정책 stuck 시 즉시 폴백
+        const _timer = setTimeout(() => { _markCacheDisabled('open timeout'); resolve(null); }, 5000);
         const req = indexedDB.open(STEM_DB_NAME, 1);
         req.onupgradeneeded = (e) => {
           try {
@@ -758,30 +770,36 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
             }
           } catch(_) {}
         };
-        req.onsuccess = () => { _stemDB = req.result; resolve(_stemDB); };
-        req.onerror = () => resolve(null);
-        req.onblocked = () => resolve(null);
-      } catch(e) { resolve(null); }
+        req.onsuccess = () => { clearTimeout(_timer); _stemDB = req.result; resolve(_stemDB); };
+        req.onerror = () => { clearTimeout(_timer); _markCacheDisabled('open error'); resolve(null); };
+        req.onblocked = () => { clearTimeout(_timer); _markCacheDisabled('open blocked'); resolve(null); };
+      } catch(e) { _markCacheDisabled('open exception'); resolve(null); }
     });
     return _stemDBOpening;
   };
   window._stemCacheGet = async function(path) {
+    if (_cacheDisabled) return null;
     try {
       const db = await window._openStemDB();
       if (!db) return null;
+      // ★ get 1초 timeout — stuck 시 즉시 폴백
       return await new Promise((resolve) => {
+        let _resolved = false;
+        const _safeResolve = (v) => { if (_resolved) return; _resolved = true; resolve(v); };
+        const _timer = setTimeout(() => { _markCacheDisabled('get timeout'); _safeResolve(null); }, 1000);
         try {
           const tx = db.transaction(STEM_STORE, 'readonly');
           const store = tx.objectStore(STEM_STORE);
           const req = store.get(path);
           req.onsuccess = () => {
+            clearTimeout(_timer);
             const rec = req.result;
-            if (!rec || !rec.buffer) { resolve(null); return; }
-            if (Date.now() - (rec.ts || 0) > STEM_CACHE_TTL_MS) { resolve(null); return; }
-            resolve(rec.buffer);
+            if (!rec || !rec.buffer) { _safeResolve(null); return; }
+            if (Date.now() - (rec.ts || 0) > STEM_CACHE_TTL_MS) { _safeResolve(null); return; }
+            _safeResolve(rec.buffer);
           };
-          req.onerror = () => resolve(null);
-        } catch(e) { resolve(null); }
+          req.onerror = () => { clearTimeout(_timer); _markCacheDisabled('get error'); _safeResolve(null); };
+        } catch(e) { clearTimeout(_timer); _markCacheDisabled('get exception'); _safeResolve(null); }
       });
     } catch(e) { return null; }
   };
@@ -811,9 +829,10 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
           try { window._stemCacheEvictIfNeeded(); } catch(_) {}
           _next();
         };
-        tx.onerror = _next;
-        tx.onabort = _next;
+        tx.onerror = () => { _markCacheDisabled('put error'); _next(); };
+        tx.onabort = () => { _markCacheDisabled('put abort'); _next(); };
       } catch(_) {
+        _markCacheDisabled('put exception');
         _stemPutWorking = false;
         setTimeout(_processStemPutQueue, 500);
       }
@@ -823,6 +842,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
     });
   }
   window._stemCachePut = function(path, buffer) {
+    if (_cacheDisabled) return;
     try {
       _stemPutQueue.push({ path: path, buffer: buffer });
       if (typeof requestIdleCallback === 'function') {
