@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514125222;
+window.__BUILD_TS = 20260514125633;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -708,9 +708,13 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
         const fetchOpts = ctrl ? { ...opts, signal: ctrl.signal } : opts;
         const res = await fetch(_actualUrl, fetchOpts);
         clearTimeout(t);
-        // 5xx / 408 timeout / 429 rate-limit / 404 (jsdelivr propagation 영구 fail) → retry
-        if (!res.ok && attempt < maxRetries && (res.status >= 500 || res.status === 408 || res.status === 429 || res.status === 404)) {
-          throw new Error('retryable ' + res.status);
+        if (!res.ok) {
+          // 5xx / 408 / 429 / 404 / 403 → retry
+          if (attempt < maxRetries && (res.status >= 500 || res.status === 408 || res.status === 429 || res.status === 404 || res.status === 403)) {
+            throw new Error('retryable ' + res.status);
+          }
+          // 마지막 attempt 까지 fail → throw (caller 가 4xx HTML body 를 decodeAudioData 시도 차단)
+          throw new Error('fetch fail HTTP ' + res.status);
         }
         return res;
       } catch(e) {
