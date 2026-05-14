@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514151519;
+window.__BUILD_TS = 20260514153836;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -905,14 +905,27 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
     // 1) 캐시 시도
     const cached = await window._stemCacheGet(path);
     if (cached) {
-      return { buffer: cached, fromCache: true };
+      return { buffer: cached, fromCache: true, rawUsed: false, srcUrl: path };
     }
     // 2) 캐시 미스 → 기존 fetchSafe 흐름
     const res = await window.fetchSafe(path, {}, { retries: 2, timeout: 30000 });
     const buf = await res.arrayBuffer();
     // 3) 백그라운드 캐시 저장 (블로킹 X)
     window._stemCachePut(path, buf);
-    return { buffer: buf, fromCache: false };
+    // 4) ★ jsdelivr 실패 → raw github 폴백으로 성공한 경우: 그 경로를 raw-auto 등록.
+    //    다음 진입부터 assetUrl() 이 raw 직접 반환 → jsdelivr stuck 회피.
+    //    (호출 안 되던 _markPathRawAuto 연결 — 곡 진입 X% stuck 회귀 fix)
+    let _rawUsed = false;
+    try {
+      if (res && res.url && res.url.indexOf('raw.githubusercontent.com') >= 0) {
+        _rawUsed = true;
+        const _JS = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
+        if (typeof path === 'string' && path.indexOf(_JS) === 0 && typeof _markPathRawAuto === 'function') {
+          _markPathRawAuto(decodeURI(path.substring(_JS.length)));
+        }
+      }
+    } catch(e) {}
+    return { buffer: buf, fromCache: false, rawUsed: _rawUsed, srcUrl: (res && res.url) || path };
   };
 </script>
 <script>
@@ -10430,7 +10443,12 @@ function startSong(idx) {
         const _si = stemIdx;
         const _isEnergyStem = !ALWAYS_AUDIBLE_STEMS.includes(i);
         // ★ IndexedDB 캐시 우선 — 캐시 히트 시 fetch 건너뜀 (즉시 buffer). 미스 시 fetchSafe 폴백.
-        window._stemFetchCached(path).then(({ buffer: buf, fromCache: _fc }) => {
+        window._stemFetchCached(path).then(({ buffer: buf, fromCache: _fc, rawUsed: _ru, srcUrl: _su }) => {
+          // ★ jsdelivr 실패 → raw github 폴백 성공 시: HTMLAudio src 도 raw 로 교체.
+          //   _stemsReady (canplaythrough) 가 jsdelivr stuck 으로 영영 안 오던 X% stuck 회귀 fix.
+          if (_ru && _su && allStemAudios[_si] && allStemAudios[_si].src && allStemAudios[_si].src.indexOf('raw.githubusercontent.com') < 0) {
+            try { allStemAudios[_si].src = _su; allStemAudios[_si].load(); allStemAudios[_si].play().catch(()=>{}); } catch(e) {}
+          }
           const _dTs2 = performance.now();
           actx.decodeAudioData(buf, buffer => {
             if (window._dbg) {
@@ -12314,19 +12332,22 @@ function renderPawHoldPercent() {
   // 4자리 (100%) measureText 1회 → 전체 박스 폭 고정 (cost 절감)
   const _bw = ctx.measureText('100%').width + _pad * 2;
   const ty = hY - _hhBase * 1.4;
+  // ★ 100% 도달 시 빨강/노랑 깜빡 — 0.15s 주기
+  const _blinkRed = (Math.floor(gameTime / 0.15) % 2) === 0;
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (n.time > gameTime + 0.5) break;
     if (!n.holding || n.endTime <= n.time) continue;
     const progress = (gameTime - n.time) / (n.endTime - n.time);
+    const _isFull = progress >= 1;
     const txt = ((progress < 0 ? 0 : progress > 1 ? 100 : (progress * 100)) | 0) + '%';
     const tx = getLaneX(n.lane);
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
-    ctx.fillStyle = '#ffd966';
+    ctx.fillStyle = _isFull ? (_blinkRed ? '#ff3030' : '#ffd966') : '#ffd966';
     ctx.fillText(txt, tx, ty);
   }
-  // holdhead dead fx 출력 중 — 100% 박스 유지 (fx fade 따라 alpha)
+  // holdhead dead fx 출력 중 — 100% 박스 유지 (fx fade 따라 alpha) + 빨강/노랑 깜빡
   for (const fx of _holdDeadFx) {
     const tFx = fx.time / fx.maxTime;
     const alpha = tFx < 0.6 ? 1.0 : Math.max(0, 1 - (tFx - 0.6) / 0.4);
@@ -12335,7 +12356,7 @@ function renderPawHoldPercent() {
     const tx = getLaneX(fx.lane);
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(tx - _bw/2, ty - _bh/2, _bw, _bh);
-    ctx.fillStyle = '#ffd966';
+    ctx.fillStyle = _blinkRed ? '#ff3030' : '#ffd966';
     ctx.fillText('100%', tx, ty);
   }
   ctx.restore();
