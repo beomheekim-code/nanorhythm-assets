@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514150009;
+window.__BUILD_TS = 20260514150413;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -700,19 +700,12 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       //   404 / 4xx 도 retry → 마지막 attempt 시 raw 시도. raw=200 받으면 그 path stem 정상 진입.
       let _actualUrl = url;
       const _JS_DELIVR_PREFIX = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
-      const _STATICALLY_PREFIX = 'https://cdn.statically.io/gh/beomheekim-code/nanorhythm-assets/main/';
       const _RAW_PREFIX = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
-      // ★ 3 source 순차 — attempt 0=jsdelivr, attempt 1=statically.io, attempt 2(maxRetries)=raw github
-      //   사용자 region 어느 source fail 이라도 다른 source 시도.
-      if (url.indexOf(_JS_DELIVR_PREFIX) === 0) {
-        const _suffix = url.substring(_JS_DELIVR_PREFIX.length);
-        if (attempt === 1) {
-          _actualUrl = _STATICALLY_PREFIX + _suffix;
-        } else if (attempt >= 2) {
-          _actualUrl = _RAW_PREFIX + _suffix;
-        }
-      }
-      if (attempt > 0) {
+      // ★ 단순 2 source — attempt 0,1=jsdelivr (cache 다른 query), attempt 2(maxRetries)=raw github
+      //   확인 안 된 statically.io 제거 — 사용자 환경 fetch fail 시 90s wait 절감.
+      if (attempt === maxRetries && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+        _actualUrl = _RAW_PREFIX + url.substring(_JS_DELIVR_PREFIX.length);
+      } else if (attempt > 0) {
         _actualUrl += (_actualUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + attempt + '_' + Date.now();
       }
       try {
