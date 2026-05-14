@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514144605;
+window.__BUILD_TS = 20260514145042;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -701,12 +701,12 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       let _actualUrl = url;
       const _JS_DELIVR_PREFIX = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
       const _RAW_PREFIX = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
-      // ★ 첫 시도 ~ 중간 attempts = jsdelivr (안정 CDN), 마지막 attempt 만 raw github fallback.
-      //   6fc5ca1 의 raw 직접 사용 회귀 — raw 가 사용자 환경 rate limit/정책 fail 가능.
-      //   jsdelivr 가 사용자 region 영구 fail 일 때만 마지막 raw 시도 (안정 + 안전망).
-      if (attempt === maxRetries && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+      // ★ 모든 jsdelivr URL → raw github 직접. 사용자 region 의 jsdelivr 영구 fail file
+      //   (한글 path / 특수 char) 자동 우회. raw rate limit 60/h, stem lazy 라 곡당 7 req.
+      if (url.indexOf(_JS_DELIVR_PREFIX) === 0) {
         _actualUrl = _RAW_PREFIX + url.substring(_JS_DELIVR_PREFIX.length);
-      } else if (attempt > 0) {
+      }
+      if (attempt > 0) {
         _actualUrl += (_actualUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + attempt + '_' + Date.now();
       }
       try {
@@ -721,15 +721,6 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
           }
           // 마지막 attempt 까지 fail → throw (caller 가 4xx HTML body 를 decodeAudioData 시도 차단)
           throw new Error('fetch fail HTTP ' + res.status);
-        }
-        // ★ 자동 RAW 등록 — 마지막 attempt (raw URL) 가 성공한 경우 jsdelivr fail 영구 인식
-        //   다음 진입부터 그 path 첫 시도 raw 직접. 곡별 hardcode 불필요.
-        if (attempt === maxRetries && _actualUrl.indexOf(_RAW_PREFIX) === 0 && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
-          try {
-            const _origPath = decodeURI(url.substring(_JS_DELIVR_PREFIX.length).split('?')[0]);
-            if (typeof window._markPathRawAuto === 'function') window._markPathRawAuto(_origPath);
-            else if (typeof _markPathRawAuto === 'function') _markPathRawAuto(_origPath);
-          } catch(_) {}
         }
         return res;
       } catch(e) {
@@ -2645,22 +2636,11 @@ function startPreview(idx) {
   audio._aborted = false;
   audio._startedAt = performance.now();  // ★ stuck-loading 감지용 — _previewUnlocker 가 500ms+ 멈춰있으면 재시도 허용
   audio.preload = 'metadata';
-  audio.src = assetUrl(song.file);
+  // ★ preview audio = raw github 직접 — jsdelivr 사용자 region 일부 file 영구 fail 회피.
+  //   onerror handler 발동 안 하는 환경 있어 처음부터 raw. raw 60/h 한도, 7-10곡 시청 OK.
+  audio.src = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/' + encodeURI(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
-  // ★ jsdelivr 사용자 region 일부 fail 대응 — error 시 raw github 폴백 1회 시도.
-  //   회귀 위험 0 (error 발동 시만, 정상 동작 변경 X).
-  audio._rawTried = false;
-  audio.addEventListener('error', () => {
-    if (audio._aborted || songPreviewAudio !== audio || audio._rawTried) return;
-    audio._rawTried = true;
-    try {
-      const _RAW_BASE = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
-      audio.src = _RAW_BASE + encodeURI(song.file);
-      audio.load();
-      audio.play().catch(()=>{});
-    } catch(e) {}
-  });
   const markReady = () => {
     if (audio._aborted || songPreviewAudio !== audio || !previewLoading) return;
     previewLoading = false;
