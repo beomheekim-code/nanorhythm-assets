@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514142628;
+window.__BUILD_TS = 20260514143136;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -785,25 +785,50 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       });
     } catch(e) { return null; }
   };
-  window._stemCachePut = async function(path, buffer) {
+  // ★ put queue — 7 stem 동시 put 시 structured clone main thread 점유 + SSE 끊김 회귀 fix.
+  //   queue 에 enqueue → 500ms 간격 sequential put → main thread 부하 분산.
+  const _stemPutQueue = [];
+  let _stemPutWorking = false;
+  function _processStemPutQueue() {
+    if (_stemPutWorking) return;
+    if (_stemPutQueue.length === 0) return;
+    _stemPutWorking = true;
+    const item = _stemPutQueue.shift();
+    window._openStemDB().then(db => {
+      if (!db) {
+        _stemPutWorking = false;
+        setTimeout(_processStemPutQueue, 500);
+        return;
+      }
+      try {
+        const tx = db.transaction(STEM_STORE, 'readwrite');
+        tx.objectStore(STEM_STORE).put({ path: item.path, buffer: item.buffer, ts: Date.now() });
+        const _next = () => {
+          _stemPutWorking = false;
+          setTimeout(_processStemPutQueue, 500);
+        };
+        tx.oncomplete = () => {
+          try { window._stemCacheEvictIfNeeded(); } catch(_) {}
+          _next();
+        };
+        tx.onerror = _next;
+        tx.onabort = _next;
+      } catch(_) {
+        _stemPutWorking = false;
+        setTimeout(_processStemPutQueue, 500);
+      }
+    }).catch(() => {
+      _stemPutWorking = false;
+      setTimeout(_processStemPutQueue, 500);
+    });
+  }
+  window._stemCachePut = function(path, buffer) {
     try {
-      const db = await window._openStemDB();
-      if (!db) return;
-      // ★ requestIdleCallback 분산 — 큰 buffer (2MB+) structured clone main thread block 회피.
-      //   7 stem 동시 put → RAF handler 100ms+ violation. idle 시점에 put 으로 분산.
-      const _doPut = () => {
-        try {
-          const tx = db.transaction(STEM_STORE, 'readwrite');
-          tx.objectStore(STEM_STORE).put({ path: path, buffer: buffer, ts: Date.now() });
-          tx.oncomplete = () => {
-            try { window._stemCacheEvictIfNeeded(); } catch(_) {}
-          };
-        } catch(_) {}
-      };
+      _stemPutQueue.push({ path: path, buffer: buffer });
       if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(_doPut, { timeout: 5000 });
+        requestIdleCallback(_processStemPutQueue, { timeout: 5000 });
       } else {
-        setTimeout(_doPut, 100);
+        setTimeout(_processStemPutQueue, 100);
       }
     } catch(e) {}
   };
