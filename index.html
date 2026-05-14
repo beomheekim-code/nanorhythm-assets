@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514135313;
+window.__BUILD_TS = 20260514135649;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1381,20 +1381,10 @@ function _savePatchedSet(paths) {
 //   호출 시점에 songs / SKINS / _loadInv 가 정의되어 있어야 함 (타이틀 진입 후 호출).
 function buildAssetManifest() {
   const paths = [];
-  // ★ 1. 모든 곡의 메인 OGG + stem 7개 (2026-05-14 사용자 명시 동의 — 풀패치 stem 포함).
-  //   stem lazy 제거: 첫 진입 시 stem 받기 ~30-60s 느린 회귀 fix.
-  //   풀패치 시간 ↑ (~1GB) but 한 번 받으면 모든 곡 첫 진입 즉시 빠름.
+  // 1. 메인 OGG — 모든 곡의 file (스템 OGG 는 lazy, 커버 PNG 도 lazy)
+  //   ★ stem lazy 유지 — 수천 곡 확장 대비 (a6d4aeb 시도 후 사용자 명시 revert 2026-05-14).
   if (typeof songs !== 'undefined' && Array.isArray(songs)) {
-    for (const s of songs) {
-      if (!s) continue;
-      if (s.file) paths.push(s.file);
-      // ★ stem 7개 추가 — stemDir + stemPrefix + '_<stem>.ogg'
-      if (s.stemDir && s.stemPrefix && Array.isArray(s.stemNames)) {
-        for (const stem of s.stemNames) {
-          paths.push(s.stemDir + s.stemPrefix + '_' + stem + '.ogg');
-        }
-      }
-    }
+    for (const s of songs) { if (s && s.file) paths.push(s.file); }
   }
   // 2. BGM/SFX — title/ranking 외에는 Music/ 안 곡 재활용이라 메인 OGG 에 자동 포함됨
   paths.push('title_bgm.ogg', 'ranking_bgm.ogg', 'click.ogg');
