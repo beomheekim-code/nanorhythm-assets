@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514135649;
+window.__BUILD_TS = 20260514140936;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -731,6 +731,136 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
         attempt++;
       }
     }
+  };
+
+  // ====== 스템 IndexedDB 캐시 (2026-05-14 추가) ======
+  // 곡 진입 시 stem 받기 ~30-60초 회귀 fix. 한 번 받은 stem ArrayBuffer 영구 캐시.
+  // 수천 곡 확장 대비 LRU 50개 한도. TTL 30일 (iOS ITP 와 비슷 미리 만료).
+  // IndexedDB 실패/미지원 시 기존 fetch 로 폴백 (회귀 위험 0).
+  const STEM_DB_NAME = 'nano_stem_cache_v1';
+  const STEM_STORE = 'stems';
+  const STEM_CACHE_MAX = 50;
+  const STEM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  let _stemDB = null;
+  let _stemDBOpening = null;
+  window._openStemDB = function() {
+    if (_stemDB) return Promise.resolve(_stemDB);
+    if (_stemDBOpening) return _stemDBOpening;
+    _stemDBOpening = new Promise((resolve) => {
+      try {
+        if (typeof indexedDB === 'undefined') { resolve(null); return; }
+        const req = indexedDB.open(STEM_DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          try {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STEM_STORE)) {
+              const store = db.createObjectStore(STEM_STORE, { keyPath: 'path' });
+              store.createIndex('ts', 'ts', { unique: false });
+            }
+          } catch(_) {}
+        };
+        req.onsuccess = () => { _stemDB = req.result; resolve(_stemDB); };
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch(e) { resolve(null); }
+    });
+    return _stemDBOpening;
+  };
+  window._stemCacheGet = async function(path) {
+    try {
+      const db = await window._openStemDB();
+      if (!db) return null;
+      return await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STEM_STORE, 'readonly');
+          const store = tx.objectStore(STEM_STORE);
+          const req = store.get(path);
+          req.onsuccess = () => {
+            const rec = req.result;
+            if (!rec || !rec.buffer) { resolve(null); return; }
+            if (Date.now() - (rec.ts || 0) > STEM_CACHE_TTL_MS) { resolve(null); return; }
+            resolve(rec.buffer);
+          };
+          req.onerror = () => resolve(null);
+        } catch(e) { resolve(null); }
+      });
+    } catch(e) { return null; }
+  };
+  window._stemCachePut = async function(path, buffer) {
+    try {
+      const db = await window._openStemDB();
+      if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STEM_STORE, 'readwrite');
+          const store = tx.objectStore(STEM_STORE);
+          store.put({ path: path, buffer: buffer, ts: Date.now() });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        } catch(e) { resolve(); }
+      });
+      // LRU 제거 (size 한도 초과 시 oldest 부터)
+      window._stemCacheEvictIfNeeded();
+    } catch(e) {}
+  };
+  window._stemCacheEvict = async function(path) {
+    try {
+      const db = await window._openStemDB();
+      if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STEM_STORE, 'readwrite');
+          tx.objectStore(STEM_STORE).delete(path);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) { resolve(); }
+      });
+    } catch(e) {}
+  };
+  window._stemCacheEvictIfNeeded = async function() {
+    try {
+      const db = await window._openStemDB();
+      if (!db) return;
+      const tx = db.transaction(STEM_STORE, 'readwrite');
+      const store = tx.objectStore(STEM_STORE);
+      const countReq = store.count();
+      countReq.onsuccess = () => {
+        try {
+          const count = countReq.result || 0;
+          if (count <= STEM_CACHE_MAX) return;
+          const excess = count - STEM_CACHE_MAX;
+          const idx = store.index('ts');
+          const cursorReq = idx.openCursor();
+          let deleted = 0;
+          cursorReq.onsuccess = (e) => {
+            try {
+              const cursor = e.target.result;
+              if (!cursor || deleted >= excess) return;
+              cursor.delete();
+              deleted++;
+              cursor.continue();
+            } catch(_) {}
+          };
+        } catch(_) {}
+      };
+    } catch(e) {}
+  };
+  // 스템 fetch 통합 — 캐시 우선, 미스 시 fetchSafe + 캐시 저장.
+  // 호출처: stem load 코드 2곳 (iOS 경로 / HTML fallback 경로).
+  // 반환: ArrayBuffer (디코드 입력). 실패 시 throw (caller 의 catch 동일 동작).
+  window._stemFetchCached = async function(path) {
+    // 1) 캐시 시도
+    const cached = await window._stemCacheGet(path);
+    if (cached) {
+      return { buffer: cached, fromCache: true };
+    }
+    // 2) 캐시 미스 → 기존 fetchSafe 흐름
+    const res = await window.fetchSafe(path, {}, { retries: 4, timeout: 90000 });
+    const buf = await res.arrayBuffer();
+    // 3) 백그라운드 캐시 저장 (블로킹 X)
+    window._stemCachePut(path, buf);
+    return { buffer: buf, fromCache: false };
   };
 </script>
 <script>
@@ -10122,7 +10252,8 @@ function startSong(idx) {
       const placeholder = new BufferPlayer(null, actx);
       placeholder.src = path;
       allStemAudios.push(placeholder);
-      fetchSafe(path, {}, { retries: 4, timeout: 90000 }).then(r => r.arrayBuffer()).then(buf => {
+      // ★ IndexedDB 캐시 우선 — 캐시 히트 시 fetch 건너뜀 (즉시 buffer). 미스 시 fetchSafe 폴백.
+      window._stemFetchCached(path).then(({ buffer: buf, fromCache: _fc }) => {
         const _dTs = performance.now();
         actx.decodeAudioData(buf, buffer => {
           if (window._dbg) {
@@ -10182,6 +10313,8 @@ function startSong(idx) {
           _markDecodeDone(); // ★ 옵션 A
         }, () => {
           console.warn('iOS decodeAudioData failed:', path);
+          // ★ 캐시 히트의 buffer 가 손상되었으면 그 path 만 evict (다음 진입 시 새 fetch)
+          if (_fc) { try { window._stemCacheEvict(path); } catch(e) {} }
           // decode 실패 — counter 증가시켜 hang 방지
           if (!ALWAYS_AUDIBLE_STEMS.includes(_si)) {
             _energyStemsDone++;
@@ -10210,7 +10343,8 @@ function startSong(idx) {
       if (actx) {
         const _si = stemIdx;
         const _isEnergyStem = !ALWAYS_AUDIBLE_STEMS.includes(i);
-        fetchSafe(path, {}, { retries: 4, timeout: 90000 }).then(r => r.arrayBuffer()).then(buf => {
+        // ★ IndexedDB 캐시 우선 — 캐시 히트 시 fetch 건너뜀 (즉시 buffer). 미스 시 fetchSafe 폴백.
+        window._stemFetchCached(path).then(({ buffer: buf, fromCache: _fc }) => {
           const _dTs2 = performance.now();
           actx.decodeAudioData(buf, buffer => {
             if (window._dbg) {
@@ -10256,6 +10390,8 @@ function startSong(idx) {
             }
             _markDecodeDone(); // ★ 옵션 A — _isEnergyStem 무관 모든 stem 카운트
           }, () => {
+            // ★ 캐시 히트의 buffer 가 손상되었으면 그 path 만 evict (다음 진입 시 새 fetch)
+            if (_fc) { try { window._stemCacheEvict(path); } catch(e) {} }
             // decode 실패 — energy 진행 카운터만 증가시켜 hang 방지
             if (_isEnergyStem) {
               _energyStemsDone++;
