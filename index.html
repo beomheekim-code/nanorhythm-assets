@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514101416;
+window.__BUILD_TS = 20260514103341;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -15095,7 +15095,11 @@ function _renderPatchProgress() {
   // 재시도/오프라인/완료 메시지
   let extra = '';
   if (_patchState.offlineWaiting) extra = '📡 오프라인 — 연결 복구 대기 중';
-  else if (_patchState.retryingPath) extra = '🔄 재시도 중...';
+  else if (_patchState.retryingPath) {
+    // ★ stuck file 보고용 — 파일명만 추출 (path 너무 길어 UI 안 들어감)
+    const _fn = _patchState.retryingPath.split('/').pop().slice(0, 32);
+    extra = '🔄 재시도 중... ' + _fn;
+  }
   else if (_patchState.failed > 0) extra = '실패 ' + _patchState.failed + '개 (계속 진행)';
   else if (pct >= 0.999 && tb > 0 && _patchState.done >= _patchState.total) extra = '✓ 완료 — 곧 시작합니다';
   if (extra) {
