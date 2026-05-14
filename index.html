@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514114616;
+window.__BUILD_TS = 20260514111405;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2407,8 +2407,6 @@ function startPreview(idx) {
   audio._aborted = false;
   audio._startedAt = performance.now();  // ★ stuck-loading 감지용 — _previewUnlocker 가 500ms+ 멈춰있으면 재시도 허용
   audio.preload = 'metadata';
-  // ★ fetch priority high — jsdelivr fetch 우선순위 (HTTP/2). 미지원 브라우저 default fallback.
-  try { audio.fetchPriority = 'high'; } catch(e) {}
   audio.src = assetUrl(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
@@ -4075,10 +4073,6 @@ function getCoverImage(idx) {
   if (!img) {
     img = new Image();
     img._coverIdx = idx;
-    // ★ 표준 hint — decode async (main thread 안 block), fetch priority high (jsdelivr 우선)
-    //   회귀 위험 0 — 미지원 브라우저 default fallback. lazy 시스템 그대로.
-    try { img.decoding = 'async'; } catch(e) {}
-    try { img.fetchPriority = 'high'; } catch(e) {}
     // 네트워크 실패 시 online 복귀 시 재시도
     img.onerror = () => {
       if (window.__net && !window.__net['_coverRetry:' + idx]) {
@@ -4086,8 +4080,6 @@ function getCoverImage(idx) {
         window.addEventListener('online', () => {
           try {
             const ni = new Image();
-            try { ni.decoding = 'async'; } catch(e) {}
-            try { ni.fetchPriority = 'high'; } catch(e) {}
             ni.src = assetUrl(s.cover) + '&_r=' + Date.now();
             coverImages[idx] = ni;
           } catch(e) {}
