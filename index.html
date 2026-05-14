@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514120415;
+window.__BUILD_TS = 20260514121420;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -454,9 +454,8 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
 <style>
 @keyframes spnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
-<!-- ★ preconnect — cdn.jsdelivr.net DNS/TCP/TLS 미리 establish. 첫 cover/asset fetch ~100-500ms 단축.
-     회귀 위험 0 — hint only, 표준. -->
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- ★ dns-prefetch — DNS resolve 만 (회귀 위험 0). preconnect crossorigin 은 audio no-cors
+     mode mismatch + 약한 네트워크 connection 점유 회귀 의심으로 제거. -->
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <!-- ★ preload — HTML 파싱과 병렬 background download. script src 만났을 때 이미 받음 → parse block 시간 ↓.
      preload 미지원 브라우저는 default sync 동작 (회귀 위험 0).
@@ -1454,29 +1453,44 @@ async function _patchViaFetch(path, onBytes, attempt) {
   const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   // ★ cancel 시 즉시 abort 위해 _patchState 에 등록
   if (ctrl && _patchState.activeAbortCtrls) _patchState.activeAbortCtrls.add(ctrl);
-  const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch(e) {} }, PATCH_PER_FILE_TIMEOUT) : null;
+  // ★ idle timeout (B 패턴) — data 받는 중엔 reset. 응답 자체 멈출 때만 abort.
+  //   약한 네트워크에서도 천천히 받기 가능 + 진짜 stall 만 abort.
+  //   PATCH_PER_FILE_TIMEOUT (30s) = idle 한계. 별도 max safety = 10분.
+  let _lastDataAt = Date.now();
+  const _startedAt = Date.now();
+  const _MAX_MS = 10 * 60 * 1000;
+  const idleTimer = ctrl ? setInterval(() => {
+    const _now = Date.now();
+    if (_now - _lastDataAt > PATCH_PER_FILE_TIMEOUT || _now - _startedAt > _MAX_MS) {
+      try { ctrl.abort(); } catch(e) {}
+    }
+  }, 1000) : null;
   try {
-    // ★ cache: 'reload' — 사용자 브라우저 cache 옛 PNG hit 회피. 매 patch 시 fresh fetch 강제.
-    //   변경된 PNG 도 옛 cache 에서 받아오는 회귀 fix (사용자 보고 2026-05-06: 패치해도 옛 본).
     const opts = ctrl ? { signal: ctrl.signal, cache: 'reload' } : { cache: 'reload' };
     const resp = await fetch(url, opts);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    _lastDataAt = Date.now();  // 응답 head 받음 = progress
     if (resp.body && resp.body.getReader && typeof onBytes === 'function') {
       const reader = resp.body.getReader();
       let total = 0;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (value) { total += value.length; onBytes(value.length); }
+        if (value) {
+          total += value.length;
+          _lastDataAt = Date.now();  // ★ data 받기 = idle timer reset
+          onBytes(value.length);
+        }
       }
       return total;
     } else {
       const buf = await resp.arrayBuffer();
+      _lastDataAt = Date.now();
       if (typeof onBytes === 'function') onBytes(buf.byteLength);
       return buf.byteLength;
     }
   } finally {
-    if (timer) clearTimeout(timer);
+    if (idleTimer) clearInterval(idleTimer);
     if (ctrl && _patchState.activeAbortCtrls) _patchState.activeAbortCtrls.delete(ctrl);
   }
 }
@@ -3647,22 +3661,6 @@ const songs = [
     pattern: [1,0,1,1,0,1,1,0, 1,0,1,1,0,1,0,1],
   },
 ];
-
-// ★ 첫 곡 cover dynamic preload — page load 진행 동안 background fetch.
-//   select 진입 시점에 첫 3 곡 (default selectedSong=0 인근) cover cache hit.
-//   회귀 위험 0 — <link rel="preload"> 표준, hint only.
-try {
-  for (let _pi = 0; _pi < Math.min(3, songs.length); _pi++) {
-    const _ps = songs[_pi];
-    if (_ps && _ps.cover) {
-      const _pl = document.createElement('link');
-      _pl.rel = 'preload';
-      _pl.as = 'image';
-      _pl.href = (typeof assetUrl === 'function') ? assetUrl(_ps.cover) : (CDN_BASE + _ps.cover);
-      document.head.appendChild(_pl);
-    }
-  }
-} catch(e) {}
 
 // ===== SONG LOCK / SHOP SYSTEM =====
 const FREE_SONG_COUNT = 10; // 기본 무료 곡 수
