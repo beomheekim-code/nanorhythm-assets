@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514104904;
+window.__BUILD_TS = 20260514105620;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1318,6 +1318,14 @@ function _loadPatchedSet() {
     if (typeof location !== 'undefined') {
       const _q = (location.search || '') + (location.hash || '');
       if (_q.indexOf('fullpatch=1') >= 0) {
+        // ★ 진단용 alert — 사용자가 query 인식 여부 즉시 확인 (iOS 콘솔 없음).
+        //   세션당 1회만 (alert 매번 떠도 짜증). 빌드 ff08176+ 확인용.
+        try {
+          if (typeof window !== 'undefined' && !window.__fpAlerted) {
+            window.__fpAlerted = true;
+            alert('[FULLPATCH] active — saved 리셋됨. 풀패치 시작 예정.');
+          }
+        } catch(e) {}
         return { cdnBase: null, paths: [] };
       }
     }
