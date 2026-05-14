@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514132054;
+window.__BUILD_TS = 20260514134951;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9932,14 +9932,16 @@ function startSong(idx) {
       tryFinalize();
     }
   }
-  // ★ 옵션 A 안전망 — fetchSafe 가 hang 해도 30초 후 자동 진행. loading 영원 멈춤 방지.
+  // ★ 옵션 A 안전망 — fetchSafe 가 hang 해도 자동 진행. loading 영원 멈춤 방지.
+  //   30s → 120s 로 늘림: 약한 네트워크에서 stem 다 받기 시간 확보 (7-14MB/곡).
+  //   사용자 보고: "71% 진입 후 BGM 안 들림. 일시정지/재생 토글 시 들림" = stem fetch 미완 상태 진입.
   const _decodeForceTimer = setTimeout(() => {
     if (!_decodeAllDone) {
-      console.warn('[option A] decode timeout 30s — force progress (' + _decodeStemsDone + '/' + stemCount + ')');
+      console.warn('[option A] decode timeout 120s — force progress (' + _decodeStemsDone + '/' + stemCount + ')');
       _decodeAllDone = true;
       tryFinalize();
     }
-  }, 30000);
+  }, 120000);
 
   function finishLoading() {
     // ★ 네트워크 느린 경우: stem buffer 하나도 디코딩 안 되어 있으면 2초 더 기다림 (최대 10회 = 20초).
