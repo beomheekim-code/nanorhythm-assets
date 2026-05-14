@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260513144949;
+window.__BUILD_TS = 20260514101416;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1231,7 +1231,20 @@ const FORCE_REPATCH_LIST = [
 //   사용자 받기 / patch 완료 시 lastForceVersion = 이 값 → 다음 reload 시 patch X.
 const FORCE_REPATCH_VERSION = 52;
 
+// ★ RAW_FALLBACK_PATHS — jsdelivr propagation 영구 실패 알려진 file 들. GitHub raw 직접.
+//   증상: jsdelivr 가 region edge 에 propagation 안 됨 → 404 / 403 영구.
+//   raw.githubusercontent.com 는 GitHub origin 직접 → 항상 200. rate limit 60/h anonymous.
+//   file 별 사용자 reload 당 1 req → force list cache 데움 후엔 browser cache 사용.
+const RAW_FALLBACK_PATHS = new Set([
+  'skins/bj_sera/preview_sera.gif',  // 2.88MB GIF, jsdelivr 영구 404 확인 (2026-05-13)
+]);
+const RAW_BASE = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
+
 function assetUrl(path) {
+  // ★ jsdelivr 영구 실패 file 은 raw 직접
+  if (RAW_FALLBACK_PATHS.has(path)) {
+    return RAW_BASE + path;
+  }
   // ★ force list 의 PNG 는 ?v=lastReceived 또는 BUILD_TS query — 사용자 받기 마다 query 변경
   //   → cache miss → fresh fetch. 받기 안 한 첫 image src 는 BUILD_TS query.
   const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
@@ -1268,6 +1281,7 @@ let _patchState = {
   retryingPath: null,                 // 현재 retry 중인 path
   offlineWaiting: false,
   failedList: [],
+  activeAbortCtrls: new Set(),        // in-flight fetch AbortController — cancel 시 즉시 abort
 };
 
 // ★ 디바이스 fingerprint — 다른 디바이스 saved.paths 가 KPlay/Firebase 동기화로 복원되는 케이스 차단.
@@ -1414,14 +1428,22 @@ async function _patchFetchOne(path, onBytes, expectedSize, attempt) {
 }
 
 async function _patchViaFetch(path, onBytes, attempt) {
-  // ★ retry attempt 마다 query 변경 — jsdelivr edge 의 query-specific negative cache 회피.
-  //   사용자 환경 / jsdelivr edge 가 옛 404 응답 cache 한 경우 다른 query 로 재시도 시 새 fetch.
-  //   첫 시도 (attempt 0 or undef) 는 기존 URL 그대로 — 정상 케이스 cache 활용.
-  let url = assetUrl(path);
-  if (attempt && attempt > 0) {
-    url += (url.indexOf('?') >= 0 ? '&' : '?') + 'r=' + attempt + '_' + Date.now();
+  // ★ URL 결정:
+  //   - 마지막 attempt (= PATCH_PER_FILE_RETRIES) → GitHub raw fallback (jsdelivr 영구 실패 file 회피)
+  //   - 그 외 attempt > 0 → jsdelivr + cache busting query
+  //   - 첫 시도 → 기존 URL (cache 활용)
+  let url;
+  if (attempt && attempt >= PATCH_PER_FILE_RETRIES) {
+    url = RAW_BASE + path;
+  } else {
+    url = assetUrl(path);
+    if (attempt && attempt > 0) {
+      url += (url.indexOf('?') >= 0 ? '&' : '?') + 'r=' + attempt + '_' + Date.now();
+    }
   }
   const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  // ★ cancel 시 즉시 abort 위해 _patchState 에 등록
+  if (ctrl && _patchState.activeAbortCtrls) _patchState.activeAbortCtrls.add(ctrl);
   const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch(e) {} }, PATCH_PER_FILE_TIMEOUT) : null;
   try {
     // ★ cache: 'reload' — 사용자 브라우저 cache 옛 PNG hit 회피. 매 patch 시 fresh fetch 강제.
@@ -1445,6 +1467,7 @@ async function _patchViaFetch(path, onBytes, attempt) {
     }
   } finally {
     if (timer) clearTimeout(timer);
+    if (ctrl && _patchState.activeAbortCtrls) _patchState.activeAbortCtrls.delete(ctrl);
   }
 }
 
@@ -1558,7 +1581,14 @@ async function _patchFetchWithRetry(path, onBytes, expectedSize) {
       }
       if (attempt < PATCH_PER_FILE_RETRIES) {
         const d = delays[Math.min(attempt, delays.length - 1)];
-        await new Promise(r => setTimeout(r, d));
+        // ★ cancel 시 즉시 깨어나도록 polling 가능 wait — 30s backoff stuck 회피.
+        await new Promise(r => {
+          let done = false;
+          const finish = () => { if (done) return; done = true; clearTimeout(t); clearInterval(poll); r(); };
+          const t = setTimeout(finish, d);
+          const poll = setInterval(() => { if (_patchState.cancelled) finish(); }, 100);
+        });
+        if (_patchState.cancelled) throw new Error('cancelled');
       }
     }
   }
@@ -1579,6 +1609,7 @@ async function patchAssets(opts) {
     total: paths.length, done: 0, failed: 0,
     totalBytes: 0, doneBytes: 0,
     retryingPath: null, offlineWaiting: false, failedList: [],
+    activeAbortCtrls: new Set(),
   };
 
   // ★ HEAD 사이즈 측정 — 비동기 background 진행. worker 즉시 시작 (= 0 정체 fix).
@@ -1719,7 +1750,14 @@ async function patchAssets(opts) {
   };
 }
 
-function cancelPatch() { _patchState.cancelled = true; }
+function cancelPatch() {
+  _patchState.cancelled = true;
+  // ★ in-flight fetch 즉시 abort — retry backoff 대기 / 30s timeout 대기 stuck 회피.
+  if (_patchState.activeAbortCtrls) {
+    _patchState.activeAbortCtrls.forEach(c => { try { c.abort(); } catch(e) {} });
+    _patchState.activeAbortCtrls.clear();
+  }
+}
 
 // ★ patch 완료 후 idle delay — GC + OS 캐시 flush + 메인 스레드 회복 시간 확보.
 //   reload 제거 후 메모리 압박 완화는 이거 하나로 잡음. 3s + idle callback.
@@ -15471,7 +15509,9 @@ function openSkinPreview(gifPath, title) {
   ov.style.display = 'flex';
   if (ttl) ttl.textContent = title || '미리보기';
   err.style.display = 'none';
-  const fullSrc = (typeof CDN_BASE !== 'undefined' ? CDN_BASE : '') + gifPath;
+  // ★ assetUrl 거쳐서 RAW_FALLBACK_PATHS 항목은 raw 직접 URL 받음 (jsdelivr 영구 실패 회피)
+  const fullSrc = (typeof assetUrl === 'function') ? assetUrl(gifPath)
+                  : ((typeof CDN_BASE !== 'undefined' ? CDN_BASE : '') + gifPath);
   if (_skinPreviewLoadedSrc.has(fullSrc)) {
     // 이미 로드됨 → 즉시 표시 (브라우저 캐시 hit)
     ld.style.display = 'none';
