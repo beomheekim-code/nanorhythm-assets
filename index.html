@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514105620;
+window.__BUILD_TS = 20260514110700;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1310,26 +1310,6 @@ function _getDeviceFingerprint() {
 }
 
 function _loadPatchedSet() {
-  // ★ 풀패치 강제 — URL ?fullpatch=1 또는 #fullpatch=1 시 항상 빈 saved 반환.
-  //   query + hash 둘 다 체크 (KPLAY 가 query strip 가능성 대비).
-  //   매 호출 빈 반환 — Firebase 복원 / _kpPullAll 이 _savePatchedSet 해도 무력화.
-  //   query/hash 떼면 정상 동작 (다른 사용자 영향 X).
-  try {
-    if (typeof location !== 'undefined') {
-      const _q = (location.search || '') + (location.hash || '');
-      if (_q.indexOf('fullpatch=1') >= 0) {
-        // ★ 진단용 alert — 사용자가 query 인식 여부 즉시 확인 (iOS 콘솔 없음).
-        //   세션당 1회만 (alert 매번 떠도 짜증). 빌드 ff08176+ 확인용.
-        try {
-          if (typeof window !== 'undefined' && !window.__fpAlerted) {
-            window.__fpAlerted = true;
-            alert('[FULLPATCH] active — saved 리셋됨. 풀패치 시작 예정.');
-          }
-        } catch(e) {}
-        return { cdnBase: null, paths: [] };
-      }
-    }
-  } catch(e) {}
   try {
     const raw = safeGetItem(PATCH_STORAGE_KEY);
     if (!raw) return { cdnBase: null, paths: [] };
@@ -1947,6 +1927,21 @@ async function startPatchOrTransition() {
       }
     }
   } catch(e) {}
+  // ★ 운영자 (admin) 빌드별 1회 풀패치 트리거 — 빌드 업로드 후 본인 진입 시 모든 변경 즉시 반영.
+  //   본인 userId 매칭 = 다른 사용자 영향 X. BUILD_TS 별 flag → 같은 빌드 두 번째 진입엔 X.
+  //   force_clear flag 도 set 해서 그 다음 분기가 cdnBase: CDN_BASE 로 덮어쓰는 회귀 방지.
+  let _adminFullPatchTriggered = false;
+  try {
+    if (typeof currentUser !== 'undefined' && currentUser === '1uFkOxhco0dG1YfDwRTkDRD1gsIjFpnM') {
+      const _admKey = 'rhythm_admin_fp_' + (window.__BUILD_TS || 'unknown');
+      if (!localStorage.getItem(_admKey)) {
+        safeSetItem(PATCH_STORAGE_KEY, JSON.stringify({ cdnBase: null, paths: [] }));
+        localStorage.setItem(_admKey, '1');
+        _adminFullPatchTriggered = true;
+        console.log('[admin] forced full patch for build ' + (window.__BUILD_TS || 'unknown'));
+      }
+    }
+  } catch(e) {}
   // ★ FORCE_REPATCH 1회성 강제 clear — _kpPullAllOnce + Firebase 복원 후 호출.
   //   순서 fix: 이전엔 wipe 후 _kpPullAllOnce 가 kplay storage 의 옛 saved 본 (force list
   //   포함) 으로 덮어쓰기 → wipe 무효 회귀.
@@ -1955,7 +1950,10 @@ async function startPatchOrTransition() {
                                 ? window.__FORCE_CLEAR_VERSION
                                 : 'v23';
     const key = 'rhythm_force_clear_' + FORCE_CLEAR_VERSION;
-    if (!localStorage.getItem(key)) {
+    // ★ admin 풀패치 트리거 직후엔 force_clear 분기 skip — saved.cdnBase: null 유지 (getAssetsToPatch 가 풀패치 분기로 진입).
+    if (_adminFullPatchTriggered) {
+      localStorage.setItem(key, '1');
+    } else if (!localStorage.getItem(key)) {
       const saved = _loadPatchedSet();
       const force = (typeof window.__FORCE_REPATCH_LIST !== 'undefined' && Array.isArray(window.__FORCE_REPATCH_LIST))
                     ? window.__FORCE_REPATCH_LIST
