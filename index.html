@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514103341;
+window.__BUILD_TS = 20260514104330;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -454,6 +454,11 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
 <style>
 @keyframes spnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
+<!-- ★ preload — HTML 파싱과 병렬 background download. script src 만났을 때 이미 받음 → parse block 시간 ↓.
+     preload 미지원 브라우저는 default sync 동작 (회귀 위험 0).
+     crossorigin 미설정: script src 와 mode 일치 (둘 다 no-cors) → cache hit 보장. -->
+<link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" as="script">
+<link rel="preload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js" as="script">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <!-- ★ firebase-auth-compat 제거 (2026-05-11) — 우리 코드 firebase.auth() 사용 X.
@@ -1279,6 +1284,7 @@ let _patchState = {
   total: 0, done: 0, failed: 0,
   totalBytes: 0, doneBytes: 0,        // sizeMap 합산 진행률
   retryingPath: null,                 // 현재 retry 중인 path
+  currentPath: null,                  // 현재 받기 중인 path (retry 안 들어간 첫 시도용)
   offlineWaiting: false,
   failedList: [],
   activeAbortCtrls: new Set(),        // in-flight fetch AbortController — cancel 시 즉시 abort
@@ -1608,7 +1614,7 @@ async function patchAssets(opts) {
     active: true, cancelled: false,
     total: paths.length, done: 0, failed: 0,
     totalBytes: 0, doneBytes: 0,
-    retryingPath: null, offlineWaiting: false, failedList: [],
+    retryingPath: null, currentPath: null, offlineWaiting: false, failedList: [],
     activeAbortCtrls: new Set(),
   };
 
@@ -1633,6 +1639,7 @@ async function patchAssets(opts) {
       const i = cursor++;
       if (i >= paths.length) return;
       const p = paths[i];
+      _patchState.currentPath = p;
       try {
         await _patchFetchWithRetry(p, (n) => {
           _patchState.doneBytes += n;
@@ -1644,6 +1651,7 @@ async function patchAssets(opts) {
         _patchState.failed++;
         _patchState.failedList.push(p);
       }
+      _patchState.currentPath = null;
       onProgress(_patchState);
     }
   }
@@ -15099,6 +15107,11 @@ function _renderPatchProgress() {
     // ★ stuck file 보고용 — 파일명만 추출 (path 너무 길어 UI 안 들어감)
     const _fn = _patchState.retryingPath.split('/').pop().slice(0, 32);
     extra = '🔄 재시도 중... ' + _fn;
+  }
+  else if (_patchState.currentPath && _patchState.total > 0 && (_patchState.done + _patchState.failed) < _patchState.total) {
+    // ★ 첫 시도 중 stuck 진단 — retry 안 들어간 stuck file 보고
+    const _fn2 = _patchState.currentPath.split('/').pop().slice(0, 32);
+    extra = '📥 받는 중... ' + _fn2;
   }
   else if (_patchState.failed > 0) extra = '실패 ' + _patchState.failed + '개 (계속 진행)';
   else if (pct >= 0.999 && tb > 0 && _patchState.done >= _patchState.total) extra = '✓ 완료 — 곧 시작합니다';
