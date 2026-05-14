@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514111405;
+window.__BUILD_TS = 20260514120415;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -454,6 +454,10 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
 <style>
 @keyframes spnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
+<!-- ★ preconnect — cdn.jsdelivr.net DNS/TCP/TLS 미리 establish. 첫 cover/asset fetch ~100-500ms 단축.
+     회귀 위험 0 — hint only, 표준. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <!-- ★ preload — HTML 파싱과 병렬 background download. script src 만났을 때 이미 받음 → parse block 시간 ↓.
      preload 미지원 브라우저는 default sync 동작 (회귀 위험 0).
      crossorigin 미설정: script src 와 mode 일치 (둘 다 no-cors) → cache hit 보장. -->
@@ -3644,6 +3648,22 @@ const songs = [
   },
 ];
 
+// ★ 첫 곡 cover dynamic preload — page load 진행 동안 background fetch.
+//   select 진입 시점에 첫 3 곡 (default selectedSong=0 인근) cover cache hit.
+//   회귀 위험 0 — <link rel="preload"> 표준, hint only.
+try {
+  for (let _pi = 0; _pi < Math.min(3, songs.length); _pi++) {
+    const _ps = songs[_pi];
+    if (_ps && _ps.cover) {
+      const _pl = document.createElement('link');
+      _pl.rel = 'preload';
+      _pl.as = 'image';
+      _pl.href = (typeof assetUrl === 'function') ? assetUrl(_ps.cover) : (CDN_BASE + _ps.cover);
+      document.head.appendChild(_pl);
+    }
+  }
+} catch(e) {}
+
 // ===== SONG LOCK / SHOP SYSTEM =====
 const FREE_SONG_COUNT = 10; // 기본 무료 곡 수
 const UNLOCK_POINT_COST = 100; // 포인트로 1회 해금 비용
@@ -4073,6 +4093,8 @@ function getCoverImage(idx) {
   if (!img) {
     img = new Image();
     img._coverIdx = idx;
+    // ★ decoding async — 큰 cover PNG decode main thread block 회피. 회귀 위험 0 (hint only).
+    try { img.decoding = 'async'; } catch(e) {}
     // 네트워크 실패 시 online 복귀 시 재시도
     img.onerror = () => {
       if (window.__net && !window.__net['_coverRetry:' + idx]) {
@@ -4080,6 +4102,7 @@ function getCoverImage(idx) {
         window.addEventListener('online', () => {
           try {
             const ni = new Image();
+            try { ni.decoding = 'async'; } catch(e) {}
             ni.src = assetUrl(s.cover) + '&_r=' + Date.now();
             coverImages[idx] = ni;
           } catch(e) {}
