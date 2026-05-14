@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514124248;
+window.__BUILD_TS = 20260514124722;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -685,7 +685,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
     }
   }
 
-  // ---- Fetch 래퍼 — 타임아웃 + 재시도 (exponential backoff) ----
+  // ---- Fetch 래퍼 — 타임아웃 + 재시도 (exponential backoff) + 마지막 retry raw fallback ----
   window.fetchSafe = async function(url, opts, config) {
     opts = opts || {};
     config = config || {};
@@ -695,12 +695,21 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
     while (attempt <= maxRetries) {
       const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       const t = setTimeout(() => { if (ctrl) ctrl.abort(); }, timeoutMs);
+      // ★ 마지막 attempt + jsdelivr URL 이면 raw.githubusercontent.com fallback
+      //   jsdelivr propagation 영구 fail file (예: CLIMB_TO_THE_CROWN_drums.ogg) 자동 우회.
+      //   404 / 4xx 도 retry → 마지막 attempt 시 raw 시도. raw=200 받으면 그 path stem 정상 진입.
+      let _actualUrl = url;
+      const _JS_DELIVR_PREFIX = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
+      const _RAW_PREFIX = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
+      if (attempt === maxRetries && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+        _actualUrl = _RAW_PREFIX + url.substring(_JS_DELIVR_PREFIX.length);
+      }
       try {
         const fetchOpts = ctrl ? { ...opts, signal: ctrl.signal } : opts;
-        const res = await fetch(url, fetchOpts);
+        const res = await fetch(_actualUrl, fetchOpts);
         clearTimeout(t);
-        // 5xx / 408 timeout / 429 rate-limit 은 복구 가능한 실패 → retry
-        if (!res.ok && attempt < maxRetries && (res.status >= 500 || res.status === 408 || res.status === 429)) {
+        // 5xx / 408 timeout / 429 rate-limit / 404 (jsdelivr propagation 영구 fail) → retry
+        if (!res.ok && attempt < maxRetries && (res.status >= 500 || res.status === 408 || res.status === 429 || res.status === 404)) {
           throw new Error('retryable ' + res.status);
         }
         return res;
