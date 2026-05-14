@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514145042;
+window.__BUILD_TS = 20260514145519;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -701,12 +701,11 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       let _actualUrl = url;
       const _JS_DELIVR_PREFIX = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@main/';
       const _RAW_PREFIX = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/';
-      // ★ 모든 jsdelivr URL → raw github 직접. 사용자 region 의 jsdelivr 영구 fail file
-      //   (한글 path / 특수 char) 자동 우회. raw rate limit 60/h, stem lazy 라 곡당 7 req.
-      if (url.indexOf(_JS_DELIVR_PREFIX) === 0) {
+      // ★ jsdelivr 우선 (빠른 CDN), 마지막 attempt 만 raw github fallback.
+      //   raw 가 사용자 환경 매우 느림 — jsdelivr 정상 file 빠르게 받기. raw 는 fail file 만 안전망.
+      if (attempt === maxRetries && url.indexOf(_JS_DELIVR_PREFIX) === 0) {
         _actualUrl = _RAW_PREFIX + url.substring(_JS_DELIVR_PREFIX.length);
-      }
-      if (attempt > 0) {
+      } else if (attempt > 0) {
         _actualUrl += (_actualUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + attempt + '_' + Date.now();
       }
       try {
@@ -736,8 +735,12 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
   // 곡 진입 시 stem 받기 ~30-60초 회귀 fix. 한 번 받은 stem ArrayBuffer 영구 캐시.
   // 수천 곡 확장 대비 LRU 50개 한도. TTL 30일 (iOS ITP 와 비슷 미리 만료).
   // IndexedDB 실패/미지원 시 기존 fetch 로 폴백 (회귀 위험 0).
-  const STEM_DB_NAME = 'nano_stem_cache_v1';
+  // ★ v1 → v2 bump (2026-05-14) — 사용자 환경 옛 buffer (잘못된 data) 모두 evict.
+  //   사용자 통찰: 이슈 있는 cache 들고 있어서 매번 decode fail 의 한 원인.
+  const STEM_DB_NAME = 'nano_stem_cache_v2';
   const STEM_STORE = 'stems';
+  // ★ 옛 v1 DB 삭제 (사용자 환경 storage 정리)
+  try { if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('nano_stem_cache_v1'); } catch(_) {}
   const STEM_CACHE_MAX = 50;
   const STEM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
   let _stemDB = null;
@@ -904,7 +907,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-ac
       return { buffer: cached, fromCache: true };
     }
     // 2) 캐시 미스 → 기존 fetchSafe 흐름
-    const res = await window.fetchSafe(path, {}, { retries: 4, timeout: 90000 });
+    const res = await window.fetchSafe(path, {}, { retries: 2, timeout: 30000 });
     const buf = await res.arrayBuffer();
     // 3) 백그라운드 캐시 저장 (블로킹 X)
     window._stemCachePut(path, buf);
@@ -2636,11 +2639,21 @@ function startPreview(idx) {
   audio._aborted = false;
   audio._startedAt = performance.now();  // ★ stuck-loading 감지용 — _previewUnlocker 가 500ms+ 멈춰있으면 재시도 허용
   audio.preload = 'metadata';
-  // ★ preview audio = raw github 직접 — jsdelivr 사용자 region 일부 file 영구 fail 회피.
-  //   onerror handler 발동 안 하는 환경 있어 처음부터 raw. raw 60/h 한도, 7-10곡 시청 OK.
-  audio.src = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/' + encodeURI(song.file);
+  // ★ preview audio = jsdelivr 우선 (빠른 CDN), error 시 raw 1회 폴백.
+  audio.src = assetUrl(song.file);
   songPreviewAudio = audio;
   audio.volume = 0;
+  // ★ error 시 raw github 폴백 1회
+  audio._rawTried = false;
+  audio.addEventListener('error', () => {
+    if (audio._aborted || songPreviewAudio !== audio || audio._rawTried) return;
+    audio._rawTried = true;
+    try {
+      audio.src = 'https://raw.githubusercontent.com/beomheekim-code/nanorhythm-assets/main/' + encodeURI(song.file);
+      audio.load();
+      audio.play().catch(()=>{});
+    } catch(e) {}
+  });
   const markReady = () => {
     if (audio._aborted || songPreviewAudio !== audio || !previewLoading) return;
     previewLoading = false;
