@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260514161235;
+window.__BUILD_TS = 20260515125440;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1520,6 +1520,12 @@ function assetUrl(path) {
   // ★ path encoding — space / 한글 / 특수문자 자동 인코딩 (encodeURI 가 / 유지).
   //   "Music/Cherry Blossom/..." 같은 space path 가 fetch fail 하던 회귀 fix.
   const _enc = encodeURI(path);
+  // ★ [로컬 dev ONLY] localhost 서빙 시 상대경로 반환 → 로컬 폴더 에셋 직접 로드.
+  //   hostname guard — 라이브(jsdelivr/실도메인)는 항상 아래 CDN 경로. 영향 0.
+  if (typeof location !== 'undefined' && location.hostname &&
+      /^(localhost$|127\.0\.0\.1$|192\.168\.|10\.|0\.0\.0\.0$)/.test(location.hostname)) {
+    return _enc;
+  }
   // ★ 영구 실패 file (hardcode + 자동 등록) + jsdelivr region-wide 실패 시 raw 직접
   if (RAW_FALLBACK_PATHS.has(path) || _isPathRawAuto(path) || _isJsdelivrBroken()) {
     return RAW_BASE + _enc;
@@ -3051,6 +3057,7 @@ const songs = [
     stemDir: 'Music/Cherry Blossom/',
     stemPrefix: 'cherry blossom',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    slotSubdivision: 1.2,  // 2026-05-15 tweak
     endCutoff: 109.2,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
   },
@@ -3258,7 +3265,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 104.7,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
-    excludeStems: [0, 1, 5, 6], // drums/bass/guitar/other 제외 → instrum + piano만
+    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만
   },
   {
     name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
@@ -3317,7 +3324,7 @@ const songs = [
     endCutoff: 157.2,
     pattern: [1,0,1,1,0,1,0,1, 1,1,0,1,0,1,1,0],
     // piano RMS 0.0000 인데 onset 425 / other RMS 0.015 에 onset 310 — noise floor 허위 트리거.
-    excludeStems: [4, 6],
+    excludeStems: [4],
     // intro 0~10초: auto onset 모두 drop.
     introSparse: [0, 10, 100],
     // 딱! 시점 4개 (오디오 분석).
@@ -3350,9 +3357,10 @@ const songs = [
     stemDir: 'Music/황덕구의_모험/',
     stemPrefix: '황덕구의_모험',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 142.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-    excludeStems: [0, 1, 4, 5, 6], // instrum만 사용 (메인 트랙)
+    excludeStems: [4], // instrum만 사용 (메인 트랙)
   },
   {
     name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 120, color: '#66d4ff',
@@ -3399,7 +3407,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 77.2,
     pattern: [1,0,1,0,1,0,1,0, 1,1,0,1,0,1,0,1],
-    excludeStems: [4, 5], chordMode: true,
+    excludeStems: [5], chordMode: true,
   },
   {
     name: 'Midnight Breeze', sub: 'Chill R&B', bpm: 117,
@@ -3469,8 +3477,7 @@ const songs = [
     stemPrefix: '기분_좋은_날',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 130.2,
-    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
-    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: '바람을 타고', sub: 'K-Pop Dance', bpm: 172,
@@ -3481,8 +3488,7 @@ const songs = [
     stemPrefix: '바람을_타고',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 157.2,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: 'The Last Quarter', sub: 'Alt Rock', bpm: 144,
@@ -3505,7 +3511,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 143.2,
     pattern: [1,0,0,1,1,0,1,0, 1,0,0,1,0,1,1,0],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 96,
@@ -3541,7 +3547,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 130.7,
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,0,1,0,1,1],
-    excludeStems: [4, 6], chordMode: true,
+    excludeStems: [4], chordMode: true,
   },
   {
     name: 'Monoliths of Light', sub: 'AMBIENT', bpm: 60,
@@ -3553,7 +3559,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 111.2,
     pattern: [1,0,0,0,1,0,0,1, 1,0,0,1,0,0,1,0],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true,
     // 저BPM + ambient + excludeStems 많음 → noteSparse 회귀. slotSubdivision 0.5 + levelBonus.
     stemSensitivity: { 2: 0.9, 3: 0.9, 6: 0.95 },
     stemMinGap: { 2: 20, 3: 20 },
@@ -3570,7 +3576,6 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 114.7,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
-    excludeStems: [5],
     chordMode: true,
   },
   {
@@ -3584,7 +3589,7 @@ const songs = [
     endCutoff: 122.2,
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
     // other stem: 106s 에서 소리 끝나는데 onset 은 122s 까지 잡힘 (phantom) → 제외
-    excludeStems: [4, 6], chordMode: true,
+    excludeStems: [4], chordMode: true,
   },
   {
     name: 'Soda Pop Crush', sub: 'BUBBLY POP', bpm: 112,
@@ -3609,7 +3614,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 157.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: 'さいごまではしる', sub: 'J-ROCK', bpm: 136,
@@ -3620,7 +3625,7 @@ const songs = [
     stemPrefix: 'さいごまではしる',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,1,1,0,1,1, 0,1,1,0,1,1,0,1],
-    excludeStems: [4, 6], chordMode: true,
+    excludeStems: [4], chordMode: true,
   },
   {
     name: '날개를 펼쳐', sub: 'K-POP BALLAD', bpm: 96,
@@ -3632,7 +3637,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 163.7,
     pattern: [1,0,0,1,1,0,0,1, 0,1,0,0,1,0,1,0],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: '달의 파편', sub: 'K-POP', bpm: 136,
@@ -3644,7 +3649,6 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 153.7,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,1],
-    excludeStems: [5],
     vocalIntroRange: 'auto', chordMode: true,
   },
   {
@@ -3656,7 +3660,7 @@ const songs = [
     stemPrefix: '토끼의_꿈',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,0,1,1,0,1,0, 1,0,1,0,0,1,1,0],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true,
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true,
   },
   {
     name: '투명한 설렘', sub: 'CLEAR BALLAD', bpm: 89,
@@ -3716,6 +3720,7 @@ const songs = [
     stemDir: 'Music/Lucifer/',
     stemPrefix: 'Lucifer',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    slotSubdivision: 0.75,  // 2026-05-15 decouple 후 복원
     endCutoff: 164.0,
     pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1],
     chordMode: true,
@@ -3723,7 +3728,6 @@ const songs = [
     // slotStemPriority piano 우선 (분리).
     stemSensitivity: { 4: 1.05 },
     stemMinGap: { 4: 60 },
-    slotSubdivision: 0.75, // 어려움: 점8분 × 0.75 = 105ms@161BPM
     hellSubdivision: 1.2,  // 지옥 only — sixteenth × 1.2 × 0.75 = 85ms (어려움보다 살짝 dense, 70ms 보다 sparse)
     slotStemPriority: [4, 5, 3, 0, 1, 6, 2], // piano > guitar > 신스 > drum > bass > other > vocal
     // slotStemPriority 제거: 순수 energy 기반 picker (가장 쎈 음만)
@@ -3736,13 +3740,13 @@ const songs = [
     stemDir: 'Music/Spin/',
     stemPrefix: 'Spin',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [4, 5],
+    excludeStems: [4],
     endCutoff: 138.7,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
     vocalIntroRange: 'auto', chordMode: true,
     // ★ 드럼 strict (1.2) 으로 sparse 해짐 (사용자 보고 2026-05-04). 신스 강화 버전 (9ee3e68) 으로 revert.
     stemSensitivity: { 0: 1.05, 6: 1.05 }, // drum + 신스 둘 다 lenient
-    slotSubdivision: 0.5, // 모든 난이도 슬롯 절반 (지옥 32분 = 96ms@78BPM)
+    slotSubdivision: 0.5,  // 2026-05-15 박자정렬 교정
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.3, // 실제 노트 밀도 반영해 표시 레벨 ↑
   },
@@ -3766,7 +3770,8 @@ const songs = [
     stemDir: 'Music/Sugar_Pixel/',
     stemPrefix: 'Sugar_Pixel',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [4, 5],
+    slotSubdivision: 1.15,  // 2026-05-15 tweak
+    excludeStems: [4],
     endCutoff: 143.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
     chordMode: true,
@@ -3790,11 +3795,10 @@ const songs = [
     stemDir: 'Music/ATLANTIS/',
     stemPrefix: 'ATLANTIS',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [0, 1, 4, 5, 6],
+    slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 155.7,
     stemSensitivity: { 2: 0.9, 3: 0.9 }, // vocals + instrum 매우 lenient (excludeStems 라 source 부족)
     stemMinGap: { 2: 20, 3: 20 },          // 짧은 minGap → onset 더 많이 감지
-    slotSubdivision: 0.5,                  // 모든 난이도 dense (default 의 절반)
     levelBonus: 0.4,                       // dense 옵션으로 실제 밀도 ↑ → 표시 레벨 +4~5
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
@@ -3869,13 +3873,12 @@ const songs = [
     stemDir: 'Music/夢緣_(몽연)/',
     stemPrefix: '夢緣_(몽연)',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [0, 1, 4, 5, 6],
+    slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 165.7,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
     stemSensitivity: { 2: 0.9, 3: 0.9 },
     stemMinGap: { 2: 20, 3: 20 },
-    slotSubdivision: 0.5,
     levelBonus: 0.4,
   },
   {
@@ -3899,7 +3902,7 @@ const songs = [
     stemDir: 'Music/Red_Light/',
     stemPrefix: 'Red_Light',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [4, 5],
+    excludeStems: [4],
     chordMode: true, chordMinGap: 2.0,
     vocalIntroRange: 'auto',
     endCutoff: 113.2,
@@ -3913,7 +3916,7 @@ const songs = [
     stemDir: 'Music/Static_On_The_Road/',
     stemPrefix: 'Static_On_The_Road',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [4, 5],
+    excludeStems: [4],
     chordMode: true, chordMinGap: 2.2,
     vocalIntroRange: 'auto',
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
@@ -3926,10 +3929,47 @@ const songs = [
     stemDir: 'Music/Mirrorball_Kiss/',
     stemPrefix: 'Mirrorball_Kiss',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    excludeStems: [5],
     chordMode: true, chordMinGap: 2.2,
     vocalIntroRange: 'auto',
     pattern: [1,0,1,1,0,1,1,0, 1,0,1,1,0,1,0,1],
+  },
+  {
+    name: 'Arcade Turnabout', sub: 'ARCADE / EDM', bpm: 129, color: '#4dd0e1',
+    bg1: '#001218', bg2: '#00242e', bars: 99,
+    cover: 'Music/Arcade_Turnabout/Arcade_Turnabout.png',
+    file: 'Music/Arcade_Turnabout.ogg',
+    stemDir: 'Music/Arcade_Turnabout/',
+    stemPrefix: 'Arcade_Turnabout',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    chordMode: true,
+    endCutoff: 178.2,
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
+  },
+  {
+    name: '봉인해제 Dragon', sub: 'ROCK / EPIC', bpm: 99, color: '#ff6b3a',
+    bg1: '#1a0800', bg2: '#2e1200', bars: 71,
+    cover: 'Music/봉인해제_Dragon/봉인해제_Dragon.png',
+    file: 'Music/봉인해제_Dragon.ogg',
+    stemDir: 'Music/봉인해제_Dragon/',
+    stemPrefix: '봉인해제_Dragon',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    excludeStems: [4],
+    chordMode: true,
+    slotSubdivision: 0.75,  // 2026-05-15 decouple 후 복원
+    endCutoff: 168.83,
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
+  },
+  {
+    name: '잔상', sub: 'BALLAD', bpm: 99, color: '#a08cff',
+    bg1: '#0a0820', bg2: '#1a1430', bars: 38,
+    cover: 'Music/잔상/잔상.png',
+    file: 'Music/잔상.ogg',
+    stemDir: 'Music/잔상/',
+    stemPrefix: '잔상',
+    stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
+    slotSubdivision: 0.75,  // 2026-05-15 tweak
+    chordMode: true,
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
   },
 ];
 
@@ -9446,8 +9486,9 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   allOnsets.sort((a, b) => a.time - b.time);
 
   // BPM 그리드에 퀀타이즈 (16분음표). 수동 intro 노트(_forceHold/_forceTap)는 정확한 시점 유지.
-  // ★ 곡별 slotSubdivision 있으면 quantize grid 도 함께 finer (모든 난이도 적용).
-  const _qGrid = sixteenth * (song.slotSubdivision || 1);
+  // ★ _qGrid 는 slotSubdivision 이하 최대 2의거듭제곱 → 박자 정렬 보장.
+  //   slotSubdivision 은 밀도(minGap)만 자유롭게 제어. 비-2의거듭제곱 값도 박자 안 어긋남.
+  const _qGrid = sixteenth * Math.pow(2, Math.floor(Math.log2(song.slotSubdivision || 1)));
   for (const o of allOnsets) {
     if (o._forceHold || o._forceTap) continue;
     const rel = o.time - bgmDelay;
@@ -9522,8 +9563,13 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
           } else {
             // localEnergy (onset 위치 ±25ms RMS) 비교 — 진짜 "가장 쎈 음" win.
             //   localEnergy 없으면 fallback to bucket energy.
+            // ★ stem 가중치 (2026-05-15): instrum(합성)·other(잡탕)에서 발생하는 noise/ambient
+            //   onset 이 drum/bass/melody 비트보다 slot 이기는 문제 보정. drums/bass/vocals/piano/guitar
+            //   = 1.0, instrum·other = 0.7. "안 나와야 할 때 noise 가 슬롯 픽" 증상 fix.
             const oLE = (typeof o.localEnergy === 'number') ? o.localEnergy : (o.energy || 0);
-            if (oLE > bestEnergy) { best = o; bestEnergy = oLE; }
+            const _sw = (o.stem === 3 || o.stem === 6) ? 0.7 : 1.0;
+            const oWeighted = oLE * _sw;
+            if (oWeighted > bestEnergy) { best = o; bestEnergy = oWeighted; }
           }
         }
         nsIdx++;
@@ -9650,6 +9696,17 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   nodes.sort((a, b) => a.time - b.time);
+  // ★ 홀드 최소 시간 간격 (2026-05-15) — holdEvery 가 노트 개수 기반이라 dense 구간에서
+  //   hold 가 시간상 뭉침 ("홀드끼리 너무 붙어서 나옴"). 직전 hold 와 1.6초 미만이면
+  //   tap 으로 강등 (레인 무관, 시간 기준). RNG 미사용 / 시간·레인 불변, type·endTime 만 변경.
+  {
+    let _lastHoldT = -Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].type !== 'hold') continue;
+      if (nodes[i].time - _lastHoldT < 1.6) { nodes[i].type = 'note'; nodes[i].endTime = 0; }
+      else { _lastHoldT = nodes[i].time; }
+    }
+  }
   // 홀드 노트 구간 내 같은 레인 일반 노트 제거 (홀드 시작~끝 + 여유 0.15초)
   for (let a = 0; a < nodes.length; a++) {
     if (nodes[a].type !== 'hold') continue;
@@ -10316,6 +10373,110 @@ function startSong(idx) {
           console.log('Stem', i, stemNames[i], ': NO BUFFER');
         }
       }
+      // ★ Mix-based onset 재구성 (2026-05-15) — 차트 시각 = (excludeStems 제외한) 전 stem 합의 onset.
+      //   = 사용자가 실제로 듣는 음악의 진짜 transient. stem 내부 cross-bleed/noise onset 이
+      //   차트에 끼는 문제 fix. stem 정보는 dominant(max 에너지) 기반 lane 배분에만 사용.
+      //   토글:
+      //     window.__noSumOnset    = true → per-stem 폴백 (원본, dense, noisy)
+      //     window.__mixGapFill    = false → mix-onset only (sparse, clean)
+      //     window.__mixGapFill    !== false → mix + gap-fill (default, 2026-05-15 사용자 선택)
+      try {
+        // 원본 per-stem onsets 백업 (gap-fill 용)
+        const _origOnsets = {};
+        for (const k in onsetsByStem) _origOnsets[k] = onsetsByStem[k].slice();
+        if (!window.__noSumOnset) {
+          const _excl = curSong.excludeStems || [];
+          const _stems = [];
+          let _maxLen = 0, _sr = 0;
+          for (let i = 0; i < stemNames.length; i++) {
+            if (_excl.indexOf(i) >= 0) continue;
+            if (stemAudioBuffers[i]) {
+              const ch = stemAudioBuffers[i].getChannelData(0);
+              _stems.push({ i: i, data: ch });
+              _maxLen = Math.max(_maxLen, ch.length);
+              _sr = stemAudioBuffers[i].sampleRate;
+            }
+          }
+          if (_stems.length > 0 && _sr > 0) {
+            const _sum = new Float32Array(_maxLen);
+            for (const s of _stems) {
+              const _d = s.data;
+              for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
+            }
+            const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
+            // ★ 감도 1.05 (2026-05-15) — 1.1 은 dense 구간에서 transient 누락. 1.05 = 살짝 더 잡음.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.05, 30);
+            // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
+            const _winSamples = Math.floor(_sr * 0.025);
+            // ★ tail-mute: endCutoff 직전 1.0s 의 onset 은 drop (jazz/reverb tail 어색 fix, SPIN 등)
+            const _tailCut = (typeof curSong.endCutoff === 'number') ? (curSong.endCutoff - 1.0) : Infinity;
+            const _newByStem = {};
+            const _mixTimes = []; // gap-fill 용 mix-onset 시각 목록
+            for (let oi = 0; oi < _sumOnsets.length; oi++) {
+              const t = _sumOnsets[oi];
+              if (t > _tailCut) continue;
+              const _idx = Math.floor(t * _sr);
+              const _from = Math.max(0, _idx - _winSamples);
+              let _bestStem = -1, _bestE = -1;
+              for (let si = 0; si < _stems.length; si++) {
+                const _d = _stems[si].data;
+                const _to = Math.min(_d.length, _idx + _winSamples);
+                let _e = 0;
+                for (let k = _from; k < _to; k += 4) _e += _d[k] * _d[k];
+                if (_e > _bestE) { _bestE = _e; _bestStem = _stems[si].i; }
+              }
+              if (_bestStem >= 0) {
+                if (!_newByStem[_bestStem]) _newByStem[_bestStem] = [];
+                _newByStem[_bestStem].push(t);
+                _mixTimes.push(t);
+              }
+            }
+            // ★ Gap-fill (2026-05-15) — mix-onset 사이 > 0.5s 갭에서 per-stem 보조 onset 추가.
+            //   "가장 큰 stem 비는 구간에 차순위 stem 떨어뜨리기" (사용자 안). per-stem 모든 후보 중
+            //   기존 onsetsByStem 에 있던 것만 사용 (이미 noise filter 거친 상태). 갭 양 끝 0.1s 여유.
+            //   window.__mixGapFill === true 인 경우에만 작동.
+            _mixTimes.sort((a, b) => a - b);
+            let _gapFilled = 0;
+            if (window.__mixGapFill !== false) {
+              for (let gi = 0; gi < _mixTimes.length - 1; gi++) {
+                const _gStart = _mixTimes[gi], _gEnd = _mixTimes[gi + 1];
+                const _gap = _gEnd - _gStart;
+                if (_gap < 0.5) continue;
+                // 갭 내 per-stem 후보 중 가장 강한 stem 의 onset 1개 pick
+                const _ws = Math.floor(_sr * 0.020);
+                let _cand = null, _candStem = -1, _candE = -1;
+                for (let si = 0; si < _stems.length; si++) {
+                  const _stemIdx = _stems[si].i;
+                  const _bag = _origOnsets[_stemIdx] || [];
+                  for (const ot of _bag) {
+                    if (ot < _gStart + 0.1 || ot > _gEnd - 0.1) continue;
+                    if (ot > _tailCut) continue;
+                    const _oi = Math.floor(ot * _sr);
+                    const _d = _stems[si].data;
+                    const _f = Math.max(0, _oi - _ws), _t2 = Math.min(_d.length, _oi + _ws);
+                    let _e = 0;
+                    for (let k = _f; k < _t2; k += 4) _e += _d[k] * _d[k];
+                    if (_e > _candE) { _candE = _e; _candStem = _stemIdx; _cand = ot; }
+                  }
+                }
+                if (_cand !== null && _candStem >= 0) {
+                  if (!_newByStem[_candStem]) _newByStem[_candStem] = [];
+                  _newByStem[_candStem].push(_cand);
+                  _gapFilled++;
+                }
+              }
+            }
+            // 기존 per-stem onsets → mix-attributed 로 교체
+            for (const k in onsetsByStem) delete onsetsByStem[k];
+            for (const k in _newByStem) {
+              const arr = _newByStem[k];
+              arr.sort((a, b) => a - b);
+              onsetsByStem[k] = arr;
+            }
+            console.log('[mix-onset] ' + _sumOnsets.length + ' mix + ' + _gapFilled + ' gap-fill onsets → stem 분배 완료 (excl=' + JSON.stringify(_excl) + ', tailCut=' + _tailCut.toFixed(2) + ')');
+          }
+        }
+      } catch(e) { try { console.warn('[mix-onset] skipped, per-stem 폴백:', e && e.message); } catch(_) {} }
       // ★ onset / nodes cache — 동일 곡 + 난이도 plays 시 재계산 skip (deterministic seed 라 결과 동일).
       //   cache key = songIdx_diffIdx_bpm. LRU 5곡 limit (메모리 ~250KB).
       const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm;
