@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515162620;
+window.__BUILD_TS = 20260515163140;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10490,8 +10490,8 @@ function startSong(idx) {
             _mixTimes.sort((a, b) => a - b);
             let _gapFilled = 0;
             if (window.__mixGapFill !== false) {
-              const _GAP_MIN = 0.4;      // 이 미만 갭은 fill 안 함
-              const _FILL_SPACING = 0.2; // 채택된 fill onset 간 / 경계와의 최소 간격
+              const _GAP_MIN = 0.5;       // 이 미만 갭은 fill 안 함 (0.4 → 0.5, over-density fix)
+              const _FILL_SPACING = 0.35; // 채택된 fill onset 간 / 경계와의 최소 간격 (0.2 → 0.35)
               for (let gi = 0; gi < _mixTimes.length - 1; gi++) {
                 const _gStart = _mixTimes[gi], _gEnd = _mixTimes[gi + 1];
                 if (_gEnd - _gStart < _GAP_MIN) continue;
@@ -10565,8 +10565,9 @@ function startSong(idx) {
             // ★ ALWAYS_AUDIBLE_STEMS (vocals) 원본 onsets 보존 — vocalRanges 가 vocal-only 구간에서
             //   vocal onset 을 chart 에 추가할 때 onsetsByStem[2] 참조함. 보존 없으면 vocal-only
             //   구간이 통째로 비어 있음 (사용자 보고 2026-05-15).
+            //   단 _hardCut 너머는 trim — vocalRanges 는 endCutoff 면제라 trim 안 하면 꼬리 노트 잔존.
             for (const _aSi of ALWAYS_AUDIBLE_STEMS) {
-              if (_origOnsets[_aSi]) onsetsByStem[_aSi] = _origOnsets[_aSi].slice();
+              if (_origOnsets[_aSi]) onsetsByStem[_aSi] = _origOnsets[_aSi].filter(t => t <= _hardCut);
             }
             console.log('[mix-onset] ' + _sumOnsets.length + ' mix + ' + _gapFilled + ' gap-fill + ' + _drumAdded + ' drum-add onsets → stem 분배 완료 (excl=' + JSON.stringify(_excl) + ', tailCut=' + _tailCut.toFixed(2) + ')');
           }
