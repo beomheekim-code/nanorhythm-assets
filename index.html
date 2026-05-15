@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515161608;
+window.__BUILD_TS = 20260515161845;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10435,16 +10435,31 @@ function startSong(idx) {
             const _sumOnsets = detectOnsets(_sumBuf, 1.05, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
-            // ★ Tail ramp-down (2026-05-15) — 끝 5s 동안 노트 keep ratio 선형 감소.
-            //   endCutoff - 5 ~ -1: 100% → 0% linear. -1 부터는 hard cut.
-            //   결정론적 hash (재진입 시 동일 결과). 사용자 "夢緣 마지막 엄청 떨어짐" fix.
-            const _hardCut = (typeof curSong.endCutoff === 'number') ? (curSong.endCutoff - 1.0) : Infinity;
-            const _rampStart = (typeof curSong.endCutoff === 'number') ? (curSong.endCutoff - 5.0) : Infinity;
+            // ★ Tail ramp-down (2026-05-15, v2) — fade 자동 감지. last 1s RMS < ref(last 5s) × 30%
+            //   → fade O → 5s ramp. SPIN (페이드 X) → 0.3s hard cut 만. 夢緣 (페이드 O) → ramp + cut.
+            const _ec = curSong.endCutoff;
+            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.3) : Infinity;
+            let _useRamp = false;
+            if (typeof _ec === 'number' && _sr > 0) {
+              const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
+              const _refEnd = Math.max(0, Math.floor((_ec - 1) * _sr));
+              const _lastStart = Math.max(0, Math.floor((_ec - 1) * _sr));
+              const _lastEnd = Math.min(_sum.length, Math.floor(_ec * _sr));
+              let _rS = 0, _rC = 0;
+              for (let k = _refStart; k < _refEnd; k += 200) { _rS += _sum[k] * _sum[k]; _rC++; }
+              const _refRms = _rC > 0 ? Math.sqrt(_rS / _rC) : 0;
+              let _lS = 0, _lC = 0;
+              for (let k = _lastStart; k < _lastEnd; k += 200) { _lS += _sum[k] * _sum[k]; _lC++; }
+              const _lastRms = _lC > 0 ? Math.sqrt(_lS / _lC) : 0;
+              if (_refRms > 0 && _lastRms / _refRms < 0.3) _useRamp = true;
+              console.log('[tail-fade] ' + (curSong.name || '') + ' refRms=' + _refRms.toFixed(3) + ' lastRms=' + _lastRms.toFixed(3) + ' useRamp=' + _useRamp);
+            }
+            const _rampStart = _useRamp ? (_ec - 5.0) : Infinity;
             const _tailCut = _hardCut; // gap-fill 호환용 별칭
             const _hashT = (n) => { const h = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return h - Math.floor(h); };
             const _shouldKeep = (t) => {
               if (t > _hardCut) return false;
-              if (t <= _rampStart) return true;
+              if (!_useRamp || t <= _rampStart) return true;
               const kp = (_hardCut - t) / (_hardCut - _rampStart);
               return _hashT(t) < kp;
             };
