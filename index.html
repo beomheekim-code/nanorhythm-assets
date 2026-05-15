@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515164939;
+window.__BUILD_TS = 20260515165445;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10437,6 +10437,32 @@ function startSong(idx) {
             const _sumOnsets = detectOnsets(_sumBuf, 1.15, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
+            // ★ Sub-stem 주파수 밴드 분리 (2026-05-15) — 드럼을 kick(<150Hz)/snare(200-800Hz)/
+            //   hihat(>3000Hz) 로 1차 IIR 밴드패스 분리. 각각 새 stem 인덱스 (70/71/72) 부여.
+            //   "stem 더 세분화" 사용자 요청. dominant 후보에 추가, sum 에는 원본 drums 유지 (double-count 방지).
+            //   window.__subStems = false 면 비활성.
+            const _bandPass = (data, sr, fLow, fHigh) => {
+              const aH = (2 * Math.PI * fHigh) / (sr + 2 * Math.PI * fHigh);
+              const lp = new Float32Array(data.length);
+              let y = 0;
+              for (let i = 0; i < data.length; i++) { y = aH * data[i] + (1 - aH) * y; lp[i] = y; }
+              if (fLow <= 0) return lp;
+              const aL = (2 * Math.PI * fLow) / (sr + 2 * Math.PI * fLow);
+              y = 0;
+              for (let i = 0; i < data.length; i++) { y = aL * lp[i] + (1 - aL) * y; lp[i] = lp[i] - y; }
+              return lp;
+            };
+            // dominant 후보 = 원본 _stems 에서 drums (0) 제거 + 서브 stem 추가
+            const _domCandidates = _stems.filter(s => s.i !== 0);
+            const _drumStem = _stems.find(s => s.i === 0);
+            if (_drumStem && window.__subStems !== false) {
+              _domCandidates.push({ i: 70, data: _bandPass(_drumStem.data, _sr, 0, 150) });   // kick
+              _domCandidates.push({ i: 71, data: _bandPass(_drumStem.data, _sr, 200, 800) });  // snare
+              _domCandidates.push({ i: 72, data: _bandPass(_drumStem.data, _sr, 3000, 8000) }); // hihat
+              console.log('[sub-stem] drums(0) → kick(70)+snare(71)+hihat(72) 분리 완료');
+            } else if (_drumStem) {
+              _domCandidates.push(_drumStem); // sub-stem OFF → drums 그대로
+            }
             // ★ Tail ramp-down (2026-05-15, v4) — hard cut -1.0 → -0.5 (꼬리 음악 살림, "노트 일찍 종료" fix).
             //   fade O → -5 ~ -0.5s 의 ramp + -0.5s hard cut. fade X → -0.5s hard cut 만.
             const _ec = curSong.endCutoff;
@@ -10473,12 +10499,13 @@ function startSong(idx) {
               const _idx = Math.floor(t * _sr);
               const _from = Math.max(0, _idx - _winSamples);
               let _bestStem = -1, _bestE = -1;
-              for (let si = 0; si < _stems.length; si++) {
-                const _d = _stems[si].data;
+              // ★ _domCandidates (sub-stem 포함) 으로 dominant 검색
+              for (let si = 0; si < _domCandidates.length; si++) {
+                const _d = _domCandidates[si].data;
                 const _to = Math.min(_d.length, _idx + _winSamples);
                 let _e = 0;
                 for (let k = _from; k < _to; k += 4) _e += _d[k] * _d[k];
-                if (_e > _bestE) { _bestE = _e; _bestStem = _stems[si].i; }
+                if (_e > _bestE) { _bestE = _e; _bestStem = _domCandidates[si].i; }
               }
               if (_bestStem >= 0) {
                 if (!_newByStem[_bestStem]) _newByStem[_bestStem] = [];
