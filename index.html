@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515165508;
+window.__BUILD_TS = 20260515165637;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10493,19 +10493,27 @@ function startSong(idx) {
             };
             const _newByStem = {};
             const _mixTimes = []; // gap-fill 용 mix-onset 시각 목록
+            // ★ Stem weight (2026-05-15) — "드럼 편향" / "Lucifer 신디 곡인데 드럼에 맞게 나옴" 사용자 보고.
+            //   드럼(0) + sub-stem (kick/snare/hihat 70-72) weight 0.65 → 멜로디/베이스가 더 자주 dominant.
+            //   드럼이 ~55%+ 강할 때만 wins.
+            const _stemWeight = (si) => {
+              if (si === 0 || si === 70 || si === 71 || si === 72) return 0.65;
+              return 1.0;
+            };
             for (let oi = 0; oi < _sumOnsets.length; oi++) {
               const t = _sumOnsets[oi];
               if (!_shouldKeep(t)) continue;
               const _idx = Math.floor(t * _sr);
               const _from = Math.max(0, _idx - _winSamples);
               let _bestStem = -1, _bestE = -1;
-              // ★ _domCandidates (sub-stem 포함) 으로 dominant 검색
+              // ★ _domCandidates (sub-stem 포함) + weight 으로 dominant 검색
               for (let si = 0; si < _domCandidates.length; si++) {
                 const _d = _domCandidates[si].data;
                 const _to = Math.min(_d.length, _idx + _winSamples);
                 let _e = 0;
                 for (let k = _from; k < _to; k += 4) _e += _d[k] * _d[k];
-                if (_e > _bestE) { _bestE = _e; _bestStem = _domCandidates[si].i; }
+                const _weighted = _e * _stemWeight(_domCandidates[si].i);
+                if (_weighted > _bestE) { _bestE = _weighted; _bestStem = _domCandidates[si].i; }
               }
               if (_bestStem >= 0) {
                 if (!_newByStem[_bestStem]) _newByStem[_bestStem] = [];
