@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515170538;
+window.__BUILD_TS = 20260515181305;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10433,8 +10433,8 @@ function startSong(idx) {
               for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
             }
             const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
-            // ★ 감도 1.15 (2026-05-15) — 1.10 도 여전히 dense. 1.15 = 정말 강한 transient 만.
-            const _sumOnsets = detectOnsets(_sumBuf, 1.15, 30);
+            // ★ 감도 1.10 (2026-05-15) — 1.15 는 초반 quiet 음악 transient 놓침. 1.10 = 중간값.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.10, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
             // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
@@ -10472,11 +10472,10 @@ function startSong(idx) {
             };
             const _newByStem = {};
             const _mixTimes = []; // gap-fill 용 mix-onset 시각 목록
-            // ★ Stem weight (2026-05-15) — "드럼 편향" / "Lucifer 신디 곡인데 드럼에 맞게 나옴" 사용자 보고.
-            //   드럼(0) + sub-stem (kick/snare/hihat 70-72) weight 0.65 → 멜로디/베이스가 더 자주 dominant.
-            //   드럼이 ~55%+ 강할 때만 wins.
+            // ★ Stem weight (2026-05-15) — "드럼 편향" 사용자 보고. 0.65 는 너무 공격적 (player miss 증가
+            //   추정). 0.8 로 완화 — 드럼이 멜로디 대비 25%+ 강하면 wins.
             const _stemWeight = (si) => {
-              if (si === 0 || si === 70 || si === 71 || si === 72) return 0.65;
+              if (si === 0) return 0.8;
               return 1.0;
             };
             for (let oi = 0; oi < _sumOnsets.length; oi++) {
