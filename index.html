@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515140036;
+window.__BUILD_TS = 20260515140650;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10476,6 +10476,32 @@ function startSong(idx) {
                 }
               }
             }
+            // ★ Drum-additive (2026-05-15) — 드럼(0)은 sustained stem(보컬/베이스/instrum)에 가려서
+            //   mix-onset 에 안 잡히는 빠른 hit 다수. excludeStems 에 0 없을 때만, 기존 onset (mix +
+            //   gap-fill) 과 0.08s 이내 중복은 skip, 나머지는 drum lane 추가. Demucs 드럼 분리
+            //   깨끗 → noise 위험 낮음. "느린 stem 기준 어색" 사용자 보고 fix.
+            let _drumAdded = 0;
+            if (_excl.indexOf(0) < 0) {
+              const _drumOnsets = _origOnsets[0] || [];
+              const _DRUM_PROX = 0.08;
+              const _accAll = _mixTimes.slice();
+              if (_newByStem[0]) for (const t of _newByStem[0]) _accAll.push(t);
+              _accAll.sort((a, b) => a - b);
+              for (const dt of _drumOnsets) {
+                if (dt > _tailCut) continue;
+                let _near = false;
+                for (const mt of _accAll) {
+                  if (mt > dt + _DRUM_PROX) break;
+                  if (Math.abs(dt - mt) < _DRUM_PROX) { _near = true; break; }
+                }
+                if (_near) continue;
+                if (!_newByStem[0]) _newByStem[0] = [];
+                _newByStem[0].push(dt);
+                _accAll.push(dt);
+                _accAll.sort((a, b) => a - b);
+                _drumAdded++;
+              }
+            }
             // 기존 per-stem onsets → mix-attributed 로 교체
             for (const k in onsetsByStem) delete onsetsByStem[k];
             for (const k in _newByStem) {
@@ -10483,7 +10509,7 @@ function startSong(idx) {
               arr.sort((a, b) => a - b);
               onsetsByStem[k] = arr;
             }
-            console.log('[mix-onset] ' + _sumOnsets.length + ' mix + ' + _gapFilled + ' gap-fill onsets → stem 분배 완료 (excl=' + JSON.stringify(_excl) + ', tailCut=' + _tailCut.toFixed(2) + ')');
+            console.log('[mix-onset] ' + _sumOnsets.length + ' mix + ' + _gapFilled + ' gap-fill + ' + _drumAdded + ' drum-add onsets → stem 분배 완료 (excl=' + JSON.stringify(_excl) + ', tailCut=' + _tailCut.toFixed(2) + ')');
           }
         }
       } catch(e) { try { console.warn('[mix-onset] skipped, per-stem 폴백:', e && e.message); } catch(_) {} }
