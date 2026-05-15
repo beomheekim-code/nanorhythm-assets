@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515125835;
+window.__BUILD_TS = 20260515140015;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10431,38 +10431,48 @@ function startSong(idx) {
                 _mixTimes.push(t);
               }
             }
-            // ★ Gap-fill (2026-05-15) — mix-onset 사이 > 0.5s 갭에서 per-stem 보조 onset 추가.
-            //   "가장 큰 stem 비는 구간에 차순위 stem 떨어뜨리기" (사용자 안). per-stem 모든 후보 중
-            //   기존 onsetsByStem 에 있던 것만 사용 (이미 noise filter 거친 상태). 갭 양 끝 0.1s 여유.
-            //   window.__mixGapFill === true 인 경우에만 작동.
+            // ★ Gap-fill (2026-05-15, v2 — multi-fill) — mix-onset 사이 갭에 per-stem 보조 onset
+            //   여러 개 채움. energy 내림차순 greedy, 채택된 fill 끼리 0.2s+ spacing, 갭 경계도 spacing 적용.
+            //   "가장 큰 stem 비는 구간에 차순위 stem 떨어뜨리기" 사용자 안. SPIN 중간 비는 거 fix.
             _mixTimes.sort((a, b) => a - b);
             let _gapFilled = 0;
             if (window.__mixGapFill !== false) {
+              const _GAP_MIN = 0.4;      // 이 미만 갭은 fill 안 함
+              const _FILL_SPACING = 0.2; // 채택된 fill onset 간 / 경계와의 최소 간격
               for (let gi = 0; gi < _mixTimes.length - 1; gi++) {
                 const _gStart = _mixTimes[gi], _gEnd = _mixTimes[gi + 1];
-                const _gap = _gEnd - _gStart;
-                if (_gap < 0.5) continue;
-                // 갭 내 per-stem 후보 중 가장 강한 stem 의 onset 1개 pick
+                if (_gEnd - _gStart < _GAP_MIN) continue;
+                // 갭 내 모든 per-stem 후보 + energy 계산
                 const _ws = Math.floor(_sr * 0.020);
-                let _cand = null, _candStem = -1, _candE = -1;
+                const _cands = [];
                 for (let si = 0; si < _stems.length; si++) {
                   const _stemIdx = _stems[si].i;
                   const _bag = _origOnsets[_stemIdx] || [];
                   for (const ot of _bag) {
-                    if (ot < _gStart + 0.1 || ot > _gEnd - 0.1) continue;
+                    if (ot <= _gStart || ot >= _gEnd) continue;
                     if (ot > _tailCut) continue;
                     const _oi = Math.floor(ot * _sr);
                     const _d = _stems[si].data;
                     const _f = Math.max(0, _oi - _ws), _t2 = Math.min(_d.length, _oi + _ws);
                     let _e = 0;
                     for (let k = _f; k < _t2; k += 4) _e += _d[k] * _d[k];
-                    if (_e > _candE) { _candE = _e; _candStem = _stemIdx; _cand = ot; }
+                    _cands.push({ t: ot, stem: _stemIdx, e: _e });
                   }
                 }
-                if (_cand !== null && _candStem >= 0) {
-                  if (!_newByStem[_candStem]) _newByStem[_candStem] = [];
-                  _newByStem[_candStem].push(_cand);
-                  _gapFilled++;
+                // energy 내림차순 → spacing 지키며 greedy 채택
+                _cands.sort((a, b) => b.e - a.e);
+                const _acc = [_gStart, _gEnd];
+                for (const c of _cands) {
+                  let _ok = true;
+                  for (const at of _acc) {
+                    if (Math.abs(c.t - at) < _FILL_SPACING) { _ok = false; break; }
+                  }
+                  if (_ok) {
+                    if (!_newByStem[c.stem]) _newByStem[c.stem] = [];
+                    _newByStem[c.stem].push(c.t);
+                    _acc.push(c.t);
+                    _gapFilled++;
+                  }
                 }
               }
             }
