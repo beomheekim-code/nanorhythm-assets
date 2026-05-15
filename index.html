@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515160105;
+window.__BUILD_TS = 20260515160458;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -9754,18 +9754,23 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   try {
     if (nodes.length > 0) {
       const _maxT = nodes[nodes.length - 1].time;
-      const _bk = {};
+      const _bkT = {}, _bkH = {}; // tap, hold
       for (const n of nodes) {
         if (n.type === 'trap') continue;
         const _b = Math.floor(n.time / 5) * 5;
-        _bk[_b] = (_bk[_b] || 0) + 1;
+        if (n.type === 'hold') _bkH[_b] = (_bkH[_b] || 0) + 1;
+        else _bkT[_b] = (_bkT[_b] || 0) + 1;
       }
       const _rows = [];
       for (let b = 0; b <= _maxT; b += 5) {
-        const c = _bk[b] || 0;
-        _rows.push((b + '').padStart(3) + '-' + (b + 5) + 's:' + (c + '').padStart(3) + ' ' + '#'.repeat(Math.min(40, c)));
+        const t = _bkT[b] || 0, h = _bkH[b] || 0;
+        _rows.push((b + '').padStart(3) + '-' + (b + 5) + 's: tap=' + (t + '').padStart(2) + ' hold=' + (h + '').padStart(2) + ' ' + '#'.repeat(Math.min(40, t)) + 'H'.repeat(Math.min(40, h)));
       }
       console.log('[chart-dist 5s] ' + (song.name || '') + ':\n' + _rows.join('\n'));
+      // Hold 의 lane + 시간 + 길이 print (28-90s 영역만 — sparse 구간 의심)
+      const _holds = nodes.filter(n => n.type === 'hold' && n.time >= 28 && n.time <= 90);
+      console.log('[chart-holds 28-90s] ' + _holds.length + ' holds:\n' +
+        _holds.map(h => '  t=' + h.time.toFixed(2) + 's  lane=' + h.lane + '  dur=' + (h.endTime - h.time).toFixed(2) + 's').join('\n'));
     }
   } catch(e) {}
 }
