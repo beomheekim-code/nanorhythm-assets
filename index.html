@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515165654;
+window.__BUILD_TS = 20260515170236;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10463,10 +10463,10 @@ function startSong(idx) {
             } else if (_drumStem) {
               _domCandidates.push(_drumStem); // sub-stem OFF → drums 그대로
             }
-            // ★ Tail ramp-down (2026-05-15, v4) — hard cut -1.0 → -0.5 (꼬리 음악 살림, "노트 일찍 종료" fix).
-            //   fade O → -5 ~ -0.5s 의 ramp + -0.5s hard cut. fade X → -0.5s hard cut 만.
+            // ★ Tail ramp-down (2026-05-15, v5) — hard cut 제거. 원본 endCutoff filter (line 9407) 가
+            //   endCutoff 너머 drop 처리. mix-onset 은 fade 곡에서만 ramp 로 노트 밀도 점진 감소.
+            //   SPIN "여전히 노트 먼저 끝남" fix.
             const _ec = curSong.endCutoff;
-            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.5) : Infinity;
             let _useRamp = false;
             if (typeof _ec === 'number' && _sr > 0) {
               const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
@@ -10483,12 +10483,14 @@ function startSong(idx) {
               console.log('[tail-fade] ' + (curSong.name || '') + ' refRms=' + _refRms.toFixed(3) + ' lastRms=' + _lastRms.toFixed(3) + ' useRamp=' + _useRamp);
             }
             const _rampStart = _useRamp ? (_ec - 5.0) : Infinity;
-            const _tailCut = _hardCut; // gap-fill 호환용 별칭
+            const _rampEnd = _useRamp ? _ec : Infinity;
+            const _tailCut = _useRamp ? _ec : Infinity; // gap-fill 호환용
             const _hashT = (n) => { const h = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return h - Math.floor(h); };
             const _shouldKeep = (t) => {
-              if (t > _hardCut) return false;
-              if (!_useRamp || t <= _rampStart) return true;
-              const kp = (_hardCut - t) / (_hardCut - _rampStart);
+              if (!_useRamp) return true; // 페이드 X → 원본 endCutoff filter 가 처리
+              if (t >= _rampEnd) return false;
+              if (t <= _rampStart) return true;
+              const kp = (_rampEnd - t) / (_rampEnd - _rampStart);
               return _hashT(t) < kp;
             };
             const _newByStem = {};
