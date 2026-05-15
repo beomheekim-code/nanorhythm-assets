@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515181855;
+window.__BUILD_TS = 20260515183941;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2935,25 +2935,27 @@ function playEmptyPressSfx(lane) {
   if (songDuration > 0 && gameTime >= songDuration - 1) return;
   const peakVol = countdownTime > 0 ? STEM_VOL_NORMAL * volBgm : Math.min(1.0, STEM_VOL_NORMAL * volBgm * 1.4);
   if (usingStemMode) {
-    // onset 모드: 해당 레인의 다음 노트 stem + onset 시간으로 재생
-    // ★ phantom drop fix 후 첫 노트가 실제 음악 시작 가까이 잡힘 → targetOffset 자연스러움.
+    // onset 모드: 해당 레인의 다음 노트 stem + **현재 audio time** 으로 재생.
+    //   ★ 2026-05-15: 이전엔 next-note 시각으로 offset → sparse 구간에서 미래 audio 재생됨
+    //   ("초기 구간이 아닌 구간 음" 사용자 보고). 현재 audio time 으로 변경 → BGM 과 자연 layer.
     let targetStems = [];
     let targetOffset = 0;
     if (curSong && curSong._onsetMode && nodes.length > 0) {
       const delay = curSong._startDelay || 0;
+      targetOffset = Math.max(0, gameTime - delay); // 현재 audio time
+      // stem 선택: 다음 안 친 같은 lane 노트 → 그 stem 사용
       for (const n of nodes) {
         if (n.hit || n.missed) continue;
         if (n.lane === lane && n.stem != null) {
           targetStems = [n.stem];
-          targetOffset = Math.max(0, n.time - delay); // 노트의 실제 오디오 위치
           break;
         }
       }
       if (targetStems.length === 0) {
+        // 같은 lane 노트 없으면 아무 next 안 친 노트의 stem
         for (const n of nodes) {
           if (!n.hit && !n.missed && n.stem != null) {
             targetStems = [n.stem];
-            targetOffset = Math.max(0, n.time - delay);
             break;
           }
         }
@@ -10434,17 +10436,17 @@ function startSong(idx) {
               for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
             }
             const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
-            // ★ 감도 1.10 (2026-05-15) — 1.15 는 초반 quiet 음악 transient 놓침. 1.10 = 중간값.
-            const _sumOnsets = detectOnsets(_sumBuf, 1.10, 30);
+            // ★ 감도 1.07 (2026-05-15) — 1.10 도 일부 구간 sparse. 1.07 = 약간 더 잡음.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.07, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
             // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
             //   슬롯 픽 lose + 키사운드 fallback 깨짐. 원본 _stems 그대로 dominant 후보.
             const _domCandidates = _stems;
-            // ★ Tail ramp-down (2026-05-15, v5) — hard cut 제거. 원본 endCutoff filter (line 9407) 가
-            //   endCutoff 너머 drop 처리. mix-onset 은 fade 곡에서만 ramp 로 노트 밀도 점진 감소.
-            //   SPIN "여전히 노트 먼저 끝남" fix.
+            // ★ Tail ramp-down (2026-05-15, v6) — 작은 hard cut -0.3 부활 ("마지막 2 노트 더 나옴" fix).
+            //   fade O → ramp -5 ~ -0.3 + hard cut -0.3. fade X → hard cut -0.3 만.
             const _ec = curSong.endCutoff;
+            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.3) : Infinity;
             let _useRamp = false;
             if (typeof _ec === 'number' && _sr > 0) {
               const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
@@ -10461,13 +10463,12 @@ function startSong(idx) {
               console.log('[tail-fade] ' + (curSong.name || '') + ' refRms=' + _refRms.toFixed(3) + ' lastRms=' + _lastRms.toFixed(3) + ' useRamp=' + _useRamp);
             }
             const _rampStart = _useRamp ? (_ec - 5.0) : Infinity;
-            const _rampEnd = _useRamp ? _ec : Infinity;
-            const _tailCut = _useRamp ? _ec : Infinity; // gap-fill 호환용
+            const _rampEnd = _hardCut; // ramp endpoint = hard cut
+            const _tailCut = _hardCut; // gap-fill 호환용
             const _hashT = (n) => { const h = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return h - Math.floor(h); };
             const _shouldKeep = (t) => {
-              if (!_useRamp) return true; // 페이드 X → 원본 endCutoff filter 가 처리
-              if (t >= _rampEnd) return false;
-              if (t <= _rampStart) return true;
+              if (t > _hardCut) return false; // 모든 곡 마지막 0.3s mute
+              if (!_useRamp || t <= _rampStart) return true;
               const kp = (_rampEnd - t) / (_rampEnd - _rampStart);
               return _hashT(t) < kp;
             };
