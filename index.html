@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515163336;
+window.__BUILD_TS = 20260515163758;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10433,8 +10433,9 @@ function startSong(idx) {
               for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
             }
             const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
-            // ★ 감도 1.05 (2026-05-15) — 1.1 은 dense 구간에서 transient 누락. 1.05 = 살짝 더 잡음.
-            const _sumOnsets = detectOnsets(_sumBuf, 1.05, 30);
+            // ★ 감도 1.10 (2026-05-15) — 1.05 는 over-density (사용자 "4 나와야 하는데 8 나옴").
+            //   mix sum 은 baseline 이 단일 stem 보다 높아 1.10 으로 충분.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.10, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
             // ★ Tail ramp-down (2026-05-15, v3) — fade 자동 감지. last 1s RMS < ref(last 5s) × 30%
