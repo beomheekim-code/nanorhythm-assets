@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515161901;
+window.__BUILD_TS = 20260515162600;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10435,10 +10435,10 @@ function startSong(idx) {
             const _sumOnsets = detectOnsets(_sumBuf, 1.05, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
-            // ★ Tail ramp-down (2026-05-15, v2) — fade 자동 감지. last 1s RMS < ref(last 5s) × 30%
-            //   → fade O → 5s ramp. SPIN (페이드 X) → 0.3s hard cut 만. 夢緣 (페이드 O) → ramp + cut.
+            // ★ Tail ramp-down (2026-05-15, v3) — fade 자동 감지. last 1s RMS < ref(last 5s) × 30%
+            //   → fade O → -5 ~ -1s 의 ramp + -1s hard cut. fade X → -1s hard cut 만 (꼬리 노트 어색 fix).
             const _ec = curSong.endCutoff;
-            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.3) : Infinity;
+            const _hardCut = (typeof _ec === 'number') ? (_ec - 1.0) : Infinity;
             let _useRamp = false;
             if (typeof _ec === 'number' && _sr > 0) {
               const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
