@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515170258;
+window.__BUILD_TS = 20260515170521;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10437,32 +10437,9 @@ function startSong(idx) {
             const _sumOnsets = detectOnsets(_sumBuf, 1.15, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
-            // ★ Sub-stem 주파수 밴드 분리 (2026-05-15) — 드럼을 kick(<150Hz)/snare(200-800Hz)/
-            //   hihat(>3000Hz) 로 1차 IIR 밴드패스 분리. 각각 새 stem 인덱스 (70/71/72) 부여.
-            //   "stem 더 세분화" 사용자 요청. dominant 후보에 추가, sum 에는 원본 drums 유지 (double-count 방지).
-            //   window.__subStems = false 면 비활성.
-            const _bandPass = (data, sr, fLow, fHigh) => {
-              const aH = (2 * Math.PI * fHigh) / (sr + 2 * Math.PI * fHigh);
-              const lp = new Float32Array(data.length);
-              let y = 0;
-              for (let i = 0; i < data.length; i++) { y = aH * data[i] + (1 - aH) * y; lp[i] = y; }
-              if (fLow <= 0) return lp;
-              const aL = (2 * Math.PI * fLow) / (sr + 2 * Math.PI * fLow);
-              y = 0;
-              for (let i = 0; i < data.length; i++) { y = aL * lp[i] + (1 - aL) * y; lp[i] = lp[i] - y; }
-              return lp;
-            };
-            // dominant 후보 = 원본 _stems 에서 drums (0) 제거 + 서브 stem 추가
-            const _domCandidates = _stems.filter(s => s.i !== 0);
-            const _drumStem = _stems.find(s => s.i === 0);
-            if (_drumStem && window.__subStems !== false) {
-              _domCandidates.push({ i: 70, data: _bandPass(_drumStem.data, _sr, 0, 150) });   // kick
-              _domCandidates.push({ i: 71, data: _bandPass(_drumStem.data, _sr, 200, 800) });  // snare
-              _domCandidates.push({ i: 72, data: _bandPass(_drumStem.data, _sr, 3000, 8000) }); // hihat
-              console.log('[sub-stem] drums(0) → kick(70)+snare(71)+hihat(72) 분리 완료');
-            } else if (_drumStem) {
-              _domCandidates.push(_drumStem); // sub-stem OFF → drums 그대로
-            }
+            // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
+            //   슬롯 픽 lose + 키사운드 fallback 깨짐. 원본 _stems 그대로 dominant 후보.
+            const _domCandidates = _stems;
             // ★ Tail ramp-down (2026-05-15, v5) — hard cut 제거. 원본 endCutoff filter (line 9407) 가
             //   endCutoff 너머 drop 처리. mix-onset 은 fade 곡에서만 ramp 로 노트 밀도 점진 감소.
             //   SPIN "여전히 노트 먼저 끝남" fix.
