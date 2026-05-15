@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515183956;
+window.__BUILD_TS = 20260515184619;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2976,10 +2976,9 @@ function playEmptyPressSfx(lane) {
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
           src.connect(gain); gain.connect(actx.destination);
-          // ★ 빈 레인 SFX = 그 레인의 첫 노트 stem 위치 우선 (per-lane 분배).
-          //   nodes 생성 전 fallback: stemMusicalStart (loud audible point).
-          //   사용자: "첫 시작 노트음들로 분배" — per-lane 별로 그 레인의 첫 stem audio.
-          const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
+          // ★ 2026-05-15: 카운트다운 fallback (stemMusicalStart) 제거 — mid-song audio 가 재생되어
+          //   "초기 구간 아닌 음" 사용자 보고 원인. 항상 현재 audio time 또는 0 (silence) 으로.
+          const offset = Math.max(0, targetOffset);
           src.start(0, offset, 0.5);
         }
       } else {
@@ -10443,10 +10442,10 @@ function startSong(idx) {
             // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
             //   슬롯 픽 lose + 키사운드 fallback 깨짐. 원본 _stems 그대로 dominant 후보.
             const _domCandidates = _stems;
-            // ★ Tail ramp-down (2026-05-15, v6) — 작은 hard cut -0.3 부활 ("마지막 2 노트 더 나옴" fix).
-            //   fade O → ramp -5 ~ -0.3 + hard cut -0.3. fade X → hard cut -0.3 만.
+            // ★ Tail ramp-down (2026-05-15, v7) — hard cut -0.15 ("마지막 1 노트 덜 나옴" fix).
+            //   -0.3 은 마지막 1 노트 추가로 자름. -0.15 = 진짜 끝(reverb tail) 만 mute.
             const _ec = curSong.endCutoff;
-            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.3) : Infinity;
+            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.15) : Infinity;
             let _useRamp = false;
             if (typeof _ec === 'number' && _sr > 0) {
               const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
