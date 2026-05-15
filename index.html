@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260515142558;
+window.__BUILD_TS = 20260515142846;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10423,36 +10423,24 @@ function startSong(idx) {
             };
             const _newByStem = {};
             const _mixTimes = []; // gap-fill 용 mix-onset 시각 목록
-            // ★ Chord 회복 (2026-05-15) — dominant 1개만 push 하면 allOnsets dedup 의 o.extra 가 비어
-            //   chordMode 가 무력화됨. dominant 외에도 energy > 0.6 × dominant 인 stem 까지 같은 t 로
-            //   push → dedup 단계에서 자동 extra 채워짐 → chord 발화 부활.
-            const _CHORD_RATIO = 0.6;
             for (let oi = 0; oi < _sumOnsets.length; oi++) {
               const t = _sumOnsets[oi];
               if (!_shouldKeep(t)) continue;
               const _idx = Math.floor(t * _sr);
               const _from = Math.max(0, _idx - _winSamples);
-              // 각 stem 에너지 한 번에 계산
-              const _stemE = new Array(_stems.length);
-              let _bestE = 0;
+              let _bestStem = -1, _bestE = -1;
               for (let si = 0; si < _stems.length; si++) {
                 const _d = _stems[si].data;
                 const _to = Math.min(_d.length, _idx + _winSamples);
                 let _e = 0;
                 for (let k = _from; k < _to; k += 4) _e += _d[k] * _d[k];
-                _stemE[si] = _e;
-                if (_e > _bestE) _bestE = _e;
+                if (_e > _bestE) { _bestE = _e; _bestStem = _stems[si].i; }
               }
-              if (_bestE <= 0) continue;
-              const _thresh = _bestE * _CHORD_RATIO;
-              // dominant + secondary (E > 60% of dominant) 모두 push
-              for (let si = 0; si < _stems.length; si++) {
-                if (_stemE[si] < _thresh) continue;
-                const _sidx = _stems[si].i;
-                if (!_newByStem[_sidx]) _newByStem[_sidx] = [];
-                _newByStem[_sidx].push(t);
+              if (_bestStem >= 0) {
+                if (!_newByStem[_bestStem]) _newByStem[_bestStem] = [];
+                _newByStem[_bestStem].push(t);
+                _mixTimes.push(t);
               }
-              _mixTimes.push(t);
             }
             // ★ Gap-fill (2026-05-15, v2 — multi-fill) — mix-onset 사이 갭에 per-stem 보조 onset
             //   여러 개 채움. energy 내림차순 greedy, 채택된 fill 끼리 0.2s+ spacing, 갭 경계도 spacing 적용.
