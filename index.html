@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517160909;
+window.__BUILD_TS = 20260517161139;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -11070,6 +11070,20 @@ function startSong(idx) {
     songAudio.addEventListener('playing', function _m() { songAudio.volume = 0; songAudio.removeEventListener('playing', _m); });
     songAudio.play().catch(()=>{});
     songAudio.addEventListener('canplaythrough', () => {
+      // ★ UGC: chart.json 기반 onset 차트로 교체 (pattern → onset-based)
+      if (curSong && curSong._ugc && curSong._chartJson && curSong._audioBuffer) {
+        try {
+          const onsetsByStem = {};
+          for (const o of curSong._chartJson.onsets) {
+            if (!onsetsByStem[o.stem]) onsetsByStem[o.stem] = [];
+            onsetsByStem[o.stem].push(o.t);
+          }
+          // _computeLocalE / nanoHit 등 keysound 가 stemAudioBuffers 참조 — UGC 단일 버퍼 공유.
+          for (const k in onsetsByStem) stemAudioBuffers[+k] = curSong._audioBuffer;
+          generateNodesFromOnsets(curSong, curDiff, onsetsByStem, songEnergyMap);
+          console.log('[ugc] chart 재생성 ' + (curSong._chartJson.onsets.length) + ' onsets');
+        } catch(e) { console.warn('[ugc] chart gen 실패', e); }
+      }
       updateSongDurationFromAudio();
       songLoadProgress = songLoadTotal;
       onAllLoaded();
@@ -11267,7 +11281,13 @@ function update(dt) {
     inputQueue=[]; return;
   }
   if (state === 'result') {
-    for (const inp of inputQueue) { if (inp==='confirm') { transitionTo('select'); } }
+    for (const inp of inputQueue) {
+      if (inp==='confirm') {
+        // ★ UGC: result confirm → 타이틀 (1회성)
+        if (curSong && curSong._ugc) { cleanupUgc(); transitionTo('title'); }
+        else transitionTo('select');
+      }
+    }
     inputQueue=[]; return;
   }
   if (state !== 'playing') { inputQueue=[]; return; }
@@ -11275,14 +11295,24 @@ function update(dt) {
   // 로딩 중에는 back만 처리
   if (songLoading) {
     for (const inp of inputQueue) {
-      if (inp==='back') { songLoading=false; stopSongAudio(); transitionTo('select'); inputQueue=[]; return; }
+      if (inp==='back') {
+        songLoading=false; stopSongAudio();
+        if (curSong && curSong._ugc) { cleanupUgc(); transitionTo('title'); }
+        else transitionTo('select');
+        inputQueue=[]; return;
+      }
     }
     inputQueue=[];
     return;
   }
 
   for (const inp of inputQueue) {
-    if (inp==='back') { stopSongAudio(); transitionTo('select'); nextSixteenth=999999; inputQueue=[]; return; }
+    if (inp==='back') {
+      stopSongAudio();
+      if (curSong && curSong._ugc) { cleanupUgc(); transitionTo('title'); }
+      else transitionTo('select');
+      nextSixteenth=999999; inputQueue=[]; return;
+    }
   }
   inputQueue = [];
 
