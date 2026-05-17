@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517211659;
+window.__BUILD_TS = 20260517212300;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2969,7 +2969,14 @@ function _ugcDetectBpm(onsetTimes) {
     for (let d = -2; d <= 2; d++) if (d !== 0) total += (bins.get(bin + d) || 0);
     if (total > bestCount) { bestCount = total; bestBin = bin; }
   }
-  let intervalSec = bestBin / 100;
+  // Parabolic interpolation — sub-bin 정밀도 (10ms 격자 → 1ms 이내 정확)
+  const _l = bins.get(bestBin - 1) || 0;
+  const _c = bins.get(bestBin) || 0;
+  const _r = bins.get(bestBin + 1) || 0;
+  let peakBin = bestBin;
+  const _denom = 2 * (_l - 2 * _c + _r);
+  if (_denom !== 0) peakBin = bestBin + (_l - _r) / _denom;
+  let intervalSec = peakBin / 100;
   // 검출된 간격은 16th 또는 8th 또는 quarter. BPM 80~200 범위 들어오게 조정.
   let bpm = 60 / intervalSec;
   while (bpm > 200) bpm /= 2;
@@ -3252,13 +3259,21 @@ function playEmptyPressSfx(lane) {
           src.buffer = stemAudioBuffers[si];
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
-          src.connect(gain); gain.connect(actx.destination);
-          // ★ 빈 레인 SFX = 그 레인의 첫 노트 stem 위치 우선 (per-lane 분배).
-          //   nodes 생성 전 fallback: stemMusicalStart (loud audible point).
-          //   사용자: "첫 시작 노트음들로 분배" — per-lane 별로 그 레인의 첫 stem audio.
+          // ★ UGC: stem-별 band-pass filter — 일반 곡의 6 stem 다른 timbre 흉내. drums=low,
+          //   bass=low-mid, vocals=mid, instrum=mid-hi, piano=mid-hi, guitar=hi, other=hi.
+          if (_isUgcForSfx) {
+            const bp = actx.createBiquadFilter();
+            bp.type = 'bandpass';
+            const _filterFreqs = { 0: 120, 1: 280, 2: 1500, 3: 1800, 4: 1500, 5: 3500, 6: 5000 };
+            bp.frequency.value = _filterFreqs[si] || 1500;
+            bp.Q.value = 1.2;
+            src.connect(bp); bp.connect(gain); gain.connect(actx.destination);
+          } else {
+            src.connect(gain); gain.connect(actx.destination);
+          }
           const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
-          if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2) + ' actx=' + actx.state);
+          if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2) + ' freq=' + ({0:120,1:280,2:1500,3:1800,4:1500,5:3500,6:5000}[si] || 1500));
         }
       } else {
         stemPulses[si] = { start: now, peak: peakVol, dur: 500 };
