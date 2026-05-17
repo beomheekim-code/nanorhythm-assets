@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517142213;
+window.__BUILD_TS = 20260517143012;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2981,25 +2981,20 @@ function playEmptyPressSfx(lane) {
       const ls = getLaneStems();
       if (ls && ls[lane]) targetStems = ls[lane].filter(si => !ALWAYS_AUDIBLE_STEMS.includes(si));
     }
+    // ★ 2026-05-15: 항상 BufferPlayer 로 명확한 click. 이전 펄스 매커니즘 (stemPulses 매개)
+    //   효과 미세 → 사용자 "안 들림" 보고. countdown/play 무관, 0.5s linear-decay.
     targetStems.forEach(si => {
-      const stemEnded = allStemAudios[si] ? allStemAudios[si].ended : true;
-      if (countdownTime > 0 || stemEnded) {
-        if (stemAudioBuffers[si] && actx) {
+      if (stemAudioBuffers[si] && actx) {
+        {
           const src = actx.createBufferSource();
           const gain = actx.createGain();
           src.buffer = stemAudioBuffers[si];
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
           src.connect(gain); gain.connect(actx.destination);
-          // ★ 2026-05-15: targetOffset 이 양수면 현재 audio time, 0 이면 stemFirstSoundTime
-          //   (첫 audible peak, 보통 0~2s = 초기 구간). stemMusicalStart (mid-song first loud)
-          //   사용 안 함 — "초기 구간 아닌 음" 사용자 보고 원인이었음.
           const offset = targetOffset > 0 ? targetOffset : (stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
         }
-      } else {
-        stemPulses[si] = { start: now, peak: peakVol, dur: 500 };
-        if (allStemAudios[si]) allStemAudios[si].volume = peakVol;
       }
     });
   } else {
