@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517201045;
+window.__BUILD_TS = 20260517201456;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2899,9 +2899,11 @@ function updateStemVolumes(dt) {
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const useAbs = window._absGains && window._absGains.length > 0;
     const _nowMs = performance.now();
+    const _ugcVolMode = curSong && curSong._ugc;
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
-      const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
+      // UGC 단일 mix file 은 stem 6개 sum 보다 큼 → 사용자 "졸라 크다". 별도 vol 0.4.
+      const vol = _ugcVolMode ? 0.4 : (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL);
       let targetVol = baseVol * vol;
       // ★ Stem pulse (2026-05-15) — 빈 lane press 시 stemPulses[i] 가 set 됨. linear decay 로
       //   peak → base 까지 dur (500ms) 동안 보강. 이전엔 stemPulses SET 만 되고 read 안 돼서
@@ -2987,7 +2989,8 @@ async function handleMyMusicFile(e) {
       const hashBuf = await crypto.subtle.digest('SHA-256', arrayBuf);
       fileHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
     } catch(e) { console.warn('[ugc] hash 실패:', e); }
-    const cacheKey = fileHash ? 'rhythm_ugc_' + fileHash : null;
+    // v2: window 5ms / sensitivity 1.10 / minGap 30 (이전 v1 cache 무효화)
+    const cacheKey = fileHash ? 'rhythm_ugc_v2_' + fileHash : null;
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3005,7 +3008,8 @@ async function handleMyMusicFile(e) {
       chartOnsets = cachedOnsets;
     } else {
       await new Promise(r => setTimeout(r, 30));
-      const onsetsRaw = detectOnsets(audioBuf, 1.10, 30);
+      // UGC: window 5ms (default 15ms 보다 3배 정밀 — ±2.5ms 오차)
+      const onsetsRaw = detectOnsets(audioBuf, 1.10, 30, 5);
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
       if (cacheKey) {
@@ -9416,11 +9420,11 @@ function spawnBurst(x, y, grade) {
 }
 
 // ===== ONSET DETECTION =====
-function detectOnsets(audioBuffer, sensitivity = 1.1, minGapMs = 30) {
+function detectOnsets(audioBuffer, sensitivity = 1.1, minGapMs = 30, winMs = 15) {
   if (!audioBuffer) return [];
   const data = audioBuffer.getChannelData(0);
   const sr = audioBuffer.sampleRate;
-  const winSamples = Math.floor(sr * 0.015); // 15ms 윈도우
+  const winSamples = Math.floor(sr * (winMs / 1000)); // 윈도우 ms (default 15ms)
   const minGapSamples = Math.floor(sr * (minGapMs / 1000));
   const onsets = [];
   let smoothed = 0;
