@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517160309;
+window.__BUILD_TS = 20260517160909;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1517,6 +1517,8 @@ function _bumpJsdelivrFailScore() {
 }
 
 function assetUrl(path) {
+  // ★ blob:/data:/http(s): URL 은 그대로 (UGC 업로드 파일 등)
+  if (/^(blob:|data:|https?:\/\/)/.test(path)) return path;
   // ★ path encoding — space / 한글 / 특수문자 자동 인코딩 (encodeURI 가 / 유지).
   //   "Music/Cherry Blossom/..." 같은 space path 가 fetch fail 하던 회귀 fix.
   const _enc = encodeURI(path);
@@ -2971,41 +2973,31 @@ async function handleMyMusicFile(e) {
     const isOgg = lower.endsWith('.ogg') || f.type === 'audio/ogg';
     showLoginToast(isOgg ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
     resumeAudio();
-    // 1) ArrayBuffer 로 읽기
     const arrayBuf = await f.arrayBuffer();
-    // 2) Web Audio decode (MP3/OGG 브라우저 native decode)
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
     console.log('[mymusic] decoded', f.name, audioBuf.duration.toFixed(1) + 's', audioBuf.sampleRate + 'Hz');
-    // 3) Onset 검출 (JS detectOnsets, mix audio 그대로)
+    // Onset 검출 + 5 lane round-robin
     const onsetsRaw = detectOnsets(audioBuf, 1.10, 30);
-    console.log('[mymusic] onsets', onsetsRaw.length);
-    // 4) Lane 다양성 — 5 lane round-robin (drums/bass/instrum/guitar/other)
     const STEMS = [0, 1, 3, 5, 6];
     const chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
-    // 5) 파일 → object URL 직접 사용 (MP3/OGG 둘 다 HTMLAudio native 재생 가능, 추가 변환 불필요)
     const blobUrl = URL.createObjectURL(f);
-    // 6) 임시 UGC song 객체
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const bpm = 120;
     const dur = audioBuf.duration;
-    const ugcSong = {
+    // UGC 정보를 _ugcSong 에 보관 (songs[] 에는 push X — 일반 모드 select 에 CD 노출 차단)
+    _ugcSong = {
       name: baseName, sub: 'MY MUSIC', bpm,
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
       bars: Math.ceil(dur / (60 / bpm * 4)),
       file: blobUrl, cover: '',
       pattern: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
       _ugc: true,
+      _audioBuffer: audioBuf, // 재사용
       _chartJson: { version: 1, generator: 'js-ugc', bpm_input: bpm, bpm_detected: bpm, sr: audioBuf.sampleRate, onsets: chartOnsets },
     };
-    // 이미 push 된 UGC 곡 제거 (재진입 시 누적 방지)
-    for (let i = songs.length - 1; i >= 0; i--) { if (songs[i] && songs[i]._ugc) songs.splice(i, 1); }
-    songs.push(ugcSong);
-    _ugcSong = ugcSong;
-    selectedSong = songs.length - 1;
-    selectedDiff = 1; // 보통 default
-    // 7) 시작
-    startSong(selectedSong);
-    transitionTo('playing');
+    // 처리 완료 토스트 + 난이도/배속/키 picker overlay 표시
+    showLoginToast(`'${baseName}' (${dur.toFixed(0)}s, 노트 ${onsetsRaw.length}개)`, '#b464ff', null, 2);
+    showUgcSetupOverlay();
   } catch (err) {
     console.error('[mymusic] error', err);
     showLoginToast('파일 처리 실패: ' + (err && err.message || err), '#ff6b6b', null, 3);
@@ -3013,7 +3005,79 @@ async function handleMyMusicFile(e) {
     _ugcProcessing = false;
   }
 }
-// audioBufferToWavUrl 폐기 — MP3/OGG 는 HTMLAudio 직접 재생 가능, WAV 변환 불필요.
+// UGC setup overlay — 난이도/배속/키 선택 + 시작 버튼.
+let _ugcOverlayEl = null;
+function showUgcSetupOverlay() {
+  if (_ugcOverlayEl) { _ugcOverlayEl.remove(); _ugcOverlayEl = null; }
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:380px;width:100%;">
+      <div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 모드</div>
+      <div style="font-size:13px;color:#ccc;margin-bottom:18px;word-break:break-all;">${(_ugcSong && _ugcSong.name) || '곡'}</div>
+      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">난이도</div>
+      <div id="ugcDiff" style="display:flex;gap:6px;margin-bottom:14px;">
+        ${['쉬움','보통','어려움','지옥'].map((n,i)=>`<button data-i="${i}" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${n}</button>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">배속</div>
+      <div id="ugcSpeed" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+        ${[0.5,1.0,1.5,2.0,2.5,3.0].map(s=>`<button data-s="${s}" style="flex:1;min-width:46px;padding:8px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${s}x</button>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">키 수</div>
+      <div id="ugcKeys" style="display:flex;gap:6px;margin-bottom:18px;">
+        ${[4,5,6,7,8].map(k=>`<button data-k="${k}" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${k}K</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="ugcCancel" style="flex:1;padding:11px 0;background:rgba(255,255,255,0.06);border:1px solid #888;color:#ccc;border-radius:8px;cursor:pointer;font-size:13px;">취소</button>
+        <button id="ugcStart" style="flex:2;padding:11px 0;background:#b464ff;border:0;color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold;">시작</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  _ugcOverlayEl = el;
+  // 현재 선택값 (defaults)
+  let pickDiff = 1, pickSpeed = 1.0, pickKeys = 4;
+  const _markSelected = (rootId, attr, val) => {
+    el.querySelectorAll('#' + rootId + ' button').forEach(b => {
+      const sel = String(b.getAttribute(attr)) === String(val);
+      b.style.background = sel ? '#b464ff44' : 'rgba(255,255,255,0.06)';
+      b.style.borderColor = sel ? '#b464ff' : '#b464ff44';
+    });
+  };
+  _markSelected('ugcDiff', 'data-i', pickDiff);
+  _markSelected('ugcSpeed', 'data-s', pickSpeed);
+  _markSelected('ugcKeys', 'data-k', pickKeys);
+  el.querySelectorAll('#ugcDiff button').forEach(b => b.onclick = () => { pickDiff = +b.dataset.i; _markSelected('ugcDiff','data-i',pickDiff); });
+  el.querySelectorAll('#ugcSpeed button').forEach(b => b.onclick = () => { pickSpeed = +b.dataset.s; _markSelected('ugcSpeed','data-s',pickSpeed); });
+  el.querySelectorAll('#ugcKeys button').forEach(b => b.onclick = () => { pickKeys = +b.dataset.k; _markSelected('ugcKeys','data-k',pickKeys); });
+  el.querySelector('#ugcCancel').onclick = () => { el.remove(); _ugcOverlayEl = null; _ugcSong = null; };
+  el.querySelector('#ugcStart').onclick = () => {
+    selectedDiff = pickDiff;
+    selectedSpeed = pickSpeed;
+    laneCount = pickKeys;
+    el.remove(); _ugcOverlayEl = null;
+    startUgcPlay();
+  };
+}
+function startUgcPlay() {
+  if (!_ugcSong) return;
+  // songs 에 임시 push (인덱스 시스템 호환) — _ugc 마커로 select 화면 filter
+  for (let i = songs.length - 1; i >= 0; i--) { if (songs[i] && songs[i]._ugc) songs.splice(i, 1); }
+  songs.push(_ugcSong);
+  selectedSong = songs.length - 1;
+  startSong(selectedSong);
+  transitionTo('playing');
+}
+// UGC cleanup — 플레이 끝나거나 취소 시 songs[] 에서 제거.
+function cleanupUgc() {
+  for (let i = songs.length - 1; i >= 0; i--) {
+    if (songs[i] && songs[i]._ugc) {
+      try { if (songs[i].file && songs[i].file.startsWith('blob:')) URL.revokeObjectURL(songs[i].file); } catch(e) {}
+      songs.splice(i, 1);
+    }
+  }
+  _ugcSong = null;
+}
 
 // ===== 허공 입력 =====
 // BGM 재생 중: 해당 레인 스템을 순간 펄스 (볼륨 즉시 올리고 lerp가 빠르게 내림)
