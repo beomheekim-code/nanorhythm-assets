@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517161555;
+window.__BUILD_TS = 20260517162026;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3038,7 +3038,7 @@ function showUgcSetupOverlay() {
   document.body.appendChild(el);
   _ugcOverlayEl = el;
   // 현재 선택값 (defaults)
-  let pickDiff = 1, pickSpeed = selectedSpeed || 1.0, pickKeys = 4;
+  let pickDiff = 1, pickSpeed = 1.0, pickKeys = 4;
   const _markSelected = (rootId, attr, val) => {
     el.querySelectorAll('#' + rootId + ' button').forEach(b => {
       const sel = String(b.getAttribute(attr)) === String(val);
@@ -3091,6 +3091,9 @@ const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
+  // ★ UGC 모드는 oscillator 삐삐 소리 방지 — non-stem path 라 usingStemMode=false → 오실레이터 branch
+  //   사용자 보고 "키음 삐비빅". UGC 는 빈 lane press SFX 통째 skip.
+  if (curSong && curSong._ugc) return;
   // BGM 재생 중(카운트다운 끝난 후)에는 빈 노트 SFX 비활성 — 연타 시 오디오 소스 폭주로 지지직 소리 발생 방지
   if (countdownTime <= 0 && !songLoading) return;
   // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
@@ -8246,7 +8249,10 @@ addEventListener('mousedown', e => {
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
       if (hitTest(e.clientX, gameY(e.clientY), eb.x, eb.y, eb.w, eb.h)) {
-        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
+        stopSongAudio();
+        if (curSong && curSong._ugc) { cleanupUgc(); transitionTo('title'); }
+        else transitionTo('select');
+        nextSixteenth=999999; return;
       }
     }
     resumeGame(); return;
@@ -8653,7 +8659,10 @@ document.addEventListener('touchstart', e => {
     if (window._pausedExitBtn) {
       const eb = window._pausedExitBtn;
       if (hitTest(t0.clientX, gameY(t0.clientY), eb.x, eb.y, eb.w, eb.h)) {
-        stopSongAudio(); transitionTo('select'); nextSixteenth=999999; return;
+        stopSongAudio();
+        if (curSong && curSong._ugc) { cleanupUgc(); transitionTo('title'); }
+        else transitionTo('select');
+        nextSixteenth=999999; return;
       }
     }
     resumeGame(); return;
@@ -11086,7 +11095,10 @@ function startSong(idx) {
           }
           // _computeLocalE / nanoHit 등 keysound 가 stemAudioBuffers 참조 — UGC 단일 버퍼 공유.
           for (const k in onsetsByStem) stemAudioBuffers[+k] = curSong._audioBuffer;
-          generateNodesFromOnsets(curSong, curDiff, onsetsByStem, songEnergyMap);
+          // energyMap 없으면 uniform 1.0 으로 fallback (generateNodesFromOnsets 가 undefined 에 fail 함)
+          const dur = curSong._audioBuffer.duration;
+          const emap = (songEnergyMap && songEnergyMap.length > 0) ? songEnergyMap : new Float32Array(Math.ceil(dur / 0.5)).fill(1);
+          generateNodesFromOnsets(curSong, curDiff, onsetsByStem, emap);
           console.log('[ugc] chart 재생성 ' + (curSong._chartJson.onsets.length) + ' onsets');
         } catch(e) { console.warn('[ugc] chart gen 실패', e); }
       }
