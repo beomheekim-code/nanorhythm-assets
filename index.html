@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517211122;
+window.__BUILD_TS = 20260517211626;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3021,8 +3021,8 @@ async function handleMyMusicFile(e) {
       const hashBuf = await crypto.subtle.digest('SHA-256', arrayBuf);
       fileHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
     } catch(e) { console.warn('[ugc] hash 실패:', e); }
-    // v2: window 5ms / sensitivity 1.10 / minGap 30 (이전 v1 cache 무효화)
-    const cacheKey = fileHash ? 'rhythm_ugc_v2_' + fileHash : null;
+    // v3: BPM auto-detect 추가 (v2 cache 는 bpm 없어서 무효화)
+    const cacheKey = fileHash ? 'rhythm_ugc_v3_' + fileHash : null;
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3200,10 +3200,9 @@ const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
-  // UGC 모드 — non-stem path 라 usingStemMode=false → 오실레이터 삐비빅 분기. UGC 는 통째 skip.
-  if (curSong && curSong._ugc) return;
-  // BGM 재생 중(카운트다운 끝난 후)에는 빈 노트 SFX 비활성 — 연타 시 오디오 소스 폭주로 지지직 소리 발생 방지
-  if (countdownTime <= 0 && !songLoading) return;
+  // 일반 곡: 게임 중 SFX disable (audio source 폭주 방지). UGC: 게임 중도 작동 (stem mode 라 BufferPlayer 정상).
+  const _isUgcSfx = curSong && curSong._ugc;
+  if (countdownTime <= 0 && !songLoading && !_isUgcSfx) return;
   // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
   const now = performance.now();
   if (now - _lastEmptySfxTime < 50) return;
