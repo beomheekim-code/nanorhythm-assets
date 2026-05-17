@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517212328;
+window.__BUILD_TS = 20260517213022;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3207,9 +3207,8 @@ const EMPTY_TAP_FREQS = [200, 300, 400, 500, 600, 700, 800, 900];
 let _lastEmptySfxTime = 0;
 function playEmptyPressSfx(lane) {
   if (!actx) return;
-  // 일반 곡: 게임 중 SFX disable (audio source 폭주 방지). UGC: 게임 중도 작동 (stem mode 라 BufferPlayer 정상).
-  const _isUgcSfx = curSong && curSong._ugc;
-  if (countdownTime <= 0 && !songLoading && !_isUgcSfx) return;
+  // BGM 재생 중(카운트다운 끝난 후)에는 SFX 비활성 — 일반/UGC 동일.
+  if (countdownTime <= 0 && !songLoading) return;
   // 연타 시 오디오 소스 폭주 방지: 50ms 쿨다운
   const now = performance.now();
   if (now - _lastEmptySfxTime < 50) return;
