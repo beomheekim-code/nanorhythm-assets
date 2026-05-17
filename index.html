@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517162828;
+window.__BUILD_TS = 20260517163506;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2935,152 +2935,156 @@ function playHoldStartSfx() {
 // playHitKeysound 제거 (2026-05-17) — 사용자 요청 안 한 기능 추가했었음. 원래 hit 시 audio
 // trigger 없음. 사용자 원한 건 빈 lane press preview SFX (playEmptyPressSfx) 만.
 
-// ===== 나만의 모드 (UGC) — Stage 1+2 (2026-05-17) =====
-// 유저가 MP3 업로드 → 브라우저에서 decode → onset 검출 → 차트 생성 → 'select' 진입.
-// 28일 패스 (hasActivePass) 구매자만 사용 가능 (gate 는 title 클릭 핸들러).
+// ===== 나만의 모드 (UGC, 2026-05-17 깔끔 재구현) =====
+// MP3/OGG 업로드 → decode → onset 차트 → 인게임 1회성 플레이 → 타이틀 복귀.
+// 28일 패스 (hasActivePass) 구매자만. songs[] 에 임시 push, cleanup 보장.
 let _ugcInput = null;
-let _ugcSong = null; // 현재 UGC 곡 (songs 배열에 임시 push 됨)
+let _ugcSong = null;
 let _ugcProcessing = false;
+let _ugcOverlayEl = null;
+
 function showMyMusicFilePicker() {
   if (_ugcProcessing) return;
-  // hidden <input type="file"> 생성 후 click 트리거 (PC + 모바일 모두 작동)
   if (!_ugcInput) {
     _ugcInput = document.createElement('input');
     _ugcInput.type = 'file';
     _ugcInput.accept = '.mp3,.ogg,audio/mpeg,audio/ogg';
-    _ugcInput.style.position = 'fixed';
-    _ugcInput.style.left = '-9999px';
-    _ugcInput.style.top = '-9999px';
+    _ugcInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
     document.body.appendChild(_ugcInput);
     _ugcInput.addEventListener('change', handleMyMusicFile);
   }
-  _ugcInput.value = ''; // 같은 파일 재선택 가능
+  _ugcInput.value = '';
   _ugcInput.click();
 }
+
 async function handleMyMusicFile(e) {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
-  // 파일 형식 검증 — MP3 / OGG 만 허용
   const lower = (f.name || '').toLowerCase();
-  const okExt = lower.endsWith('.mp3') || lower.endsWith('.ogg');
-  const okType = f.type === 'audio/mpeg' || f.type === 'audio/mp3' || f.type === 'audio/ogg';
-  if (!okExt && !okType) {
-    showLoginToast('MP3 또는 OGG 파일만 가능합니다', '#ff6b6b', null, 3);
+  if (!lower.endsWith('.mp3') && !lower.endsWith('.ogg') &&
+      f.type !== 'audio/mpeg' && f.type !== 'audio/ogg') {
+    showLoginToast('MP3 또는 OGG 만 가능', '#ff6b6b', null, 2);
     return;
   }
   _ugcProcessing = true;
   try {
-    const isOgg = lower.endsWith('.ogg') || f.type === 'audio/ogg';
-    showLoginToast(isOgg ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
+    showLoginToast(lower.endsWith('.ogg') ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
     resumeAudio();
     const arrayBuf = await f.arrayBuffer();
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
-    console.log('[mymusic] decoded', f.name, audioBuf.duration.toFixed(1) + 's', audioBuf.sampleRate + 'Hz');
-    // Onset 검출 + 5 lane round-robin
     const onsetsRaw = detectOnsets(audioBuf, 1.10, 30);
-    const STEMS = [0, 1, 3, 5, 6];
+    const STEMS = [0, 1, 3, 5, 6]; // drums/bass/instrum/guitar/other 라운드로빈
     const chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
-    const bpm = 120;
     const dur = audioBuf.duration;
-    // UGC 정보를 _ugcSong 에 보관 (songs[] 에는 push X — 일반 모드 select 에 CD 노출 차단)
     _ugcSong = {
-      name: baseName, sub: 'MY MUSIC', bpm,
+      name: baseName, sub: 'MY MUSIC', bpm: 120,
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
-      bars: Math.ceil(dur / (60 / bpm * 4)),
+      bars: Math.ceil(dur / 2),
       file: blobUrl, cover: '',
-      pattern: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+      pattern: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
       _ugc: true,
-      _audioBuffer: audioBuf, // 재사용
-      _chartJson: { version: 1, generator: 'js-ugc', bpm_input: bpm, bpm_detected: bpm, sr: audioBuf.sampleRate, onsets: chartOnsets },
+      _audioBuffer: audioBuf,
+      _chartJson: { version: 1, generator: 'js-ugc', bpm_input: 120, bpm_detected: 120, sr: audioBuf.sampleRate, onsets: chartOnsets },
     };
-    // 처리 완료 토스트 + 난이도/배속/키 picker overlay 표시
-    showLoginToast(`'${baseName}' (${dur.toFixed(0)}s, 노트 ${onsetsRaw.length}개)`, '#b464ff', null, 2);
     showUgcSetupOverlay();
   } catch (err) {
-    console.error('[mymusic] error', err);
+    console.error('[ugc] error', err);
     showLoginToast('파일 처리 실패: ' + (err && err.message || err), '#ff6b6b', null, 3);
   } finally {
     _ugcProcessing = false;
   }
 }
-// UGC setup overlay — 난이도/배속/키 선택 + 시작 버튼.
-let _ugcOverlayEl = null;
+
 function showUgcSetupOverlay() {
   if (_ugcOverlayEl) { _ugcOverlayEl.remove(); _ugcOverlayEl = null; }
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
-  el.innerHTML = `
-    <div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:380px;width:100%;">
-      <div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 모드</div>
-      <div style="font-size:13px;color:#ccc;margin-bottom:18px;word-break:break-all;">${(_ugcSong && _ugcSong.name) || '곡'}</div>
-      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">난이도</div>
-      <div id="ugcDiff" style="display:flex;gap:6px;margin-bottom:14px;">
-        ${['쉬움','보통','어려움','지옥'].map((n,i)=>`<button data-i="${i}" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${n}</button>`).join('')}
-      </div>
-      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">배속</div>
-      <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;">
-        <button id="ugcSpdMinus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">−</button>
-        <div id="ugcSpdValue" style="flex:1;text-align:center;padding:9px 0;background:rgba(255,255,255,0.04);border:1px solid #b464ff44;border-radius:8px;font-size:14px;font-weight:bold;color:#b464ff;">1.0x</div>
-        <button id="ugcSpdPlus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
-      </div>
-      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">키 수</div>
-      <div id="ugcKeys" style="display:flex;gap:6px;margin-bottom:18px;">
-        ${[4,5,6,7,8].map(k=>`<button data-k="${k}" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${k}K</button>`).join('')}
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button id="ugcCancel" style="flex:1;padding:11px 0;background:rgba(255,255,255,0.06);border:1px solid #888;color:#ccc;border-radius:8px;cursor:pointer;font-size:13px;">취소</button>
-        <button id="ugcStart" style="flex:2;padding:11px 0;background:#b464ff;border:0;color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold;">시작</button>
-      </div>
-    </div>
-  `;
+  el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
+  el.innerHTML = '<div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:380px;width:100%;">' +
+    '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 모드</div>' +
+    '<div style="font-size:13px;color:#ccc;margin-bottom:18px;word-break:break-all;">' + ((_ugcSong && _ugcSong.name) || '곡') + '</div>' +
+    '<div style="font-size:11px;color:#aaa;margin-bottom:6px;">난이도</div>' +
+    '<div id="ugcDiff" style="display:flex;gap:6px;margin-bottom:14px;">' +
+      ['쉬움','보통','어려움','지옥'].map(function(n,i){return '<button data-i="'+i+'" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">'+n+'</button>';}).join('') +
+    '</div>' +
+    '<div style="font-size:11px;color:#aaa;margin-bottom:6px;">배속</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;">' +
+      '<button id="ugcSpdMinus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">−</button>' +
+      '<div id="ugcSpdValue" style="flex:1;text-align:center;padding:9px 0;background:rgba(255,255,255,0.04);border:1px solid #b464ff44;border-radius:8px;font-size:14px;font-weight:bold;color:#b464ff;">1.0x</div>' +
+      '<button id="ugcSpdPlus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">+</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#aaa;margin-bottom:6px;">키 수</div>' +
+    '<div id="ugcKeys" style="display:flex;gap:6px;margin-bottom:18px;">' +
+      [4,5,6,7,8].map(function(k){return '<button data-k="'+k+'" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">'+k+'K</button>';}).join('') +
+    '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button id="ugcCancel" style="flex:1;padding:11px 0;background:rgba(255,255,255,0.06);border:1px solid #888;color:#ccc;border-radius:8px;cursor:pointer;font-size:13px;">취소</button>' +
+      '<button id="ugcStart" style="flex:2;padding:11px 0;background:#b464ff;border:0;color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold;">시작</button>' +
+    '</div>' +
+  '</div>';
   document.body.appendChild(el);
   _ugcOverlayEl = el;
-  // 현재 선택값 (defaults)
   let pickDiff = 1, pickSpeed = 1.0, pickKeys = 4;
-  const _markSelected = (rootId, attr, val) => {
+  const markSel = (rootId, attr, val) => {
     el.querySelectorAll('#' + rootId + ' button').forEach(b => {
       const sel = String(b.getAttribute(attr)) === String(val);
       b.style.background = sel ? '#b464ff44' : 'rgba(255,255,255,0.06)';
       b.style.borderColor = sel ? '#b464ff' : '#b464ff44';
     });
   };
-  const _updSpd = () => { el.querySelector('#ugcSpdValue').textContent = pickSpeed.toFixed(1) + 'x'; };
-  _markSelected('ugcDiff', 'data-i', pickDiff);
-  _markSelected('ugcKeys', 'data-k', pickKeys);
-  _updSpd();
-  el.querySelectorAll('#ugcDiff button').forEach(b => b.onclick = () => { pickDiff = +b.dataset.i; _markSelected('ugcDiff','data-i',pickDiff); });
-  el.querySelectorAll('#ugcKeys button').forEach(b => b.onclick = () => { pickKeys = +b.dataset.k; _markSelected('ugcKeys','data-k',pickKeys); });
-  el.querySelector('#ugcSpdMinus').onclick = () => { pickSpeed = Math.max(SPEED_MIN, +(pickSpeed - SPEED_STEP).toFixed(1)); _updSpd(); };
-  el.querySelector('#ugcSpdPlus').onclick = () => { pickSpeed = Math.min(SPEED_MAX, +(pickSpeed + SPEED_STEP).toFixed(1)); _updSpd(); };
-  el.querySelector('#ugcCancel').onclick = () => { el.remove(); _ugcOverlayEl = null; _ugcSong = null; };
+  const updSpd = () => { el.querySelector('#ugcSpdValue').textContent = pickSpeed.toFixed(1) + 'x'; };
+  markSel('ugcDiff', 'data-i', pickDiff);
+  markSel('ugcKeys', 'data-k', pickKeys);
+  updSpd();
+  el.querySelectorAll('#ugcDiff button').forEach(b => b.onclick = () => { pickDiff = +b.dataset.i; markSel('ugcDiff','data-i',pickDiff); });
+  el.querySelectorAll('#ugcKeys button').forEach(b => b.onclick = () => { pickKeys = +b.dataset.k; markSel('ugcKeys','data-k',pickKeys); });
+  el.querySelector('#ugcSpdMinus').onclick = () => { pickSpeed = Math.max(SPEED_MIN, +(pickSpeed - SPEED_STEP).toFixed(1)); updSpd(); };
+  el.querySelector('#ugcSpdPlus').onclick = () => { pickSpeed = Math.min(SPEED_MAX, +(pickSpeed + SPEED_STEP).toFixed(1)); updSpd(); };
+  el.querySelector('#ugcCancel').onclick = closeUgcOverlay;
   el.querySelector('#ugcStart').onclick = () => {
     selectedDiff = pickDiff;
     selectedSpeed = pickSpeed;
     laneCount = pickKeys;
-    el.remove(); _ugcOverlayEl = null;
+    closeUgcOverlayKeep(); // overlay 만 닫고 _ugcSong 유지
     startUgcPlay();
   };
 }
+
+function closeUgcOverlay() {
+  if (_ugcOverlayEl) { _ugcOverlayEl.remove(); _ugcOverlayEl = null; }
+  _ugcSong = null;
+}
+function closeUgcOverlayKeep() {
+  if (_ugcOverlayEl) { _ugcOverlayEl.remove(); _ugcOverlayEl = null; }
+}
+
 function startUgcPlay() {
   if (!_ugcSong) return;
-  // songs 에 임시 push (인덱스 시스템 호환) — _ugc 마커로 select 화면 filter
+  // 잔존 UGC entry 먼저 제거 (재진입 누적 방지)
   for (let i = songs.length - 1; i >= 0; i--) { if (songs[i] && songs[i]._ugc) songs.splice(i, 1); }
   songs.push(_ugcSong);
   selectedSong = songs.length - 1;
   startSong(selectedSong);
   transitionTo('playing');
 }
-// UGC cleanup — 플레이 끝나거나 취소 시 songs[] 에서 제거.
+
+// UGC cleanup — 플레이 끝나거나 취소 시 songs[] 에서 제거 + selectedSong 안전화.
 function cleanupUgc() {
+  let removed = false;
   for (let i = songs.length - 1; i >= 0; i--) {
     if (songs[i] && songs[i]._ugc) {
-      try { if (songs[i].file && songs[i].file.startsWith('blob:')) URL.revokeObjectURL(songs[i].file); } catch(e) {}
+      try {
+        if (songs[i].file && songs[i].file.startsWith('blob:')) URL.revokeObjectURL(songs[i].file);
+      } catch(e) {}
       songs.splice(i, 1);
+      removed = true;
     }
   }
   _ugcSong = null;
+  if (_ugcOverlayEl) { try { _ugcOverlayEl.remove(); } catch(e) {} _ugcOverlayEl = null; }
+  // selectedSong 가 UGC 마지막 인덱스였으면 splice 후 out-of-bounds → 0 으로
+  if (removed && (selectedSong < 0 || selectedSong >= songs.length)) selectedSong = 0;
 }
 
 // ===== 허공 입력 =====
@@ -8128,7 +8132,6 @@ addEventListener('mousedown', e => {
   if (settingsOpen) { handleSettingsClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'title') {
     if (!_preloadDone) return;
-    if (_ugcOverlayEl) return; // UGC overlay 떠 있으면 캔버스 클릭 차단
     const mx = e.clientX, my = gameY(e.clientY);
     if (!currentUser) {
       // 첫 클릭 시 BGM 시작
@@ -8796,7 +8799,6 @@ document.addEventListener('touchstart', e => {
   if (settingsOpen) { const t = e.changedTouches[0]; handleSettingsClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'title') {
     if (!_preloadDone) return;
-    if (_ugcOverlayEl) return; // UGC overlay 떠 있으면 캔버스 터치 차단
     const t = e.changedTouches[0];
     const tmx = t.clientX, tmy = gameY(t.clientY);
     if (!currentUser) {
@@ -17457,12 +17459,7 @@ function renderTitle() {
     ctx.fillStyle='rgba(255,255,255,0.5)';
     ctx.fillText('플레이 모드 선택', W/2, _visY(0.55));
 
-    // 세 모드 버튼
-    // 모드 4개 — 4번째 = 나만의 모드 (28일 패스 필요, 2026-05-17)
-    const _modeCount = 4;
-    const pmBtnW = Math.min(sz(105), W*0.225), pmBtnH = sz(56), pmGap = sz(8);
-    const pmTotalW = pmBtnW * _modeCount + pmGap * (_modeCount - 1);
-    const pmStartX = (W - pmTotalW) / 2, pmY = _visY(0.58);
+    // 4 모드 버튼 (나만의 모드 포함)
     loginModeBtnAreas = [];
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
@@ -17470,6 +17467,10 @@ function renderTitle() {
       { key: 'mymusic', label: '나만의 모드', desc: '내 음악 파일로 직접 차트 생성 (28일 패스 필요)', color: '#b464ff' },
       { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
+    const _mc = modes.length;
+    const pmBtnW = Math.min(sz(105), W * 0.22), pmBtnH = sz(56), pmGap = sz(8);
+    const pmTotalW = pmBtnW * _mc + pmGap * (_mc - 1);
+    const pmStartX = (W - pmTotalW) / 2, pmY = _visY(0.58);
     let selectedModeDesc = '', selectedModeColor = '';
     modes.forEach((m, i) => {
       const bx = pmStartX + i * (pmBtnW + pmGap);
