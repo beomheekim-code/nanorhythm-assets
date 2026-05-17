@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517164826;
+window.__BUILD_TS = 20260517165127;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2987,6 +2987,10 @@ async function handleMyMusicFile(e) {
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
       bars: Math.ceil(dur / 2),
       file: blobUrl, cover: '',
+      // ★ fake stem 곡 처럼 보이게 — startSong 의 UGC bypass 가 fetch 없이 buffer 채움
+      stemDir: '_ugc/',
+      stemPrefix: '_ugc',
+      stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
       pattern: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
       _ugc: true,
       _audioBuffer: audioBuf,
@@ -10399,20 +10403,7 @@ function startSong(idx) {
   curDiff = DIFFICULTIES[selectedDiff];
   const speedMul = selectedSpeed;
   noteSpeed = calcNoteSpeed(curSong.bpm, speedMul);
-  // ★ UGC: 처음부터 onset-based (pattern-based 회피 → "노트 리셋" 시각 방지)
-  if (curSong._ugc && curSong._chartJson && curSong._audioBuffer) {
-    const _ugcOnsetsByStem = {};
-    for (const o of curSong._chartJson.onsets) {
-      if (!_ugcOnsetsByStem[o.stem]) _ugcOnsetsByStem[o.stem] = [];
-      _ugcOnsetsByStem[o.stem].push(o.t);
-    }
-    for (const k in _ugcOnsetsByStem) stemAudioBuffers[+k] = curSong._audioBuffer;
-    const _dur = curSong._audioBuffer.duration;
-    const _emap = new Float32Array(Math.ceil(_dur / 0.5)).fill(1);
-    generateNodesFromOnsets(curSong, curDiff, _ugcOnsetsByStem, _emap);
-  } else {
-    generateNodes(curSong, curDiff);
-  }
+  generateNodes(curSong, curDiff);
   stemFirstSoundTime = {};
   stemMusicalStart = {};
   // ★ 옵션 A — 이전 stem buffer 분산 free (MAJOR GC 폭발 방지)
@@ -10897,6 +10888,46 @@ function startSong(idx) {
       }
     }
     tryFinalize();
+  }
+
+  // ===== UGC bypass — stem fetch 없이 pre-decoded buffer 사용 (iOS/PC 공통) =====
+  if (curSong._ugc && curSong._audioBuffer) {
+    const audioBuf = curSong._audioBuffer;
+    const blobUrl = curSong.file;
+    pulseStemAudios = [];
+    for (let i = 0; i < stemCount; i++) {
+      const a = new Audio(blobUrl);
+      a.volume = 0;
+      a.muted = true;
+      a.play().catch(()=>{});
+      allStemAudios.push(a);
+      stemAudioBuffers[i] = audioBuf; // 모든 stem 같은 buffer 공유
+      pulseStemAudios.push(null); // 펄스 사용 안 함 (UGC 단일 buffer)
+    }
+    // energyMap 계산 (uniform 0.5s 윈도우)
+    const _data = audioBuf.getChannelData(0);
+    const _sr = audioBuf.sampleRate;
+    const _winSize = Math.floor(_sr * 0.5);
+    const _mapLen = Math.ceil(_data.length / _winSize);
+    songEnergyMap = new Float32Array(_mapLen);
+    for (let w = 0; w < _mapLen; w++) {
+      let sum = 0;
+      const s0 = w * _winSize, s1 = Math.min(s0 + _winSize, _data.length);
+      for (let k = s0; k < s1; k += 8) sum += _data[k] * _data[k];
+      songEnergyMap[w] = Math.sqrt(sum / Math.max(1, (s1 - s0) / 8));
+    }
+    let _mx = 0;
+    for (const v of songEnergyMap) if (v > _mx) _mx = v;
+    if (_mx > 0) for (let i = 0; i < songEnergyMap.length; i++) songEnergyMap[i] /= _mx;
+    stemFirstSoundTime[0] = 0;
+    stemMusicalStart[0] = 0;
+    _energyReady = true;
+    _decodeAllDone = true;
+    usingStemMode = true;
+    updateSongDurationFromAudio();
+    onAllLoaded();
+    tryFinalize();
+    return;
   }
 
   if (curSong.stemDir && stemCount > 0 && isIOS && actx) {
