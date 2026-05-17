@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517140640;
+window.__BUILD_TS = 20260517141117;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10436,52 +10436,17 @@ function startSong(idx) {
               for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
             }
             const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
-            // ★ Beat-grid scan (2026-05-15) — running smoothed baseline (detectOnsets) 대신
-            //   16th-note grid 위치마다 RMS 측정 + symmetric local context (±4 grids = ±1 beat) 평균 비교.
-            //   같은 위치 = 같은 context = 같은 결과 → 반복되는 음악 패턴 노트 수 deterministic.
-            //   사용자 요청: "같은 리듬 구간끼리 노트 수 다른 게 곤란".
-            const _winSamples = Math.floor(_sr * 0.025);
-            const _bpm = curSong.bpm || 120;
-            const _grid = (60 / _bpm) / 8; // 32nd note (해상도 2x, 타이밍 정확도 ↑)
-            const _maxT = _maxLen / _sr;
-            const _gridE = [];
-            const _gridT = [];
-            for (let t = 0; t < _maxT; t += _grid) {
-              const _idx = Math.floor(t * _sr);
-              const _from = Math.max(0, _idx - _winSamples);
-              const _to = Math.min(_maxLen, _idx + _winSamples);
-              let _e = 0;
-              for (let k = _from; k < _to; k += 4) _e += _sum[k] * _sum[k];
-              _gridE.push(_e);
-              _gridT.push(t);
-            }
-            const _CTX_GRIDS = 8;     // ±1 beat (32nd note 기준)
-            const _RATIO = 1.3;       // 컨텍스트 평균 대비 spike 비율 (1.5 → 1.3, 노트 부족 fix)
-            const _ABS_FLOOR = 0.0001; // 절대 noise floor
-            const _sumOnsets = [];
-            for (let i = 0; i < _gridE.length; i++) {
-              const _cs = Math.max(0, i - _CTX_GRIDS);
-              const _ce = Math.min(_gridE.length, i + _CTX_GRIDS + 1);
-              let _ctxSum = 0, _ctxCnt = 0;
-              for (let k = _cs; k < _ce; k++) {
-                if (k === i) continue;
-                _ctxSum += _gridE[k];
-                _ctxCnt++;
-              }
-              const _ctxAvg = _ctxCnt > 0 ? _ctxSum / _ctxCnt : 0;
-              if (_gridE[i] > _ABS_FLOOR && _gridE[i] > _ctxAvg * _RATIO) {
-                _sumOnsets.push(_gridT[i]);
-              }
-            }
-            console.log('[grid-scan] ' + _sumOnsets.length + ' onsets from ' + _gridE.length + ' grid positions (bpm=' + _bpm + ', grid=' + _grid.toFixed(3) + 's)');
+            // ★ 감도 1.07 — beat-grid 시도 (67d567b, e6edff5) 직접 되돌림. 사용자 "이전 OK 한 데서 개선" 요청.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.07, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
+            const _winSamples = Math.floor(_sr * 0.025);
             // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
             //   슬롯 픽 lose + 키사운드 fallback 깨짐. 원본 _stems 그대로 dominant 후보.
             const _domCandidates = _stems;
-            // ★ Tail ramp-down (2026-05-15, v8) — hard cut 제거 (사용자: 마지막 2 노트 부족).
-            //   원본 endCutoff filter (line 9407) 가 endCutoff 너머 자르므로 mix-onset 측 hard cut 불필요.
+            // ★ Tail ramp-down (2026-05-15, v9) — hard cut -0.15 복원 (사용자 "이전 OK한 데서 개선" 요청).
+            //   진짜 reverb tail (15ms 만) 만 mute. fade 곡엔 5s ramp 추가.
             const _ec = curSong.endCutoff;
-            const _hardCut = (typeof _ec === 'number') ? _ec : Infinity;
+            const _hardCut = (typeof _ec === 'number') ? (_ec - 0.15) : Infinity;
             let _useRamp = false;
             if (typeof _ec === 'number' && _sr > 0) {
               const _refStart = Math.max(0, Math.floor((_ec - 5) * _sr));
