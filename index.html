@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517205032;
+window.__BUILD_TS = 20260517205809;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3028,7 +3028,7 @@ async function handleMyMusicFile(e) {
       stemPrefix: '_ugc',
       stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
       pattern: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
-      slotSubdivision: 0.5, // 32nd 그리드 — 박자 정밀도 ↑ (UGC 디폴드 BPM 120 mismatch 보정)
+      slotSubdivision: 1.0, // 16th 그리드 — 0.5 (32nd) dense 했음 ("미친듯 쏟아짐" fix)
       _ugc: true,
       _audioBuffer: audioBuf,
       _chartJson: { version: 1, generator: 'js-ugc', bpm_input: 120, bpm_detected: 120, sr: audioBuf.sampleRate, onsets: chartOnsets },
@@ -3212,6 +3212,7 @@ function playEmptyPressSfx(lane) {
           //   사용자: "첫 시작 노트음들로 분배" — per-lane 별로 그 레인의 첫 stem audio.
           const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
+          if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2) + ' actx=' + actx.state);
         }
       } else {
         stemPulses[si] = { start: now, peak: peakVol, dur: 500 };
@@ -9744,14 +9745,11 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   // ★ _qGrid 는 slotSubdivision 이하 최대 2의거듭제곱 → 박자 정렬 보장.
   //   slotSubdivision 은 밀도(minGap)만 자유롭게 제어. 비-2의거듭제곱 값도 박자 안 어긋남.
   const _qGrid = sixteenth * Math.pow(2, Math.floor(Math.log2(song.slotSubdivision || 1)));
-  // UGC 는 quantize skip — default BPM 120 grid 와 실제 곡 BPM mismatch → 박자 어긋남.
-  //   raw onset 시각 유지 (가장 정확).
-  if (!song._ugc) {
-    for (const o of allOnsets) {
-      if (o._forceHold || o._forceTap) continue;
-      const rel = o.time - bgmDelay;
-      o.time = Math.round(rel / _qGrid) * _qGrid + bgmDelay;
-    }
+  // UGC 도 quantize 적용 — raw onset 박자 안정성 위해 (사용자 보고: skip 시 박자 안 맞음)
+  for (const o of allOnsets) {
+    if (o._forceHold || o._forceTap) continue;
+    const rel = o.time - bgmDelay;
+    o.time = Math.round(rel / _qGrid) * _qGrid + bgmDelay;
   }
 
   // 에너지 부여
