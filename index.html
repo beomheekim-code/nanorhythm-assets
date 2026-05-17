@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517153051;
+window.__BUILD_TS = 20260517155240;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -17306,6 +17306,10 @@ function renderTitle() {
     ctx.fillStyle=`rgba(180,170,230,${promptAlpha})`;
     const promptText = titleBgmUnlocked ? '\uD654\uBA74\uC744 \uD130\uCE58\uD558\uC5EC \uC2DC\uC791' : '\uD654\uBA74\uC744 \uD130\uCE58\uD574\uC8FC\uC138\uC694';
     ctx.fillText(promptText, W/2, pmY + pmBtnH + sz(44));
+    // PC \uAD8C\uC7A5 \uC548\uB0B4 (2026-05-17)
+    ctx.font = `${sz(11)}px sans-serif`;
+    ctx.fillStyle = 'rgba(180,170,230,0.45)';
+    ctx.fillText('(PC \uD658\uACBD\uC5D0\uC11C \uD50C\uB808\uC774\uB97C \uAD8C\uC7A5\uD569\uB2C8\uB2E4.)', W/2, pmY + pmBtnH + sz(64));
   }
 
   // 설정 버튼 (우하단, 반응형) — 로그인 상태에서만
