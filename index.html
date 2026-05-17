@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517143028;
+window.__BUILD_TS = 20260517143749;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -8997,7 +8997,12 @@ function handleLanePress(lane, src) {
   if (typeof notifyCharacterHit === 'function') notifyCharacterHit();
   const hitY = getHitY();
   const hw = getHitWindow();
-  const timeWindow = noteSpeed > 0 ? hw / noteSpeed : 1;
+  // ★ 배속 무관 hit 판정 (2026-05-17) — noteSpeed 대신 REF speed (1.0x base) 사용해서
+  //   dist 계산. 이전엔 timeWindow = hw/noteSpeed → 배속 ↑ 시 windowshrink (1.5x=150ms, 3x=75ms).
+  //   지금: 모든 배속에서 동일한 시간 hit window 유지 (1.0x base = 225ms).
+  const _hsRef = getHeightScale();
+  const REF_NOTE_SPEED = 400 * _hsRef; // = noteSpeed at speed=1.0
+  const timeWindow = hw / REF_NOTE_SPEED;
   // ★ 이벤트 dispatch 지연 보정 — 프레임이 느리면 e.timeStamp 기준으로 탭 실제 시각 사용.
   //   렌더 30ms 지연 + noteSpeed 1200 → 36px 오차가 쌓이던 게 사라짐.
   let tapTime = gameTime;
@@ -9016,7 +9021,8 @@ function handleLanePress(lane, src) {
     if (n.hit || n.missed) continue;
     if (n.time < tMin) continue;
     if (n.lane !== lane) continue;
-    const dist = Math.abs(n.time - tapTime) * noteSpeed;
+    // ★ REF_NOTE_SPEED 사용 — 배속 무관 동일한 시간 window. 1.5x 이상에서 노트 맞추기 어려운 버그 fix.
+    const dist = Math.abs(n.time - tapTime) * REF_NOTE_SPEED;
     if (dist < hw && dist < closestDist) { closest = n; closestDist = dist; }
   }
   if (!closest) {
