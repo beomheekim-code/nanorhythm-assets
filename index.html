@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517144233;
+window.__BUILD_TS = 20260517144820;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10290,6 +10290,17 @@ function startSong(idx) {
   const stemCount = stemNames.length;
   songLoadTotal = (curSong.stemDir && stemCount > 0) ? stemCount : 1;
   let _stemsReady = false, _energyReady = false;
+  // ★ chart.json (librosa pre-gen) fetch — Music/<song>/chart.json 있으면 사용, 없으면 폴백.
+  let _chartJsonReady = !(curSong.stemDir && stemCount > 0); // 비-stem 곡은 즉시 ready
+  if (curSong.stemDir && stemCount > 0) {
+    fetch(assetUrl(curSong.stemDir + 'chart.json'))
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (j && j.onsets) { curSong._chartJson = j; console.log('[chart.json] fetched ' + j.onsets.length + ' onsets (' + (j.generator || '?') + ')'); }
+      })
+      .catch(() => {})
+      .finally(() => { _chartJsonReady = true; tryFinalize(); });
+  }
   let _energyStemsDone = 0, _energyStemsTotal = stemNames.filter((_,i) => !ALWAYS_AUDIBLE_STEMS.includes(i)).length;
   // ★ 옵션 A: decodeAudioData 모든 stem callback 완료 후에만 인게임 진입 (인게임 hot path 의 33ms+GC stutter 제거)
   //   _stemsReady (HTMLAudio canplaythrough) 와 별개 — _decodeAllDone 가 모든 decodeAudioData callback (성공+실패) 완료 신호
@@ -10372,12 +10383,26 @@ function startSong(idx) {
     // ★ 로딩 끝나고 실제 플레이 중이면 SKIP — detectOnsets 7개 + generateNodesFromOnsets 가 2-3초 블록 유발.
     //   songLoading 플래그로 로딩 중 vs 실제 플레이 구분 (로딩 중엔 정상 실행 필요).
     if (!songLoading && state === 'playing' && countdownTime <= 0) return;
+    if (!_chartJsonReady) return; // chart.json fetch 완료 대기 (librosa pre-gen 우선)
     // 오디오 길이 기반 bars 보정 + 에너지 맵 반영 최종 노트 생성 (1회만)
     const origBars = curSong.bars;
     if (curSong._audioBars) curSong.bars = curSong._audioBars;
     // onset 기반 노트 생성
     try {
       const onsetsByStem = {};
+      // ★ chart.json 우선 사용 (2026-05-17 librosa pre-gen). 있으면 per-stem detect + mix-onset 전부 skip.
+      //   chart.json 은 librosa spectral-flux + per-stem onset detection 으로 사전 생성.
+      //   deterministic, 박자 정확, 노트 수 일관성. 없으면 JS 폴백 (UGC 모드).
+      const _chartJson = curSong._chartJson;
+      const _useChartJson = !!(_chartJson && _chartJson.onsets && _chartJson.onsets.length > 0);
+      if (_useChartJson) {
+        for (const o of _chartJson.onsets) {
+          if (!onsetsByStem[o.stem]) onsetsByStem[o.stem] = [];
+          onsetsByStem[o.stem].push(o.t);
+        }
+        for (const k in onsetsByStem) onsetsByStem[k].sort((a, b) => a - b);
+        console.log('[chart-json] loaded ' + _chartJson.onsets.length + ' onsets (' + _chartJson.generator + ')');
+      } else {
       // ★ 곡별 sensitivity / minGap override 우선순위:
       //   1. song.stemSensitivity[i] / song.stemMinGap[i] (개별 stem 직접 지정) — 가장 우선
       //   2. song.melodySensitivity (instrum/piano/guitar 3/4/5 일괄)
@@ -10606,6 +10631,7 @@ function startSong(idx) {
           }
         }
       } catch(e) { try { console.warn('[mix-onset] skipped, per-stem 폴백:', e && e.message); } catch(_) {} }
+      } // ← if (_useChartJson) ... else { ... } 닫음
       // ★ onset / nodes cache — 동일 곡 + 난이도 plays 시 재계산 skip (deterministic seed 라 결과 동일).
       //   cache key = songIdx_diffIdx_bpm. LRU 5곡 limit (메모리 ~250KB).
       const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm;
