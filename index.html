@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517200624;
+window.__BUILD_TS = 20260517201023;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10871,20 +10871,24 @@ function startSong(idx) {
       } // ← if (_useChartJson) ... else { ... } 닫음
       // ★ onset / nodes cache — 동일 곡 + 난이도 plays 시 재계산 skip (deterministic seed 라 결과 동일).
       //   cache key = songIdx_diffIdx_bpm. LRU 5곡 limit (메모리 ~250KB).
+      //   ★ UGC: songIdx 가 다른 곡끼리 충돌 (모두 songs.length-1) → cache skip.
+      const _isUgcChart = curSong && curSong._ugc;
       const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm;
       window.__nodesCache = window.__nodesCache || new Map();
-      const _cachedNodes = window.__nodesCache.get(_cacheKey);
+      const _cachedNodes = _isUgcChart ? null : window.__nodesCache.get(_cacheKey);
       if (_cachedNodes && Array.isArray(_cachedNodes)) {
         nodes = _cachedNodes.map(n => ({ ...n }));  // shallow clone (state 격리)
         console.log('[cache] nodes hit (' + nodes.length + ' notes) for ' + _cacheKey);
       } else if (Object.keys(onsetsByStem).length > 0) {
         generateNodesFromOnsets(curSong, curDiff, onsetsByStem, songEnergyMap);
         console.log('Onset notes:', nodes.length, '| First note time:', nodes[0]?.time.toFixed(2) + 's');
-        // cache save (LRU)
-        window.__nodesCache.set(_cacheKey, nodes.map(n => ({ ...n })));
-        if (window.__nodesCache.size > 5) {
-          const _firstKey = window.__nodesCache.keys().next().value;
-          window.__nodesCache.delete(_firstKey);
+        // cache save (LRU) — UGC skip
+        if (!_isUgcChart) {
+          window.__nodesCache.set(_cacheKey, nodes.map(n => ({ ...n })));
+          if (window.__nodesCache.size > 5) {
+            const _firstKey = window.__nodesCache.keys().next().value;
+            window.__nodesCache.delete(_firstKey);
+          }
         }
       } else {
         console.log('No onset buffers — fallback to pattern');
