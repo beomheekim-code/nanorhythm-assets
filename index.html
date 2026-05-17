@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517155240;
+window.__BUILD_TS = 20260517155607;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2932,6 +2932,53 @@ function playHoldStartSfx() {
 }
 // playHitKeysound 제거 (2026-05-17) — 사용자 요청 안 한 기능 추가했었음. 원래 hit 시 audio
 // trigger 없음. 사용자 원한 건 빈 lane press preview SFX (playEmptyPressSfx) 만.
+
+// ===== 나만의 모드 (UGC) — Stage 1+2 (2026-05-17) =====
+// 유저가 MP3 업로드 → 브라우저에서 decode → onset 검출 → 차트 생성 → 'select' 진입.
+// 28일 패스 (hasActivePass) 구매자만 사용 가능 (gate 는 title 클릭 핸들러).
+let _ugcInput = null;
+let _ugcSong = null; // 현재 UGC 곡 (songs 배열에 임시 push 됨)
+let _ugcProcessing = false;
+function showMyMusicFilePicker() {
+  if (_ugcProcessing) return;
+  // hidden <input type="file"> 생성 후 click 트리거 (PC + 모바일 모두 작동)
+  if (!_ugcInput) {
+    _ugcInput = document.createElement('input');
+    _ugcInput.type = 'file';
+    _ugcInput.accept = 'audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/*';
+    _ugcInput.style.position = 'fixed';
+    _ugcInput.style.left = '-9999px';
+    _ugcInput.style.top = '-9999px';
+    document.body.appendChild(_ugcInput);
+    _ugcInput.addEventListener('change', handleMyMusicFile);
+  }
+  _ugcInput.value = ''; // 같은 파일 재선택 가능
+  _ugcInput.click();
+}
+async function handleMyMusicFile(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  _ugcProcessing = true;
+  try {
+    showLoginToast('파일 처리 중...', '#b464ff', null, 60);
+    resumeAudio();
+    // 1) ArrayBuffer 로 읽기
+    const arrayBuf = await f.arrayBuffer();
+    // 2) Web Audio decode (MP3/OGG/WAV 등 브라우저 native decode)
+    const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
+    console.log('[mymusic] decoded', f.name, audioBuf.duration.toFixed(1) + 's', audioBuf.sampleRate + 'Hz');
+    // 3) Stage 3+ — onset 검출, 차트 생성, select 진입 (TODO 다음 commit)
+    showLoginToast(`'${f.name}' 디코드 OK (${audioBuf.duration.toFixed(1)}s) — 차트 생성은 Stage 3 작업`, '#b464ff', null, 3);
+    // 임시: 데이터 보존만
+    window._ugcAudioBuffer = audioBuf;
+    window._ugcFileName = f.name;
+  } catch (err) {
+    console.error('[mymusic] error', err);
+    showLoginToast('파일 처리 실패: ' + (err && err.message || err), '#ff6b6b', null, 3);
+  } finally {
+    _ugcProcessing = false;
+  }
+}
 
 // ===== 허공 입력 =====
 // BGM 재생 중: 해당 레인 스템을 순간 펄스 (볼륨 즉시 올리고 lerp가 빠르게 내림)
@@ -7996,6 +8043,7 @@ addEventListener('mousedown', e => {
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
         if (b.key === 'versus') { showLoginToast('\uC900\uBE44 \uC911\uC785\uB2C8\uB2E4', '#ff6b6b', null, 1); return; }
+        if (b.key === 'mymusic' && !hasActivePass()) { showLoginToast('28\uC77C \uD328\uC2A4 \uAD6C\uB9E4 \uD544\uC694', '#b464ff', null, 2); return; }
         playMode = b.key; savePlayMode(); return;
       }
     }
@@ -8657,6 +8705,7 @@ document.addEventListener('touchstart', e => {
     for (const b of loginModeBtnAreas) {
       if (hitTest(tmx, tmy, b.x, b.y, b.w, b.h)) {
         if (b.key === 'versus') { showLoginToast('\uC900\uBE44 \uC911\uC785\uB2C8\uB2E4', '#ff6b6b', null, 1); return; }
+        if (b.key === 'mymusic' && !hasActivePass()) { showLoginToast('28\uC77C \uD328\uC2A4 \uAD6C\uB9E4 \uD544\uC694', '#b464ff', null, 2); return; }
         playMode = b.key; savePlayMode(); return;
       }
     }
@@ -11043,8 +11092,13 @@ function update(dt) {
           startTitleBgm(); titleBgmUnlocked = true;
         } else {
           loadFbLogsLazy();
-          // ★ 패치 게이트 — 받을 자산 있으면 모달 (BGM 유지), 없으면 _gotoSelectFromPatch() 가 stopTitleBgm + transition
-          startPatchOrTransition();
+          if (playMode === 'mymusic') {
+            // 나만의 모드 — 파일 picker 트리거
+            showMyMusicFilePicker();
+          } else {
+            // ★ 패치 게이트 — 받을 자산 있으면 모달 (BGM 유지), 없으면 _gotoSelectFromPatch() 가 stopTitleBgm + transition
+            startPatchOrTransition();
+          }
         }
       }
     }
@@ -17257,13 +17311,16 @@ function renderTitle() {
     ctx.fillText('플레이 모드 선택', W/2, _visY(0.55));
 
     // 세 모드 버튼
-    const pmBtnW = Math.min(sz(120), W*0.30), pmBtnH = sz(56), pmGap = sz(10);
-    const pmTotalW = pmBtnW * 3 + pmGap * 2;
+    // 모드 4개 — 4번째 = 나만의 모드 (28일 패스 필요, 2026-05-17)
+    const _modeCount = 4;
+    const pmBtnW = Math.min(sz(105), W*0.225), pmBtnH = sz(56), pmGap = sz(8);
+    const pmTotalW = pmBtnW * _modeCount + pmGap * (_modeCount - 1);
     const pmStartX = (W - pmTotalW) / 2, pmY = _visY(0.58);
     loginModeBtnAreas = [];
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
+      { key: 'mymusic', label: '나만의 모드', desc: '내 음악 파일로 직접 차트 생성 (28일 패스 필요)', color: '#b464ff' },
       { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
     let selectedModeDesc = '', selectedModeColor = '';
