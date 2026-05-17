@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517141138;
+window.__BUILD_TS = 20260517142157;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2896,10 +2896,25 @@ function updateStemVolumes(dt) {
     const songEnded = songDuration > 0 && gameTime >= songDuration - 1;
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const useAbs = window._absGains && window._absGains.length > 0;
+    const _nowMs = performance.now();
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
       const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
-      const targetVol = baseVol * vol;
+      let targetVol = baseVol * vol;
+      // ★ Stem pulse (2026-05-15) — 빈 lane press 시 stemPulses[i] 가 set 됨. linear decay 로
+      //   peak → base 까지 dur (500ms) 동안 보강. 이전엔 stemPulses SET 만 되고 read 안 돼서
+      //   키음 동작 안 함. 사용자 "키음 아예 안 들림" 보고 fix.
+      const pulse = stemPulses[i];
+      if (pulse) {
+        const elapsed = _nowMs - pulse.start;
+        if (elapsed < pulse.dur) {
+          const t = elapsed / pulse.dur;
+          const pulseVol = pulse.peak * (1 - t);
+          if (pulseVol > targetVol) targetVol = pulseVol;
+        } else {
+          stemPulses[i] = null;
+        }
+      }
       if (useAbs && window._absGains[i]) {
         const g = window._absGains[i].gain;
         if (Math.abs(g.value - targetVol) > 0.001) g.value = targetVol;
@@ -3799,7 +3814,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 155.7,
-    stemSensitivity: { 2: 0.9, 3: 0.9 }, // vocals + instrum 매우 lenient (excludeStems 라 source 부족)
+    stemSensitivity: { 2: 0.9, 3: 0.9, 4: 0.95 }, // vocals + instrum + piano lenient (사용자: 피아노 박자 못 담음)
     stemMinGap: { 2: 20, 3: 20 },          // 짧은 minGap → onset 더 많이 감지
     levelBonus: 0.4,                       // dense 옵션으로 실제 밀도 ↑ → 표시 레벨 +4~5
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
@@ -10436,8 +10451,8 @@ function startSong(idx) {
               for (let k = 0; k < _d.length; k++) _sum[k] += _d[k];
             }
             const _sumBuf = { getChannelData: () => _sum, sampleRate: _sr };
-            // ★ 감도 1.07 — beat-grid 시도 (67d567b, e6edff5) 직접 되돌림. 사용자 "이전 OK 한 데서 개선" 요청.
-            const _sumOnsets = detectOnsets(_sumBuf, 1.07, 30);
+            // ★ 감도 1.05 — 1.07 도 노트 부족 보고 (특히 ATLANTIS 피아노). 1.05 = 약간 더 잡음.
+            const _sumOnsets = detectOnsets(_sumBuf, 1.05, 30);
             // 각 sum onset 에 대해 dominant stem (±25ms 윈도우 에너지 max) 계산
             const _winSamples = Math.floor(_sr * 0.025);
             // Sub-stem 시도 (0dd4fdc) 직접 되돌림: stem 70/71/72 audio buffer 부재로 localEnergy=0 →
