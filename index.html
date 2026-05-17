@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517150144;
+window.__BUILD_TS = 20260517151606;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2930,29 +2930,8 @@ function updateStemVolumes(dt) {
 function playHitSfx() {}
 function playHoldStartSfx() {
 }
-// ★ 2026-05-17 v2: stem audio 펄스 (v1) → oscillator click 으로 변경.
-//   v1 문제: BGM 에 같은 stem 이미 재생 중 → 펄스 = "그 시점 BGM 살짝 큰 것".
-//   click 으로 인식 안 됨, 사용자 "키음 안 들림" 보고. BMS-style 진짜 keysound 는
-//   BGM 에서 그 stem 빼야 가능 (구조상 불가, BGM 은 6 stem 다 mixed).
-//   v2: stem index → lane-specific frequency 의 짧은 triangle wave (100ms). 명확한 click.
-const HIT_FREQS = [880, 988, 1175, 1318, 1480, 1760, 1976, 2349];
-function playHitKeysound(stem, gameTimeNow) {
-  if (!actx) return;
-  try {
-    if (actx.state === 'suspended') actx.resume();
-    const idx = (typeof stem === 'number' ? stem : 0) % HIT_FREQS.length;
-    const freq = HIT_FREQS[idx];
-    const osc = actx.createOscillator();
-    const gain = actx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = freq;
-    const peakVol = (typeof volBgm !== 'undefined' ? volBgm : 0.5) * 0.45;
-    gain.gain.setValueAtTime(peakVol, actx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.10);
-    osc.connect(gain); gain.connect(actx.destination);
-    osc.start(); osc.stop(actx.currentTime + 0.10);
-  } catch (e) {}
-}
+// playHitKeysound 제거 (2026-05-17) — 사용자 요청 안 한 기능 추가했었음. 원래 hit 시 audio
+// trigger 없음. 사용자 원한 건 빈 lane press preview SFX (playEmptyPressSfx) 만.
 
 // ===== 허공 입력 =====
 // BGM 재생 중: 해당 레인 스템을 순간 펄스 (볼륨 즉시 올리고 lerp가 빠르게 내림)
@@ -2973,14 +2952,13 @@ function playEmptyPressSfx(lane) {
   if (songDuration > 0 && gameTime >= songDuration - 1) return;
   const peakVol = countdownTime > 0 ? STEM_VOL_NORMAL * volBgm : Math.min(1.0, STEM_VOL_NORMAL * volBgm * 1.4);
   if (usingStemMode) {
-    // onset 모드: 해당 레인의 다음 노트 stem + **현재 audio time** 으로 재생.
-    //   ★ 2026-05-15: 이전엔 next-note 시각으로 offset → sparse 구간에서 미래 audio 재생됨
-    //   ("초기 구간이 아닌 구간 음" 사용자 보고). 현재 audio time 으로 변경 → BGM 과 자연 layer.
+    // onset 모드: 해당 레인의 다음 노트 stem + **곡 시작부 preview** audio.
+    //   ★ 2026-05-17 복원: 기존엔 stemMusicalStart (= 그 stem 의 첫 sustained loud point)
+    //   에서 0.5s slice 가 재생 → 미리듣기 효과. 사용자 보고 "재생 전 키 누르면 미리 재생됐었어".
+    //   2026-05-15 현재 audio time 으로 바꿨다가 BGM 같은 시각 = 안 들리는 문제 → 원래대로 복원.
     let targetStems = [];
-    let targetOffset = 0;
+    let targetOffset = 0; // 0 이면 fallback (stemMusicalStart 또는 stemFirstSoundTime) 으로 결정
     if (curSong && curSong._onsetMode && nodes.length > 0) {
-      const delay = curSong._startDelay || 0;
-      targetOffset = Math.max(0, gameTime - delay); // 현재 audio time
       // stem 선택: 다음 안 친 같은 lane 노트 → 그 stem 사용
       for (const n of nodes) {
         if (n.hit || n.missed) continue;
@@ -3015,7 +2993,8 @@ function playEmptyPressSfx(lane) {
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
           src.connect(gain); gain.connect(actx.destination);
-          const offset = targetOffset > 0 ? targetOffset : (stemFirstSoundTime[si] || 0);
+          // 2026-05-17 복원: stemMusicalStart (그 stem 의 첫 audible loud) 우선. preview 효과.
+          const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
         }
       }
@@ -9097,7 +9076,6 @@ function handleLanePress(lane, src) {
     else if (closestDist < 42 * _hs) holdGrade = 'great';
     else holdGrade = 'good';
     if (closest.stem != null) nanoHit();
-    playHitKeysound(closest.stem, gameTime); // ★ hold start keysound
     playHoldStartSfx();
     startHoldSound(closest);
     closest.holding = true;
@@ -9124,7 +9102,6 @@ function handleLanePress(lane, src) {
     else if (closestDist < 52 * _hs2) { pts=150; txt='GREAT'; col='#00d4ff'; grade='great'; }
     else { pts=80; txt='GOOD'; col='#44dd66'; grade='good'; }
     if (closest.stem != null) nanoHit();
-    playHitKeysound(closest.stem, gameTime); // ★ tap hit keysound
     combo++; if (combo > maxCombo) maxCombo = combo;
     checkFeverActivate();
     const fm = fever ? 2 : 1;
