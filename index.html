@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517205838;
+window.__BUILD_TS = 20260517210455;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2945,6 +2945,38 @@ let _ugcSong = null;
 let _ugcProcessing = false;
 let _ugcOverlayEl = null;
 
+// UGC BPM 검출 — onset 간격 histogram peak → most common interval → BPM 추정.
+//   리듬게임 표준 처럼 실제 곡 박자에 quantize grid 정렬 위함.
+function _ugcDetectBpm(onsetTimes) {
+  if (!onsetTimes || onsetTimes.length < 10) return null;
+  // 1~5초 윈도우 안의 consecutive onset 간격 수집 (이상값 제외)
+  const intervals = [];
+  for (let i = 1; i < onsetTimes.length; i++) {
+    const dt = onsetTimes[i] - onsetTimes[i - 1];
+    if (dt >= 0.10 && dt <= 1.5) intervals.push(dt);
+  }
+  if (intervals.length < 5) return null;
+  // 10ms bin histogram
+  const bins = new Map();
+  for (const iv of intervals) {
+    const bin = Math.round(iv * 100);
+    bins.set(bin, (bins.get(bin) || 0) + 1);
+  }
+  // top peak 찾기 + 그 주변 ±2bin 누적 (정확도 ↑)
+  let bestBin = 50, bestCount = 0;
+  for (const [bin, count] of bins) {
+    let total = count;
+    for (let d = -2; d <= 2; d++) if (d !== 0) total += (bins.get(bin + d) || 0);
+    if (total > bestCount) { bestCount = total; bestBin = bin; }
+  }
+  let intervalSec = bestBin / 100;
+  // 검출된 간격은 16th 또는 8th 또는 quarter. BPM 80~200 범위 들어오게 조정.
+  let bpm = 60 / intervalSec;
+  while (bpm > 200) bpm /= 2;
+  while (bpm < 80) bpm *= 2;
+  return Math.round(bpm);
+}
+
 function showMyMusicFilePicker() {
   if (_ugcProcessing) return;
   if (!_ugcInput) {
@@ -3003,24 +3035,39 @@ async function handleMyMusicFile(e) {
     }
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
     let chartOnsets;
+    let detectedBpm = 120;
     if (cachedOnsets) {
       console.log('[ugc] cache hit (' + cacheKey + ') ' + cachedOnsets.length + ' onsets');
       chartOnsets = cachedOnsets;
+      // cache 안의 bpm 도 복원
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        const parsed = raw && JSON.parse(raw);
+        if (parsed && parsed.bpm && parsed.bpm >= 60 && parsed.bpm <= 200) detectedBpm = parsed.bpm;
+      } catch(e) {}
     } else {
       await new Promise(r => setTimeout(r, 30));
       // UGC: window 5ms (default 15ms 보다 3배 정밀 — ±2.5ms 오차)
       const onsetsRaw = detectOnsets(audioBuf, 1.10, 30, 5);
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
+      // BPM 자동 검출 — onset interval histogram peak (실제 곡 박자에 quantize grid 맞춤)
+      try {
+        const det = _ugcDetectBpm(onsetsRaw);
+        if (det && det >= 60 && det <= 200) {
+          detectedBpm = det;
+          console.log('[ugc] BPM 검출:', det);
+        }
+      } catch(e) { console.warn('[ugc] BPM 실패:', e); }
       if (cacheKey) {
-        try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, ts: Date.now() })); } catch(e) {}
+        try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, bpm: detectedBpm, ts: Date.now() })); } catch(e) {}
       }
     }
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const dur = audioBuf.duration;
     _ugcSong = {
-      name: baseName, sub: 'MY MUSIC', bpm: 120,
+      name: baseName, sub: 'MY MUSIC', bpm: detectedBpm,
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
       bars: Math.ceil(dur / 2),
       file: blobUrl, cover: '',
@@ -3031,7 +3078,7 @@ async function handleMyMusicFile(e) {
       slotSubdivision: 1.0, // 16th 그리드 — 0.5 (32nd) dense 했음 ("미친듯 쏟아짐" fix)
       _ugc: true,
       _audioBuffer: audioBuf,
-      _chartJson: { version: 1, generator: 'js-ugc', bpm_input: 120, bpm_detected: 120, sr: audioBuf.sampleRate, onsets: chartOnsets },
+      _chartJson: { version: 1, generator: 'js-ugc', bpm_input: detectedBpm, bpm_detected: detectedBpm, sr: audioBuf.sampleRate, onsets: chartOnsets },
     };
     _ugcOverlayEl = null; // placeholder 제거 (실제 overlay 가 set 함)
     showLoginToast('변환 완료! (' + dur.toFixed(0) + 's, 노트 ' + chartOnsets.length + (cachedOnsets ? ' / 캐시' : '') + ')', '#b464ff', null, 2);
