@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517171327;
+window.__BUILD_TS = 20260517191722;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2969,6 +2969,14 @@ async function handleMyMusicFile(e) {
   _ugcProcessing = true;
   // 변환 중 캔버스 클릭/터치 무시 (overlay 가 아직 안 떠서 가드 없음)
   _ugcOverlayEl = { _placeholder: true };
+  // 60s 안전 타임아웃 — hang 시 placeholder 자동 해제 (사용자 lock-out 방지)
+  const _safetyTimer = setTimeout(() => {
+    if (_ugcOverlayEl && _ugcOverlayEl._placeholder) {
+      _ugcOverlayEl = null;
+      _ugcProcessing = false;
+      showLoginToast('변환 timeout — 다시 시도', '#ff6b6b', null, 3);
+    }
+  }, 60000);
   try {
     showLoginToast(lower.endsWith('.ogg') ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
     resumeAudio();
@@ -3025,13 +3033,23 @@ async function handleMyMusicFile(e) {
     showLoginToast('변환 완료! (' + dur.toFixed(0) + 's, 노트 ' + chartOnsets.length + (cachedOnsets ? ' / 캐시' : '') + ')', '#b464ff', null, 2);
     showUgcSetupOverlay();
   } catch (err) {
-    _ugcOverlayEl = null;
     console.error('[ugc] error', err);
-    showLoginToast('파일 처리 실패: ' + (err && err.message || err), '#ff6b6b', null, 3);
+    showLoginToast('파일 처리 실패: ' + (err && err.message || err), '#ff6b6b', null, 5);
   } finally {
     _ugcProcessing = false;
+    clearTimeout(_safetyTimer);
+    // ★ placeholder 가 unstick 되지 않은 경우 (예외 시점 / DOM overlay 안 떴을 때) 강제 해제.
+    //   { _placeholder: true } 면 실제 overlay 아닌 가드 객체 → 항상 풀어줘야 클릭 살아남.
+    if (_ugcOverlayEl && _ugcOverlayEl._placeholder) _ugcOverlayEl = null;
   }
 }
+// 사용자 escape hatch — F12 console 에서 window._ugcForceUnlock() 호출해 lock 해제.
+window._ugcForceUnlock = function() {
+  try { if (_ugcOverlayEl && _ugcOverlayEl.remove) _ugcOverlayEl.remove(); } catch(e) {}
+  _ugcOverlayEl = null;
+  _ugcProcessing = false;
+  console.log('[ugc] force unlock OK');
+};
 
 function showUgcSetupOverlay() {
   if (_ugcOverlayEl) { _ugcOverlayEl.remove(); _ugcOverlayEl = null; }
