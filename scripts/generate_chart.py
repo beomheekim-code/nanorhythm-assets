@@ -130,6 +130,10 @@ def merge_per_stem(per_stem, dedup_window=0.030):
                 merged[-1] = o
             continue
         merged.append(o)
+    # ★ Intro noise filter — 첫 0.15s 의 low-energy onset 제거.
+    #   librosa onset_detect 가 곡 시작 시 intro pad / 잔향 을 onset 으로 잡음 (energy 매우 약).
+    #   사용자 보고: "첫 부분 노트 미리 떨어짐" fix. 2026-05-17 추가.
+    merged = [o for o in merged if not (o['t'] < 0.15 and o.get('energy', 1) < 0.5)]
     return merged
 
 
