@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517192751;
+window.__BUILD_TS = 20260517200118;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2899,9 +2899,11 @@ function updateStemVolumes(dt) {
     const baseVol = (countdownTime > 0 || songEnded) ? 0 : volBgm;
     const useAbs = window._absGains && window._absGains.length > 0;
     const _nowMs = performance.now();
+    const _ugcVol = curSong && curSong._ugc;
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
-      const vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
+      // UGC: 단일 stem audio 라 vol 1.0 (normal 곡은 6 stem mix 라 0.7 분산)
+      const vol = _ugcVol ? 1.0 : (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL);
       let targetVol = baseVol * vol;
       // ★ Stem pulse (2026-05-15) — 빈 lane press 시 stemPulses[i] 가 set 됨. linear decay 로
       //   peak → base 까지 dur (500ms) 동안 보강. 이전엔 stemPulses SET 만 되고 read 안 돼서
@@ -3020,11 +3022,11 @@ async function handleMyMusicFile(e) {
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
       bars: Math.ceil(dur / 2),
       file: blobUrl, cover: '',
-      // ★ fake stem 곡 처럼 보이게 — startSong 의 UGC bypass 가 fetch 없이 buffer 채움
       stemDir: '_ugc/',
       stemPrefix: '_ugc',
       stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
       pattern: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+      slotSubdivision: 0.5, // 32nd 그리드 — 박자 정밀도 ↑ (UGC 디폴드 BPM 120 mismatch 보정)
       _ugc: true,
       _audioBuffer: audioBuf,
       _chartJson: { version: 1, generator: 'js-ugc', bpm_input: 120, bpm_detected: 120, sr: audioBuf.sampleRate, onsets: chartOnsets },
