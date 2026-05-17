@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517161158;
+window.__BUILD_TS = 20260517161534;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3020,8 +3020,10 @@ function showUgcSetupOverlay() {
         ${['쉬움','보통','어려움','지옥'].map((n,i)=>`<button data-i="${i}" style="flex:1;padding:9px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${n}</button>`).join('')}
       </div>
       <div style="font-size:11px;color:#aaa;margin-bottom:6px;">배속</div>
-      <div id="ugcSpeed" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
-        ${[0.5,1.0,1.5,2.0,2.5,3.0].map(s=>`<button data-s="${s}" style="flex:1;min-width:46px;padding:8px 0;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;">${s}x</button>`).join('')}
+      <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;">
+        <button id="ugcSpdMinus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">−</button>
+        <div id="ugcSpdValue" style="flex:1;text-align:center;padding:9px 0;background:rgba(255,255,255,0.04);border:1px solid #b464ff44;border-radius:8px;font-size:14px;font-weight:bold;color:#b464ff;">1.0x</div>
+        <button id="ugcSpdPlus" style="padding:9px 14px;background:rgba(255,255,255,0.06);border:1px solid #b464ff44;color:#fff;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
       </div>
       <div style="font-size:11px;color:#aaa;margin-bottom:6px;">키 수</div>
       <div id="ugcKeys" style="display:flex;gap:6px;margin-bottom:18px;">
@@ -3036,7 +3038,7 @@ function showUgcSetupOverlay() {
   document.body.appendChild(el);
   _ugcOverlayEl = el;
   // 현재 선택값 (defaults)
-  let pickDiff = 1, pickSpeed = 1.0, pickKeys = 4;
+  let pickDiff = 1, pickSpeed = selectedSpeed || 1.0, pickKeys = 4;
   const _markSelected = (rootId, attr, val) => {
     el.querySelectorAll('#' + rootId + ' button').forEach(b => {
       const sel = String(b.getAttribute(attr)) === String(val);
@@ -3044,12 +3046,14 @@ function showUgcSetupOverlay() {
       b.style.borderColor = sel ? '#b464ff' : '#b464ff44';
     });
   };
+  const _updSpd = () => { el.querySelector('#ugcSpdValue').textContent = pickSpeed.toFixed(1) + 'x'; };
   _markSelected('ugcDiff', 'data-i', pickDiff);
-  _markSelected('ugcSpeed', 'data-s', pickSpeed);
   _markSelected('ugcKeys', 'data-k', pickKeys);
+  _updSpd();
   el.querySelectorAll('#ugcDiff button').forEach(b => b.onclick = () => { pickDiff = +b.dataset.i; _markSelected('ugcDiff','data-i',pickDiff); });
-  el.querySelectorAll('#ugcSpeed button').forEach(b => b.onclick = () => { pickSpeed = +b.dataset.s; _markSelected('ugcSpeed','data-s',pickSpeed); });
   el.querySelectorAll('#ugcKeys button').forEach(b => b.onclick = () => { pickKeys = +b.dataset.k; _markSelected('ugcKeys','data-k',pickKeys); });
+  el.querySelector('#ugcSpdMinus').onclick = () => { pickSpeed = Math.max(SPEED_MIN, +(pickSpeed - SPEED_STEP).toFixed(1)); _updSpd(); };
+  el.querySelector('#ugcSpdPlus').onclick = () => { pickSpeed = Math.min(SPEED_MAX, +(pickSpeed + SPEED_STEP).toFixed(1)); _updSpd(); };
   el.querySelector('#ugcCancel').onclick = () => { el.remove(); _ugcOverlayEl = null; _ugcSong = null; };
   el.querySelector('#ugcStart').onclick = () => {
     selectedDiff = pickDiff;
@@ -8118,6 +8122,7 @@ addEventListener('mousedown', e => {
   if (settingsOpen) { handleSettingsClick(e.clientX, gameY(e.clientY)); return; }
   if (state === 'title') {
     if (!_preloadDone) return;
+    if (_ugcOverlayEl) return; // UGC overlay 떠 있으면 캔버스 클릭 차단
     const mx = e.clientX, my = gameY(e.clientY);
     if (!currentUser) {
       // 첫 클릭 시 BGM 시작
@@ -8779,6 +8784,7 @@ document.addEventListener('touchstart', e => {
   if (settingsOpen) { const t = e.changedTouches[0]; handleSettingsClick(t.clientX, gameY(t.clientY)); return; }
   if (state === 'title') {
     if (!_preloadDone) return;
+    if (_ugcOverlayEl) return; // UGC overlay 떠 있으면 캔버스 터치 차단
     const t = e.changedTouches[0];
     const tmx = t.clientX, tmy = gameY(t.clientY);
     if (!currentUser) {
