@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517140503;
+window.__BUILD_TS = 20260517140624;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10442,7 +10442,7 @@ function startSong(idx) {
             //   사용자 요청: "같은 리듬 구간끼리 노트 수 다른 게 곤란".
             const _winSamples = Math.floor(_sr * 0.025);
             const _bpm = curSong.bpm || 120;
-            const _grid = (60 / _bpm) / 4; // 16th note seconds
+            const _grid = (60 / _bpm) / 8; // 32nd note (해상도 2x, 타이밍 정확도 ↑)
             const _maxT = _maxLen / _sr;
             const _gridE = [];
             const _gridT = [];
@@ -10455,8 +10455,8 @@ function startSong(idx) {
               _gridE.push(_e);
               _gridT.push(t);
             }
-            const _CTX_GRIDS = 4;     // ±1 beat
-            const _RATIO = 1.5;       // 컨텍스트 평균 대비 spike 비율
+            const _CTX_GRIDS = 8;     // ±1 beat (32nd note 기준)
+            const _RATIO = 1.3;       // 컨텍스트 평균 대비 spike 비율 (1.5 → 1.3, 노트 부족 fix)
             const _ABS_FLOOR = 0.0001; // 절대 noise floor
             const _sumOnsets = [];
             for (let i = 0; i < _gridE.length; i++) {
