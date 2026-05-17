@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260517145651;
+window.__BUILD_TS = 20260517150128;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2930,24 +2930,27 @@ function updateStemVolumes(dt) {
 function playHitSfx() {}
 function playHoldStartSfx() {
 }
-// ★ 2026-05-17: 노트 hit 시 그 노트의 stem audio 0.3s 펄스 — BMS/Beatmania 류 keysound 표준.
-//   stem 의 현재 audio time 으로 short slice 재생 → BGM 과 동조하는 hit click.
-//   ALWAYS_AUDIBLE_STEMS (vocals) 는 BGM 으로 항상 재생되므로 keysound X.
+// ★ 2026-05-17 v2: stem audio 펄스 (v1) → oscillator click 으로 변경.
+//   v1 문제: BGM 에 같은 stem 이미 재생 중 → 펄스 = "그 시점 BGM 살짝 큰 것".
+//   click 으로 인식 안 됨, 사용자 "키음 안 들림" 보고. BMS-style 진짜 keysound 는
+//   BGM 에서 그 stem 빼야 가능 (구조상 불가, BGM 은 6 stem 다 mixed).
+//   v2: stem index → lane-specific frequency 의 짧은 triangle wave (100ms). 명확한 click.
+const HIT_FREQS = [880, 988, 1175, 1318, 1480, 1760, 1976, 2349];
 function playHitKeysound(stem, gameTimeNow) {
-  if (!actx || stem == null) return;
-  if (!stemAudioBuffers[stem]) return;
-  if (ALWAYS_AUDIBLE_STEMS.includes(stem)) return;
-  const delay = (curSong && curSong._startDelay) || 0;
-  const offset = Math.max(0, gameTimeNow - delay);
+  if (!actx) return;
   try {
-    const src = actx.createBufferSource();
+    if (actx.state === 'suspended') actx.resume();
+    const idx = (typeof stem === 'number' ? stem : 0) % HIT_FREQS.length;
+    const freq = HIT_FREQS[idx];
+    const osc = actx.createOscillator();
     const gain = actx.createGain();
-    src.buffer = stemAudioBuffers[stem];
-    const peakVol = Math.min(1.0, STEM_VOL_NORMAL * (typeof volBgm !== 'undefined' ? volBgm : 0.5) * 1.2);
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const peakVol = (typeof volBgm !== 'undefined' ? volBgm : 0.5) * 0.45;
     gain.gain.setValueAtTime(peakVol, actx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.3);
-    src.connect(gain); gain.connect(actx.destination);
-    src.start(0, offset, 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.10);
+    osc.connect(gain); gain.connect(actx.destination);
+    osc.start(); osc.stop(actx.currentTime + 0.10);
   } catch (e) {}
 }
 
