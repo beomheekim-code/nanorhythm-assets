@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518212002;
+window.__BUILD_TS = 20260518215001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3731,8 +3731,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     slotSubdivision: 1.2,  // 2026-05-15 tweak
     endCutoff: 109.2,
-    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.51
-  },
+    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.51, rawOnsetNps: 7.85},
   {
     name: 'Insert Coin Go Hard', sub: 'ARCADE', bpm: 140, color: '#00e5ff',
     bg1: '#000520', bg2: '#001040', bars: 91, cover: 'Music/Insert_Coin_Go_Hard/Insert_Coin_Go_Hard.png',
@@ -3741,8 +3740,7 @@ const songs = [
     stemPrefix: 'insert_coin_go_hard',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 153.7,
-    pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0], simNps: 2.27
-  },
+    pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0], simNps: 2.27, rawOnsetNps: 8.68},
   {
     name: 'CLIMB TO THE CROWN', sub: 'ROCK/ELECTRO', bpm: 160, color: '#ff2200',
     bg1: '#1a0500', bg2: '#350a00', bars: 72, cover: 'Music/CLIMB_TO_THE_CROWN/CLIMB_TO_THE_CROWN.png',
@@ -3751,8 +3749,7 @@ const songs = [
     stemPrefix: 'CLIMB_TO_THE_CROWN',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 106.7,
-    pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0], simNps: 2.48
-  },
+    pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0], simNps: 2.48, rawOnsetNps: 6.69},
   {
     name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 134, color: '#ffb7d5',
     bg1: '#0f0808', bg2: '#1e1215', bars: 66, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
@@ -3761,8 +3758,7 @@ const songs = [
     stemPrefix: '어깨_위에_내려앉은_봄',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 175.7,
-    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], levelBonus: -0.3, simNps: 2.11
-  },
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], levelBonus: -0.3, simNps: 2.11, rawOnsetNps: 6.47},
   {
     name: '차선 사이의 침묵', sub: 'DARK AMBIENT', bpm: 110, color: '#6677aa',
     bg1: '#050810', bg2: '#0a1020', bars: 40, cover: 'Music/차선_사이의_침묵/차선_사이의_침묵.png',
@@ -3770,8 +3766,7 @@ const songs = [
     stemDir: 'Music/차선_사이의_침묵/',
     stemPrefix: '차선_사이의_침묵',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,0], simNps: 1.83
-  },
+    pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,0], simNps: 1.83, rawOnsetNps: 6.59},
   {
     name: '止まれない鼓動', sub: 'J-ROCK', bpm: 155, color: '#e63946',
     bg1: '#120008', bg2: '#250010', bars: 83, cover: 'Music/止まれない鼓動/止まれない鼓動.png',
@@ -3779,8 +3774,7 @@ const songs = [
     stemDir: 'Music/止まれない鼓動/',
     stemPrefix: '止まれない鼓動',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0], simNps: 2.51
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0], simNps: 2.51, rawOnsetNps: 7.8},
   {
     name: '境界線を蹴り飛ばして', sub: 'J-PUNK', bpm: 170, color: '#ff6a00',
     bg1: '#1a0800', bg2: '#301500', bars: 83, cover: 'Music/境界線を蹴り飛ばして/境界線を蹴り飛ばして.png',
@@ -3789,8 +3783,7 @@ const songs = [
     stemPrefix: '境界線を蹴り飛ばして',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 115.2,
-    pattern: [1,1,0,1,0,1,1,0, 1,0,1,0,1,1,0,1], simNps: 2.76
-  },
+    pattern: [1,1,0,1,0,1,1,0, 1,0,1,0,1,1,0,1], simNps: 2.76, rawOnsetNps: 6.85},
   {
     name: 'The Clock Face Shakes', sub: 'SYNTH/ELECTRONIC', bpm: 135, color: '#7b2ff7',
     bg1: '#0a0020', bg2: '#150040', bars: 67, cover: 'Music/The_Clock_Face_Shakes/The_Clock_Face_Shakes.png',
@@ -3799,8 +3792,7 @@ const songs = [
     stemPrefix: 'The_Clock_Face_Shakes',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 117.2,
-    pattern: [1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0], simNps: 2.13
-  },
+    pattern: [1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0], simNps: 2.13, rawOnsetNps: 6.79},
   {
     name: 'Breaking Gravity', sub: 'EDM/BASS', bpm: 145, color: '#00e0ff',
     bg1: '#000a14', bg2: '#001428', bars: 63, cover: 'Music/Breaking_Gravity/Breaking_Gravity.png',
@@ -3809,8 +3801,7 @@ const songs = [
     stemPrefix: 'Breaking_Gravity',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 102.2,
-    pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1], simNps: 2.39
-  },
+    pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1], simNps: 2.39, rawOnsetNps: 8.57},
   {
     name: '손 끝 아래', sub: 'K-EMOTION', bpm: 120, color: '#e8a0c0',
     bg1: '#0c0515', bg2: '#1a0a25', bars: 57, cover: 'Music/손_끝_아래/손_끝_아래.png',
@@ -3819,8 +3810,7 @@ const songs = [
     stemPrefix: '손_끝_아래',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 112.2,
-    pattern: [1,0,0,1,0,1,0,1, 0,0,1,0,1,0,0,1], simNps: 1.98
-  },
+    pattern: [1,0,0,1,0,1,0,1, 0,0,1,0,1,0,0,1], simNps: 1.98, rawOnsetNps: 7.74},
   {
     name: '멈춘 시계', sub: 'K-AMBIENT', bpm: 123, color: '#8ba4b8',
     bg1: '#060a10', bg2: '#0e1520', bars: 73, cover: 'Music/멈춘_시계/멈춘_시계.png',
@@ -3829,8 +3819,7 @@ const songs = [
     stemPrefix: '멈춘_시계',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 140.2,
-    pattern: [1,0,1,0,1,0,1,0, 0,1,0,1,0,1,0,1], simNps: 1.76
-  },
+    pattern: [1,0,1,0,1,0,1,0, 0,1,0,1,0,1,0,1], simNps: 1.76, rawOnsetNps: 5.78},
   {
     name: 'SIDEWALK RUNWAY', sub: 'POP/HIPHOP', bpm: 117, color: '#e040fb',
     bg1: '#12041a', bg2: '#220a30', bars: 52, cover: 'Music/SIDEWALK_RUNWAY/SIDEWALK_RUNWAY.png',
@@ -3839,8 +3828,7 @@ const songs = [
     stemPrefix: 'SIDEWALK_RUNWAY',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 96.2,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], simNps: 1.92
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], simNps: 1.92, rawOnsetNps: 6.75},
   {
     name: "Let's Go Shopping!", sub: 'POP/DANCE', bpm: 130, color: '#ff7eb3',
     bg1: '#1a0818', bg2: '#2d1028', bars: 45, cover: "Music/Let's_Go_Shopping!/Let's_Go_Shopping!.png",
@@ -3849,8 +3837,7 @@ const songs = [
     stemPrefix: "Let's_Go_Shopping!",
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 77.2,
-    pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1], simNps: 2.47
-  },
+    pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1], simNps: 2.47, rawOnsetNps: 7.31},
   {
     name: 'Glitch Heartbeat', sub: 'GLITCH/ELECTRO', bpm: 138, color: '#00ffc8',
     bg1: '#000d0a', bg2: '#001a14', bars: 63,
@@ -3860,8 +3847,7 @@ const songs = [
     stemPrefix: 'Glitch_Heartbeat',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 107.3,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0], simNps: 2.19
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,0], simNps: 2.19, rawOnsetNps: 7.17},
   {
     name: 'Midnight Boulevard', sub: 'CHILL/LOFI', bpm: 96, color: '#5566cc',
     bg1: '#05051a', bg2: '#0a0a30', bars: 43,
@@ -3871,8 +3857,7 @@ const songs = [
     stemPrefix: 'Midnight_Boulevard',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 106.2,
-    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], simNps: 1.59
-  },
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], simNps: 1.59, rawOnsetNps: 5.21},
   {
     name: 'Outrunning The Rain', sub: 'INDIE/POP', bpm: 128, color: '#4488cc',
     bg1: '#060e18', bg2: '#0c1c30', bars: 46,
@@ -3882,8 +3867,7 @@ const songs = [
     stemPrefix: 'Outrunning_The_Rain',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 84.7,
-    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,0,1,1,0], simNps: 2.06
-  },
+    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,0,1,1,0], simNps: 2.06, rawOnsetNps: 8.02},
   {
     name: 'Ten Thousand Taps', sub: 'SPEEDCORE', bpm: 175, color: '#ff3355',
     bg1: '#1a0005', bg2: '#33000a', bars: 82,
@@ -3893,8 +3877,7 @@ const songs = [
     stemPrefix: 'Ten_Thousand_Taps',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 110.2,
-    pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1], simNps: 2.88
-  },
+    pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1], simNps: 2.88, rawOnsetNps: 7.23},
   {
     name: 'The Final Sprint', sub: 'EPIC/CINEMATIC', bpm: 148, color: '#ffaa00',
     bg1: '#0f0800', bg2: '#1e1000', bars: 66,
@@ -3904,8 +3887,7 @@ const songs = [
     stemPrefix: 'The_Final_Sprint',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 105.7,
-    pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1], simNps: 2.47
-  },
+    pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1], simNps: 2.47, rawOnsetNps: 7.94},
   {
     name: '힙합 오소리', sub: 'K-HIPHOP', bpm: 100, color: '#88cc44',
     bg1: '#080e04', bg2: '#101c08', bars: 38,
@@ -3914,8 +3896,7 @@ const songs = [
     stemDir: 'Music/힙합_오소리/',
     stemPrefix: '힙합_오소리',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1], simNps: 1.55
-  },
+    pattern: [1,0,1,0,1,1,0,1, 1,0,1,1,0,1,0,1], simNps: 1.55, rawOnsetNps: 6.48},
   {
     name: 'Heart On The Line', sub: 'POP/BALLAD', bpm: 117, color: '#ff6699',
     bg1: '#0e0408', bg2: '#1c0810', bars: 53,
@@ -3925,8 +3906,7 @@ const songs = [
     stemPrefix: 'Heart_on_the_Line',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 105.7,
-    pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1], simNps: 1.93
-  },
+    pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1], simNps: 1.93, rawOnsetNps: 6.85},
   {
     name: '기억의 사물함', sub: 'K-BALLAD', bpm: 120, color: '#9999dd',
     bg1: '#060610', bg2: '#0c0c1c', bars: 37,
@@ -3937,8 +3917,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 104.7,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
-    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만, levelBonus: -0.3, simNps: 1.91
-  },
+    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만, levelBonus: -0.3, simNps: 1.91, rawOnsetNps: 6.09},
   {
     name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
     bg1: '#0a0015', bg2: '#180025', bars: 81,
@@ -3948,8 +3927,7 @@ const songs = [
     stemPrefix: 'Black_Out',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 113.7,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], simNps: 2.38
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], simNps: 2.38, rawOnsetNps: 6.01},
   {
     name: 'Burn It All Down', sub: 'HARD ROCK', bpm: 152, color: '#ff4400',
     bg1: '#180400', bg2: '#300a00', bars: 75,
@@ -3959,8 +3937,7 @@ const songs = [
     stemPrefix: 'Burn_It_All_Down',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 114.7,
-    pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1], simNps: 2.46
-  },
+    pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1], simNps: 2.46, rawOnsetNps: 7.76},
   {
     name: 'No More Scripts', sub: 'TRAP/HIPHOP', bpm: 129, color: '#ffcc00',
     bg1: '#120e00', bg2: '#241c00', bars: 64,
@@ -3972,8 +3949,7 @@ const songs = [
     endCutoff: 107.2,
     pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,1],
     // 'auto': 런타임에 스템 RMS 분석으로 보컬-only 구간 자동 감지 (인트로 + 중간 보컬 브레이크 전부)
-    vocalIntroRange: 'auto', simNps: 1.76
-  },
+    vocalIntroRange: 'auto', simNps: 1.76, rawOnsetNps: 5.29},
   {
     name: 'Polaroid In Bloom', sub: 'DREAM POP', bpm: 108, color: '#ffb3e0',
     bg1: '#160812', bg2: '#281425', bars: 66,
@@ -3983,8 +3959,7 @@ const songs = [
     stemPrefix: 'Polaroid_In_Bloom',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 136.7,
-    pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1], simNps: 1.71
-  },
+    pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1], simNps: 1.71, rawOnsetNps: 6.07},
   {
     name: 'RED TAPE', sub: 'INDUSTRIAL', bpm: 134, color: '#ff1a33',
     bg1: '#180003', bg2: '#30000a', bars: 59,
@@ -4008,8 +3983,7 @@ const songs = [
       [2.0, 1.6],   // 2.0 ~ 3.6  (1.44 ~ 4.11 사이, 마진 0.51s)
       [4.6, 1.7],   // 4.6 ~ 6.3  (4.11 ~ 6.76 사이, 마진 0.46s)
       [7.2, 1.7],   // 7.2 ~ 8.9  (6.76 ~ 9.43 사이, 마진 0.53s)
-    ], levelBonus: -0.3, simNps: 2.06
-  },
+    ], levelBonus: -0.3, simNps: 2.06, rawOnsetNps: 6.21},
   {
     name: '加速する鼓動', sub: 'J-ROCK/SPEED', bpm: 172, color: '#ff3377',
     bg1: '#150008', bg2: '#2a0010', bars: 83,
@@ -4019,8 +3993,7 @@ const songs = [
     stemPrefix: '加速する鼓動',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 112.7,
-    pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0], simNps: 2.77
-  },
+    pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0], simNps: 2.77, rawOnsetNps: 7.74},
   {
     name: '황덕구의 모험', sub: 'K-FUNK/FUN', bpm: 117, color: '#ffdd33',
     bg1: '#141000', bg2: '#281e00', bars: 71,
@@ -4032,8 +4005,7 @@ const songs = [
     slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 142.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-    excludeStems: [4], // instrum만 사용 (메인 트랙), levelBonus: 0.2, simNps: 3.75
-  },
+    excludeStems: [4], // instrum만 사용 (메인 트랙), levelBonus: 0.2, simNps: 3.75, rawOnsetNps: 7.56},
   {
     name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 180, color: '#66d4ff',
     bg1: '#0a1828', bg2: '#163450', bars: 60,
@@ -4043,8 +4015,7 @@ const songs = [
     stemPrefix: 'Catch_The_Sky',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 116.75,
-    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.97
-  },
+    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.97, rawOnsetNps: 8.33},
   {
     name: 'Neon Light', sub: 'SYNTH/NIGHT', bpm: 110, color: '#ff5cd6',
     bg1: '#1a0820', bg2: '#33103d', bars: 54,
@@ -4055,8 +4026,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 109.2,
     pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0],
-    excludeStems: [4, 5], // piano, guitar 빈 스템, simNps: 1.71
-  },
+    excludeStems: [4, 5], // piano, guitar 빈 스템, simNps: 1.71, rawOnsetNps: 5.86},
   {
     name: 'Vincere Aut Mori', sub: 'EPIC/BATTLE', bpm: 120, color: '#ff3344',
     bg1: '#1c0608', bg2: '#3a0c10', bars: 59,
@@ -4067,8 +4037,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 115.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
-    excludeStems: [1, 4], // bass, piano 빈 스템, simNps: 1.71
-  },
+    excludeStems: [1, 4], // bass, piano 빈 스템, simNps: 1.71, rawOnsetNps: 6.65},
   {
     name: "Let's Go Shopping!", sub: 'Bright Pop', bpm: 152,
     color: '#ff6699', bg1: '#4a0028', bg2: '#1a0a1a',
@@ -4091,8 +4060,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 114.2,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1],
-    excludeStems: [4, 5], chordMode: true, simNps: 1.93
-  },
+    excludeStems: [4, 5], chordMode: true, simNps: 1.93, rawOnsetNps: 6.95},
   {
     name: 'Pebbles To Granite', sub: 'Hip-Hop', bpm: 134,
     color: '#aa8855', bg1: '#2a1a08', bg2: '#0a0804',
@@ -4103,8 +4071,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 116.5,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
-    excludeStems: [5], chordMode: true, levelBonus: -0.3, simNps: 2.23
-  },
+    excludeStems: [5], chordMode: true, levelBonus: -0.3, simNps: 2.23, rawOnsetNps: 6.19},
   {
     name: 'Rainbow Flight', sub: 'Synth Pop', bpm: 117,
     color: '#ff77aa', bg1: '#28082a', bg2: '#0a0416',
@@ -4114,8 +4081,7 @@ const songs = [
     stemPrefix: 'Rainbow_Flight',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
-    excludeStems: [4, 5], chordMode: true, simNps: 1.94
-  },
+    excludeStems: [4, 5], chordMode: true, simNps: 1.94, rawOnsetNps: 7.66},
   {
     name: 'Velocity And Pride', sub: 'EDM / Anthem', bpm: 152,
     color: '#ff4444', bg1: '#2a0808', bg2: '#100404',
@@ -4126,8 +4092,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 146.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
-    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true, simNps: 2.17
-  },
+    excludeStems: [4, 5], vocalIntroRange: 'auto', chordMode: true, simNps: 2.17, rawOnsetNps: 6.48},
   {
     name: '靴紐を結び直して', sub: 'J-Pop', bpm: 117,
     color: '#55ccaa', bg1: '#082a1a', bg2: '#041008',
@@ -4138,8 +4103,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 116.2,
     pattern: [1,0,1,0,0,1,0,1, 0,1,0,1,0,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 1.77
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 1.77, rawOnsetNps: 5.85},
   {
     name: '기분 좋은 날', sub: 'K-Pop Ballad', bpm: 92,
     color: '#ffcc44', bg1: '#2a2008', bg2: '#100c04',
@@ -4149,8 +4113,7 @@ const songs = [
     stemPrefix: '기분_좋은_날',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 130.2,
-    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.41
-  },
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.41, rawOnsetNps: 8.17},
   {
     name: '바람을 타고', sub: 'K-Pop Dance', bpm: 172,
     color: '#44bbff', bg1: '#081a2a', bg2: '#040a10',
@@ -4160,8 +4123,7 @@ const songs = [
     stemPrefix: '바람을_타고',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 157.2,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], vocalIntroRange: 'auto', chordMode: true, simNps: 2.63
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], vocalIntroRange: 'auto', chordMode: true, simNps: 2.63, rawOnsetNps: 8.15},
   {
     name: 'The Last Quarter', sub: 'Alt Rock', bpm: 144,
     color: '#88aadd', bg1: '#0a1828', bg2: '#040810',
@@ -4171,8 +4133,7 @@ const songs = [
     stemPrefix: 'The_Last_Quarter',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,0,1,0,1,1],
-    excludeStems: [4, 5], chordMode: true, simNps: 2.31
-  },
+    excludeStems: [4, 5], chordMode: true, simNps: 2.31, rawOnsetNps: 7.55},
   {
     name: '밤하늘의 기적', sub: 'Midtempo Ballad', bpm: 123,
     color: '#9966ff', bg1: '#1a0a2c', bg2: '#0a0414',
@@ -4183,8 +4144,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 143.2,
     pattern: [1,0,0,1,1,0,1,0, 1,0,0,1,0,1,1,0],
-    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 1.97
-  },
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 1.97, rawOnsetNps: 7.81},
   {
     name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 144,
     color: '#c8a2f0', bg1: '#1a1030', bg2: '#080416',
@@ -4195,8 +4155,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 168.7,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.23
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.23, rawOnsetNps: 5.81},
   {
     name: '질주', sub: 'Indie Rock', bpm: 92,
     color: '#ff6b44', bg1: '#2c0e08', bg2: '#140804',
@@ -4207,8 +4166,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 144.2,
     pattern: [1,0,0,0,1,0,1,0, 1,0,0,1,0,1,0,1],
-    excludeStems: [4, 6], vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.31
-  },
+    excludeStems: [4, 6], vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.31, rawOnsetNps: 4.56},
   {
     name: 'Higher', sub: 'UPLIFT POP', bpm: 96,
     color: '#6ab4ff', bg1: '#021530', bg2: '#042a50',
@@ -4219,8 +4177,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 130.7,
     pattern: [1,0,1,0,1,1,0,1, 1,0,1,0,1,0,1,1],
-    excludeStems: [4], chordMode: true, simNps: 1.6
-  },
+    excludeStems: [4], chordMode: true, simNps: 1.6, rawOnsetNps: 10.14},
   {
     name: 'Monoliths of Light', sub: 'AMBIENT', bpm: 60,
     color: '#b0d8ff', bg1: '#0a1a30', bg2: '#152544',
@@ -4249,8 +4206,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 114.7,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0],
-    chordMode: true, simNps: 2.05
-  },
+    chordMode: true, simNps: 2.05, rawOnsetNps: 7.32},
   {
     name: 'PUNCH', sub: 'DRIVE/ROCK', bpm: 144,
     color: '#ff3333', bg1: '#280000', bg2: '#400400',
@@ -4262,8 +4218,7 @@ const songs = [
     endCutoff: 122.2,
     pattern: [1,1,0,1,1,0,1,1, 0,1,1,0,1,1,0,1],
     // other stem: 106s 에서 소리 끝나는데 onset 은 122s 까지 잡힘 (phantom) → 제외
-    excludeStems: [4], chordMode: true, simNps: 2.4
-  },
+    excludeStems: [4], chordMode: true, simNps: 2.4, rawOnsetNps: 9.75},
   {
     name: 'Soda Pop Crush', sub: 'BUBBLY POP', bpm: 112,
     color: '#ff80b8', bg1: '#220a1c', bg2: '#3a1530',
@@ -4275,8 +4230,7 @@ const songs = [
     endCutoff: 167.2,
     pattern: [1,0,1,0,1,0,0,1, 1,1,0,1,0,1,0,1],
     excludeStems: [4],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 1.67
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 1.67, rawOnsetNps: 5.91},
   {
     name: 'T', sub: 'POP/DANCE', bpm: 129,
     color: '#a0ff80', bg1: '#0a2008', bg2: '#143814',
@@ -4287,8 +4241,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 157.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
-    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true, simNps: 2.13
-  },
+    excludeStems: [5], vocalIntroRange: 'auto', chordMode: true, simNps: 2.13, rawOnsetNps: 6.13},
   {
     name: 'さいごまではしる', sub: 'J-ROCK', bpm: 136,
     color: '#ff9455', bg1: '#2a1005', bg2: '#44200a',
@@ -4298,8 +4251,7 @@ const songs = [
     stemPrefix: 'さいごまではしる',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,1,1,0,1,1, 0,1,1,0,1,1,0,1],
-    excludeStems: [4], chordMode: true, simNps: 2.26
-  },
+    excludeStems: [4], chordMode: true, simNps: 2.26, rawOnsetNps: 9.34},
   {
     name: '날개를 펼쳐', sub: 'K-POP BALLAD', bpm: 96,
     color: '#ffb0d0', bg1: '#1a0a1a', bg2: '#2a1430',
@@ -4310,8 +4262,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 163.7,
     pattern: [1,0,0,1,1,0,0,1, 0,1,0,0,1,0,1,0],
-    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 1.57
-  },
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 1.57, rawOnsetNps: 9.52},
   {
     name: '달의 파편', sub: 'K-POP', bpm: 136,
     color: '#b888ff', bg1: '#100520', bg2: '#201040',
@@ -4322,8 +4273,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 153.7,
     pattern: [1,0,1,0,1,1,0,1, 0,1,1,0,1,0,1,1],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 1.88
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 1.88, rawOnsetNps: 4.81},
   {
     name: '토끼의 꿈', sub: 'DREAM POP', bpm: 129,
     color: '#ffd0e8', bg1: '#18081a', bg2: '#2c1030',
@@ -4333,8 +4283,7 @@ const songs = [
     stemPrefix: '토끼의_꿈',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,0,1,1,0,1,0, 1,0,1,0,0,1,1,0],
-    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 2.08
-  },
+    excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 2.08, rawOnsetNps: 5.83},
   {
     name: '투명한 설렘', sub: 'CLEAR BALLAD', bpm: 134,
     color: '#a0e0ff', bg1: '#0a1a26', bg2: '#14303c',
@@ -4345,8 +4294,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 145.2,
     pattern: [1,0,0,1,0,0,1,0, 1,0,0,1,0,1,0,1],
-    vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 2.08
-  },
+    vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 2.08, rawOnsetNps: 6.26},
   {
     name: '고민의 자국', sub: 'HEARTFELT BALLAD', bpm: 149,
     color: '#c98ad6', bg1: '#1a0d22', bg2: '#2e1338',
@@ -4358,8 +4306,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 121.7,
     pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,1,0],
-    chordMode: true, simNps: 2.42
-  },
+    chordMode: true, simNps: 2.42, rawOnsetNps: 7.13},
   {
     name: '괜찮아', sub: 'WARM POP', bpm: 136,
     color: '#ffb380', bg1: '#1f0e08', bg2: '#3a1a10',
@@ -4370,8 +4317,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 218.2,
     pattern: [1,0,1,0,1,0,1,0, 1,0,0,1,0,1,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.15
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.15, rawOnsetNps: 5.72},
   {
     name: 'Fragment', sub: 'INDIE / ALT', bpm: 92,
     color: '#6b88ff', bg1: '#0a0f1f', bg2: '#14182d',
@@ -4383,8 +4329,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 140.7,
     pattern: [1,0,0,1,0,1,0,0, 1,0,1,0,0,1,0,1],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 1.54
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 1.54, rawOnsetNps: 9.69},
   {
     name: 'Lucifer', sub: 'ROCK / METAL', bpm: 161,
     color: '#d4264c', bg1: '#1a0006', bg2: '#2e000d',
@@ -4436,8 +4381,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 131.2,
     pattern: [1,0,1,0,1,0,1,0, 0,1,0,1,1,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.12
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.12, rawOnsetNps: 7.46},
   {
     name: 'Sugar Pixel', sub: 'J-POP', bpm: 152,
     color: '#ff6ec7', bg1: '#1f0814', bg2: '#2d0e1f',
@@ -4450,8 +4394,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 143.2,
     pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0],
-    chordMode: true, simNps: 2.52
-  },
+    chordMode: true, simNps: 2.52, rawOnsetNps: 8.57},
   {
     name: '우리뿐인 밤', sub: 'K-EMOTION', bpm: 161,
     color: '#f59ec2', bg1: '#150815', bg2: '#220c20',
@@ -4461,8 +4404,7 @@ const songs = [
     stemPrefix: '우리뿐인_밤',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     pattern: [1,0,1,0,0,1,0,1, 1,0,1,0,1,0,0,1],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.63
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.63, rawOnsetNps: 8.54},
   {
     name: 'ATLANTIS', sub: 'OCEAN AMBIENT', bpm: 86,
     color: '#4287f5', bg1: '#050a14', bg2: '#0a1428',
@@ -4491,8 +4433,7 @@ const songs = [
     excludeStems: [4, 5],
     endCutoff: 120.2,
     pattern: [1,0,1,0, 1,0,1,0, 1,0,1,1, 0,1,0,1],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.08
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.08, rawOnsetNps: 5.71},
   {
     name: 'Switch It Up', sub: 'DANCE POP', bpm: 144,
     color: '#00d2ff', bg1: '#050f1a', bg2: '#08182a',
@@ -4503,8 +4444,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     excludeStems: [4],
     pattern: [1,0,1,1, 0,1,0,1, 1,0,1,0, 1,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.22
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.22, rawOnsetNps: 6.41},
   {
     name: '달빛 과자상자', sub: 'K-EMOTION', bpm: 129,
     color: '#c4a4ff', bg1: '#100820', bg2: '#1a0e2e',
@@ -4516,8 +4456,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 165.7,
     pattern: [1,0,0,1, 1,0,1,0, 0,1,0,1, 1,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.05
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.05, rawOnsetNps: 6.51},
   {
     name: '이건 아직 시작이야', sub: 'K-POP', bpm: 136,
     color: '#ff9900', bg1: '#170a05', bg2: '#25140a',
@@ -4528,8 +4467,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 173.7,
     pattern: [1,0,1,0, 0,1,0,1, 1,0,1,0, 1,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.16
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.16, rawOnsetNps: 6.7},
   {
     name: '흐릿한 이 밤', sub: 'K-BALLAD', bpm: 123,
     color: '#6b9eff', bg1: '#050d18', bg2: '#0c1828',
@@ -4540,8 +4478,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 144.2,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.0
-  },
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.0, rawOnsetNps: 6.36},
   {
     name: '夢緣 (몽연)', sub: 'AMBIENT BALLAD', bpm: 89,
     color: '#a08cff', bg1: '#0a0820', bg2: '#1a1430',
@@ -4570,8 +4507,7 @@ const songs = [
     excludeStems: [4, 5],
     chordMode: true, chordMinGap: 2.5,
     vocalIntroRange: 'auto',
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], levelBonus: 0.0, simNps: 1.5
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], levelBonus: 0.0, simNps: 1.5, rawOnsetNps: 7.59},
   {
     name: 'Red Light', sub: 'ROCK/EDM', bpm: 152, color: '#ff3a5c',
     bg1: '#1a0008', bg2: '#2e0014', bars: 73,
@@ -4584,8 +4520,7 @@ const songs = [
     chordMode: true, chordMinGap: 2.0,
     vocalIntroRange: 'auto',
     endCutoff: 113.2,
-    pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1], simNps: 2.47
-  },
+    pattern: [1,1,0,1,0,1,1,0, 1,0,1,1,0,1,0,1], simNps: 2.47, rawOnsetNps: 7.62},
   {
     name: 'Static On The Road', sub: 'SYNTH/POP', bpm: 129, color: '#4dd0e1',
     bg1: '#001218', bg2: '#00242e', bars: 66,
@@ -4597,8 +4532,7 @@ const songs = [
     excludeStems: [4],
     chordMode: true, chordMinGap: 2.2,
     vocalIntroRange: 'auto',
-    pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0], simNps: 2.03
-  },
+    pattern: [1,0,1,1,0,1,0,1, 1,0,0,1,1,0,1,0], simNps: 2.03, rawOnsetNps: 5.3},
   {
     name: 'Mirrorball Kiss', sub: 'DISCO/FUNK', bpm: 129, color: '#ffd54f',
     bg1: '#1a0f00', bg2: '#2e1c00', bars: 93,
@@ -4609,8 +4543,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     chordMode: true, chordMinGap: 2.2,
     vocalIntroRange: 'auto',
-    pattern: [1,0,1,1,0,1,1,0, 1,0,1,1,0,1,0,1], simNps: 2.12
-  },
+    pattern: [1,0,1,1,0,1,1,0, 1,0,1,1,0,1,0,1], simNps: 2.12, rawOnsetNps: 7.43},
   {
     name: 'Arcade Turnabout', sub: 'ARCADE / EDM', bpm: 129, color: '#4dd0e1',
     bg1: '#001218', bg2: '#00242e', bars: 99,
@@ -4621,8 +4554,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     chordMode: true,
     endCutoff: 178.2,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], simNps: 2.14
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], simNps: 2.14, rawOnsetNps: 8.8},
   {
     name: '봉인해제 Dragon', sub: 'ROCK / EPIC', bpm: 99, color: '#ff6b3a',
     bg1: '#1a0800', bg2: '#2e1200', bars: 71,
@@ -4635,8 +4567,7 @@ const songs = [
     chordMode: true,
     slotSubdivision: 1.0,  // 2026-05-15 decouple 후 복원
     endCutoff: 168.83,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.61
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.61, rawOnsetNps: 7.84},
   {
     name: '잔상', sub: 'BALLAD', bpm: 99, color: '#a08cff',
     bg1: '#0a0820', bg2: '#1a1430', bars: 38,
@@ -4647,8 +4578,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     slotSubdivision: 1.0,  // 2026-05-15 tweak
     chordMode: true,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.63
-  },
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.63, rawOnsetNps: 8.36},
 ];
 
 // ===== SONG LOCK / SHOP SYSTEM =====
@@ -6075,13 +6005,14 @@ const DIFF_LEVEL_RANGES = [
 ];
 // 곡 본연의 난이도 raw score 계산 (난이도/키수 무관)
 function _songRawDifficulty(song) {
-  // ★ simNps 우선 사용 (2026-05-18) — chart.json 시뮬 결과 실제 in-game 노트 밀도.
-  //   pattern-based raw 가 실제 노트 수 무관해 체리블라썸 13 / 질주 1 회귀 발생 fix.
-  //   tmp_level_simulate.py 가 모든 곡 의 simNps 자동 측정 + 패치.
+  // ★ rawOnsetNps 우선 (2026-05-18) — chart.json 의 음악 density (slot filter 전).
+  //   simNps (slot filter 후 game density) 는 slot 조정으로 곡 의도와 어긋남.
+  //   rawOnsetNps 가 사용자 음악 인지 매칭 (ATLANTIS 9.7 = dense → level 13+).
+  //   분포: min 4.56 (질주) / median 7.2 / max 10.5 (Lucifer). normalize 3~11 → 0~1.
+  if (typeof song.rawOnsetNps === 'number') {
+    return Math.max(0.05, Math.min(1, (song.rawOnsetNps - 3.0) / 8.0));
+  }
   if (typeof song.simNps === 'number') {
-    // simNps 분포 (76곡): min 1.31, median 2.08, max 5.29 (Lucifer outlier).
-    // 대부분 1.3~3.0 범위 → linear normalize 1.0~3.5 → raw 0~1.
-    // (Lucifer 등 outlier 는 clamp 1.0, levelBonus 는 simNps 와 중복 의도라 무시)
     return Math.max(0.05, Math.min(1, (song.simNps - 1.0) / 5.0));
   }
   // 폴백: pattern-based (chart.json 없는 곡 — UGC / 신규 곡 미시뮬)
@@ -6111,7 +6042,7 @@ function calcLevel(songIdx, diffIdx) {
   const raw = _songRawDifficulty(song);
   const di = (diffIdx != null) ? diffIdx : 1;
   const mul = LEVEL_DIFF_MUL[di] || 1.0;
-  const laneAdj = (laneCount - 6) * 0.05;  // 키 수 보정 (약하게)
+  const laneAdj = (laneCount - 6) * 0.02;  // 키 수 보정 (약하게, 2026-05-18 fix)
   // score = raw × mul + laneAdj, sqrt 비선형 매핑으로 sparse 곡도 자연 level 4~8 (DJMAX 표준).
   //   이전 linear: sparse 곡 지옥 = level 2~3 (너무 낮음, 사용자 보고)
   //   sqrt 후: sparse 곡 지옥 = level 5~7 (자연), dense 곡 지옥 = level 13~15 유지
