@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519005002;
+window.__BUILD_TS = 20260519005003;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4437,7 +4437,7 @@ const songs = [
     // ★ ambient 곡 onset filter — 신스 잔향/sustain artifact 제거 (energy < 1.5 컷, ~17%).
     //   '리듬 없는 곳 노트' fix (사용자 보고 2026-05-18).
 
-    levelBonus: 0.25, // 사용자 의도 빡센 곡 12~13 매칭
+    rawBonus: 0.25, // 사용자 의도 빡센 곡 12~13 매칭 (simNps 분기 적용)
     simNps: 2.62, // delta 0.20
     rawOnsetNps: 6.24,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
@@ -6039,6 +6039,11 @@ function _songRawDifficulty(song) {
     if (typeof song.rawOnsetNps === 'number' && song.rawOnsetNps > 6) {
       // bonus weight 0.5 — rawOnsetNps 영향 약화 (ATLANTIS 14 → 10 적정)
       raw = Math.max(raw, Math.min(1, (song.rawOnsetNps - 4.0) / 8.0) * 0.5);
+    }
+    // ★ simNps 분기 전용 명시적 보정 (legacy levelBonus 는 fallback 전용, 곡별 회귀 위험).
+    //   ATLANTIS 처럼 ambient/sparse 인데 음악 자체 빡센 곡에 한해 사용 (2026-05-18).
+    if (typeof song.rawBonus === 'number') {
+      raw = Math.max(0.05, Math.min(1, raw + song.rawBonus));
     }
     return raw;
   }
