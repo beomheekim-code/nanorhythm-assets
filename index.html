@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518095833;
+window.__BUILD_TS = 20260518100618;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2984,33 +2984,59 @@ function _ugcDetectBpm(onsetTimes) {
   return Math.round(bpm);
 }
 
-// UGC audio fingerprint — 디코드된 RMS 패턴 SHA-256.
+// UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
 //   같은 곡이면 MP3/OGG/비트레이트 무관 동일 hash → cache hit → 동일 chart 보장.
-//   (이전 file-byte hash 는 인코딩 다르면 무조건 cache miss → 다른 detect 결과)
-//   견고성: 첫 0.5s skip (codec padding 차 흡수), 60×500ms 윈도우, 5-bit RMS 양자화
-//   (codec 0.1% sample 차 < 1 bucket = 1/32). 60×5=300bit 엔트로피 → 다른 곡 충돌 negligible.
+//   견고성 강화 (v2, 2026-05-18):
+//   ① Leading silence trim — codec padding 차 정규화 (MP3 ~26ms, OGG 0ms). 첫 audible
+//      sample 부터 시작. 두 포맷이 "다른 시점의 음악" 비교하던 문제 fix.
+//   ② Max-normalize — 전체 loudness 영향 제거 (codec 의 미세 게인 차도 흡수).
+//   ③ 4-bit 양자화 — bucket boundary 폭 6.25% (codec 노이즈 0.1% < 1 bucket 여유 60x).
+//   ④ 60 윈도우 × 4-bit = 240bit 엔트로피 → 다른 곡 충돌 negligible.
 async function _ugcAudioFingerprint(audioBuf) {
   const ch0 = audioBuf.getChannelData(0);
   const ch1 = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : null;
   const sr = audioBuf.sampleRate;
-  const startSample = Math.floor(sr * 0.5);
-  const winSamples = Math.floor(sr * 0.5); // 500ms 윈도우
-  const numWindows = 60;                   // 30s 분석
-  const buckets = new Uint8Array(numWindows);
+  // ① Leading silence trim — 첫 5ms RMS > 0.01 인 sample 찾기 (codec padding/silence 무시).
+  let firstAudio = 0;
+  const probeWin = Math.max(1, Math.floor(sr * 0.005));
+  const probeLimit = Math.min(ch0.length - probeWin, Math.floor(sr * 5));
+  for (let i = 0; i < probeLimit; i += probeWin) {
+    let sum = 0;
+    for (let j = i; j < i + probeWin; j++) {
+      const v = ch1 ? (ch0[j] + ch1[j]) * 0.5 : ch0[j];
+      sum += v * v;
+    }
+    if (Math.sqrt(sum / probeWin) > 0.01) { firstAudio = i; break; }
+  }
+  const startSample = firstAudio + Math.floor(sr * 0.5); // 첫 sound + 0.5s
+  const winSamples = Math.floor(sr * 0.5);               // 500ms 윈도우
+  const numWindows = 60;                                  // 30s 분석
+  // RMS 계산
+  const rmsArr = new Float32Array(numWindows);
   for (let w = 0; w < numWindows; w++) {
     const s0 = startSample + w * winSamples;
     const s1 = Math.min(ch0.length, s0 + winSamples);
-    if (s0 >= ch0.length) { buckets[w] = 0; continue; }
+    if (s0 >= ch0.length) { rmsArr[w] = 0; continue; }
     let sum = 0; const n = s1 - s0;
     for (let i = s0; i < s1; i++) {
       const v = ch1 ? (ch0[i] + ch1[i]) * 0.5 : ch0[i];
       sum += v * v;
     }
-    const rms = Math.sqrt(sum / Math.max(1, n));
-    buckets[w] = Math.min(31, Math.floor(rms * 32)); // 5-bit 양자화
+    rmsArr[w] = Math.sqrt(sum / Math.max(1, n));
+  }
+  // ② Max-normalize (0~1 범위로 표준화)
+  let maxRms = 0;
+  for (let w = 0; w < numWindows; w++) if (rmsArr[w] > maxRms) maxRms = rmsArr[w];
+  if (maxRms < 0.001) maxRms = 1;
+  // ③ 4-bit 양자화 (0~15)
+  const buckets = new Uint8Array(numWindows);
+  for (let w = 0; w < numWindows; w++) {
+    buckets[w] = Math.min(15, Math.floor((rmsArr[w] / maxRms) * 16));
   }
   const hashBuf = await crypto.subtle.digest('SHA-256', buckets);
-  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  const hex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  console.log('[ugc] fingerprint:', hex, 'firstAudio=' + (firstAudio / sr).toFixed(3) + 's', 'maxRms=' + maxRms.toFixed(3));
+  return hex;
 }
 
 function showMyMusicFilePicker() {
@@ -3059,7 +3085,8 @@ async function handleMyMusicFile(e) {
     try {
       fpHash = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
-    const cacheKey = fpHash ? 'rhythm_ugc_v4_' + fpHash : null;
+    // v5: fingerprint v2 (leading silence trim + max-normalize + 4-bit) → v4 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v5_' + fpHash : null;
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3083,8 +3110,14 @@ async function handleMyMusicFile(e) {
       } catch(e) {}
     } else {
       await new Promise(r => setTimeout(r, 30));
-      // UGC: window 5ms (default 15ms 보다 3배 정밀 — ±2.5ms 오차)
-      const onsetsRaw = detectOnsets(audioBuf, 1.10, 30, 5);
+      // ★ MP3 는 codec noise (MDCT pre-echo, quantization) 가 짧은 윈도우에서 false onset
+      //   유발 → OGG 와 다른 chart. 더 큰 윈도우 + 높은 sensitivity 로 평균화/필터.
+      //   OGG: 5ms/1.10 (정밀), MP3: 10ms/1.25 (codec noise 둔감화)
+      const isMp3 = lower.endsWith('.mp3');
+      const detWinMs = isMp3 ? 10 : 5;
+      const detSens = isMp3 ? 1.25 : 1.10;
+      const onsetsRaw = detectOnsets(audioBuf, detSens, 30, detWinMs);
+      console.log('[ugc] detect (' + (isMp3 ? 'MP3' : 'OGG') + ', win=' + detWinMs + 'ms, sens=' + detSens + '): ' + onsetsRaw.length + ' onsets');
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
       // BPM 자동 검출 — onset interval histogram peak (실제 곡 박자에 quantize grid 맞춤)
