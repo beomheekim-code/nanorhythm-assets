@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518145002;
+window.__BUILD_TS = 20260518152001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3200,9 +3200,12 @@ function _ugcLibrosaDetect(audioBuf) {
   // 2. Onset strength (librosa default params)
   const nFft = 2048, hop = 512, nMels = 128;
   const env = _ugcOnsetStrength(audio, sr, hop, nFft, nMels);
-  // 3. Peak picking — delta=0.05 (라이브 76곡 chart-gen 와 동일, 2026-05-18 강도 ↑)
-  //    pre/post_max/avg defaults — 3/3/10/10 (similar to librosa)
-  const peaks = _ugcPeakPick(env, 0.05, 3, 3, 3, 10, 10);
+  // 3. Peak picking — librosa.onset.onset_detect default params 정확 매칭 (2026-05-18 회귀 fix).
+  //    이전 (3/3/10/10) 은 librosa default (1/0/4/4) 보다 너무 보수적이라 노트 부족.
+  //    librosa default: pre_max=0.03s, post_max=0.00s, pre_avg=0.10s, post_avg=0.10s, wait=0.03s, delta=0.07.
+  //    frame = 23.2ms (hop=512, sr=22050) → pre_max=1, post_max=0, pre_avg=4, post_avg=4, wait=1.
+  //    delta=0.05 유지 (라이브 chart-gen 과 동일, 보수적 0.07 보다 sensitive).
+  const peaks = _ugcPeakPick(env, 0.05, 1, 1, 0, 4, 4);
   // 4. Backtrack to local min
   const tracked = _ugcBacktrack(env, peaks);
   // 5. BPM
@@ -6027,37 +6030,22 @@ function _songRawDifficulty(song) {
   if (typeof song.levelBonus === 'number') raw += song.levelBonus;
   return Math.max(0.05, raw);
 }
-// ★ 모든 (song, diff) 조합의 score 캐시 + 전체 percentile 매핑.
-//   사용자: A곡 보통 = 3 > B곡 지옥 = 2 가능. 절대 비교 = 전체 (song, diff) 분포 기반.
-let _songLevelCache = null;
-function _ensureSongLevelCache() {
-  if (_songLevelCache && _songLevelCache.n === songs.length) return _songLevelCache;
-  const arr = [];
-  for (let s = 0; s < songs.length; s++) {
-    const raw = _songRawDifficulty(songs[s]);
-    for (let d = 0; d < DIFFICULTIES.length; d++) {
-      const mul = DIFFICULTIES[d].noteDensity || 0.5;
-      arr.push({ s, d, score: raw * mul });
-    }
-  }
-  arr.sort((a, b) => a.score - b.score);
-  const map = {};
-  for (let r = 0; r < arr.length; r++) {
-    const p = arr.length > 1 ? r / (arr.length - 1) : 0.5;
-    map[arr[r].s + '_' + arr[r].d] = p;
-  }
-  _songLevelCache = { n: songs.length, map };
-  return _songLevelCache;
-}
-// ★ 곡+난이도 레벨: 모든 (song, diff) 절대 비교. 1~15.
+// ★ Level 계산 — 절대 score 매핑 (2026-05-18 재설계, DJMAX 스타일).
+//   이전: percentile rank 기반 — 전 곡 분포 의존 → 한 곡 추가/삭제로 다른 곡 level 변동.
+//        같은 곡 4난이도 사이 8 level 차이 (체리블라썸 6→14) 발생.
+//   새: 절대 score (raw × mul) 직접 → level 매핑. 곡 추가 영향 0, 같은 곡 mul 비례.
+//   LEVEL_DIFF_MUL: 쉬움 0.5 / 보통 0.75 / 어려움 1.0 / 지옥 1.2 (range 2.4배, DJMAX 5~7 차이).
+const LEVEL_DIFF_MUL = [0.5, 0.75, 1.0, 1.2];
 function calcLevel(songIdx, diffIdx) {
-  const cache = _ensureSongLevelCache();
-  const key = songIdx + '_' + (diffIdx != null ? diffIdx : 1);
-  const pct = cache.map[key] != null ? cache.map[key] : 0.5;
+  const song = songs[songIdx];
+  if (!song) return 1;
+  const raw = _songRawDifficulty(song);
+  const di = (diffIdx != null) ? diffIdx : 1;
+  const mul = LEVEL_DIFF_MUL[di] || 1.0;
   const laneAdj = (laneCount - 6) * 0.05;  // 키 수 보정 (약하게)
-  const score = Math.max(0, Math.min(1, pct + laneAdj));
-  const lvl = Math.round(1 + score * 14);
-  return Math.max(1, Math.min(15, lvl));
+  // score = raw × mul + laneAdj, then linear map [0, 1] → [1, 15]
+  const score = Math.max(0, Math.min(1, raw * mul + laneAdj));
+  return Math.max(1, Math.min(15, Math.round(1 + score * 14)));
 }
 let selectedDiff = 1;
 let selectedSpeed = 1.0;
