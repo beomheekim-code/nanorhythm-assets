@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518125002;
+window.__BUILD_TS = 20260518131001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -6853,6 +6853,22 @@ function claimMail(mailId) {
   //   admin 이 newer ts 로 재발행하면 mail.ts > claimedAt → 통과 → 재지급.
   if (_isClaimed(mailId, item.ts)) { m[idx] = { ...item, claimed: true }; saveMailbox(m); return; }
   if (item.reward) addCoins(item.reward);
+  // ★ 28일 패스 지급 mail 지원 (admin 발송) — mail.passDays = 28 형식.
+  //   기존 expiry 가 미래면 그 위에 N일 추가 (cumulative). 과거/없으면 now + N일.
+  if (item.passDays && item.passDays > 0) {
+    const keyPass = 'rhythm_pass_' + (currentUser || 'guest');
+    const keyBought = 'rhythm_passBought_' + (currentUser || 'guest');
+    const cur = parseInt(safeGetItem(keyPass) || '0');
+    const base = (cur && cur > Date.now()) ? cur : Date.now();
+    const expiry = base + item.passDays * 24 * 60 * 60 * 1000;
+    safeSetItem(keyPass, '' + expiry);
+    safeSetItem(keyBought, '1');
+    if (currentUser && fbDb) try {
+      fbDb.ref('settings/' + currentUser + '/passExpiry').set(expiry);
+      fbDb.ref('settings/' + currentUser + '/passBought').set(true);
+    } catch(e) {}
+    try { showLoginToast(item.passDays + '일 패스 지급 완료!', '#b464ff', null, 3); } catch(e) {}
+  }
   m[idx] = { ...item, claimed: true };
   saveMailbox(m);
   addClaimedMailRecord(mailId, item.ts || Date.now()); // ts-aware 기록
@@ -17734,7 +17750,7 @@ function renderTitle() {
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
-      { key: 'mymusic', label: '나만의 모드', desc: '내 음악 파일로 직접 차트 생성 (28일 패스 필요)', color: '#b464ff' },
+      { key: 'mymusic', label: '나만의 모드', desc: '내 OGG 파일로 직접 노래 연주 (28일 패스 필요)', color: '#b464ff' },
       { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
     const _mc = modes.length;
