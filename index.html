@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518161002;
+window.__BUILD_TS = 20260518163001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3206,16 +3206,17 @@ function _ugcLibrosaDetect(audioBuf) {
   } else {
     for (let i = 0; i < len; i++) audio[i] = ch0[i * ratio];
   }
-  // 2. Multi-band Onset strength (라이브 stem-별 검출 의사, 2026-05-18).
-  //    이전 (single mix envelope) = 258 onsets vs 라이브 librosa 1325 (stem 분리). 5배 차이.
-  //    fix: mel band 를 3 cluster (low/mid/high) 로 분리 → 각 band 별 detect → merge + 30ms dedup.
-  const nFft = 2048, hop = 512, nMels = 128, numBands = 3;
+  // 2. Multi-band Onset strength (95% push, 2026-05-18).
+  //    이전: numBands=3, delta=0.05, hop=512 → 689 onsets (라이브 1325 의 41%)
+  //    새:  numBands=6, delta=0.03, hop=256 → 라이브 75~85% 추정
+  //    95% 본질 한계 (mix detect vs stem detect) — Spleeter WASM / 서버 backend 필요.
+  const nFft = 2048, hop = 256, nMels = 128, numBands = 6;
   const envs = _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — librosa default params (delta=0.05, wait=1, pre/post_max=1/0, pre/post_avg=4/4)
+  // 3. Per-band peak picking — delta 0.03 (sensitive). frame=11.6ms.
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.05, 1, 1, 0, 4, 4);
+    const peaks = _ugcPeakPick(env, 0.03, 2, 2, 0, 8, 8);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
@@ -3342,8 +3343,8 @@ async function handleMyMusicFile(e) {
       fp = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // v14: multi-band detection (3 cluster, 라이브 stem 분리 의사) → v14 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v15_' + fpHash : null;
+    // v14: multi-band 6 cluster + delta 0.03 + hop 256 (95% push) → v15 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v16_' + fpHash : null;
     console.log('[ugc] OGG cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
