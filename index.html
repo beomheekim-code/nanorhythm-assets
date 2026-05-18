@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518183002;
+window.__BUILD_TS = 20260518184001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3473,7 +3473,7 @@ function showUgcSetupOverlay() {
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
   el.innerHTML = '<div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:380px;width:100%;">' +
-    '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 노래 연주</div>' +
+    '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 노래연주</div>' +
     '<div style="font-size:13px;color:#ccc;margin-bottom:18px;word-break:break-all;">' + ((_ugcSong && _ugcSong.name) || '곡') + '</div>' +
     '<div style="font-size:11px;color:#aaa;margin-bottom:6px;">난이도</div>' +
     '<div id="ugcDiff" style="display:flex;gap:6px;margin-bottom:14px;">' +
@@ -18047,7 +18047,7 @@ function renderTitle() {
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
-      { key: 'mymusic', label: '나만의 노래 연주', desc: '내 OGG 파일로 직접 연주 (28일 패스 필요)', color: '#b464ff' },
+      { key: 'mymusic', label: '나만의 노래연주', desc: '내 OGG 파일로 직접 연주 (28일 패스 필요)', color: '#b464ff' },
       { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
     const _mc = modes.length;
