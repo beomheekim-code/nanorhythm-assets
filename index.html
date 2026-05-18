@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519005016;
+window.__BUILD_TS = 20260519005017;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3445,7 +3445,11 @@ async function handleMyMusicFile(e) {
       _simSlotStart += _simMinGap;
     }
     const _simNps = _simEnd > 0 ? _simCount / _simEnd : 1.0;
-    console.log('[ugc] simNps=' + _simNps.toFixed(2) + ' (raw=' + chartOnsets.length + ', dur=' + dur.toFixed(1) + 's)');
+    // ★ rawOnsetNps — 음악 자체 dense 측정 (slot filter 무관). 라이브와 동일 메커니즘.
+    //   _songRawDifficulty 의 rawOnsetNps 분기 (weight 0.3) 가 활용 → 음악 dense 한 UGC 곡 표시 ↑.
+    //   2026-05-18 사용자 요청 'UGC fix 된 규칙에 맞게'.
+    const _rawOnsetNps = _simEnd > 0 ? chartOnsets.length / _simEnd : 1.0;
+    console.log('[ugc] simNps=' + _simNps.toFixed(2) + ' rawOnsetNps=' + _rawOnsetNps.toFixed(2) + ' (raw=' + chartOnsets.length + ', dur=' + dur.toFixed(1) + 's)');
     _ugcSong = {
       name: baseName, sub: 'MY MUSIC', bpm: detectedBpm,
       color: '#b464ff', bg1: '#0a0418', bg2: '#1a0830',
@@ -3457,6 +3461,8 @@ async function handleMyMusicFile(e) {
       pattern: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
       slotSubdivision: 1.0,
       simNps: +_simNps.toFixed(2), // ★ 라이브와 동일 단위, _songRawDifficulty 가 우선 사용
+      rawOnsetNps: +_rawOnsetNps.toFixed(2), // ★ 음악 dense bonus (weight 0.3 in _songRawDifficulty)
+      chordMode: true, // ★ 라이브 곡 대부분과 동일 — chord 자동 보강 받게
       _ugc: true,
       _audioBuffer: audioBuf,
       _chartJson: { version: 1, generator: 'js-ugc', bpm_input: detectedBpm, bpm_detected: detectedBpm, sr: audioBuf.sampleRate, onsets: chartOnsets },
