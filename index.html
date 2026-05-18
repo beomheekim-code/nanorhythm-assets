@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519000002;
+window.__BUILD_TS = 20260519001001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4430,10 +4430,13 @@ const songs = [
     stemDir: 'Music/ATLANTIS/',
     stemPrefix: 'ATLANTIS',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    slotSubdivision: 0.75,  // ★ 초기버전 복원 — 풍성 작업과 같이 진행 (chord/hold ↑)
+    slotSubdivision: 0.75,
     endCutoff: 155.7,
     stemSensitivity: { 2: 0.9, 3: 0.9, 4: 0.95 },
     stemMinGap: { 2: 20, 3: 20 },
+    // ★ ambient 곡 onset filter — 신스 잔향/sustain artifact 제거 (energy < 1.5 컷, ~17%).
+    //   '리듬 없는 곳 노트' fix (사용자 보고 2026-05-18).
+    minOnsetEnergy: 1.5,
     levelBonus: 0.0,
     simNps: 2.85,
     rawOnsetNps: 9.69,
@@ -10193,7 +10196,10 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   // 하한 필터 제거: quiet 구간(피아노 인트로 등) 노트 드랍 방지
-  const nonSilent = merged;
+  // ★ ambient 곡 옵션 — song.minOnsetEnergy 이하 onset 제거 (신스 잔향/sustain artifact 컷)
+  //   ATLANTIS 같은 ambient 곡에서 '리듬 없는 곳 노트' 원인 fix.
+  const _minOE = song.minOnsetEnergy || 0;
+  const nonSilent = _minOE > 0 ? merged.filter(o => (o.energy || 0) >= _minOE) : merged;
 
   // 난이도 필터링 — slot-based (815d64e 원본 방식, 안정 베이스 리듬).
   // 각 slot 에서 에너지 최강 1개 선택. 규칙적 리듬 구조 유지.
@@ -11323,8 +11329,8 @@ function startSong(idx) {
       //   cache key = songIdx_diffIdx_bpm. LRU 5곡 limit (메모리 ~250KB).
       //   ★ UGC: songIdx 가 다른 곡끼리 충돌 (모두 songs.length-1) → cache skip.
       const _isUgcChart = curSong && curSong._ugc;
-      // v3: chord/hold/triple 보강 (풍성 작업) → v2 cache 무효화
-      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v3';
+      // v4: minOnsetEnergy 필터 추가 (풍성 작업) → v2 cache 무효화
+      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v4';
       window.__nodesCache = window.__nodesCache || new Map();
       const _cachedNodes = _isUgcChart ? null : window.__nodesCache.get(_cacheKey);
       if (_cachedNodes && Array.isArray(_cachedNodes)) {
