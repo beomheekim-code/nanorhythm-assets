@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518184002;
+window.__BUILD_TS = 20260518185001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3181,17 +3181,30 @@ function _ugcEstimateBpmFromEnv(env, sr, hop) {
   const fps = sr / hop;
   const minLag = Math.max(1, Math.floor(fps * 60 / 200));
   const maxLag = Math.ceil(fps * 60 / 60);
-  let bestLag = 0, bestScore = 0;
+  const scores = new Float32Array(maxLag - minLag + 1);
   for (let lag = minLag; lag <= maxLag; lag++) {
     let score = 0;
     for (let i = lag; i < env.length; i++) score += env[i] * env[i - lag];
-    if (score > bestScore) { bestScore = score; bestLag = lag; }
+    scores[lag - minLag] = score;
   }
-  if (bestLag === 0) return 120;
-  let bpm = 60 / (bestLag / fps);
+  // peak idx
+  let bestIdx = 0, bestScore = 0;
+  for (let i = 0; i < scores.length; i++) {
+    if (scores[i] > bestScore) { bestScore = scores[i]; bestIdx = i; }
+  }
+  if (bestScore === 0) return 120;
+  // ★ Parabolic interpolation (sub-bin precision) — BPM 정확도 ↑ (정수 lag round 시 ±2 BPM 오차 fix).
+  //   3-point quadratic fit, peak offset = (a-c) / (2 * (a-2b+c)).
+  let exactLag = bestIdx + minLag;
+  if (bestIdx > 0 && bestIdx < scores.length - 1) {
+    const a = scores[bestIdx - 1], b = scores[bestIdx], c = scores[bestIdx + 1];
+    const denom = 2 * (a - 2 * b + c);
+    if (denom !== 0) exactLag += (a - c) / denom;
+  }
+  let bpm = 60 / (exactLag / fps);
   while (bpm > 200) bpm /= 2;
   while (bpm < 80) bpm *= 2;
-  return Math.round(bpm);
+  return Math.round(bpm * 2) / 2; // 0.5 BPM 단위 (정수 round 보다 정밀)
 }
 
 // Main entry — librosa-style detection. AudioBuffer → { onsets: [{t,energy}], bpm }
@@ -3360,8 +3373,8 @@ async function handleMyMusicFile(e) {
       fp = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // v14: pre-emphasis filter 추가 (drums/hi-hat 검출 ↑) → v16 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v17_' + fpHash : null;
+    // v14: BPM parabolic interp (sub-bin precision, ±2 BPM 오차 fix) → v17 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v18_' + fpHash : null;
     console.log('[ugc] OGG cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
