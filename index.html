@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518100636;
+window.__BUILD_TS = 20260518102155;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3085,8 +3085,9 @@ async function handleMyMusicFile(e) {
     try {
       fpHash = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
-    // v5: fingerprint v2 (leading silence trim + max-normalize + 4-bit) → v4 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v5_' + fpHash : null;
+    // v6: MP3 detect params 회귀 fix (winMs 10→5, sens 1.25→1.15) → v5 bad cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v6_' + fpHash : null;
+    console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3097,6 +3098,7 @@ async function handleMyMusicFile(e) {
         }
       } catch(e) {}
     }
+    if (!cachedOnsets) console.log('[ugc] cache MISS (' + cacheKey + ') — running fresh detect');
     let chartOnsets;
     let detectedBpm = 120;
     if (cachedOnsets) {
@@ -3110,12 +3112,11 @@ async function handleMyMusicFile(e) {
       } catch(e) {}
     } else {
       await new Promise(r => setTimeout(r, 30));
-      // ★ MP3 는 codec noise (MDCT pre-echo, quantization) 가 짧은 윈도우에서 false onset
-      //   유발 → OGG 와 다른 chart. 더 큰 윈도우 + 높은 sensitivity 로 평균화/필터.
-      //   OGG: 5ms/1.10 (정밀), MP3: 10ms/1.25 (codec noise 둔감화)
+      // ★ MP3 codec noise 미세 필터 — winMs 는 OGG 와 동일 5ms (1617→528 회귀 fix).
+      //   sens 만 1.10→1.15 로 살짝 ↑. 공격적이면 OGG 와 별곡 됨.
       const isMp3 = lower.endsWith('.mp3');
-      const detWinMs = isMp3 ? 10 : 5;
-      const detSens = isMp3 ? 1.25 : 1.10;
+      const detWinMs = 5;
+      const detSens = isMp3 ? 1.15 : 1.10;
       const onsetsRaw = detectOnsets(audioBuf, detSens, 30, detWinMs);
       console.log('[ugc] detect (' + (isMp3 ? 'MP3' : 'OGG') + ', win=' + detWinMs + 'ms, sens=' + detSens + '): ' + onsetsRaw.length + ' onsets');
       const STEMS = [0, 1, 3, 5, 6];
