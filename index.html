@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518215002;
+window.__BUILD_TS = 20260518220001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3917,7 +3917,11 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 104.7,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
-    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만, levelBonus: -0.3, simNps: 1.91, rawOnsetNps: 6.09},
+    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만
+    levelBonus: -0.3,
+    simNps: 1.91,
+    rawOnsetNps: 6.09,
+  },
   {
     name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
     bg1: '#0a0015', bg2: '#180025', bars: 81,
@@ -4005,7 +4009,11 @@ const songs = [
     slotSubdivision: 0.75,  // 2026-05-15 tweak
     endCutoff: 142.2,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
-    excludeStems: [4], // instrum만 사용 (메인 트랙), levelBonus: 0.2, simNps: 3.75, rawOnsetNps: 7.56},
+    excludeStems: [4], // instrum만 사용 (메인 트랙)
+    levelBonus: 0.2,
+    simNps: 3.75,
+    rawOnsetNps: 7.56,
+  },
   {
     name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 180, color: '#66d4ff',
     bg1: '#0a1828', bg2: '#163450', bars: 60,
@@ -4026,7 +4034,10 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 109.2,
     pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0],
-    excludeStems: [4, 5], // piano, guitar 빈 스템, simNps: 1.71, rawOnsetNps: 5.86},
+    excludeStems: [4, 5], // piano, guitar 빈 스템
+    simNps: 1.71,
+    rawOnsetNps: 5.86,
+  },
   {
     name: 'Vincere Aut Mori', sub: 'EPIC/BATTLE', bpm: 120, color: '#ff3344',
     bg1: '#1c0608', bg2: '#3a0c10', bars: 59,
@@ -4037,7 +4048,10 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 115.7,
     pattern: [1,0,1,1,0,1,0,1, 1,0,1,0,1,1,0,1],
-    excludeStems: [1, 4], // bass, piano 빈 스템, simNps: 1.71, rawOnsetNps: 6.65},
+    excludeStems: [1, 4], // bass, piano 빈 스템
+    simNps: 1.71,
+    rawOnsetNps: 6.65,
+  },
   {
     name: "Let's Go Shopping!", sub: 'Bright Pop', bpm: 152,
     color: '#ff6699', bg1: '#4a0028', bg2: '#1a0a1a',
