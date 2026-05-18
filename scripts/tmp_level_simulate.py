@@ -131,50 +131,82 @@ def main():
             patches.append({'name': s['name'], 'prefix': s['stemPrefix'], 'current': current, 'suggested': sug, 'nps': nps})
     print(f'\n변경 필요: {len(patches)} 곡')
 
-    # index.html 패치
-    if patches:
-        print('\n--- 패치 적용 중 ---')
-        src = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
-        new_src = src
-        applied = 0
-        for p in patches:
-            # 곡 객체 찾기 — name 정확 매칭
-            name = p['name']
-            # 객체 시작점: name: 'X' 또는 name: "X"
-            name_pat = re.escape(name)
-            obj_pat = re.compile(
-                r"\{[^{}]*name:\s*['\"]" + name_pat + r"['\"][^{}]*\}",
-                re.DOTALL
-            )
-            m = obj_pat.search(new_src)
-            if not m:
-                print(f'  [매칭 실패] {name}')
+    # ★ simNps 패치 (모든 곡) + levelBonus 패치 (변경 필요 곡만)
+    print('\n--- simNps + levelBonus 패치 적용 중 ---')
+    src = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
+    new_src = src
+    sim_applied = 0
+    bonus_applied = 0
+    # 모든 곡 — simNps 패치 (raw difficulty 계산 기반)
+    all_nps = {}
+    for s in songs:
+        cj_path = os.path.join(MUSIC, s['stemPrefix'], 'chart.json')
+        if not os.path.exists(cj_path):
+            continue
+        try:
+            cj = json.load(open(cj_path, encoding='utf-8'))
+            onsets = cj.get('onsets') or []
+            if not onsets:
                 continue
-            obj = m.group(0)
+            max_t = max(o['t'] for o in onsets)
+            if max_t < 5:
+                continue
+            filt = simulate_slot_filter(onsets, s['bpm'], s.get('slotSubdivision', 1))
+            all_nps[s['name']] = (filt / max_t, s['stemPrefix'])
+        except Exception:
+            continue
+
+    patches_map = {p['name']: p for p in patches}
+
+    for name, (nps_val, prefix) in all_nps.items():
+        name_pat = re.escape(name)
+        obj_pat = re.compile(
+            r"\{[^{}]*name:\s*['\"]" + name_pat + r"['\"][^{}]*\}",
+            re.DOTALL
+        )
+        m = obj_pat.search(new_src)
+        if not m:
+            print(f'  [매칭 실패] {name}')
+            continue
+        obj = m.group(0)
+        new_obj = obj
+        # simNps 패치 (소수점 2자리)
+        nps_rounded = round(nps_val, 2)
+        if 'simNps' in new_obj:
+            new_obj = re.sub(
+                r"simNps:\s*-?[0-9.]+",
+                f"simNps: {nps_rounded}",
+                new_obj
+            )
+        else:
+            # 맨 뒤 } 직전에 삽입
+            idx = new_obj.rfind('}')
+            tail = new_obj[:idx].rstrip()
+            sep = ',' if not tail.endswith(',') else ''
+            new_obj = tail + f'{sep} simNps: {nps_rounded}\n  }}'
+        # levelBonus 패치 (변경 필요한 경우만)
+        if name in patches_map:
+            p = patches_map[name]
             new_bonus = p['suggested']
-            # levelBonus 존재 여부
-            if 'levelBonus' in obj:
-                # 기존 값 교체
+            if 'levelBonus' in new_obj:
                 new_obj = re.sub(
                     r"levelBonus:\s*-?[0-9.]+",
                     f"levelBonus: {new_bonus}",
-                    obj
+                    new_obj
                 )
             else:
-                # 추가 — 맨 뒤 } 직전에 삽입
-                idx = obj.rfind('}')
-                # 마지막 prop 뒤 쉼표 있는지 확인
-                tail = obj[:idx].rstrip()
-                if not tail.endswith(','):
-                    new_obj = tail + ', levelBonus: ' + str(new_bonus) + '\n  }'
-                else:
-                    new_obj = tail + ' levelBonus: ' + str(new_bonus) + '\n  }'
-            if new_obj != obj:
-                new_src = new_src.replace(obj, new_obj, 1)
-                applied += 1
-        with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
-            f.write(new_src)
-        print(f'적용 완료: {applied} 곡')
+                idx = new_obj.rfind('}')
+                tail = new_obj[:idx].rstrip()
+                sep = ',' if not tail.endswith(',') else ''
+                new_obj = tail + f'{sep} levelBonus: {new_bonus}\n  }}'
+            bonus_applied += 1
+        if new_obj != obj:
+            new_src = new_src.replace(obj, new_obj, 1)
+            if 'simNps' in new_obj:
+                sim_applied += 1
+    with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
+        f.write(new_src)
+    print(f'simNps 패치: {sim_applied} 곡 / levelBonus 패치: {bonus_applied} 곡')
 
 
 if __name__ == '__main__':
