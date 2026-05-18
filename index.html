@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518120002;
+window.__BUILD_TS = 20260518123001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3069,48 +3069,6 @@ async function _ugcAudioFingerprint(audioBuf) {
   return { hex, buckets: Array.from(buckets) };
 }
 
-// 라이브러리 fingerprint 매칭 (2026-05-18) — 라이브러리 곡 OGG/MP3 업로드 시 librosa pre-gen chart 재사용.
-//   ① hex 정확 매칭: 라이브러리 OGG 그대로 업로드 = 100% 동일 chart
-//   ② bucket Hamming distance ≤ 8: MP3↔OGG codec 차로 hex 달라도 buckets 거의 같음 → 매칭
-//   결과: matched lib entry { name, prefix, file, b } 또는 null
-let _ugcLibFingerprints = null;
-async function _ugcLoadLibFingerprints() {
-  if (_ugcLibFingerprints) return _ugcLibFingerprints;
-  try {
-    const url = (typeof CDN_BASE === 'string' && CDN_BASE) ? CDN_BASE + 'lib_fingerprints.json' : 'lib_fingerprints.json';
-    const r = await fetch(url);
-    _ugcLibFingerprints = r.ok ? await r.json() : {};
-    console.log('[ugc] lib fingerprints loaded:', Object.keys(_ugcLibFingerprints).length);
-  } catch (e) {
-    console.warn('[ugc] lib fingerprints load 실패:', e);
-    _ugcLibFingerprints = {};
-  }
-  return _ugcLibFingerprints;
-}
-async function _ugcMatchLibrary(fp) {
-  const lib = await _ugcLoadLibFingerprints();
-  if (lib[fp.hex]) {
-    console.log('[ugc] LIBRARY HEX MATCH:', lib[fp.hex].name);
-    return lib[fp.hex];
-  }
-  // Hamming distance fallback — MP3 ↔ OGG codec 차로 hex 다를 때
-  let best = null, bestDist = 999, bestName = '';
-  const myB = fp.buckets;
-  for (const [hex, entry] of Object.entries(lib)) {
-    const libB = entry.b;
-    if (!libB || libB.length !== myB.length) continue;
-    let d = 0;
-    for (let i = 0; i < myB.length; i++) if (myB[i] !== libB[i]) d++;
-    if (d < bestDist) { bestDist = d; best = entry; bestName = entry.name; }
-  }
-  if (best && bestDist <= 8) {
-    console.log('[ugc] LIBRARY FUZZY MATCH:', bestName, '(Hamming=' + bestDist + '/' + myB.length + ')');
-    return best;
-  }
-  console.log('[ugc] no library match (closest: ' + bestName + ' Hamming=' + bestDist + ')');
-  return null;
-}
-
 
 function showMyMusicFilePicker() {
   if (_ugcProcessing) return;
@@ -3163,14 +3121,9 @@ async function handleMyMusicFile(e) {
       fp = await _ugcAudioFingerprint(detectBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // ★ Library fingerprint 매칭 — 라이브러리 곡이면 librosa pre-gen chart 재사용 (MP3/OGG 일치 보장).
-    let libMatch = null;
-    if (fp) {
-      try { libMatch = await _ugcMatchLibrary(fp); } catch(e) { console.warn('[ugc] lib match 실패:', e); }
-    }
-    // v10: library 매칭 도입 → v9 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v10_' + fpHash : null;
-    console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey, libMatch ? '(LIB:' + libMatch.name + ')' : '');
+    // v11: library 매칭 제거 (사용자 거절 — 라이브러리 외 곡 MP3=OGG 본질 문제 미해결) → v10 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v11_' + fpHash : null;
+    console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3184,35 +3137,15 @@ async function handleMyMusicFile(e) {
     if (!cachedOnsets) console.log('[ugc] cache MISS (' + cacheKey + ') — running fresh detect');
     let chartOnsets;
     let detectedBpm = 120;
-    if (libMatch) {
-      // ★ Library 매칭 — librosa pre-gen chart.json fetch + 사용 (MP3/OGG 무관 100% 일치)
-      try {
-        const chartUrl = (typeof CDN_BASE === 'string' && CDN_BASE) ? CDN_BASE + 'Music/' + libMatch.prefix + '/chart.json' : 'Music/' + libMatch.prefix + '/chart.json';
-        const r = await fetch(chartUrl);
-        if (!r.ok) throw new Error('chart fetch ' + r.status);
-        const chart = await r.json();
-        chartOnsets = chart.onsets || [];
-        detectedBpm = chart.bpm_detected || chart.bpm_input || 120;
-        console.log('[ugc] LIBRARY CHART used:', libMatch.name, chartOnsets.length + ' onsets, BPM=' + detectedBpm);
-        // cache 도 저장 (다음 업로드 빠르게)
-        if (cacheKey) {
-          try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, bpm: detectedBpm, ts: Date.now(), lib: libMatch.name })); } catch(e) {}
-        }
-      } catch (e) {
-        console.warn('[ugc] library chart fetch 실패, fresh detect 폴백:', e);
-        libMatch = null; // 폴백 활성화
-      }
-    }
-    if (!libMatch && cachedOnsets) {
+    if (cachedOnsets) {
       console.log('[ugc] cache hit (' + cacheKey + ') ' + cachedOnsets.length + ' onsets');
       chartOnsets = cachedOnsets;
-      // cache 안의 bpm 도 복원
       try {
         const raw = localStorage.getItem(cacheKey);
         const parsed = raw && JSON.parse(raw);
         if (parsed && parsed.bpm && parsed.bpm >= 60 && parsed.bpm <= 200) detectedBpm = parsed.bpm;
       } catch(e) {}
-    } else if (!libMatch) {
+    } else {
       await new Promise(r => setTimeout(r, 30));
       // ★ detect — OGG: raw audioBuf, MP3: inline HP 40Hz filtered. 둘 다 sens=1.10/win=5ms 동일.
       const onsetsRaw = detectOnsets(detectBuf, 1.10, 30, 5);
