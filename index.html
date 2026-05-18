@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518200002;
+window.__BUILD_TS = 20260518202001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4464,21 +4464,21 @@ const songs = [
     vocalIntroRange: 'auto', chordMode: true, simNps: 2.63
   },
   {
-    name: 'ATLANTIS', sub: 'OCEAN AMBIENT', bpm: 129,
+    name: 'ATLANTIS', sub: 'OCEAN AMBIENT', bpm: 172,
     color: '#4287f5', bg1: '#050a14', bg2: '#0a1428',
     bars: 57, file: 'Music/ATLANTIS.ogg',
     cover: 'Music/ATLANTIS/ATLANTIS.png',
     stemDir: 'Music/ATLANTIS/',
     stemPrefix: 'ATLANTIS',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    slotSubdivision: 1.0,  // BPM 129 + slot 1.0 = minGap 232ms = drums 4분음표 박자와 align
+    slotSubdivision: 0.5,
     endCutoff: 155.7,
-    // ★ 2026-05-18: instrum 제외 — instrum 만 dense 16분 (186ms 간격, 808 onsets) 라
-    //   drums/bass 박자와 어긋남. instrum 제외 후 drums 232ms / bass 186ms / other 209ms.
-    //   slot 232ms 가 drums 4분 박자와 align.
-    excludeStems: [3],
+    // ★ 2026-05-18: 진짜 BPM 172 (librosa beat_track 결과). 이전 86 BPM 잘못.
+    //   drums 간격 186ms ≈ 172 BPM 의 8분음표 (174ms). drums+bass 만 사용해 신스 패드
+    //   잔향 제거. slot 0.5 (minGap 87ms = 16분) 로 모든 onset 살림 → 박자 align + dense.
+    excludeStems: [2, 3, 4, 5, 6],
     levelBonus: 0.0,
-    simNps: 2.14,
+    simNps: 4.56,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
   },
