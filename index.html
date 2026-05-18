@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518153002;
+window.__BUILD_TS = 20260518155001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3072,18 +3072,27 @@ function _ugcMelFilterBankSparse(sr, nFft, nMels) {
 }
 
 // STFT magnitude → mel power → log power → spectral flux envelope
-function _ugcOnsetStrength(audio, sr, hop, nFft, nMels) {
+// STFT → mel → log power → spectral flux envelopes per band (multi-band).
+//   라이브 librosa 가 6 stem 별 검출 → merge 효과 흉내 (mel band cluster 분리).
+//   numBands=3: low (0~~1/3 mel) ~ drums+bass, mid (1/3~2/3) ~ piano+guitar, high (2/3~) ~ vocals+synth.
+function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands) {
   const window = _ugcHann(nFft);
-  const numBins = (nFft >> 1) + 1;
   const numFrames = Math.max(0, Math.floor((audio.length - nFft) / hop) + 1);
   const melFb = _ugcMelFilterBankSparse(sr, nFft, nMels);
   const real = new Float64Array(nFft);
   const imag = new Float64Array(nFft);
   const amin = 1e-10;
-  // prev frame mel log-power (rolling)
+  const bandRanges = [];
+  for (let b = 0; b < numBands; b++) {
+    bandRanges.push({
+      lo: Math.floor(b * nMels / numBands),
+      hi: Math.floor((b + 1) * nMels / numBands),
+    });
+  }
+  const envs = [];
+  for (let b = 0; b < numBands; b++) envs.push(new Float32Array(numFrames));
   const prevLog = new Float32Array(nMels);
   const curLog = new Float32Array(nMels);
-  const env = new Float32Array(numFrames);
   for (let f = 0; f < numFrames; f++) {
     const offset = f * hop;
     for (let i = 0; i < nFft; i++) {
@@ -3091,29 +3100,29 @@ function _ugcOnsetStrength(audio, sr, hop, nFft, nMels) {
       imag[i] = 0;
     }
     _ugcFFT(real, imag);
-    // mel power per band (sparse projection)
     for (let m = 0; m < nMels; m++) {
       const flt = melFb[m];
       let sum = 0;
       for (let k = 0; k < flt.bins.length; k++) {
-        const b = flt.bins[k];
-        const mag2 = real[b] * real[b] + imag[b] * imag[b]; // power = |X|^2
-        sum += flt.wts[k] * mag2;
+        const bn = flt.bins[k];
+        sum += flt.wts[k] * (real[bn] * real[bn] + imag[bn] * imag[bn]);
       }
-      curLog[m] = 10 * Math.log10(Math.max(amin, sum)); // log power (dB)
+      curLog[m] = 10 * Math.log10(Math.max(amin, sum));
     }
     if (f > 0) {
-      let flux = 0;
-      for (let m = 0; m < nMels; m++) {
-        const d = curLog[m] - prevLog[m];
-        if (d > 0) flux += d;
+      for (let b = 0; b < numBands; b++) {
+        const { lo, hi } = bandRanges[b];
+        let flux = 0;
+        for (let m = lo; m < hi; m++) {
+          const d = curLog[m] - prevLog[m];
+          if (d > 0) flux += d;
+        }
+        envs[b][f] = flux / Math.max(1, hi - lo);
       }
-      env[f] = flux / nMels;
     }
-    // swap prev <-> cur
     for (let m = 0; m < nMels; m++) prevLog[m] = curLog[m];
   }
-  return env;
+  return envs;
 }
 
 // Peak picking — librosa.util.peak_pick params (delta, wait, pre/post_max, pre/post_avg)
@@ -3197,29 +3206,38 @@ function _ugcLibrosaDetect(audioBuf) {
   } else {
     for (let i = 0; i < len; i++) audio[i] = ch0[i * ratio];
   }
-  // 2. Onset strength (librosa default params)
-  const nFft = 2048, hop = 512, nMels = 128;
-  const env = _ugcOnsetStrength(audio, sr, hop, nFft, nMels);
-  // 3. Peak picking — librosa.onset.onset_detect default params 정확 매칭 (2026-05-18 회귀 fix).
-  //    이전 (3/3/10/10) 은 librosa default (1/0/4/4) 보다 너무 보수적이라 노트 부족.
-  //    librosa default: pre_max=0.03s, post_max=0.00s, pre_avg=0.10s, post_avg=0.10s, wait=0.03s, delta=0.07.
-  //    frame = 23.2ms (hop=512, sr=22050) → pre_max=1, post_max=0, pre_avg=4, post_avg=4, wait=1.
-  //    delta=0.05 유지 (라이브 chart-gen 과 동일, 보수적 0.07 보다 sensitive).
-  const peaks = _ugcPeakPick(env, 0.05, 1, 1, 0, 4, 4);
-  // 4. Backtrack to local min
-  const tracked = _ugcBacktrack(env, peaks);
-  // 5. BPM
-  const bpm = _ugcEstimateBpmFromEnv(env, sr, hop);
-  // Onsets with energy attached
-  const onsets = [];
-  for (let i = 0; i < tracked.length; i++) {
-    const f = tracked[i];
-    onsets.push({ t: f * hop / sr, energy: env[f] || 0.001 });
+  // 2. Multi-band Onset strength (라이브 stem-별 검출 의사, 2026-05-18).
+  //    이전 (single mix envelope) = 258 onsets vs 라이브 librosa 1325 (stem 분리). 5배 차이.
+  //    fix: mel band 를 3 cluster (low/mid/high) 로 분리 → 각 band 별 detect → merge + 30ms dedup.
+  const nFft = 2048, hop = 512, nMels = 128, numBands = 3;
+  const envs = _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
+  // 3. Per-band peak picking — librosa default params (delta=0.05, wait=1, pre/post_max=1/0, pre/post_avg=4/4)
+  const allOnsets = [];
+  for (let b = 0; b < numBands; b++) {
+    const env = envs[b];
+    const peaks = _ugcPeakPick(env, 0.05, 1, 1, 0, 4, 4);
+    const tracked = _ugcBacktrack(env, peaks);
+    for (let i = 0; i < tracked.length; i++) {
+      const f = tracked[i];
+      allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
+    }
   }
-  // Intro filter (t<0.15 & energy<0.5) — match library policy
-  const filtered = onsets.filter(o => !(o.t < 0.15 && o.energy < 0.5));
+  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
+  allOnsets.sort((a, b) => a.t - b.t);
+  const merged = [];
+  for (const o of allOnsets) {
+    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
+      if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
+      continue;
+    }
+    merged.push(o);
+  }
+  // 5. BPM (low band envelope 가 박자 가장 명확 — drums/bass)
+  const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
+  // 6. Intro filter (t<0.15 & energy<0.5) — match library policy
+  const filtered = merged.filter(o => !(o.t < 0.15 && o.energy < 0.5));
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + env.length + ', peaks=' + peaks.length + ', final=' + filtered.length + ', BPM=' + bpm);
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', after dedup=' + merged.length + ', final=' + filtered.length + ', BPM=' + bpm);
   return { onsets: filtered, bpm };
 }
 
@@ -3324,8 +3342,8 @@ async function handleMyMusicFile(e) {
       fp = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // v14: librosa peak_pick params 라이브 default 매칭 (1/0/4/4) → v13 stale cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v14_' + fpHash : null;
+    // v14: multi-band detection (3 cluster, 라이브 stem 분리 의사) → v14 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v15_' + fpHash : null;
     console.log('[ugc] OGG cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
