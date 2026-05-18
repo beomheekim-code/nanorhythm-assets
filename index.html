@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518171002;
+window.__BUILD_TS = 20260518173001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3075,7 +3075,7 @@ function _ugcMelFilterBankSparse(sr, nFft, nMels) {
 // STFT → mel → log power → spectral flux envelopes per band (multi-band).
 //   라이브 librosa 가 6 stem 별 검출 → merge 효과 흉내 (mel band cluster 분리).
 //   numBands=3: low (0~~1/3 mel) ~ drums+bass, mid (1/3~2/3) ~ piano+guitar, high (2/3~) ~ vocals+synth.
-function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands) {
+async function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands) {
   const window = _ugcHann(nFft);
   const numFrames = Math.max(0, Math.floor((audio.length - nFft) / hop) + 1);
   const melFb = _ugcMelFilterBankSparse(sr, nFft, nMels);
@@ -3093,6 +3093,10 @@ function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands) {
   for (let b = 0; b < numBands; b++) envs.push(new Float32Array(numFrames));
   const prevLog = new Float32Array(nMels);
   const curLog = new Float32Array(nMels);
+  // ★ setTimeout chunk yield (2026-05-18) — main thread block 회귀 fix.
+  //   매 200 frames 마다 await setTimeout(0) → UI 렌더 가능, 굳음 X.
+  //   처리 시간 자체는 동일, 단지 main thread 점유 분산.
+  const YIELD_EVERY = 200;
   for (let f = 0; f < numFrames; f++) {
     const offset = f * hop;
     for (let i = 0; i < nFft; i++) {
@@ -3121,6 +3125,7 @@ function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands) {
       }
     }
     for (let m = 0; m < nMels; m++) prevLog[m] = curLog[m];
+    if (f % YIELD_EVERY === 0 && f > 0) await new Promise(r => setTimeout(r, 0));
   }
   return envs;
 }
@@ -3190,7 +3195,8 @@ function _ugcEstimateBpmFromEnv(env, sr, hop) {
 }
 
 // Main entry — librosa-style detection. AudioBuffer → { onsets: [{t,energy}], bpm }
-function _ugcLibrosaDetect(audioBuf) {
+//   async 화 (2026-05-18) — STFT loop 의 setTimeout chunk yield 위해.
+async function _ugcLibrosaDetect(audioBuf) {
   const t0 = performance.now();
   // 1. mono mix + downsample to 22050
   const ch0 = audioBuf.getChannelData(0);
@@ -3211,7 +3217,7 @@ function _ugcLibrosaDetect(audioBuf) {
   //    새:  numBands=6, delta=0.03, hop=256 → 라이브 75~85% 추정
   //    95% 본질 한계 (mix detect vs stem detect) — Spleeter WASM / 서버 backend 필요.
   const nFft = 2048, hop = 256, nMels = 128, numBands = 6;
-  const envs = _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
+  const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
   // 3. Per-band peak picking — delta 0.03 (sensitive). frame=11.6ms.
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
@@ -3527,7 +3533,7 @@ async function handleMyMusicFile(e) {
       await new Promise(r => setTimeout(r, 30));
       // ★ librosa-style detect (라이브 76곡 chart.json 과 동일 표준).
       //   spectral flux + mel filter + peak picking + autocorr BPM.
-      const lib = _ugcLibrosaDetect(audioBuf);
+      const lib = await _ugcLibrosaDetect(audioBuf);
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = lib.onsets.map((o, i) => ({
         t: +o.t.toFixed(4),
