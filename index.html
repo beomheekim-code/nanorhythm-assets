@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518174002;
+window.__BUILD_TS = 20260518181001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3304,161 +3304,6 @@ async function _ugcAudioFingerprint(audioBuf) {
 }
 
 
-// ===== Demucs WASM 모델 cache layer (IndexedDB) =====
-// 첫 사용 시 250MB 다운로드 → IndexedDB 저장 → 이후 즉시 로드.
-// ★ 임시 — 모델 변환 + HF 업로드 전 다운로드 UI 동작 테스트용 (작은 파일).
-//   Step 2 완료 후 사용자 HF URL 로 교체.
-const _DEMUCS_MODEL_URL = 'lib_fingerprints.json'; // TEMP: 46KB, UI 테스트용
-const _DEMUCS_MODEL_KEY = 'demucs_htdemucs_6s_fp16_v1';
-const _DEMUCS_IDB_DB = 'nanorhythm_models';
-const _DEMUCS_IDB_STORE = 'demucs';
-
-function _idbOpen() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(_DEMUCS_IDB_DB, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(_DEMUCS_IDB_STORE)) db.createObjectStore(_DEMUCS_IDB_STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function _idbGet(key) {
-  const db = await _idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(_DEMUCS_IDB_STORE, 'readonly');
-    const req = tx.objectStore(_DEMUCS_IDB_STORE).get(key);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function _idbPut(key, value) {
-  const db = await _idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(_DEMUCS_IDB_STORE, 'readwrite');
-    tx.objectStore(_DEMUCS_IDB_STORE).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-// 다운로드 progress popup
-let _demucsModalEl = null;
-function _showDemucsModal(html) {
-  if (_demucsModalEl) _demucsModalEl.remove();
-  const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
-  el.innerHTML = '<div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:420px;width:100%;">' + html + '</div>';
-  document.body.appendChild(el);
-  _demucsModalEl = el;
-  return el;
-}
-function _closeDemucsModal() {
-  if (_demucsModalEl) { _demucsModalEl.remove(); _demucsModalEl = null; }
-}
-
-// 사용자 동의 popup → Promise resolve true/false
-function _showDemucsConfirm() {
-  return new Promise(resolve => {
-    const el = _showDemucsModal(
-      '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:12px;">⚙️ 음악 분석 엔진</div>' +
-      '<div style="font-size:13px;color:#ddd;line-height:1.6;margin-bottom:16px;">' +
-        '첫 사용 시 분석 엔진 다운로드 필요.<br><br>' +
-        '• 크기: <b style="color:#fff;">약 125 MB</b><br>' +
-        '• 소요: 약 1~2분 (네트워크 따라)<br>' +
-        '• 이후 자동 캐시되어 즉시 사용<br>' +
-        '• <b style="color:#ffcc66;">Wi-Fi 환경 권장</b>' +
-      '</div>' +
-      '<div style="display:flex;gap:8px;">' +
-        '<button id="demucsCancel" style="flex:1;padding:11px 0;background:rgba(255,255,255,0.06);border:1px solid #888;color:#ccc;border-radius:8px;cursor:pointer;font-size:13px;">취소</button>' +
-        '<button id="demucsOK" style="flex:2;padding:11px 0;background:#b464ff;border:0;color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold;">다운로드 시작</button>' +
-      '</div>'
-    );
-    el.querySelector('#demucsCancel').onclick = () => { _closeDemucsModal(); resolve(false); };
-    el.querySelector('#demucsOK').onclick = () => resolve(true);
-  });
-}
-
-// 다운로드 진행 popup — progress 업데이트 함수 반환
-function _showDemucsProgress() {
-  _showDemucsModal(
-    '<div style="font-size:16px;font-weight:bold;color:#b464ff;margin-bottom:14px;">분석 엔진 다운로드 중...</div>' +
-    '<div id="demucsBar" style="width:100%;height:18px;background:rgba(255,255,255,0.08);border-radius:9px;overflow:hidden;margin-bottom:10px;">' +
-      '<div id="demucsBarFill" style="width:0%;height:100%;background:linear-gradient(90deg,#b464ff,#ff7aa8);transition:width 0.2s;"></div>' +
-    '</div>' +
-    '<div id="demucsStatus" style="font-size:12px;color:#aaa;text-align:center;">0 MB / 125 MB</div>'
-  );
-  return (loaded, total) => {
-    const pct = total > 0 ? (loaded / total) * 100 : 0;
-    const fill = _demucsModalEl?.querySelector('#demucsBarFill');
-    const status = _demucsModalEl?.querySelector('#demucsStatus');
-    if (fill) fill.style.width = pct.toFixed(1) + '%';
-    if (status) status.textContent = `${(loaded / (1024*1024)).toFixed(1)} MB / ${(total / (1024*1024)).toFixed(1)} MB (${pct.toFixed(0)}%)`;
-  };
-}
-
-// 수동 cache 제거 (F12 콘솔: window._clearDemucsCache())
-window._clearDemucsCache = async function() {
-  try {
-    const db = await _idbOpen();
-    const tx = db.transaction(_DEMUCS_IDB_STORE, 'readwrite');
-    tx.objectStore(_DEMUCS_IDB_STORE).delete(_DEMUCS_MODEL_KEY);
-    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
-    console.log('[demucs] cache cleared. 다음 업로드 시 재다운로드 발생.');
-  } catch(e) { console.warn('[demucs] cache clear fail:', e); }
-};
-
-// Demucs 모델 fetch + IndexedDB cache
-async function _ensureDemucsModel() {
-  // 1. cache 체크 (size sanity check — 50MB 미만이면 stale, 임시/실패 다운로드 자동 invalidate)
-  const MIN_VALID_SIZE = 50 * 1024 * 1024; // 50MB (진짜 모델 125MB 보장)
-  try {
-    const cached = await _idbGet(_DEMUCS_MODEL_KEY);
-    if (cached) {
-      if (cached.byteLength < MIN_VALID_SIZE) {
-        console.warn('[demucs] cache 너무 작음 (' + (cached.byteLength / (1024*1024)).toFixed(1) + ' MB < 50MB) — stale, 재다운로드');
-      } else {
-        console.log('[demucs] cache hit, ' + (cached.byteLength / (1024*1024)).toFixed(1) + ' MB');
-        return cached;
-      }
-    }
-  } catch(e) { console.warn('[demucs] IDB read fail:', e); }
-  // 2. 사용자 동의
-  const ok = await _showDemucsConfirm();
-  if (!ok) { _closeDemucsModal(); return null; }
-  // 3. 다운로드 + progress
-  const updateProgress = _showDemucsProgress();
-  try {
-    const resp = await fetch(_DEMUCS_MODEL_URL);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const total = +(resp.headers.get('content-length') || 0);
-    const reader = resp.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.length;
-      updateProgress(loaded, total || (loaded + 1));
-    }
-    // 4. concat
-    const buffer = new Uint8Array(loaded);
-    let off = 0;
-    for (const c of chunks) { buffer.set(c, off); off += c.length; }
-    // 5. cache
-    try { await _idbPut(_DEMUCS_MODEL_KEY, buffer.buffer); } catch(e) { console.warn('[demucs] IDB write fail:', e); }
-    _closeDemucsModal();
-    console.log('[demucs] downloaded ' + (loaded / (1024*1024)).toFixed(1) + ' MB');
-    return buffer.buffer;
-  } catch(e) {
-    _closeDemucsModal();
-    showLoginToast('다운로드 실패: ' + e.message, '#ff6b6b', null, 4);
-    return null;
-  }
-}
-
 function showMyMusicFilePicker() {
   if (_ugcProcessing) return;
   if (!_ugcInput) {
@@ -3498,15 +3343,6 @@ async function handleMyMusicFile(e) {
     }
   }, 60000);
   try {
-    // ★ Demucs 모델 ensure — 첫 사용 시 다운로드 popup, 이후 IndexedDB cache.
-    //   거부/실패 시 UGC 진입 취소.
-    const modelBuf = await _ensureDemucsModel();
-    if (!modelBuf) {
-      _ugcProcessing = false;
-      _ugcOverlayEl = null;
-      clearTimeout(_safetyTimer);
-      return;
-    }
     showLoginToast('디코드 중...', '#b464ff', null, 60);
     resumeAudio();
     const arrayBuf = await f.arrayBuffer();
@@ -3634,7 +3470,7 @@ function showUgcSetupOverlay() {
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;padding:20px;box-sizing:border-box;';
   el.innerHTML = '<div style="background:linear-gradient(135deg,#1a0830,#0a0418);padding:24px 28px;border-radius:14px;border:1px solid #b464ff66;max-width:380px;width:100%;">' +
-    '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 모드</div>' +
+    '<div style="font-size:18px;font-weight:bold;color:#b464ff;margin-bottom:6px;">나만의 노래 연주</div>' +
     '<div style="font-size:13px;color:#ccc;margin-bottom:18px;word-break:break-all;">' + ((_ugcSong && _ugcSong.name) || '곡') + '</div>' +
     '<div style="font-size:11px;color:#aaa;margin-bottom:6px;">난이도</div>' +
     '<div id="ugcDiff" style="display:flex;gap:6px;margin-bottom:14px;">' +
@@ -8827,7 +8663,7 @@ addEventListener('mousedown', e => {
     for (const b of loginModeBtnAreas) {
       if (hitTest(mx, my, b.x, b.y, b.w, b.h)) {
         if (b.key === 'versus') { showLoginToast('\uC900\uBE44 \uC911\uC785\uB2C8\uB2E4', '#ff6b6b', null, 1); return; }
-        if (b.key === 'mymusic' && isMobile) { showLoginToast('\uB098\uB9CC\uC758 \uBAA8\uB4DC\uB294 PC \uC5D0\uC11C\uB9CC \uAC00\uB2A5 (\uBAA8\uBC14\uC77C \uBA54\uBAA8\uB9AC \uD55C\uACC4)', '#ff9966', null, 3); return; }
+        if (b.key === 'mymusic' && isMobile) { showLoginToast('\uB098\uB9CC\uC758 \uB178\uB798 \uC5F0\uC8FC\uB294 PC \uC5D0\uC11C\uB9CC \uAC00\uB2A5 (\uBAA8\uBC14\uC77C \uBA54\uBAA8\uB9AC \uD55C\uACC4)', '#ff9966', null, 3); return; }
         if (b.key === 'mymusic' && !hasActivePass()) { showLoginToast('28\uC77C \uD328\uC2A4 \uAD6C\uB9E4 \uD544\uC694', '#b464ff', null, 2); return; }
         playMode = b.key; savePlayMode(); return;
       }
@@ -9497,7 +9333,7 @@ document.addEventListener('touchstart', e => {
     for (const b of loginModeBtnAreas) {
       if (hitTest(tmx, tmy, b.x, b.y, b.w, b.h)) {
         if (b.key === 'versus') { showLoginToast('\uC900\uBE44 \uC911\uC785\uB2C8\uB2E4', '#ff6b6b', null, 1); return; }
-        if (b.key === 'mymusic' && isMobile) { showLoginToast('\uB098\uB9CC\uC758 \uBAA8\uB4DC\uB294 PC \uC5D0\uC11C\uB9CC \uAC00\uB2A5 (\uBAA8\uBC14\uC77C \uBA54\uBAA8\uB9AC \uD55C\uACC4)', '#ff9966', null, 3); return; }
+        if (b.key === 'mymusic' && isMobile) { showLoginToast('\uB098\uB9CC\uC758 \uB178\uB798 \uC5F0\uC8FC\uB294 PC \uC5D0\uC11C\uB9CC \uAC00\uB2A5 (\uBAA8\uBC14\uC77C \uBA54\uBAA8\uB9AC \uD55C\uACC4)', '#ff9966', null, 3); return; }
         if (b.key === 'mymusic' && !hasActivePass()) { showLoginToast('28\uC77C \uD328\uC2A4 \uAD6C\uB9E4 \uD544\uC694', '#b464ff', null, 2); return; }
         playMode = b.key; savePlayMode(); return;
       }
@@ -17022,8 +16858,8 @@ function getShopItems() {
     },
     {
       id: 'pass28', type: 'pass', section: '구독',
-      label: '28일 모든 곡 무제한',
-      desc: '모든 잠긴 곡을 28일간 자유롭게 플레이',
+      label: '28일 패스',
+      desc: '무제한 곡 플레이 가능 · 나만의 연주 플레이 가능',
       price: '100 Credits',
       priceType: 'credits', color: '#ffd700', icon: '👑',
       getStatus: () => {
@@ -18210,7 +18046,7 @@ function renderTitle() {
     const modes = [
       { key: 'normal', label: '클래식', desc: '기본적인 플레이 모드입니다', color: '#00d4ff' },
       { key: 'freestyle', label: '프리스타일', desc: 'HP 압박없이 곡을 온전히 연주 하실 수 있습니다', color: '#ffd700' },
-      { key: 'mymusic', label: '나만의 모드', desc: '내 OGG 파일로 직접 노래 연주 (28일 패스 필요)', color: '#b464ff' },
+      { key: 'mymusic', label: '나만의 노래 연주', desc: '내 OGG 파일로 직접 연주 (28일 패스 필요)', color: '#b464ff' },
       { key: 'versus', label: '온라인', desc: '준비 중입니다', color: '#ff6b6b' },
     ];
     const _mc = modes.length;
