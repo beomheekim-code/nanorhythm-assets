@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518102217;
+window.__BUILD_TS = 20260518104501;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2984,6 +2984,28 @@ function _ugcDetectBpm(onsetTimes) {
   return Math.round(bpm);
 }
 
+// UGC audio preprocessing — high-pass 40Hz biquad filter (codec sub-bass rumble 제거).
+//   MP3 / OGG 모두 같은 필터 통과 → detect 결과 일관성 ↑.
+//   playback 은 원본 audioBuf 그대로 (사용자 들리는 음원 변경 X).
+async function _ugcPreprocessAudio(audioBuf) {
+  try {
+    const oactx = new OfflineAudioContext(audioBuf.numberOfChannels, audioBuf.length, audioBuf.sampleRate);
+    const src = oactx.createBufferSource();
+    src.buffer = audioBuf;
+    const hp = oactx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 40;
+    hp.Q.value = 0.7;
+    src.connect(hp);
+    hp.connect(oactx.destination);
+    src.start(0);
+    return await oactx.startRendering();
+  } catch (e) {
+    console.warn('[ugc] preprocess 실패, raw audio 사용:', e);
+    return audioBuf;
+  }
+}
+
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
 //   같은 곡이면 MP3/OGG/비트레이트 무관 동일 hash → cache hit → 동일 chart 보장.
 //   견고성 강화 (v2, 2026-05-18):
@@ -3077,16 +3099,18 @@ async function handleMyMusicFile(e) {
     showLoginToast(lower.endsWith('.ogg') ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
     resumeAudio();
     const arrayBuf = await f.arrayBuffer();
-    // ★ Decode 먼저 — fingerprint 는 decoded audio 의 RMS 패턴 기반 (포맷 무관 동일 hash).
+    // ★ Decode + preprocess — MP3 / OGG 둘 다 같은 high-pass 40Hz 필터 통과시켜
+    //   codec sub-bass rumble (특히 MP3 lossy 잔향) 제거. 두 포맷 detect 결과 정렬.
+    //   playback 은 원본 audioBuf 사용 (사용자 음원 변경 X), detect / fingerprint 만 필터본.
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
-    // v4: audio fingerprint cache key — MP3/OGG 같은 곡이면 동일 hash → cache hit → 동일 chart.
-    //   (v3 file-byte hash 는 인코딩 다르면 무조건 miss, 다른 detect 결과 회귀)
+    const detectBuf = await _ugcPreprocessAudio(audioBuf);
+    console.log('[ugc] preprocess: HP 40Hz applied (orig dur=' + audioBuf.duration.toFixed(2) + 's, filtered dur=' + detectBuf.duration.toFixed(2) + 's)');
     let fpHash = null;
     try {
-      fpHash = await _ugcAudioFingerprint(audioBuf);
+      fpHash = await _ugcAudioFingerprint(detectBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
-    // v6: MP3 detect params 회귀 fix (winMs 10→5, sens 1.25→1.15) → v5 bad cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v6_' + fpHash : null;
+    // v7: audio preprocessing 추가 + MP3/OGG 동일 params → v6 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v7_' + fpHash : null;
     console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
@@ -3112,13 +3136,10 @@ async function handleMyMusicFile(e) {
       } catch(e) {}
     } else {
       await new Promise(r => setTimeout(r, 30));
-      // ★ MP3 codec noise 미세 필터 — winMs 는 OGG 와 동일 5ms (1617→528 회귀 fix).
-      //   sens 만 1.10→1.15 로 살짝 ↑. 공격적이면 OGG 와 별곡 됨.
+      // ★ MP3 / OGG 동일 detect params — preprocess 단계에서 codec 차 흡수, 여기선 sens 차이 X.
       const isMp3 = lower.endsWith('.mp3');
-      const detWinMs = 5;
-      const detSens = isMp3 ? 1.15 : 1.10;
-      const onsetsRaw = detectOnsets(audioBuf, detSens, 30, detWinMs);
-      console.log('[ugc] detect (' + (isMp3 ? 'MP3' : 'OGG') + ', win=' + detWinMs + 'ms, sens=' + detSens + '): ' + onsetsRaw.length + ' onsets');
+      const onsetsRaw = detectOnsets(detectBuf, 1.10, 30, 5);
+      console.log('[ugc] detect (' + (isMp3 ? 'MP3' : 'OGG') + ', win=5ms, sens=1.10, preprocessed): ' + onsetsRaw.length + ' onsets');
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
       // BPM 자동 검출 — onset interval histogram peak (실제 곡 박자에 quantize grid 맞춤)
@@ -9988,7 +10009,16 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
-  const holdEvery = diff.holdEvery || 999;
+  // ★ laneCount 기반 노트 보강 (2026-05-18) — onset-based generator 에 lane-density
+  //   스케일링 추가. 패턴 기반 generator 의 densityMul (1+(lc-4)×0.09) 와 동일 매핑.
+  //   산업 표준 (DJMAX/IIDX): 키 수 ↑ → 노트 수 ↑ + chord(jumps) + triple(hands).
+  //   4K: chordBoostByLane=0 → 변경 없음 (회귀 X). 5K=10%, 6K=20%, 7K=30%, 8K=40%.
+  const chordBoostByLane = Math.max(0, lc - 4) * 0.10;
+  const laneChordMinGap = lc >= 7 ? 0.20 : lc >= 6 ? 0.30 : lc >= 5 ? 0.50 : Infinity;
+  let _lastLaneChordTime = 0;
+  // hold 빈도 — 6K+ 에서 ×0.7 (더 자주). 4K/5K 는 기존 유지 (회귀 X).
+  const holdEveryRaw = diff.holdEvery || 999;
+  const holdEvery = lc >= 6 ? Math.max(4, Math.floor(holdEveryRaw * 0.7)) : holdEveryRaw;
   const eighthDur = sixteenth * 2;
 
   // stem → 레인 매핑 (전 레인에 고르게 분산)
@@ -10059,6 +10089,28 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
           });
           _lastChordTime = o.time;
         }
+      }
+    }
+    // ★ laneCount 기반 chord (5K+, 2026-05-18) — DJMAX/IIDX 표준 jumps/hands 추가.
+    //   4K: chordBoostByLane=0 → 진입 X (회귀 0). 5K=10%, 6K=20%, 7K=30%, 8K=40%.
+    if (chordBoostByLane > 0 && nd.type === 'note' && rng() < chordBoostByLane &&
+        (o.time - _lastLaneChordTime) >= laneChordMinGap) {
+      let cLane = (lane + 1 + Math.floor(rng() * (lc - 1))) % lc;
+      nodes.push({
+        time: o.time, lane: cLane, freq: 440, type: 'note', stem: o.stem,
+        hit: false, missed: false, holding: false, holdComplete: false,
+        endTime: 0, _ho1: null, _ho2: null, _hg: null
+      });
+      _lastLaneChordTime = o.time;
+      // 트리플 (hands) — 6K+ 지옥 에서만 15% 확률 (IIDX 안마 패턴 표준)
+      if (lc >= 6 && diff.noteDensity >= 1.3 && rng() < 0.15) {
+        let triLane = (cLane + 1 + Math.floor(rng() * (lc - 2))) % lc;
+        if (triLane === lane) triLane = (triLane + 1) % lc;
+        nodes.push({
+          time: o.time, lane: triLane, freq: 440, type: 'note', stem: o.stem,
+          hit: false, missed: false, holding: false, holdComplete: false,
+          endTime: 0, _ho1: null, _ho2: null, _hg: null
+        });
       }
     }
   }
