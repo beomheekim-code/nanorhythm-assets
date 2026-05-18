@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518185002;
+window.__BUILD_TS = 20260518190001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4462,19 +4462,20 @@ const songs = [
     vocalIntroRange: 'auto', chordMode: true, simNps: 2.63
   },
   {
-    name: 'ATLANTIS', sub: 'OCEAN AMBIENT', bpm: 86,
+    name: 'ATLANTIS', sub: 'OCEAN AMBIENT', bpm: 129,
     color: '#4287f5', bg1: '#050a14', bg2: '#0a1428',
     bars: 57, file: 'Music/ATLANTIS.ogg',
     cover: 'Music/ATLANTIS/ATLANTIS.png',
     stemDir: 'Music/ATLANTIS/',
     stemPrefix: 'ATLANTIS',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    slotSubdivision: 0.75,  // 2026-05-15 tweak
+    slotSubdivision: 1.0,  // ★ BPM 129 변경 (셋잇단 116ms → 16분 align), 2026-05-18
+                            // BPM 129 + slot 1.0 = minGap 232ms (2 onset 합쳐 강박만 살림)
     endCutoff: 155.7,
     stemSensitivity: { 2: 0.9, 3: 0.9, 4: 0.95 }, // vocals + instrum + piano lenient (사용자: 피아노 박자 못 담음)
     stemMinGap: { 2: 20, 3: 20 },          // 짧은 minGap → onset 더 많이 감지
     levelBonus: 0.0, // 노트 시뮬 결과 nps 2.84 = normal (2026-05-17 자동 조정)
-    simNps: 2.85,
+    simNps: 2.14, // BPM 129 변경 후 재시뮬
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
   },
