@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518111002;
+window.__BUILD_TS = 20260518113001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3119,8 +3119,8 @@ async function handleMyMusicFile(e) {
     try {
       fpHash = await _ugcAudioFingerprint(detectBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
-    // v8: OGG raw + MP3 inline biquad (mixed mode). cache 분리 별 격동 처리.
-    const cacheKey = fpHash ? 'rhythm_ugc_v8_' + fpHash : null;
+    // v9: BPM grid snap 추가 (옵션 A, MP3/OGG codec 차 ±50ms 흡수) → v8 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v9_' + fpHash : null;
     console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
@@ -3159,6 +3159,17 @@ async function handleMyMusicFile(e) {
           console.log('[ugc] BPM 검출:', det);
         }
       } catch(e) { console.warn('[ugc] BPM 실패:', e); }
+      // ★ BPM grid snap (2026-05-18, 옵션 A) — MP3/OGG codec 차이 ±50ms 흡수.
+      //   같은 곡이면 detect 결과 ±5-10ms 다르더라도 동일 grid 에 snap → 동일 chart 결정론.
+      //   리듬게임 표준 (DJMAX/IIDX/EZ2DJ 모두 BPM grid 사용). dedupe 같은 grid 중복 제거.
+      const _sixteenth = 15 / detectedBpm;
+      const _seen = new Set();
+      const _before = chartOnsets.length;
+      chartOnsets = chartOnsets
+        .map(o => ({ ...o, t: +(Math.round(o.t / _sixteenth) * _sixteenth).toFixed(4) }))
+        .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
+        .sort((a, b) => a.t - b.t);
+      console.log('[ugc] BPM grid snap (16th=' + _sixteenth.toFixed(4) + 's): ' + _before + ' → ' + chartOnsets.length + ' onsets');
       if (cacheKey) {
         try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, bpm: detectedBpm, ts: Date.now() })); } catch(e) {}
       }
@@ -3250,7 +3261,11 @@ function showUgcSetupOverlay() {
   el.querySelector('#ugcStart').onclick = () => {
     selectedDiff = pickDiff;
     selectedSpeed = pickSpeed;
-    laneCount = pickKeys;
+    // ★ setLaneMode 호출 (이전 버그 fix) — laneCount 직접 대입만 하면 LANE_COLORS/LANE_SEQ
+    //   업데이트 안 됨 → 4K→6K 전환 시 LANE_COLORS 가 옛 4개만 남아 lane 4,5 접근 undefined.
+    //   chord 보강 후 lane 4,5 자주 생성돼 'undefined55' 크래시로 노출 (2026-05-18).
+    if (typeof setLaneMode === 'function') setLaneMode(pickKeys);
+    else laneCount = pickKeys; // 안전 폴백
     closeUgcOverlayKeep(); // overlay 만 닫고 _ugcSong 유지
     startUgcPlay();
   };
