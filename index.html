@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518190002;
+window.__BUILD_TS = 20260518192001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3231,14 +3231,16 @@ async function _ugcLibrosaDetect(audioBuf) {
   for (let i = audio.length - 1; i > 0; i--) {
     audio[i] = audio[i] - 0.97 * audio[i - 1];
   }
-  // 2. Multi-band Onset strength.
-  const nFft = 2048, hop = 256, nMels = 128, numBands = 6;
+  // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
+  //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
+  //    delta 0.02 = librosa 의 default 0.07 보다 매우 sensitive (mix masking 보완).
+  const nFft = 2048, hop = 256, nMels = 128, numBands = 8;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — delta 0.03 (sensitive). frame=11.6ms.
+  // 3. Per-band peak picking — delta 0.02 (push, mix masking 으로 약화된 peak 도 잡음).
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.03, 2, 2, 0, 8, 8);
+    const peaks = _ugcPeakPick(env, 0.02, 2, 2, 0, 8, 8);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
@@ -3373,8 +3375,8 @@ async function handleMyMusicFile(e) {
       fp = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // v14: BPM parabolic interp (sub-bin precision, ±2 BPM 오차 fix) → v17 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v18_' + fpHash : null;
+    // v14: numBands 8 + delta 0.02 (95% push) → v18 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v19_' + fpHash : null;
     console.log('[ugc] OGG cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
@@ -3752,14 +3754,14 @@ const songs = [
     pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0], simNps: 2.48
   },
   {
-    name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 89, color: '#ffb7d5',
+    name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 134, color: '#ffb7d5',
     bg1: '#0f0808', bg2: '#1e1215', bars: 66, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
     file: 'Music/어깨_위에_내려앉은_봄.ogg',
     stemDir: 'Music/어깨_위에_내려앉은_봄/',
     stemPrefix: '어깨_위에_내려앉은_봄',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 175.7,
-    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], levelBonus: -0.3, simNps: 1.45
+    pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], levelBonus: -0.3, simNps: 2.11
   },
   {
     name: '차선 사이의 침묵', sub: 'DARK AMBIENT', bpm: 110, color: '#6677aa',
@@ -3926,7 +3928,7 @@ const songs = [
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1], simNps: 1.93
   },
   {
-    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 80, color: '#9999dd',
+    name: '기억의 사물함', sub: 'K-BALLAD', bpm: 120, color: '#9999dd',
     bg1: '#060610', bg2: '#0c0c1c', bars: 37,
     cover: 'Music/기억의_사물함/기억의_사물함.png',
     file: 'Music/기억의_사물함.ogg',
@@ -3935,7 +3937,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 104.7,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
-    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만, levelBonus: -0.3, simNps: 1.33
+    excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만, levelBonus: -0.3, simNps: 1.91
   },
   {
     name: 'Black Out', sub: 'DARK/CLUB', bpm: 161, color: '#aa44ff',
@@ -3984,7 +3986,7 @@ const songs = [
     pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1], simNps: 1.71
   },
   {
-    name: 'RED TAPE', sub: 'INDUSTRIAL', bpm: 89, color: '#ff1a33',
+    name: 'RED TAPE', sub: 'INDUSTRIAL', bpm: 134, color: '#ff1a33',
     bg1: '#180003', bg2: '#30000a', bars: 59,
     cover: 'Music/RED_TAPE/RED_TAPE.png',
     file: 'Music/RED_TAPE.ogg',
@@ -4006,7 +4008,7 @@ const songs = [
       [2.0, 1.6],   // 2.0 ~ 3.6  (1.44 ~ 4.11 사이, 마진 0.51s)
       [4.6, 1.7],   // 4.6 ~ 6.3  (4.11 ~ 6.76 사이, 마진 0.46s)
       [7.2, 1.7],   // 7.2 ~ 8.9  (6.76 ~ 9.43 사이, 마진 0.53s)
-    ], levelBonus: -0.3, simNps: 1.42
+    ], levelBonus: -0.3, simNps: 2.06
   },
   {
     name: '加速する鼓動', sub: 'J-ROCK/SPEED', bpm: 172, color: '#ff3377',
@@ -4033,7 +4035,7 @@ const songs = [
     excludeStems: [4], // instrum만 사용 (메인 트랙), levelBonus: 0.2, simNps: 3.75
   },
   {
-    name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 120, color: '#66d4ff',
+    name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 180, color: '#66d4ff',
     bg1: '#0a1828', bg2: '#163450', bars: 60,
     cover: 'Music/Catch_The_Sky/Catch_The_Sky.png',
     file: 'Music/Catch_The_Sky.ogg',
@@ -4041,7 +4043,7 @@ const songs = [
     stemPrefix: 'Catch_The_Sky',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 116.75,
-    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.0
+    pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.97
   },
   {
     name: 'Neon Light', sub: 'SYNTH/NIGHT', bpm: 110, color: '#ff5cd6',
@@ -4092,7 +4094,7 @@ const songs = [
     excludeStems: [4, 5], chordMode: true, simNps: 1.93
   },
   {
-    name: 'Pebbles To Granite', sub: 'Hip-Hop', bpm: 89,
+    name: 'Pebbles To Granite', sub: 'Hip-Hop', bpm: 134,
     color: '#aa8855', bg1: '#2a1a08', bg2: '#0a0804',
     bars: 44, file: 'Music/Pebbles_To_Granite.ogg',
     cover: 'Music/Pebbles_To_Granite/Pebbles_To_Granite.png',
@@ -4101,7 +4103,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 116.5,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
-    excludeStems: [5], chordMode: true, levelBonus: -0.3, simNps: 1.49
+    excludeStems: [5], chordMode: true, levelBonus: -0.3, simNps: 2.23
   },
   {
     name: 'Rainbow Flight', sub: 'Synth Pop', bpm: 117,
@@ -4184,7 +4186,7 @@ const songs = [
     excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 1.97
   },
   {
-    name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 96,
+    name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 144,
     color: '#c8a2f0', bg1: '#1a1030', bg2: '#080416',
     bars: 69, file: 'Music/별빛_아래의_약속.ogg',
     cover: 'Music/별빛_아래의_약속/별빛_아래의_약속.png',
@@ -4193,7 +4195,7 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 168.7,
     pattern: [1,0,0,1,0,1,0,0, 1,0,0,1,0,0,1,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 1.53
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.23
   },
   {
     name: '질주', sub: 'Indie Rock', bpm: 92,
@@ -4334,7 +4336,7 @@ const songs = [
     excludeStems: [4], vocalIntroRange: 'auto', chordMode: true, simNps: 2.08
   },
   {
-    name: '투명한 설렘', sub: 'CLEAR BALLAD', bpm: 89,
+    name: '투명한 설렘', sub: 'CLEAR BALLAD', bpm: 134,
     color: '#a0e0ff', bg1: '#0a1a26', bg2: '#14303c',
     bars: 55, file: 'Music/투명한_설렘.ogg',
     cover: 'Music/투명한_설렘/투명한_설렘.png',
@@ -4343,10 +4345,10 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     endCutoff: 145.2,
     pattern: [1,0,0,1,0,0,1,0, 1,0,0,1,0,1,0,1],
-    vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.43
+    vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 2.08
   },
   {
-    name: '고민의 자국', sub: 'HEARTFELT BALLAD', bpm: 99,
+    name: '고민의 자국', sub: 'HEARTFELT BALLAD', bpm: 149,
     color: '#c98ad6', bg1: '#1a0d22', bg2: '#2e1338',
     bars: 51, file: 'Music/고민의_자국.ogg',
     cover: 'Music/고민의_자국/고민의_자국.png',
@@ -4356,7 +4358,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 121.7,
     pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,1,0],
-    chordMode: true, simNps: 1.64
+    chordMode: true, simNps: 2.42
   },
   {
     name: '괜찮아', sub: 'WARM POP', bpm: 136,
