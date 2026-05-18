@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518170002;
+window.__BUILD_TS = 20260518171001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3300,7 +3300,9 @@ async function _ugcAudioFingerprint(audioBuf) {
 
 // ===== Demucs WASM 모델 cache layer (IndexedDB) =====
 // 첫 사용 시 250MB 다운로드 → IndexedDB 저장 → 이후 즉시 로드.
-const _DEMUCS_MODEL_URL = 'https://huggingface.co/PLACEHOLDER_USER/nanorhythm-demucs/resolve/main/htdemucs_6s_fp16.onnx';
+// ★ 임시 — 모델 변환 + HF 업로드 전 다운로드 UI 동작 테스트용 (작은 파일).
+//   Step 2 완료 후 사용자 HF URL 로 교체.
+const _DEMUCS_MODEL_URL = 'lib_fingerprints.json'; // TEMP: 46KB, UI 테스트용
 const _DEMUCS_MODEL_KEY = 'demucs_htdemucs_6s_fp16_v1';
 const _DEMUCS_IDB_DB = 'nanorhythm_models';
 const _DEMUCS_IDB_STORE = 'demucs';
@@ -3474,11 +3476,18 @@ async function handleMyMusicFile(e) {
     }
   }, 60000);
   try {
+    // ★ Demucs 모델 ensure — 첫 사용 시 다운로드 popup, 이후 IndexedDB cache.
+    //   거부/실패 시 UGC 진입 취소.
+    const modelBuf = await _ensureDemucsModel();
+    if (!modelBuf) {
+      _ugcProcessing = false;
+      _ugcOverlayEl = null;
+      clearTimeout(_safetyTimer);
+      return;
+    }
     showLoginToast('디코드 중...', '#b464ff', null, 60);
     resumeAudio();
     const arrayBuf = await f.arrayBuffer();
-    // ★ OGG only (2026-05-18) — MP3 codec 차이 fix 본질 불가로 OGG 만 받음.
-    //   detect/fingerprint 모두 raw audioBuf 사용 (사용자 검증 동작).
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
     // ★ 10분 초과 예외 (WASM Demucs 처리시간 / 메모리 제어)
     if (audioBuf.duration > 600) {
