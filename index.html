@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518210002;
+window.__BUILD_TS = 20260518212001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4235,9 +4235,9 @@ const songs = [
     // 저BPM + ambient + excludeStems 많음 → noteSparse 회귀. slotSubdivision 0.5 + levelBonus.
     stemSensitivity: { 2: 0.9, 3: 0.9, 6: 0.95 },
     stemMinGap: { 2: 20, 3: 20 },
-    slotSubdivision: 0.5,
-    levelBonus: 0.0, // 노트 시뮬 결과 nps 1.97 = normal (2026-05-17 자동 조정)
-    simNps: 1.98,
+    slotSubdivision: 1.0,  // ★ 32분 dense → 4분 grid (박자 align)
+    levelBonus: 0.0,
+    simNps: 1.0,
   },
   {
     name: 'Poolside Punch', sub: 'SUMMER POP', bpm: 123,
@@ -4421,10 +4421,10 @@ const songs = [
     vocalIntroRange: 'auto', chordMode: true,
     // ★ 드럼 strict (1.2) 으로 sparse 해짐 (사용자 보고 2026-05-04). 신스 강화 버전 (9ee3e68) 으로 revert.
     stemSensitivity: { 0: 1.05, 6: 1.05 }, // drum + 신스 둘 다 lenient
-    slotSubdivision: 0.5,  // 2026-05-15 박자정렬 교정
-    slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
-    levelBonus: 0.0, // 노트 시뮬 결과 nps 2.32 = normal (2026-05-17 자동 조정)
-    simNps: 2.37,
+    slotSubdivision: 1.0,  // ★ 32분 dense → 4분 grid (박자 align, 2026-05-18)
+    slotStemPriority: [3, 6, 0, 1, 2],
+    levelBonus: 0.0,
+    simNps: 1.21,
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
@@ -4550,14 +4550,14 @@ const songs = [
     stemDir: 'Music/夢緣_(몽연)/',
     stemPrefix: '夢緣_(몽연)',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    slotSubdivision: 0.75,  // 2026-05-15 tweak
+    slotSubdivision: 1.0,  // ★ 32분 dense → 4분 grid (박자 align, 2026-05-18)
     endCutoff: 165.7,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
     stemSensitivity: { 2: 0.9, 3: 0.9 },
     stemMinGap: { 2: 20, 3: 20 },
-    levelBonus: 0.0, // 노트 시뮬 결과 nps 2.89 = normal (2026-05-17 자동 조정)
-    simNps: 2.92,
+    levelBonus: 0.0,
+    simNps: 1.47,
   },
   {
     name: 'Artificial Sky', sub: 'INDIE/POP', bpm: 96, color: '#6a8cff',
@@ -4633,9 +4633,9 @@ const songs = [
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     excludeStems: [4],
     chordMode: true,
-    slotSubdivision: 0.75,  // 2026-05-15 decouple 후 복원
+    slotSubdivision: 1.0,  // 2026-05-15 decouple 후 복원
     endCutoff: 168.83,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 3.02
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.61
   },
   {
     name: '잔상', sub: 'BALLAD', bpm: 99, color: '#a08cff',
@@ -4645,9 +4645,9 @@ const songs = [
     stemDir: 'Music/잔상/',
     stemPrefix: '잔상',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    slotSubdivision: 0.75,  // 2026-05-15 tweak
+    slotSubdivision: 1.0,  // 2026-05-15 tweak
     chordMode: true,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 3.23
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 1.63
   },
 ];
 
