@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518135002;
+window.__BUILD_TS = 20260518141502;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3200,9 +3200,9 @@ function _ugcLibrosaDetect(audioBuf) {
   // 2. Onset strength (librosa default params)
   const nFft = 2048, hop = 512, nMels = 128;
   const env = _ugcOnsetStrength(audio, sr, hop, nFft, nMels);
-  // 3. Peak picking (librosa.onset.onset_detect defaults: delta=0.07, wait=3)
+  // 3. Peak picking — delta=0.05 (라이브 76곡 chart-gen 와 동일, 2026-05-18 강도 ↑)
   //    pre/post_max/avg defaults — 3/3/10/10 (similar to librosa)
-  const peaks = _ugcPeakPick(env, 0.07, 3, 3, 3, 10, 10);
+  const peaks = _ugcPeakPick(env, 0.05, 3, 3, 3, 10, 10);
   // 4. Backtrack to local min
   const tracked = _ugcBacktrack(env, peaks);
   // 5. BPM
@@ -4493,7 +4493,7 @@ const songs = [
     excludeStems: [4, 5],
     chordMode: true, chordMinGap: 2.5,
     vocalIntroRange: 'auto',
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], levelBonus: -0.3
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], levelBonus: 0.0
   },
   {
     name: 'Red Light', sub: 'ROCK/EDM', bpm: 152, color: '#ff3a5c',
@@ -4558,7 +4558,7 @@ const songs = [
     chordMode: true,
     slotSubdivision: 0.75,  // 2026-05-15 decouple 후 복원
     endCutoff: 168.83,
-    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0],
+    pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2
   },
   {
     name: '잔상', sub: 'BALLAD', bpm: 99, color: '#a08cff',
@@ -7519,6 +7519,15 @@ function transitionTo(newState, callback) {
   // ★ UGC: select / title 진입 시 잔존 UGC entry 강제 cleanup (songs[] 오염 방지)
   if (newState === 'select' || newState === 'title') {
     try { if (typeof cleanupUgc === 'function') cleanupUgc(); } catch(e) {}
+  }
+  // ★ title 진입 시 BGM 자동 재생 (2026-05-18) — UGC cleanup 후 transitionTo('title')
+  //   같이 callback 없는 호출처에서 BGM 끊김 fix. startTitleBgm 은 멱등이라 중복 호출 OK.
+  if (newState === 'title') {
+    const _origCb = callback;
+    callback = () => {
+      try { if (typeof startTitleBgm === 'function') startTitleBgm(); } catch(e) {}
+      if (_origCb) try { _origCb(); } catch(e) {}
+    };
   }
   fadePendingState = newState;
   fadePendingCallback = callback || null;

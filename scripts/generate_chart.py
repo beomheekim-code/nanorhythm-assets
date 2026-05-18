@@ -65,8 +65,12 @@ def mix_sum(stems):
     return out
 
 
-def detect_per_stem_onsets(stems, sr, song_bpm):
+def detect_per_stem_onsets(stems, sr, song_bpm, delta=0.07):
     """각 stem 별 spectral-flux onset 검출. 합치고 0.030s 이내 중복은 stem 다양성 유지하며 보존.
+
+    Args:
+        delta: librosa onset_detect threshold. 낮을수록 sensitive (더 많은 onset).
+               default 0.07 (보수적), 2026-05-18 부터 0.05 로 약간 sensitive 화.
 
     반환: (per_stem_onsets dict, beats_sec, detected_bpm)
     """
@@ -94,7 +98,7 @@ def detect_per_stem_onsets(stems, sr, song_bpm):
             env = librosa.onset.onset_strength(y=data, sr=sr, hop_length=512)
             frames = librosa.onset.onset_detect(
                 onset_envelope=env, sr=sr, hop_length=512,
-                backtrack=True, delta=0.07, wait=3,
+                backtrack=True, delta=delta, wait=3,
             )
             times = librosa.frames_to_time(frames, sr=sr, hop_length=512)
             # 에너지 attach
@@ -145,15 +149,15 @@ def detect_vocal_ranges(stems, sr):
     return []  # 구현 보류 — 게임 코드의 vocalIntro auto 가 그대로 작동 (vocal stem 원본 보존)
 
 
-def generate_chart(prefix, exclude_stems=None, song_bpm=120, end_cutoff=None):
+def generate_chart(prefix, exclude_stems=None, song_bpm=120, end_cutoff=None, delta=0.07):
     """한 곡의 chart 생성. 메인 진입점."""
-    print(f'[gen] {prefix} (bpm_hint={song_bpm}, excl={exclude_stems})')
+    print(f'[gen] {prefix} (bpm_hint={song_bpm}, excl={exclude_stems}, delta={delta})')
     stems = load_stems(prefix, exclude=exclude_stems)
     print(f'  stems loaded: {sorted(stems.keys())}')
     mix = mix_sum(stems)
     print(f'  mix duration: {len(mix) / SR:.1f}s')
 
-    per_stem, beats, detected_bpm = detect_per_stem_onsets(stems, SR, song_bpm)
+    per_stem, beats, detected_bpm = detect_per_stem_onsets(stems, SR, song_bpm, delta=delta)
     counts = ', '.join(f'{si}:{len(v)}' for si, v in sorted(per_stem.items()))
     print(f'  per-stem onsets: {counts}, beats={len(beats)}, bpm={detected_bpm:.1f}')
 
@@ -205,11 +209,13 @@ if __name__ == '__main__':
     ap.add_argument('--all', action='store_true', help='index.html songs 전부 생성')
     ap.add_argument('--bpm', type=int, default=120, help='BPM hint (단일 곡 모드)')
     ap.add_argument('--end-cutoff', type=float, help='endCutoff sec')
+    ap.add_argument('--delta', type=float, default=0.07,
+                    help='librosa onset_detect threshold (default 0.07, 더 sensitive 면 0.05)')
     args = ap.parse_args()
 
     if args.all:
         songs = read_songs_from_index()
-        print(f'전체 stem 기반 곡: {len(songs)}개')
+        print(f'전체 stem 기반 곡: {len(songs)}개 (delta={args.delta})')
         for s in songs:
             try:
                 generate_chart(
@@ -217,10 +223,11 @@ if __name__ == '__main__':
                     exclude_stems=s.get('excludeStems') or [],
                     song_bpm=s.get('bpm') or 120,
                     end_cutoff=s.get('endCutoff'),
+                    delta=args.delta,
                 )
             except Exception as e:
                 print(f'  [실패] {s["stemPrefix"]}: {e}')
     elif args.prefix:
-        generate_chart(args.prefix, song_bpm=args.bpm, end_cutoff=args.end_cutoff)
+        generate_chart(args.prefix, song_bpm=args.bpm, end_cutoff=args.end_cutoff, delta=args.delta)
     else:
         ap.print_help()
