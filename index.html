@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518123002;
+window.__BUILD_TS = 20260518125001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2938,7 +2938,8 @@ function playHoldStartSfx() {
 // trigger 없음. 사용자 원한 건 빈 lane press preview SFX (playEmptyPressSfx) 만.
 
 // ===== 나만의 모드 (UGC, 2026-05-17 깔끔 재구현) =====
-// MP3/OGG 업로드 → decode → onset 차트 → 인게임 1회성 플레이 → 타이틀 복귀.
+// OGG 업로드 → decode → onset 차트 → 인게임 1회성 플레이 → 타이틀 복귀.
+// (MP3 미지원 — codec 차로 같은 곡 다른 chart 나오는 본질 문제로 OGG 만 받음.)
 // 28일 패스 (hasActivePass) 구매자만. songs[] 에 임시 push, cleanup 보장.
 let _ugcInput = null;
 let _ugcSong = null;
@@ -2982,36 +2983,6 @@ function _ugcDetectBpm(onsetTimes) {
   while (bpm > 200) bpm /= 2;
   while (bpm < 80) bpm *= 2;
   return Math.round(bpm);
-}
-
-// UGC inline JS biquad highpass — MP3 codec sub-bass rumble 제거용 RBJ biquad.
-//   OfflineAudioContext 대체 (이전 버전 멈춤 회귀 fix — async render 가 main thread block).
-//   sync 처리 (3분 audio ~20-50ms), 결과 음성 품질 동일.
-//   ★ OGG 는 호출 안 함 — raw detect 동작 보존 (사용자 검증, 회귀 X).
-//   ★ playback 은 항상 원본 audioBuf — 필터본은 detect/fingerprint 전용.
-function _ugcInlineHighpass(audioBuf, cutoff) {
-  const sr = audioBuf.sampleRate;
-  const w0 = 2 * Math.PI * cutoff / sr;
-  const cw = Math.cos(w0), sw = Math.sin(w0);
-  const Q = 0.7, alpha = sw / (2 * Q);
-  const b0 = (1 + cw) / 2, b1 = -(1 + cw), b2 = (1 + cw) / 2;
-  const a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
-  const nb0 = b0 / a0, nb1 = b1 / a0, nb2 = b2 / a0;
-  const na1 = a1 / a0, na2 = a2 / a0;
-  const ch = audioBuf.numberOfChannels;
-  const out = actx.createBuffer(ch, audioBuf.length, sr);
-  for (let c = 0; c < ch; c++) {
-    const inp = audioBuf.getChannelData(c);
-    const outp = out.getChannelData(c);
-    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-    for (let i = 0; i < inp.length; i++) {
-      const x0 = inp[i];
-      const y0 = nb0 * x0 + nb1 * x1 + nb2 * x2 - na1 * y1 - na2 * y2;
-      outp[i] = y0;
-      x2 = x1; x1 = x0; y2 = y1; y1 = y0;
-    }
-  }
-  return out;
 }
 
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
@@ -3075,7 +3046,7 @@ function showMyMusicFilePicker() {
   if (!_ugcInput) {
     _ugcInput = document.createElement('input');
     _ugcInput.type = 'file';
-    _ugcInput.accept = '.mp3,.ogg,audio/mpeg,audio/ogg';
+    _ugcInput.accept = '.ogg,audio/ogg';
     _ugcInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
     document.body.appendChild(_ugcInput);
     _ugcInput.addEventListener('change', handleMyMusicFile);
@@ -3088,9 +3059,8 @@ async function handleMyMusicFile(e) {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
   const lower = (f.name || '').toLowerCase();
-  if (!lower.endsWith('.mp3') && !lower.endsWith('.ogg') &&
-      f.type !== 'audio/mpeg' && f.type !== 'audio/ogg') {
-    showLoginToast('MP3 또는 OGG 만 가능', '#ff6b6b', null, 2);
+  if (!lower.endsWith('.ogg') && f.type !== 'audio/ogg') {
+    showLoginToast('OGG 파일만 가능 (MP3 미지원)', '#ff6b6b', null, 3);
     return;
   }
   _ugcProcessing = true;
@@ -3105,25 +3075,20 @@ async function handleMyMusicFile(e) {
     }
   }, 60000);
   try {
-    showLoginToast(lower.endsWith('.ogg') ? '디코드 중...' : '변환 중...', '#b464ff', null, 60);
+    showLoginToast('디코드 중...', '#b464ff', null, 60);
     resumeAudio();
     const arrayBuf = await f.arrayBuffer();
-    // ★ Decode — playback 은 항상 audioBuf 원본. detect/fingerprint 는 detectBuf.
-    //   OGG: detectBuf = audioBuf (raw, 사용자 검증 동작 보존 → 회귀 X).
-    //   MP3: detectBuf = inline biquad HP 40Hz (codec sub-bass rumble 제거, sync ~20-50ms → 멈춤 X).
+    // ★ OGG only (2026-05-18) — MP3 codec 차이 fix 본질 불가로 OGG 만 받음.
+    //   detect/fingerprint 모두 raw audioBuf 사용 (사용자 검증 동작).
     const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
-    const isMp3 = lower.endsWith('.mp3');
-    const _t0 = performance.now();
-    const detectBuf = isMp3 ? _ugcInlineHighpass(audioBuf, 40) : audioBuf;
-    if (isMp3) console.log('[ugc] MP3 inline HP 40Hz: ' + (performance.now() - _t0).toFixed(1) + 'ms');
     let fp = null;
     try {
-      fp = await _ugcAudioFingerprint(detectBuf);
+      fp = await _ugcAudioFingerprint(audioBuf);
     } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
     const fpHash = fp ? fp.hex : null;
-    // v11: library 매칭 제거 (사용자 거절 — 라이브러리 외 곡 MP3=OGG 본질 문제 미해결) → v10 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v11_' + fpHash : null;
-    console.log('[ugc] format=' + (lower.endsWith('.mp3') ? 'MP3' : 'OGG') + ', cacheKey=' + cacheKey);
+    // v12: OGG only + MP3 분기 제거 → v11 cache 무효화
+    const cacheKey = fpHash ? 'rhythm_ugc_v12_' + fpHash : null;
+    console.log('[ugc] OGG cacheKey=' + cacheKey);
     let cachedOnsets = null;
     if (cacheKey) {
       try {
@@ -3147,9 +3112,9 @@ async function handleMyMusicFile(e) {
       } catch(e) {}
     } else {
       await new Promise(r => setTimeout(r, 30));
-      // ★ detect — OGG: raw audioBuf, MP3: inline HP 40Hz filtered. 둘 다 sens=1.10/win=5ms 동일.
-      const onsetsRaw = detectOnsets(detectBuf, 1.10, 30, 5);
-      console.log('[ugc] detect (' + (isMp3 ? 'MP3-HP40' : 'OGG-raw') + ', win=5ms, sens=1.10): ' + onsetsRaw.length + ' onsets');
+      // ★ detect — OGG raw audioBuf, sens=1.10/win=5ms (사용자 검증 동작).
+      const onsetsRaw = detectOnsets(audioBuf, 1.10, 30, 5);
+      console.log('[ugc] detect (OGG, win=5ms, sens=1.10): ' + onsetsRaw.length + ' onsets');
       const STEMS = [0, 1, 3, 5, 6];
       chartOnsets = onsetsRaw.map((t, i) => ({ t: +t.toFixed(4), stem: STEMS[i % STEMS.length], energy: 1 }));
       // BPM 자동 검출 — onset interval histogram peak (실제 곡 박자에 quantize grid 맞춤)
