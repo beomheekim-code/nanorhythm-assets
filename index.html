@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518225002;
+window.__BUILD_TS = 20260518231001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4209,6 +4209,7 @@ const songs = [
     slotSubdivision: 0.5,
     levelBonus: 0.0, // 노트 시뮬 결과 nps 1.97 = normal (2026-05-17 자동 조정)
     simNps: 1.98,
+    rawOnsetNps: 7.14,
   },
   {
     name: 'Poolside Punch', sub: 'SUMMER POP', bpm: 123,
@@ -4364,6 +4365,7 @@ const songs = [
     slotStemPriority: [4, 5, 3, 0, 1, 6, 2], // piano > guitar > 신스 > drum > bass > other > vocal
     levelBonus: 0.35, // 노트 시뮬 결과 nps 5.18 = v.dense (2026-05-17 자동 조정)
     simNps: 5.29,
+    rawOnsetNps: 10.52,
     // slotStemPriority 제거: 순수 energy 기반 picker (가장 쎈 음만)
   },
   {
@@ -4384,6 +4386,7 @@ const songs = [
     slotStemPriority: [3, 6, 0, 1, 2], // 신스 > other > drum > bass > vocal
     levelBonus: 0.0, // 노트 시뮬 결과 nps 2.32 = normal (2026-05-17 자동 조정)
     simNps: 2.37,
+    rawOnsetNps: 7.64,
   },
   {
     name: 'Starlight', sub: 'DREAM POP', bpm: 129,
@@ -4432,7 +4435,8 @@ const songs = [
     stemSensitivity: { 2: 0.9, 3: 0.9, 4: 0.95 },
     stemMinGap: { 2: 20, 3: 20 },
     levelBonus: 0.0,
-    simNps: 1.43, // slot 1.0 재시뮬
+    simNps: 1.43,
+    rawOnsetNps: 9.69, // ★ 음악 density (slot 1.0 sparse 보정)
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
     chordMode: true,
   },
@@ -4509,6 +4513,7 @@ const songs = [
     stemMinGap: { 2: 20, 3: 20 },
     levelBonus: 0.0, // 노트 시뮬 결과 nps 2.89 = normal (2026-05-17 자동 조정)
     simNps: 2.92,
+    rawOnsetNps: 9.88,
   },
   {
     name: 'Artificial Sky', sub: 'INDIE/POP', bpm: 96, color: '#6a8cff',
