@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260518173002;
+window.__BUILD_TS = 20260518174001;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3398,14 +3398,30 @@ function _showDemucsProgress() {
   };
 }
 
+// 수동 cache 제거 (F12 콘솔: window._clearDemucsCache())
+window._clearDemucsCache = async function() {
+  try {
+    const db = await _idbOpen();
+    const tx = db.transaction(_DEMUCS_IDB_STORE, 'readwrite');
+    tx.objectStore(_DEMUCS_IDB_STORE).delete(_DEMUCS_MODEL_KEY);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    console.log('[demucs] cache cleared. 다음 업로드 시 재다운로드 발생.');
+  } catch(e) { console.warn('[demucs] cache clear fail:', e); }
+};
+
 // Demucs 모델 fetch + IndexedDB cache
 async function _ensureDemucsModel() {
-  // 1. cache 체크
+  // 1. cache 체크 (size sanity check — 50MB 미만이면 stale, 임시/실패 다운로드 자동 invalidate)
+  const MIN_VALID_SIZE = 50 * 1024 * 1024; // 50MB (진짜 모델 125MB 보장)
   try {
     const cached = await _idbGet(_DEMUCS_MODEL_KEY);
     if (cached) {
-      console.log('[demucs] cache hit, ' + (cached.byteLength / (1024*1024)).toFixed(1) + ' MB');
-      return cached;
+      if (cached.byteLength < MIN_VALID_SIZE) {
+        console.warn('[demucs] cache 너무 작음 (' + (cached.byteLength / (1024*1024)).toFixed(1) + ' MB < 50MB) — stale, 재다운로드');
+      } else {
+        console.log('[demucs] cache hit, ' + (cached.byteLength / (1024*1024)).toFixed(1) + ' MB');
+        return cached;
+      }
     }
   } catch(e) { console.warn('[demucs] IDB read fail:', e); }
   // 2. 사용자 동의
