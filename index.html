@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519113434;
+window.__BUILD_TS = 20260519113744;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3693,7 +3693,7 @@ function playEmptyPressSfx(lane) {
           src.connect(gain); gain.connect(actx.destination);
           const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
-          if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2) + ' freq=' + ({0:120,1:280,2:1500,3:1800,4:1500,5:3500,6:5000}[si] || 1500));
+          if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2));
         }
       } else {
         stemPulses[si] = { start: now, peak: peakVol, dur: 500 };
