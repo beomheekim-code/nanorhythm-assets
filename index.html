@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519120443;
+window.__BUILD_TS = 20260519121549;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3252,15 +3252,33 @@ async function _ugcLibrosaDetect(audioBuf) {
       allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
     }
   }
-  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
+  // 4. Sort by time + 30ms dedup v2 (2026-05-19) — low band 우선 + high band only cut.
+  //    사용자 보고 '중간에 노트 나옴' = high band 잔향이 dedup 살아남음.
+  //    multi-band 8 의 raw energy 비교 결함:
+  //    - high band mel filter sum > low band raw energy 가능
+  //    - dedup 시 잔향 (high) 이 strong hit (low) 보다 우선 picked
+  //    fix:
+  //    a) 30ms 안 multiple band → low band (drum/bass) 우선
+  //    b) high band only 그룹 (band > 3, low band X) → cut (잔향 추정)
   allOnsets.sort((a, b) => a.t - b.t);
-  const merged = [];
+  // 30ms 그룹화
+  const _groups = [];
   for (const o of allOnsets) {
-    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
-      if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
-      continue;
+    if (_groups.length && (o.t - _groups[_groups.length - 1][0].t) < 0.030) {
+      _groups[_groups.length - 1].push(o);
+    } else {
+      _groups.push([o]);
     }
-    merged.push(o);
+  }
+  const merged = [];
+  for (const grp of _groups) {
+    // low band (0~3) 있으면 그 중 가장 강한 거 picked
+    const lows = grp.filter(o => o.band <= 3);
+    if (lows.length > 0) {
+      lows.sort((a, b) => b.energy - a.energy);
+      merged.push(lows[0]);
+    }
+    // else: high band only (band > 3) — 잔향 가능성 → cut
   }
   // 5. BPM (low band envelope 가 박자 가장 명확 — drums/bass)
   const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
