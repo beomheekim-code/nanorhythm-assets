@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519183243;
+window.__BUILD_TS = 20260519184805;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10456,16 +10456,17 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
 
   // ===== stem 기반 레인 배분 (음악 구조 반영) =====
   const lc = laneCount;
-  // ★ laneCount 기반 노트 보강 (2026-05-19 사용자 명시 — 풍성 중간값):
+  // ★ laneCount 기반 노트 보강 (2026-05-19 사용자 명시 — 풍성 max 복원 = 66331f3 시점):
   //   라이브 (5/18 16:22 이전): 4K 0%, 5K 10%, ..., 8K 40% / hold 6K+ ×0.7
-  //   풍성 max (5/18 16:22): 4K 20%, ..., 8K 60% / hold 전 키 ×0.6
-  //   중간 (현재): 4K 10%, 5K 20%, ..., 8K 50% / hold 전 키 ×0.7
-  const chordBoostByLane = 0.10 + Math.max(0, lc - 4) * 0.10; // 4K=10% / 5K=20% / 6K=30% / 7K=40% / 8K=50%
-  const laneChordMinGap = lc >= 7 ? 0.18 : lc >= 6 ? 0.28 : lc >= 5 ? 0.40 : 0.55; // 중간 (라이브 vs 풍성 max)
+  //   풍성 max (현재, 5/18 + 5/19 재복원): 4K 20%, ..., 8K 60% / hold 전 키 ×0.6
+  //   중간 (폐기): 4K 10%, 5K 20%, ..., 8K 50% / hold 전 키 ×0.7
+  //   괜찮아 만 slotSubdivision 1.5 로 sparse 유지 (chord/hold 글로벌과 독립).
+  const chordBoostByLane = 0.20 + Math.max(0, lc - 4) * 0.10; // 4K=20% / 5K=30% / 6K=40% / 7K=50% / 8K=60%
+  const laneChordMinGap = lc >= 7 ? 0.15 : lc >= 6 ? 0.25 : lc >= 5 ? 0.35 : 0.45; // gap 좁힘 (chord 자주)
   let _lastLaneChordTime = 0;
-  // hold 빈도 — 전 키 ×0.7 (라이브 6K+ ×0.7 + 5/18 풍성 전키 ×0.6 의 중간 — 4K/5K 도 적용 + 0.7 비율)
+  // hold 빈도 — 전 키 ×0.6 (5/18 풍성 max 시점 값)
   const holdEveryRaw = diff.holdEvery || 999;
-  const holdEvery = Math.max(4, Math.floor(holdEveryRaw * 0.7));
+  const holdEvery = Math.max(4, Math.floor(holdEveryRaw * 0.6));
   const eighthDur = sixteenth * 2;
 
   // stem → 레인 매핑 (전 레인에 고르게 분산)
