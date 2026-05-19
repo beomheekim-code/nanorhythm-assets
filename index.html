@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519110307;
+window.__BUILD_TS = 20260519110826;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3461,19 +3461,21 @@ async function handleMyMusicFile(e) {
       energy: +(o.energy || 0).toFixed(4),
     }));
     let detectedBpm = lib.bpm;
-    // ★ BPM grid snap — codec ±50ms 흡수 + phase 보정 (median 기준).
-    const _sixteenth = 15 / detectedBpm;
+    // ★ BPM grid snap (2026-05-19 #3) — 16분 → 64분 으로 좁힘.
+    //   사용자 보고 '시작 align → 중간 어긋남 → 끝 align' = BPM 미세 변동 + 16분 grid (~156ms) 누적 drift.
+    //   64분 grid (~39ms) 로 좁히면 snap 영향 1/4 → 노트 시각 거의 정확 유지 + codec ±5-10ms 흡수.
+    const _gridUnit = 15 / detectedBpm / 4;  // 64분음표 (이전 16분 / 4)
     let _phase = 0;
     if (chartOnsets.length >= 5) {
-      const _phases = chartOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
+      const _phases = chartOnsets.map(o => o.t % _gridUnit).sort((a, b) => a - b);
       _phase = _phases[Math.floor(_phases.length / 2)];
     } else if (chartOnsets.length > 0) {
-      _phase = chartOnsets[0].t % _sixteenth;
+      _phase = chartOnsets[0].t % _gridUnit;
     }
     const _seen = new Set();
     const _before = chartOnsets.length;
     chartOnsets = chartOnsets
-      .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
+      .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _gridUnit) * _gridUnit).toFixed(4) }))
       .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
       .sort((a, b) => a.t - b.t);
     // ★ snap 후 endCut 재filter (2026-05-19) — round 시 onset 시각이 endCut 너머로 튈 수 있음.
@@ -3483,7 +3485,7 @@ async function handleMyMusicFile(e) {
       const _snapCut = _snapBefore - chartOnsets.length;
       if (_snapCut > 0) console.log('[ugc] snap-후 endCut 재filter: cut ' + _snapCut + ' more');
     }
-    console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
+    console.log('[ugc] grid snap (64th=' + _gridUnit.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const dur = audioBuf.duration;
