@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519005021;
+window.__BUILD_TS = 20260519094838;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3766,7 +3766,7 @@ const songs = [
     pattern: [1,0,1,1,1,0,1,0, 1,1,0,1,0,1,1,0], simNps: 2.48, rawOnsetNps: 6.69},
   {
     name: '어깨 위에 내려앉은 봄', sub: 'BALLAD', bpm: 134, color: '#ffb7d5',
-    bg1: '#0f0808', bg2: '#1e1215', bars: 66, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png',
+    bg1: '#0f0808', bg2: '#1e1215', bars: 99, cover: 'Music/어깨_위에_내려앉은_봄/어깨_위에_내려앉은_봄.png', // 2026-05-19 bars 66→99 (endCutoff 175.7 매칭)
     file: 'Music/어깨_위에_내려앉은_봄.ogg',
     stemDir: 'Music/어깨_위에_내려앉은_봄/',
     stemPrefix: '어깨_위에_내려앉은_봄',
@@ -3923,7 +3923,7 @@ const songs = [
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,1,0,1,0,1], simNps: 1.93, rawOnsetNps: 6.85},
   {
     name: '기억의 사물함', sub: 'K-BALLAD', bpm: 120, color: '#9999dd',
-    bg1: '#060610', bg2: '#0c0c1c', bars: 37,
+    bg1: '#060610', bg2: '#0c0c1c', bars: 53, // 2026-05-19 bars 37→53 (endCutoff 104.7 매칭)
     cover: 'Music/기억의_사물함/기억의_사물함.png',
     file: 'Music/기억의_사물함.ogg',
     stemDir: 'Music/기억의_사물함/',
@@ -3980,7 +3980,7 @@ const songs = [
     pattern: [1,0,1,0,0,1,0,1, 1,0,0,1,0,1,0,1], simNps: 1.71, rawOnsetNps: 6.07},
   {
     name: 'RED TAPE', sub: 'INDUSTRIAL', bpm: 134, color: '#ff1a33',
-    bg1: '#180003', bg2: '#30000a', bars: 59,
+    bg1: '#180003', bg2: '#30000a', bars: 89, // 2026-05-19 bars 59→89 (endCutoff 157.2 매칭)
     cover: 'Music/RED_TAPE/RED_TAPE.png',
     file: 'Music/RED_TAPE.ogg',
     stemDir: 'Music/RED_TAPE/',
@@ -4030,7 +4030,7 @@ const songs = [
   },
   {
     name: 'Catch The Sky', sub: 'POP/UPLIFT', bpm: 180, color: '#66d4ff',
-    bg1: '#0a1828', bg2: '#163450', bars: 60,
+    bg1: '#0a1828', bg2: '#163450', bars: 89, // 2026-05-19 bars 60→89 (endCutoff 116.75 매칭)
     cover: 'Music/Catch_The_Sky/Catch_The_Sky.png',
     file: 'Music/Catch_The_Sky.ogg',
     stemDir: 'Music/Catch_The_Sky/',
@@ -4093,7 +4093,7 @@ const songs = [
   {
     name: 'Pebbles To Granite', sub: 'Hip-Hop', bpm: 134,
     color: '#aa8855', bg1: '#2a1a08', bg2: '#0a0804',
-    bars: 44, file: 'Music/Pebbles_To_Granite.ogg',
+    bars: 66, file: 'Music/Pebbles_To_Granite.ogg', // 2026-05-19 bars 44→66 (endCutoff 116.5 매칭)
     cover: 'Music/Pebbles_To_Granite/Pebbles_To_Granite.png',
     stemDir: 'Music/Pebbles_To_Granite/',
     stemPrefix: 'Pebbles_To_Granite',
@@ -4177,7 +4177,7 @@ const songs = [
   {
     name: '별빛 아래의 약속', sub: 'Acoustic Ballad', bpm: 144,
     color: '#c8a2f0', bg1: '#1a1030', bg2: '#080416',
-    bars: 69, file: 'Music/별빛_아래의_약속.ogg',
+    bars: 102, file: 'Music/별빛_아래의_약속.ogg', // 2026-05-19 bars 69→102 (endCutoff 168.7 매칭)
     cover: 'Music/별빛_아래의_약속/별빛_아래의_약속.png',
     stemDir: 'Music/별빛_아래의_약속/',
     stemPrefix: '별빛_아래의_약속',
@@ -4317,7 +4317,7 @@ const songs = [
   {
     name: '투명한 설렘', sub: 'CLEAR BALLAD', bpm: 134,
     color: '#a0e0ff', bg1: '#0a1a26', bg2: '#14303c',
-    bars: 55, file: 'Music/투명한_설렘.ogg',
+    bars: 82, file: 'Music/투명한_설렘.ogg', // 2026-05-19 bars 55→82 (endCutoff 145.2 매칭)
     cover: 'Music/투명한_설렘/투명한_설렘.png',
     stemDir: 'Music/투명한_설렘/',
     stemPrefix: '투명한_설렘',
@@ -4328,7 +4328,7 @@ const songs = [
   {
     name: '고민의 자국', sub: 'HEARTFELT BALLAD', bpm: 149,
     color: '#c98ad6', bg1: '#1a0d22', bg2: '#2e1338',
-    bars: 51, file: 'Music/고민의_자국.ogg',
+    bars: 77, file: 'Music/고민의_자국.ogg', // 2026-05-19 bars 51→77 (endCutoff 121.7 매칭)
     cover: 'Music/고민의_자국/고민의_자국.png',
     stemDir: 'Music/고민의_자국/',
     stemPrefix: '고민의_자국',
