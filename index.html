@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519172740;
+window.__BUILD_TS = 20260519174651;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1427,7 +1427,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@82f8f05/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@99f75393508e9a6cc00c8464fb693e061171e472/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@48ec36cd214945dcc2fce702f11f4dd7bbac7e3e/';
 // ★ FORCE_REPATCH_LIST — 사용자 환경 saved.paths 에 있어도 무조건 다시 받는 paths.
 //   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
 //   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
@@ -4761,8 +4761,7 @@ const songs = [
     excludeStems: [4],
     endCutoff: 151.2,
     pattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
-    vocalIntroRange: 'auto', chordMode: true, simNps: 2.88, rawOnsetNps: 5.85,
-    rawBonus: -0.15}, // 2026-05-19 사용자 명시 4K 지옥 = 8 (raw 0.376 → 0.226)
+    vocalIntroRange: 'auto', chordMode: true, simNps: 2.88, rawOnsetNps: 5.85},
 ];
 
 // ===== SONG LOCK / SHOP SYSTEM =====
@@ -11499,7 +11498,7 @@ function startSong(idx) {
       //   ★ UGC: songIdx 가 다른 곡끼리 충돌 (모두 songs.length-1) → cache skip.
       const _isUgcChart = curSong && curSong._ugc;
       // v10: ATLANTIS chart delta 0.12 (1215 onsets) + rawBonus 0.20
-      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v25'; // 괜찮아 chart 1248 → 866 (delta 0.03)
+      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v15'; // chord/hold 풍성 중간값 (라이브 vs 풍성 max)
       window.__nodesCache = window.__nodesCache || new Map();
       const _cachedNodes = _isUgcChart ? null : window.__nodesCache.get(_cacheKey);
       if (_cachedNodes && Array.isArray(_cachedNodes)) {
