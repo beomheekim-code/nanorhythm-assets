@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519104534;
+window.__BUILD_TS = 20260519105207;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3272,14 +3272,16 @@ async function _ugcLibrosaDetect(audioBuf) {
   }
   // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
   //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
-  //    delta 0.02 = librosa 의 default 0.07 보다 매우 sensitive (mix masking 보완).
+  //    ★ delta 0.07 (2026-05-19): 라이브 librosa default 매칭.
+  //    이전 0.02 는 sensitivity 과해서 ambient 곡 (ATLANTIS 같은) 신스 잔향까지 onset 잡힘
+  //    → '조용한 구간에 노트' 사용자 보고. 라이브 ATLANTIS 도 같은 문제로 delta 0.12 로 fix 했었음.
   const nFft = 2048, hop = 256, nMels = 128, numBands = 8;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — delta 0.02 (push, mix masking 으로 약화된 peak 도 잡음).
+  // 3. Per-band peak picking — delta 0.07 (라이브 default 와 동일).
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.02, 2, 2, 0, 8, 8);
+    const peaks = _ugcPeakPick(env, 0.07, 2, 2, 0, 8, 8);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
