@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519122213;
+window.__BUILD_TS = 20260519122322;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -1427,7 +1427,7 @@ if (typeof ResizeObserver !== 'undefined') {
 // 로컬 개발: '' (빈 문자열 = 상대경로)
 // 배포: GitHub+jsdelivr CDN URL로 변경
 // 예: 'https://cdn.jsdelivr.net/gh/유저명/리포명@82f8f05/'
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@a398edbb0f12c3dab5a2d6fa227c1819f2346d39/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/beomheekim-code/nanorhythm-assets@9273928b7ba28f7fef1344bd0630f16ccd92c824/';
 // ★ FORCE_REPATCH_LIST — 사용자 환경 saved.paths 에 있어도 무조건 다시 받는 paths.
 //   PNG 변경 시 사용자 사이드 이펙트 (전체 재패치) 회피용. 변경된 PNG paths 만 추가.
 //   사용자 receive 후 saved.paths += 이 list 자동 됨 (다음 commit 의 새 force 만 받기).
@@ -3136,8 +3136,7 @@ async function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands)
 }
 
 // Peak picking — librosa.util.peak_pick params (delta, wait, pre/post_max, pre/post_avg)
-//   ★ absThreshold (2026-05-19): 잔향 (낮은 energy 지속) onset 제거. peak 가 env 전체 mean × X 이상이어야.
-function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg, absThreshold) {
+function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg) {
   const n = env.length;
   if (n === 0) return [];
   // Normalize (max → 1)
@@ -3146,17 +3145,10 @@ function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg, absThr
   if (maxV < 1e-6) return [];
   const normEnv = new Float32Array(n);
   for (let i = 0; i < n; i++) normEnv[i] = env[i] / maxV;
-  // ★ 전체 env mean 계산 (absThreshold 비교 기준)
-  let envSum = 0;
-  for (let i = 0; i < n; i++) envSum += normEnv[i];
-  const envMean = envSum / n;
-  const absMin = (absThreshold || 0) * envMean;
   const peaks = [];
   let lastPeak = -wait - 1;
   for (let i = 1; i < n - 1; i++) {
     if (i - lastPeak < wait) continue;
-    // ★ 절대 energy threshold — 조용한 구간 (잔향) peak 제거
-    if (normEnv[i] < absMin) continue;
     // Local max over [i-preMax, i+postMax]
     const lo = Math.max(0, i - preMax);
     const hi = Math.min(n - 1, i + postMax);
@@ -3196,63 +3188,29 @@ function _ugcEstimateBpmFromEnv(env, sr, hop) {
   const maxLag = Math.ceil(fps * 60 / 60);
   const scores = new Float32Array(maxLag - minLag + 1);
   for (let lag = minLag; lag <= maxLag; lag++) {
-    let s = 0;
-    for (let i = lag; i < env.length; i++) s += env[i] * env[i - lag];
-    scores[lag - minLag] = s;
+    let score = 0;
+    for (let i = lag; i < env.length; i++) score += env[i] * env[i - lag];
+    scores[lag - minLag] = score;
   }
-  // base peak idx
+  // peak idx
   let bestIdx = 0, bestScore = 0;
   for (let i = 0; i < scores.length; i++) {
     if (scores[i] > bestScore) { bestScore = scores[i]; bestIdx = i; }
   }
   if (bestScore === 0) return 120;
-  // ★ Octave check (2026-05-19, A 작업) — librosa beat_track 처럼 절반/배수 후보 검증.
-  //   autocorr 흔한 오류: 8분음표 lag 에 강한 peak → BPM 2배로 잘못. 절반 lag (=BPM 2배) 와 두 배 lag (=BPM 절반) score 비교.
+  // ★ Parabolic interpolation (sub-bin precision) — BPM 정확도 ↑ (정수 lag round 시 ±2 BPM 오차 fix).
+  //   3-point quadratic fit, peak offset = (a-c) / (2 * (a-2b+c)).
   let exactLag = bestIdx + minLag;
-  let baseBpm = 60 / (exactLag / fps);
-  const lagHalfIdx = Math.round(exactLag / 2) - minLag;  // BPM 2배 위치
-  const lagDoubleIdx = exactLag * 2 - minLag;             // BPM 절반 위치
-  const halfScore = (lagHalfIdx >= 0 && lagHalfIdx < scores.length) ? scores[lagHalfIdx] : 0;
-  const doubleScore = (lagDoubleIdx >= 0 && lagDoubleIdx < scores.length) ? scores[lagDoubleIdx] : 0;
-  // 100~150 BPM 선호 (librosa perceptual prior). 너무 느리거나 빠르면 octave 보정.
-  let useLag = exactLag;
-  if (baseBpm < 80 && halfScore > bestScore * 0.5) useLag = exactLag / 2;  // 너무 느림 → BPM 2배
-  else if (baseBpm > 160 && doubleScore > bestScore * 0.5) useLag = exactLag * 2;  // 너무 빠름 → BPM 절반
-  // Parabolic refinement (sub-bin)
   if (bestIdx > 0 && bestIdx < scores.length - 1) {
     const a = scores[bestIdx - 1], b = scores[bestIdx], c = scores[bestIdx + 1];
     const denom = 2 * (a - 2 * b + c);
-    if (denom !== 0 && useLag === exactLag) useLag += (a - c) / denom;
+    if (denom !== 0) exactLag += (a - c) / denom;
   }
-  let bpm = 60 / (useLag / fps);
+  let bpm = 60 / (exactLag / fps);
   while (bpm > 200) bpm /= 2;
   while (bpm < 80) bpm *= 2;
-  return Math.round(bpm * 10) / 10; // 0.1 BPM (이전 0.5)
+  return Math.round(bpm * 2) / 2; // 0.5 BPM 단위 (정수 round 보다 정밀)
 }
-
-// ★ BPM grid fit refinement (2026-05-19, A 작업) — onset 들이 16분 grid 에 가장 잘 fit 하는 BPM 찾기.
-//   autocorr BPM 후보 ±3 범위에서 0.1 BPM step 으로 시도. fit score (onset 시각 % sixteenth 의 분산 역수) 최대 선택.
-//   사용자 보고 'Higher BPM 97 (라이브 96), 마지막 2개 어긋남' — 1 BPM 차이 누적 phase shift fix.
-function _ugcBpmGridFit(onsets, baseBpm) {
-  if (!onsets || onsets.length < 20) return baseBpm; // 너무 적으면 refinement 무의미
-  const times = onsets.map(o => o.t);
-  // ±3 BPM 범위 0.1 step 시도
-  let bestBpm = baseBpm, bestFit = -Infinity;
-  for (let b = Math.max(60, baseBpm - 3.0); b <= Math.min(200, baseBpm + 3.0); b += 0.1) {
-    const sixteenth = 60 / b / 4;
-    // 각 onset 의 grid offset (0 ~ sixteenth/2)
-    let sumFit = 0;
-    for (const t of times) {
-      const off = t % sixteenth;
-      const dist = Math.min(off, sixteenth - off);
-      sumFit += 1 - (dist / (sixteenth / 2));  // 1 = 완벽 fit, 0 = 최악
-    }
-    const fit = sumFit / times.length;
-    if (fit > bestFit) { bestFit = fit; bestBpm = b; }
-  }
-  return Math.round(bestBpm * 10) / 10;
-}
-
 
 // Main entry — librosa-style detection. AudioBuffer → { onsets: [{t,energy}], bpm }
 //   async 화 (2026-05-18) — STFT loop 의 setTimeout chunk yield 위해.
@@ -3280,36 +3238,50 @@ async function _ugcLibrosaDetect(audioBuf) {
   }
   // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
   //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
-  //    delta 0.02 = librosa default 0.07 보다 매우 sensitive (mix masking 보완).
-  //    ★ 2026-05-19: ATLANTIS 잔향 fix 단계적 시도:
-  //    - 0.07 (현저히 줄음 거절) / 0.04+abs 1.5 (별로 거절) / 0.02 원복 (잔향 남음)
-  //    - 0.02 + absThreshold 0.5 (지금 — 0.02 에 매우 약한 잔향 cut, 사용자 '훨씬 더 지금 쪽')
+  //    delta 0.02 = librosa 의 default 0.07 보다 매우 sensitive (mix masking 보완).
   const nFft = 2048, hop = 256, nMels = 128, numBands = 8;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — delta 0.02 + absThreshold 0.5 (env mean × 0.5 미만 peak cut, 매우 약함).
+  // 3. Per-band peak picking — delta 0.02 (push, mix masking 으로 약화된 peak 도 잡음).
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.02, 2, 2, 0, 8, 8, 0.5);
+    const peaks = _ugcPeakPick(env, 0.02, 2, 2, 0, 8, 8);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
       allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
     }
   }
-  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
+  // 4. Sort by time + 30ms dedup v2 (2026-05-19) — low band 우선 + high band only cut.
+  //    사용자 보고 '중간에 노트 나옴' = high band 잔향이 dedup 살아남음.
+  //    multi-band 8 의 raw energy 비교 결함:
+  //    - high band mel filter sum > low band raw energy 가능
+  //    - dedup 시 잔향 (high) 이 strong hit (low) 보다 우선 picked
+  //    fix:
+  //    a) 30ms 안 multiple band → low band (drum/bass) 우선
+  //    b) high band only 그룹 (band > 3, low band X) → cut (잔향 추정)
   allOnsets.sort((a, b) => a.t - b.t);
-  const merged = [];
+  // 30ms 그룹화
+  const _groups = [];
   for (const o of allOnsets) {
-    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
-      if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
-      continue;
+    if (_groups.length && (o.t - _groups[_groups.length - 1][0].t) < 0.030) {
+      _groups[_groups.length - 1].push(o);
+    } else {
+      _groups.push([o]);
     }
-    merged.push(o);
+  }
+  const merged = [];
+  for (const grp of _groups) {
+    // low band (0~3) 있으면 그 중 가장 강한 거 picked
+    const lows = grp.filter(o => o.band <= 3);
+    if (lows.length > 0) {
+      lows.sort((a, b) => b.energy - a.energy);
+      merged.push(lows[0]);
+    }
+    // else: high band only (band > 3) — 잔향 가능성 → cut
   }
   // 5. BPM (low band envelope 가 박자 가장 명확 — drums/bass)
-  let bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
-  // ★ BPM grid fit refinement 는 onset 다 나온 후 (8번 단계). 일단 base bpm 보존.
+  const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
   // 6. Intro filter (t<0.15 & energy<0.5) — match library policy
   let filtered = merged.filter(o => !(o.t < 0.15 && o.energy < 0.5));
   // 7. ★ Fade-out 자동 감지 (2026-05-19, ATLANTIS 케이스 — sparse 곡 끝 hit 보존).
@@ -3317,9 +3289,7 @@ async function _ugcLibrosaDetect(audioBuf) {
   //    이전 fixed 2.0s cut 은 sparse 곡 마지막 진짜 hit 도 잘림 → bucket 자동 감지로 교체.
   const _audioDur = audio.length / sr;
   const BUCKET = 0.5;
-  // ★ FLOOR 0.02 → 0.05 (2026-05-19) — mix RMS 는 stem 합 (√N 배 스케일).
-  //   stem 별 0.02 와 같은 값 쓰면 fade-out tail 일부도 musical 판정. 사용자 보고 '끝 1개 더'.
-  const FLOOR = 0.05;
+  const FLOOR = 0.02;
   const bs = Math.floor(sr * BUCKET);
   const nb = Math.ceil(audio.length / bs);
   let last_b = -1;
@@ -3331,18 +3301,13 @@ async function _ugcLibrosaDetect(audioBuf) {
     if (rms > FLOOR) last_b = b;
   }
   const _last_musical = (last_b + 1) * BUCKET;
-  // ★ margin 0.3 → 0.5 (2026-05-19) — fade-out 시작 직전 보수적 컷.
-  const _endCut = Math.max(0.1, _last_musical - 0.5);
+  const _endCut = Math.max(0.1, _last_musical - 0.3); // -0.3s 마진 (library 정책)
   const _beforeCut = filtered.length;
   filtered = filtered.filter(o => o.t < _endCut);
   const _cutCount = _beforeCut - filtered.length;
-  // 8. ★ BPM grid fit refinement — onset 들이 16분 grid 에 가장 잘 align 하는 BPM 으로 미세 조정.
-  //    autocorr ±1 BPM 오차 → 곡 끝에서 누적 phase shift fix. 사용자 보고 'Higher 97 vs 라이브 96, 끝 2개 어긋남'.
-  const _bpmBase = bpm;
-  bpm = _ugcBpmGridFit(filtered, _bpmBase);
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + _bpmBase + '→' + bpm + ' (grid fit)');
-  return { onsets: filtered, bpm, endCut: _endCut };  // ★ endCut 도 반환 (main 에서 snap 후 재filter)
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
+  return { onsets: filtered, bpm, endCut: _endCut }; // ★ endCut 반환 — snap 후 재filter 용
 }
 
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
@@ -3461,31 +3426,50 @@ async function handleMyMusicFile(e) {
       energy: +(o.energy || 0).toFixed(4),
     }));
     let detectedBpm = lib.bpm;
-    // ★ BPM grid snap (2026-05-19 #3) — 16분 → 64분 으로 좁힘.
-    //   사용자 보고 '시작 align → 중간 어긋남 → 끝 align' = BPM 미세 변동 + 16분 grid (~156ms) 누적 drift.
-    //   64분 grid (~39ms) 로 좁히면 snap 영향 1/4 → 노트 시각 거의 정확 유지 + codec ±5-10ms 흡수.
-    const _gridUnit = 15 / detectedBpm / 4;  // 64분음표 (이전 16분 / 4)
-    let _phase = 0;
-    if (chartOnsets.length >= 5) {
-      const _phases = chartOnsets.map(o => o.t % _gridUnit).sort((a, b) => a - b);
-      _phase = _phases[Math.floor(_phases.length / 2)];
-    } else if (chartOnsets.length > 0) {
-      _phase = chartOnsets[0].t % _gridUnit;
-    }
+    // ★ BPM grid snap v4 (2026-05-19) — 16분 grid + 구간 별 phase 보정.
+    //   사용자 보고 '중간 노트 살짝 안 맞음' = BPM 미세 변동.
+    //   곡 3 구간 분할, 각 구간 onset 의 median phase 로 snap → 변동 곡 적응.
+    //   9999eb7 의 64분 grid 와 다른 접근 (16분 grid 정밀도 유지).
+    const _sixteenth = 15 / detectedBpm;
     const _seen = new Set();
     const _before = chartOnsets.length;
+    // 곡 길이 측정 (chartOnsets 의 마지막 t)
+    chartOnsets.sort((a, b) => a.t - b.t);
+    const _songEnd = chartOnsets.length > 0 ? chartOnsets[chartOnsets.length - 1].t : 0;
+    const _segCount = 3;
+    const _segLen = _songEnd / _segCount;
+    // 각 구간 phase 계산 — 그 구간 onset 의 median phase
+    const _segPhases = [];
+    for (let s = 0; s < _segCount; s++) {
+      const _segStart = s * _segLen;
+      const _segEnd = (s + 1) * _segLen;
+      const _segOnsets = chartOnsets.filter(o => o.t >= _segStart && o.t < _segEnd);
+      if (_segOnsets.length >= 5) {
+        const _phases = _segOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
+        _segPhases.push(_phases[Math.floor(_phases.length / 2)]);
+      } else {
+        _segPhases.push(0);
+      }
+    }
+    console.log('[ugc] segment phases: ' + _segPhases.map(p => p.toFixed(4)).join(', '));
+    // 각 onset 의 구간 phase 로 snap
     chartOnsets = chartOnsets
-      .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _gridUnit) * _gridUnit).toFixed(4) }))
+      .map(o => {
+        const _segIdx = Math.min(_segCount - 1, Math.floor(o.t / _segLen));
+        const _p = _segPhases[_segIdx];
+        const _newT = _p + Math.round((o.t - _p) / _sixteenth) * _sixteenth;
+        return { ...o, t: +_newT.toFixed(4) };
+      })
       .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
       .sort((a, b) => a.t - b.t);
-    // ★ snap 후 endCut 재filter (2026-05-19) — round 시 onset 시각이 endCut 너머로 튈 수 있음.
+    // ★ snap 후 endCut 재filter (2026-05-19) — round 시 onset 이 endCut 너머로 튀는 거 cut. 끝 2개 fix.
     if (typeof lib.endCut === 'number') {
-      const _snapBefore = chartOnsets.length;
+      const _sBefore = chartOnsets.length;
       chartOnsets = chartOnsets.filter(o => o.t < lib.endCut);
-      const _snapCut = _snapBefore - chartOnsets.length;
-      if (_snapCut > 0) console.log('[ugc] snap-후 endCut 재filter: cut ' + _snapCut + ' more');
+      const _sCut = _sBefore - chartOnsets.length;
+      if (_sCut > 0) console.log('[ugc] snap-후 endCut 재filter: cut ' + _sCut + ' more');
     }
-    console.log('[ugc] grid snap (64th=' + _gridUnit.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
+    console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, segment-phase): ' + _before + ' → ' + chartOnsets.length + ' onsets');
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const dur = audioBuf.duration;
