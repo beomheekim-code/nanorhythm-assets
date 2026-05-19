@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519145900;
+window.__BUILD_TS = 20260519150837;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -4728,7 +4728,7 @@ const songs = [
     chordMode: true,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 3.23, rawOnsetNps: 8.36},
   {
-    name: 'TOK_TOK_TOK', sub: 'POP', bpm: 103,
+    name: 'TOK TOK TOK', sub: 'POP', bpm: 103,
     color: '#5fc8ff', bg1: '#06182a', bg2: '#0a253d',
     bars: 67, file: 'Music/TOK_TOK_TOK.ogg',
     cover: 'Music/TOK_TOK_TOK/TOK_TOK_TOK.png',
@@ -11496,7 +11496,7 @@ function startSong(idx) {
       //   ★ UGC: songIdx 가 다른 곡끼리 충돌 (모두 songs.length-1) → cache skip.
       const _isUgcChart = curSong && curSong._ugc;
       // v10: ATLANTIS chart delta 0.12 (1215 onsets) + rawBonus 0.20
-      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v10'; // post-gen pass 제거 (표준 흐름 복귀) → v10 baseline
+      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v14'; // 달빛 과자상자 chart 마지막 onset 제거
       window.__nodesCache = window.__nodesCache || new Map();
       const _cachedNodes = _isUgcChart ? null : window.__nodesCache.get(_cacheKey);
       if (_cachedNodes && Array.isArray(_cachedNodes)) {
