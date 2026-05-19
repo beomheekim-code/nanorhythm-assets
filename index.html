@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519122906;
+window.__BUILD_TS = 20260519124449;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3252,11 +3252,14 @@ async function _ugcLibrosaDetect(audioBuf) {
       allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
     }
   }
-  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
+  // 4. Sort by time + 50ms dedup (2026-05-19) — 사용자 '리듬 안 맞지' 변동성 fix.
+  //    multi-band 8 peak 가 30ms window 안에서 spectral 환경에 따라 잡히는 band 변동 → dedup 결과 변동.
+  //    50ms 으로 키우면 같은 박자의 multiple band peak 더 많이 합쳐짐 → 균일성 ↑
+  //    trade-off: 32분 (>50ms@<150BPM) 같은 빠른 연타 일부 합쳐질 가능성 (드문 케이스).
   allOnsets.sort((a, b) => a.t - b.t);
   const merged = [];
   for (const o of allOnsets) {
-    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
+    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.050) {
       if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
       continue;
     }
