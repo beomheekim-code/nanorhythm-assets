@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519141338;
+window.__BUILD_TS = 20260519141731;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3915,7 +3915,7 @@ const songs = [
     stemDir: 'Music/The_Clock_Face_Shakes/',
     stemPrefix: 'The_Clock_Face_Shakes',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 117.2,
+    endCutoff: 117.0,
     pattern: [1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0], simNps: 2.13, rawOnsetNps: 6.79},
   {
     name: 'Breaking Gravity', sub: 'EDM/BASS', bpm: 145, color: '#00e0ff',
@@ -3951,7 +3951,7 @@ const songs = [
     stemDir: 'Music/SIDEWALK_RUNWAY/',
     stemPrefix: 'SIDEWALK_RUNWAY',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 96.2,
+    endCutoff: 96.0,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], simNps: 1.92, rawOnsetNps: 6.75},
   {
     name: "Let's Go Shopping!", sub: 'POP/DANCE', bpm: 130, color: '#ff7eb3',
@@ -3980,7 +3980,7 @@ const songs = [
     stemDir: 'Music/Midnight_Boulevard/',
     stemPrefix: 'Midnight_Boulevard',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 106.2,
+    endCutoff: 106.0,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], simNps: 1.59, rawOnsetNps: 5.21},
   {
     name: 'Outrunning The Rain', sub: 'INDIE/POP', bpm: 128, color: '#4488cc',
@@ -4039,7 +4039,7 @@ const songs = [
     stemDir: 'Music/기억의_사물함/',
     stemPrefix: '기억의_사물함',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 104.7,
+    endCutoff: 104.5,
     pattern: [1,0,0,1,1,0,0,1, 1,0,0,1,1,0,0,1],
     excludeStems: [5], // drums/bass/guitar/other 제외 → instrum + piano만
     levelBonus: -0.3,
@@ -4120,7 +4120,7 @@ const songs = [
     stemDir: 'Music/加速する鼓動/',
     stemPrefix: '加速する鼓動',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 112.7,
+    endCutoff: 112.5,
     pattern: [1,1,0,1,1,0,1,0, 1,0,1,1,0,1,1,0], simNps: 2.77, rawOnsetNps: 7.74},
   {
     name: '황덕구의 모험', sub: 'K-FUNK/FUN', bpm: 117, color: '#ffdd33',
@@ -4131,7 +4131,7 @@ const songs = [
     stemPrefix: '황덕구의_모험',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     slotSubdivision: 0.75,  // 2026-05-15 tweak
-    endCutoff: 142.2,
+    endCutoff: 142.0,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0],
     excludeStems: [4], // instrum만 사용 (메인 트랙)
     levelBonus: 0.2,
@@ -4146,7 +4146,7 @@ const songs = [
     stemDir: 'Music/Catch_The_Sky/',
     stemPrefix: 'Catch_The_Sky',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 116.75,
+    endCutoff: 116.55,
     pattern: [1,0,1,0,1,0,1,1, 0,1,0,1,1,0,1,0], simNps: 2.97, rawOnsetNps: 8.33},
   {
     name: 'Neon Light', sub: 'SYNTH/NIGHT', bpm: 110, color: '#ff5cd6',
@@ -4251,7 +4251,7 @@ const songs = [
     stemDir: 'Music/기분_좋은_날/',
     stemPrefix: '기분_좋은_날',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 130.2,
+    endCutoff: 130.0,
     pattern: [1,0,0,1,0,0,1,0, 0,1,0,0,1,0,0,1], vocalIntroRange: 'auto', chordMode: true, levelBonus: -0.3, simNps: 1.41, rawOnsetNps: 8.17},
   {
     name: '바람을 타고', sub: 'K-Pop Dance', bpm: 172,
@@ -4261,7 +4261,7 @@ const songs = [
     stemDir: 'Music/바람을_타고/',
     stemPrefix: '바람을_타고',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 157.2,
+    endCutoff: 157.0,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,1,0,1,0], vocalIntroRange: 'auto', chordMode: true, simNps: 2.63, rawOnsetNps: 8.15},
   {
     name: 'The Last Quarter', sub: 'Alt Rock', bpm: 144,
@@ -4367,7 +4367,7 @@ const songs = [
     stemDir: 'Music/Soda_Pop_Crush/',
     stemPrefix: 'Soda_Pop_Crush',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
-    endCutoff: 167.2,
+    endCutoff: 167.0,
     pattern: [1,0,1,0,1,0,0,1, 1,1,0,1,0,1,0,1],
     excludeStems: [4],
     vocalIntroRange: 'auto', chordMode: true, simNps: 1.67, rawOnsetNps: 5.91},
@@ -4601,7 +4601,7 @@ const songs = [
     stemPrefix: '달빛_과자상자',
     stemNames: ['drums', 'bass', 'vocals', 'instrum', 'piano', 'guitar', 'other'],
     excludeStems: [4],
-    endCutoff: 165.7,
+    endCutoff: 165.5, // 2026-05-19: chart 마지막 onset 165.7 = 이전 endCutoff → game filter <= 통과 → 끝 1개 더. 0.2s 줄여서 fix.
     pattern: [1,0,0,1, 1,0,1,0, 0,1,0,1, 1,0,1,0],
     vocalIntroRange: 'auto', chordMode: true, simNps: 2.05, rawOnsetNps: 6.51},
   {
@@ -4714,7 +4714,7 @@ const songs = [
     excludeStems: [4],
     chordMode: true,
     slotSubdivision: 0.75,  // 2026-05-15 decouple 후 복원
-    endCutoff: 168.83,
+    endCutoff: 168.63,
     pattern: [1,0,1,0,1,1,0,1, 0,1,0,1,0,1,1,0], levelBonus: 0.2, simNps: 3.02, rawOnsetNps: 7.84},
   {
     name: '잔상', sub: 'BALLAD', bpm: 99, color: '#a08cff',
