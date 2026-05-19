@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519114230;
+window.__BUILD_TS = 20260519114539;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3279,9 +3279,13 @@ async function _ugcLibrosaDetect(audioBuf) {
   // 2. Single-band Onset strength (2026-05-19) — 라이브 librosa Python 매칭.
   //    이전 multi-band 8 bands: dedup 시 high band 약한 잔향이 low band strong hit 보다 raw energy ↑
   //    → 강한 hit 가 잔향에 덮어쓰여 사라짐. 사용자 보고 '강한 부분 안 나오고 약한 부분만 나옴'.
-  //    라이브 Python: librosa.onset.onset_strength 단일 wideband → 매칭으로 numBands=1.
-  const nFft = 2048, hop = 256, nMels = 128, numBands = 1;
+  //    ★ 2026-05-19 B 옵션: numBands 1 → 4 + dedup 시 normalize 비교.
+  //    이전 multi-band 8 의 dedup 결함 (band 별 raw energy 스케일 차이) 해결.
+  //    4 bands = low (drums/bass) / mid-low (piano) / mid-high (vocals/guitar) / high (hi-hat/synth)
+  const nFft = 2048, hop = 256, nMels = 128, numBands = 4;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
+  // band 별 max — dedup normalize 용
+  const _bandMax = envs.map(env => { let m = 0; for (let i = 0; i < env.length; i++) if (env[i] > m) m = env[i]; return m || 1e-6; });
   // 3. Adaptive delta peak picking (2026-05-19 사용자 'ATLANTIS 잔향 ↓ but Higher 너무 적음').
   //    초기 delta 0.07 시도 → onset 너무 적으면 (< 2 nps) delta 자동 낮춤 / 너무 많으면 (> 10 nps) 높임.
   //    목표 nps: 3~8 (ATLANTIS dense / Higher dance 양쪽 적정).
@@ -3323,12 +3327,15 @@ async function _ugcLibrosaDetect(audioBuf) {
     }
   }
   console.log('[ugc] adaptive delta=' + _finalDelta + ' (peaks ' + allOnsets.length + ' / target ' + _targetMin.toFixed(0) + '~' + _targetMax.toFixed(0) + ')');
-  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
+  // 4. Sort by time + 30ms dedup (normalize 비교 — band 별 max 로 정규화 후 비교, B 옵션).
   allOnsets.sort((a, b) => a.t - b.t);
   const merged = [];
   for (const o of allOnsets) {
     if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
-      if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
+      // ★ band-normalized energy 비교 (band 별 raw energy 스케일 차이 보정)
+      const _oNorm = o.energy / _bandMax[o.band];
+      const _mNorm = merged[merged.length - 1].energy / _bandMax[merged[merged.length - 1].band];
+      if (_oNorm > _mNorm) merged[merged.length - 1] = o;
       continue;
     }
     merged.push(o);
@@ -12035,11 +12042,20 @@ function update(dt) {
         }
         const _audioDest = (gameMode === 'nano' && nanoFilter) ? nanoFilter : actx.destination;
         if (gameMode === 'nano' && nanoFilter) nanoFilter.connect(actx.destination);
+        const _isUgcForBgmStart = curSong && curSong._ugc;
         for (let i = 0; i < allStemAudios.length; i++) {
           if (stemAudioBuffers[i] && actx) {
             const gain = actx.createGain();
             const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
-            gain.gain.value = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+            const _targetVol = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
+            // ★ UGC BGM 시작 시 찌직 fix (2026-05-19) — 0 → peakVol 즉시 set click 방지. 20ms fade-in.
+            //   라이브 곡은 stem 별 분리라 자연 fade, UGC mix 는 raw transition → 별도 fade-in.
+            if (_isUgcForBgmStart) {
+              gain.gain.setValueAtTime(0, actx.currentTime);
+              gain.gain.linearRampToValueAtTime(_targetVol, actx.currentTime + 0.02);
+            } else {
+              gain.gain.value = _targetVol;
+            }
             gain.connect(_isAlways ? actx.destination : _audioDest);
             const src = actx.createBufferSource();
             src.buffer = stemAudioBuffers[i];
