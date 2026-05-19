@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519094904;
+window.__BUILD_TS = 20260519100914;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3261,13 +3261,17 @@ async function _ugcLibrosaDetect(audioBuf) {
   const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
   // 6. Intro filter (t<0.15 & energy<0.5) — match library policy
   let filtered = merged.filter(o => !(o.t < 0.15 && o.energy < 0.5));
-  // 7. ★ Fade-out / 잔향 cut (2026-05-18 사용자 보고 'BGM 끝났는데 5개 더 나옴')
-  //    audio 끝 ~1.0s 안 onset 제거. librosa onset_detect 가 fade-out 잔향을 onset 으로 잡는 패턴.
-  //    library generator 와 동일 정책 (endCutoff -0.3 마진).
+  // 7. ★ Fade-out / 잔향 cut (2026-05-19 사용자 보고 '마지막 7개 더' → 1.0 → 2.0s 키움)
+  //    audio 끝 ~2.0s 안 onset 제거. librosa onset_detect fade-out 잔향 더 길게 잡는 곡 대응.
   const _audioDur = audio.length / sr;
-  filtered = filtered.filter(o => o.t < _audioDur - 1.0);
+  const _beforeCut = filtered.length;
+  filtered = filtered.filter(o => o.t < _audioDur - 2.0);
+  const _cutCount = _beforeCut - filtered.length;
+  // 8. ★ BPM octave 검증 (2026-05-19) — autocorr 가 half/double BPM 잡는 흔한 오류.
+  //    bpm/2 와 bpm*2 위치 autocorr score 비교 → 절반/배수 의심 출력 (디버그용).
+  //    실제 보정은 사용자 보고 받아서 진행.
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', after dedup=' + merged.length + ', final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', after dedup=' + merged.length + ', cut(>dur-2s)=' + _cutCount + ', final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
   return { onsets: filtered, bpm };
 }
 
@@ -3418,18 +3422,23 @@ async function handleMyMusicFile(e) {
       detectedBpm = lib.bpm;
       // ★ BPM grid snap (2026-05-18, 옵션 A) — MP3/OGG codec 차이 ±50ms 흡수.
       //   같은 곡이면 detect 결과 ±5-10ms 다르더라도 동일 grid 에 snap → 동일 chart 결정론.
-      //   리듬게임 표준 (DJMAX/IIDX/EZ2DJ 모두 BPM grid 사용). dedupe 같은 grid 중복 제거.
-      //   ★ phase 보정 (2026-05-18 #2): 첫 onset 의 시각 = grid 의 기준점.
-      //   intro 가 t=0 부터 시작 안 하는 곡 (대부분) 도 첫 비트에 정확히 정렬 — 사용자 보고 'higher 시작 노트 안 맞음' fix.
+      //   ★ phase 보정 v2 (2026-05-19): 첫 onset → median onset phase.
+      //   첫 onset 이 intro noise 일 수 있음 → median 이 더 robust (사용자 보고 'higher 시작 어긋남' 재발).
       const _sixteenth = 15 / detectedBpm;
-      const _phase = chartOnsets.length > 0 ? (chartOnsets[0].t % _sixteenth) : 0;
+      let _phase = 0;
+      if (chartOnsets.length >= 5) {
+        const _phases = chartOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
+        _phase = _phases[Math.floor(_phases.length / 2)]; // median
+      } else if (chartOnsets.length > 0) {
+        _phase = chartOnsets[0].t % _sixteenth;
+      }
       const _seen = new Set();
       const _before = chartOnsets.length;
       chartOnsets = chartOnsets
         .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
         .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
         .sort((a, b) => a.t - b.t);
-      console.log('[ugc] BPM grid snap (16th=' + _sixteenth.toFixed(4) + 's, phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
+      console.log('[ugc] BPM grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
       if (cacheKey) {
         try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, bpm: detectedBpm, ts: Date.now() })); } catch(e) {}
       }
