@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519115257;
+window.__BUILD_TS = 20260519115652;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -12021,15 +12021,22 @@ function update(dt) {
         if (gameMode === 'nano' && nanoFilter) nanoFilter.connect(actx.destination);
         const _isUgcForBgmStart = curSong && curSong._ugc;
         for (let i = 0; i < allStemAudios.length; i++) {
+          // ★ UGC: stem 0 만 source 생성 (나머지 6개 vol 0 source 자체 생략 — 찌직 click 누적 방지)
+          if (_isUgcForBgmStart && i !== 0) {
+            window._absNodes.push(null);
+            window._absGains.push(null);
+            if (allStemAudios[i]) { allStemAudios[i].pause(); allStemAudios[i].currentTime = 0; }
+            continue;
+          }
           if (stemAudioBuffers[i] && actx) {
             const gain = actx.createGain();
             const _isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
             const _targetVol = (_isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL) * volBgm;
-            // ★ UGC BGM 시작 시 찌직 fix (2026-05-19) — 0 → peakVol 즉시 set click 방지. 20ms fade-in.
-            //   라이브 곡은 stem 별 분리라 자연 fade, UGC mix 는 raw transition → 별도 fade-in.
+            // ★ UGC BGM 시작 시 찌직 fix v2 (2026-05-19) — 20ms → 100ms fade-in (더 부드러움).
+            //   UGC mastered mix 의 시작 sample 큰 amplitude → click 누적 → 100ms 곡선 fade.
             if (_isUgcForBgmStart) {
               gain.gain.setValueAtTime(0, actx.currentTime);
-              gain.gain.linearRampToValueAtTime(_targetVol, actx.currentTime + 0.02);
+              gain.gain.linearRampToValueAtTime(_targetVol, actx.currentTime + 0.1);
             } else {
               gain.gain.value = _targetVol;
             }
