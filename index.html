@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519125044;
+window.__BUILD_TS = 20260519125742;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3274,28 +3274,38 @@ async function _ugcLibrosaDetect(audioBuf) {
   //    이전 fixed 2.0s cut 은 sparse 곡 마지막 진짜 hit 도 잘림 → bucket 자동 감지로 교체.
   const _audioDur = audio.length / sr;
   const BUCKET = 0.5;
-  // ★ FLOOR 0.02 → 0.05 (2026-05-19): mix RMS 스케일 (stem 별 0.02 보다 커야).
-  //   사용자 '끝 2개 더 나옴' — fade-out tail 일부도 musical 판정 → last_musical 너무 늦게.
-  const FLOOR = 0.05;
+  const FLOOR = 0.05;       // 끝 cut 용 (last_musical 검출)
+  const QUIET_GATE = 0.04;  // 조용한 구간 gate (사용자 '조용한 부분 노트 X', 2026-05-19)
   const bs = Math.floor(sr * BUCKET);
   const nb = Math.ceil(audio.length / bs);
+  // 곡 전체 bucket RMS 저장 → 모든 onset gate
+  const _bucketRms = new Float32Array(nb);
   let last_b = -1;
   for (let b = 0; b < nb; b++) {
     const s0 = b * bs, s1 = Math.min((b + 1) * bs, audio.length);
     let sum = 0;
     for (let i = s0; i < s1; i++) sum += audio[i] * audio[i];
-    const rms = Math.sqrt(sum / (s1 - s0));
-    if (rms > FLOOR) last_b = b;
+    _bucketRms[b] = Math.sqrt(sum / (s1 - s0));
+    if (_bucketRms[b] > FLOOR) last_b = b;
   }
   const _last_musical = (last_b + 1) * BUCKET;
-  // ★ margin 0.3 → 0.5 (2026-05-19): fade-out 시작 직전 보수적 컷.
   const _endCut = Math.max(0.1, _last_musical - 0.5);
+  // ★ 조용한 구간 onset cut (2026-05-19) — 라이브 librosa Python 의 stem 자체 X 효과 흉내.
+  //   bucket RMS < QUIET_GATE 인 구간의 onset 제거 (잔향/synth pad noise).
+  //   곡 전체 적용 (초반/중반/후반 동일).
+  const _beforeQuiet = filtered.length;
+  filtered = filtered.filter(o => {
+    const bIdx = Math.min(nb - 1, Math.floor(o.t / BUCKET));
+    return _bucketRms[bIdx] > QUIET_GATE;
+  });
+  const _quietCut = _beforeQuiet - filtered.length;
+  // endCut filter (이전 코드 유지)
   const _beforeCut = filtered.length;
   filtered = filtered.filter(o => o.t < _endCut);
   const _cutCount = _beforeCut - filtered.length;
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
-  return { onsets: filtered, bpm, endCut: _endCut }; // ★ endCut 반환 (snap 후 재filter)
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', quiet-cut=' + _quietCut + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (end-cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
+  return { onsets: filtered, bpm, endCut: _endCut };
 }
 
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
