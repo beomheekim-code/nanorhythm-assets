@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519111425;
+window.__BUILD_TS = 20260519112544;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3276,19 +3276,17 @@ async function _ugcLibrosaDetect(audioBuf) {
   //   원래 0.97 alpha 가 저주파 강하게 attenuate → bass kick / low strong hit 의 spectral flux 약화.
   //   라이브 librosa Python 은 pre-emphasis 사용 X (default) — 매칭.
   //   trade-off: hi-hat 같은 high freq 약한 hit 검출률 약간 ↓ (큰 영향 없음).
-  // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
-  //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
-  //    delta 0.02 = librosa default 0.07 보다 매우 sensitive (mix masking 보완).
-  //    ★ 2026-05-19: ATLANTIS 잔향 fix 단계적 시도:
-  //    - 0.07 (현저히 줄음 거절) / 0.04+abs 1.5 (별로 거절) / 0.02 원복 (잔향 남음)
-  //    - 0.02 + absThreshold 0.5 (지금 — 0.02 에 매우 약한 잔향 cut, 사용자 '훨씬 더 지금 쪽')
-  const nFft = 2048, hop = 256, nMels = 128, numBands = 8;
+  // 2. Single-band Onset strength (2026-05-19) — 라이브 librosa Python 매칭.
+  //    이전 multi-band 8 bands: dedup 시 high band 약한 잔향이 low band strong hit 보다 raw energy ↑
+  //    → 강한 hit 가 잔향에 덮어쓰여 사라짐. 사용자 보고 '강한 부분 안 나오고 약한 부분만 나옴'.
+  //    라이브 Python: librosa.onset.onset_strength 단일 wideband → 매칭으로 numBands=1.
+  const nFft = 2048, hop = 256, nMels = 128, numBands = 1;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — delta 0.02 + absThreshold 0.5 (env mean × 0.5 미만 peak cut, 매우 약함).
+  // 3. Single-band peak picking — delta 0.07 (라이브 default, wideband 라 strong peak 만 통과).
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.02, 2, 2, 0, 8, 8, 0.3);
+    const peaks = _ugcPeakPick(env, 0.07, 2, 2, 0, 8, 8);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
