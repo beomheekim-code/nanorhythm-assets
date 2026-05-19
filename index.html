@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519111217;
+window.__BUILD_TS = 20260519111402;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3272,12 +3272,10 @@ async function _ugcLibrosaDetect(audioBuf) {
   } else {
     for (let i = 0; i < len; i++) audio[i] = ch0[i * ratio];
   }
-  // ★ Pre-emphasis filter (2026-05-18) — high freq 강조로 percussive onset (drums attack/hi-hat) 검출 ↑.
-  //   y[n] = x[n] - 0.97 * x[n-1] (RBJ first-order high-shelf, alpha=0.97)
-  //   라이브 librosa 와 같은 표준 trick (audio textbook). +15~25% onset 기대.
-  for (let i = audio.length - 1; i > 0; i--) {
-    audio[i] = audio[i] - 0.97 * audio[i - 1];
-  }
+  // ★ Pre-emphasis filter 제거 (2026-05-19) — 사용자 '강한 부분 안 나오고 약한 부분만 나옴'.
+  //   원래 0.97 alpha 가 저주파 강하게 attenuate → bass kick / low strong hit 의 spectral flux 약화.
+  //   라이브 librosa Python 은 pre-emphasis 사용 X (default) — 매칭.
+  //   trade-off: hi-hat 같은 high freq 약한 hit 검출률 약간 ↓ (큰 영향 없음).
   // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
   //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
   //    delta 0.02 = librosa default 0.07 보다 매우 sensitive (mix masking 보완).
