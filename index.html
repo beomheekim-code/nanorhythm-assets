@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519144803;
+window.__BUILD_TS = 20260519145836;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -10573,22 +10573,6 @@ function generateNodesFromOnsets(song, diff, onsetsByStem, energyMap) {
   }
 
   nodes.sort((a, b) => a.time - b.time);
-  // ★ post-gen endCutoff cut (2026-05-19) — chart 마지막 onset == endCutoff 인 케이스 (12곡 발견).
-  //   game filter `<= cutT` (line ~10254) 가 inclusive 라 endCutoff 시각 onset 통과 → 끝 노트 1개 더.
-  //   post-gen pass 에서 cut: RNG stream 영향 0 (nodes 생성 후, lane/time 결정 후 시각만 비교).
-  //   12곡: 달빛 과자상자, The Clock Face Shakes, SIDEWALK RUNWAY, Midnight Boulevard,
-  //         기억의 사물함, 加速する鼓動, 황덕구의 모험, Catch The Sky, 기분 좋은 날,
-  //         바람을 타고, Soda Pop Crush, 봉인해제 Dragon.
-  if (typeof song.endCutoff === 'number' && song.endCutoff > 0) {
-    const _ec = song.endCutoff + bgmDelay;
-    const _before = nodes.length;
-    // ★ splice in-place (filter 재할당 X — nodes reference 보존, 메모리 안전 패턴).
-    for (let _i = nodes.length - 1; _i >= 0; _i--) {
-      const _n = nodes[_i];
-      if (!_n._forceHold && !_n._forceTap && _n.time >= _ec) nodes.splice(_i, 1);
-    }
-    if (nodes.length !== _before) console.log('[endCutoff post-gen] ' + (_before - nodes.length) + ' trailing nodes dropped for ' + song.name + ' (endCutoff=' + song.endCutoff + ', _ec=' + _ec.toFixed(2) + ')');
-  }
   // ★ 홀드 최소 시간 간격 (2026-05-15) — holdEvery 가 노트 개수 기반이라 dense 구간에서
   //   hold 가 시간상 뭉침 ("홀드끼리 너무 붙어서 나옴"). 직전 hold 와 1.6초 미만이면
   //   tap 으로 강등 (레인 무관, 시간 기준). RNG 미사용 / 시간·레인 불변, type·endTime 만 변경.
@@ -11512,7 +11496,7 @@ function startSong(idx) {
       //   ★ UGC: songIdx 가 다른 곡끼리 충돌 (모두 songs.length-1) → cache skip.
       const _isUgcChart = curSong && curSong._ugc;
       // v10: ATLANTIS chart delta 0.12 (1215 onsets) + rawBonus 0.20
-      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v12'; // v12: post-gen endCutoff cut — splice (in-place mutation)
+      const _cacheKey = curSongIdx + '_' + (typeof selectedDiff !== 'undefined' ? selectedDiff : 0) + '_' + curSong.bpm + '_v10'; // post-gen pass 제거 (표준 흐름 복귀) → v10 baseline
       window.__nodesCache = window.__nodesCache || new Map();
       const _cachedNodes = _isUgcChart ? null : window.__nodesCache.get(_cacheKey);
       if (_cachedNodes && Array.isArray(_cachedNodes)) {
