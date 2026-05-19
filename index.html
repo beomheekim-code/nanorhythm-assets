@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519122357;
+window.__BUILD_TS = 20260519122839;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3252,33 +3252,15 @@ async function _ugcLibrosaDetect(audioBuf) {
       allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
     }
   }
-  // 4. Sort by time + 30ms dedup v2 (2026-05-19) — low band 우선 + high band only cut.
-  //    사용자 보고 '중간에 노트 나옴' = high band 잔향이 dedup 살아남음.
-  //    multi-band 8 의 raw energy 비교 결함:
-  //    - high band mel filter sum > low band raw energy 가능
-  //    - dedup 시 잔향 (high) 이 strong hit (low) 보다 우선 picked
-  //    fix:
-  //    a) 30ms 안 multiple band → low band (drum/bass) 우선
-  //    b) high band only 그룹 (band > 3, low band X) → cut (잔향 추정)
+  // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
   allOnsets.sort((a, b) => a.t - b.t);
-  // 30ms 그룹화
-  const _groups = [];
-  for (const o of allOnsets) {
-    if (_groups.length && (o.t - _groups[_groups.length - 1][0].t) < 0.030) {
-      _groups[_groups.length - 1].push(o);
-    } else {
-      _groups.push([o]);
-    }
-  }
   const merged = [];
-  for (const grp of _groups) {
-    // low band (0~3) 있으면 그 중 가장 강한 거 picked
-    const lows = grp.filter(o => o.band <= 3);
-    if (lows.length > 0) {
-      lows.sort((a, b) => b.energy - a.energy);
-      merged.push(lows[0]);
+  for (const o of allOnsets) {
+    if (merged.length && (o.t - merged[merged.length - 1].t) < 0.030) {
+      if (o.energy > merged[merged.length - 1].energy) merged[merged.length - 1] = o;
+      continue;
     }
-    // else: high band only (band > 3) — 잔향 가능성 → cut
+    merged.push(o);
   }
   // 5. BPM (low band envelope 가 박자 가장 명확 — drums/bass)
   const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
@@ -3307,7 +3289,7 @@ async function _ugcLibrosaDetect(audioBuf) {
   const _cutCount = _beforeCut - filtered.length;
   const t1 = performance.now();
   console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
-  return { onsets: filtered, bpm, endCut: _endCut }; // ★ endCut 반환 — snap 후 재filter 용
+  return { onsets: filtered, bpm, endCut: _endCut }; // ★ endCut 반환 (snap 후 재filter)
 }
 
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
@@ -3426,50 +3408,29 @@ async function handleMyMusicFile(e) {
       energy: +(o.energy || 0).toFixed(4),
     }));
     let detectedBpm = lib.bpm;
-    // ★ BPM grid snap v4 (2026-05-19) — 16분 grid + 구간 별 phase 보정.
-    //   사용자 보고 '중간 노트 살짝 안 맞음' = BPM 미세 변동.
-    //   곡 3 구간 분할, 각 구간 onset 의 median phase 로 snap → 변동 곡 적응.
-    //   9999eb7 의 64분 grid 와 다른 접근 (16분 grid 정밀도 유지).
+    // ★ BPM grid snap — codec ±50ms 흡수 + phase 보정 (median 기준).
     const _sixteenth = 15 / detectedBpm;
+    let _phase = 0;
+    if (chartOnsets.length >= 5) {
+      const _phases = chartOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
+      _phase = _phases[Math.floor(_phases.length / 2)];
+    } else if (chartOnsets.length > 0) {
+      _phase = chartOnsets[0].t % _sixteenth;
+    }
     const _seen = new Set();
     const _before = chartOnsets.length;
-    // 곡 길이 측정 (chartOnsets 의 마지막 t)
-    chartOnsets.sort((a, b) => a.t - b.t);
-    const _songEnd = chartOnsets.length > 0 ? chartOnsets[chartOnsets.length - 1].t : 0;
-    const _segCount = 3;
-    const _segLen = _songEnd / _segCount;
-    // 각 구간 phase 계산 — 그 구간 onset 의 median phase
-    const _segPhases = [];
-    for (let s = 0; s < _segCount; s++) {
-      const _segStart = s * _segLen;
-      const _segEnd = (s + 1) * _segLen;
-      const _segOnsets = chartOnsets.filter(o => o.t >= _segStart && o.t < _segEnd);
-      if (_segOnsets.length >= 5) {
-        const _phases = _segOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
-        _segPhases.push(_phases[Math.floor(_phases.length / 2)]);
-      } else {
-        _segPhases.push(0);
-      }
-    }
-    console.log('[ugc] segment phases: ' + _segPhases.map(p => p.toFixed(4)).join(', '));
-    // 각 onset 의 구간 phase 로 snap
     chartOnsets = chartOnsets
-      .map(o => {
-        const _segIdx = Math.min(_segCount - 1, Math.floor(o.t / _segLen));
-        const _p = _segPhases[_segIdx];
-        const _newT = _p + Math.round((o.t - _p) / _sixteenth) * _sixteenth;
-        return { ...o, t: +_newT.toFixed(4) };
-      })
+      .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
       .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
       .sort((a, b) => a.t - b.t);
-    // ★ snap 후 endCut 재filter (2026-05-19) — round 시 onset 이 endCut 너머로 튀는 거 cut. 끝 2개 fix.
+    // ★ snap 후 endCut 재filter (사용자 '끝 노트 더 나옴' fix).
     if (typeof lib.endCut === 'number') {
       const _sBefore = chartOnsets.length;
       chartOnsets = chartOnsets.filter(o => o.t < lib.endCut);
       const _sCut = _sBefore - chartOnsets.length;
       if (_sCut > 0) console.log('[ugc] snap-후 endCut 재filter: cut ' + _sCut + ' more');
     }
-    console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, segment-phase): ' + _before + ' → ' + chartOnsets.length + ' onsets');
+    console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const dur = audioBuf.duration;
