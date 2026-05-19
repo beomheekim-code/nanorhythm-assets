@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519100938;
+window.__BUILD_TS = 20260519102557;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3261,17 +3261,29 @@ async function _ugcLibrosaDetect(audioBuf) {
   const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
   // 6. Intro filter (t<0.15 & energy<0.5) — match library policy
   let filtered = merged.filter(o => !(o.t < 0.15 && o.energy < 0.5));
-  // 7. ★ Fade-out / 잔향 cut (2026-05-19 사용자 보고 '마지막 7개 더' → 1.0 → 2.0s 키움)
-  //    audio 끝 ~2.0s 안 onset 제거. librosa onset_detect fade-out 잔향 더 길게 잡는 곡 대응.
+  // 7. ★ Fade-out 자동 감지 (2026-05-19, ATLANTIS 케이스 — sparse 곡 끝 hit 보존).
+  //    라이브 librosa endCutoff 정책: 0.5s bucket RMS 분석으로 last_musical 검출 → -0.3s 마진 cut.
+  //    이전 fixed 2.0s cut 은 sparse 곡 마지막 진짜 hit 도 잘림 → bucket 자동 감지로 교체.
   const _audioDur = audio.length / sr;
+  const BUCKET = 0.5;
+  const FLOOR = 0.02;
+  const bs = Math.floor(sr * BUCKET);
+  const nb = Math.ceil(audio.length / bs);
+  let last_b = -1;
+  for (let b = 0; b < nb; b++) {
+    const s0 = b * bs, s1 = Math.min((b + 1) * bs, audio.length);
+    let sum = 0;
+    for (let i = s0; i < s1; i++) sum += audio[i] * audio[i];
+    const rms = Math.sqrt(sum / (s1 - s0));
+    if (rms > FLOOR) last_b = b;
+  }
+  const _last_musical = (last_b + 1) * BUCKET;
+  const _endCut = Math.max(0.1, _last_musical - 0.3); // -0.3s 마진 (library 정책)
   const _beforeCut = filtered.length;
-  filtered = filtered.filter(o => o.t < _audioDur - 2.0);
+  filtered = filtered.filter(o => o.t < _endCut);
   const _cutCount = _beforeCut - filtered.length;
-  // 8. ★ BPM octave 검증 (2026-05-19) — autocorr 가 half/double BPM 잡는 흔한 오류.
-  //    bpm/2 와 bpm*2 위치 autocorr score 비교 → 절반/배수 의심 출력 (디버그용).
-  //    실제 보정은 사용자 보고 받아서 진행.
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', after dedup=' + merged.length + ', cut(>dur-2s)=' + _cutCount + ', final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
   return { onsets: filtered, bpm };
 }
 
@@ -3379,70 +3391,34 @@ async function handleMyMusicFile(e) {
       showLoginToast('10분 이하 곡만 가능 (현재 ' + (audioBuf.duration/60).toFixed(1) + '분)', '#ff6b6b', null, 3);
       throw new Error('audio too long');
     }
-    let fp = null;
-    try {
-      fp = await _ugcAudioFingerprint(audioBuf);
-    } catch(e) { console.warn('[ugc] fingerprint 실패:', e); }
-    const fpHash = fp ? fp.hex : null;
-    // v14: numBands 8 + delta 0.02 (95% push) → v18 cache 무효화
-    const cacheKey = fpHash ? 'rhythm_ugc_v19_' + fpHash : null;
-    console.log('[ugc] OGG cacheKey=' + cacheKey);
-    let cachedOnsets = null;
-    if (cacheKey) {
-      try {
-        const raw = localStorage.getItem(cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && Array.isArray(parsed.onsets)) cachedOnsets = parsed.onsets;
-        }
-      } catch(e) {}
+    // ★ 캐시 제거 (2026-05-19 사용자 'UGC 가 캐시를 왜 들고있어?') — 매번 fresh detect.
+    //   이전: localStorage rhythm_ugc_v* — 알고리즘 fix 시 자동 무효화 안 됨 (사용자 노트 안 바뀜).
+    //   trade-off: 같은 곡 재업로드 시 5~10초 추가 — 신뢰성 우선.
+    await new Promise(r => setTimeout(r, 30));
+    const lib = await _ugcLibrosaDetect(audioBuf);
+    const STEMS = [0, 1, 3, 5, 6];
+    let chartOnsets = lib.onsets.map((o, i) => ({
+      t: +o.t.toFixed(4),
+      stem: STEMS[i % STEMS.length],
+      energy: +(o.energy || 0).toFixed(4),
+    }));
+    let detectedBpm = lib.bpm;
+    // ★ BPM grid snap — codec ±50ms 흡수 + phase 보정 (median 기준).
+    const _sixteenth = 15 / detectedBpm;
+    let _phase = 0;
+    if (chartOnsets.length >= 5) {
+      const _phases = chartOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
+      _phase = _phases[Math.floor(_phases.length / 2)];
+    } else if (chartOnsets.length > 0) {
+      _phase = chartOnsets[0].t % _sixteenth;
     }
-    if (!cachedOnsets) console.log('[ugc] cache MISS (' + cacheKey + ') — running fresh detect');
-    let chartOnsets;
-    let detectedBpm = 120;
-    if (cachedOnsets) {
-      console.log('[ugc] cache hit (' + cacheKey + ') ' + cachedOnsets.length + ' onsets');
-      chartOnsets = cachedOnsets;
-      try {
-        const raw = localStorage.getItem(cacheKey);
-        const parsed = raw && JSON.parse(raw);
-        if (parsed && parsed.bpm && parsed.bpm >= 60 && parsed.bpm <= 200) detectedBpm = parsed.bpm;
-      } catch(e) {}
-    } else {
-      await new Promise(r => setTimeout(r, 30));
-      // ★ librosa-style detect (라이브 76곡 chart.json 과 동일 표준).
-      //   spectral flux + mel filter + peak picking + autocorr BPM.
-      const lib = await _ugcLibrosaDetect(audioBuf);
-      const STEMS = [0, 1, 3, 5, 6];
-      chartOnsets = lib.onsets.map((o, i) => ({
-        t: +o.t.toFixed(4),
-        stem: STEMS[i % STEMS.length],
-        energy: +(o.energy || 0).toFixed(4),
-      }));
-      detectedBpm = lib.bpm;
-      // ★ BPM grid snap (2026-05-18, 옵션 A) — MP3/OGG codec 차이 ±50ms 흡수.
-      //   같은 곡이면 detect 결과 ±5-10ms 다르더라도 동일 grid 에 snap → 동일 chart 결정론.
-      //   ★ phase 보정 v2 (2026-05-19): 첫 onset → median onset phase.
-      //   첫 onset 이 intro noise 일 수 있음 → median 이 더 robust (사용자 보고 'higher 시작 어긋남' 재발).
-      const _sixteenth = 15 / detectedBpm;
-      let _phase = 0;
-      if (chartOnsets.length >= 5) {
-        const _phases = chartOnsets.map(o => o.t % _sixteenth).sort((a, b) => a - b);
-        _phase = _phases[Math.floor(_phases.length / 2)]; // median
-      } else if (chartOnsets.length > 0) {
-        _phase = chartOnsets[0].t % _sixteenth;
-      }
-      const _seen = new Set();
-      const _before = chartOnsets.length;
-      chartOnsets = chartOnsets
-        .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
-        .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
-        .sort((a, b) => a.t - b.t);
-      console.log('[ugc] BPM grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
-      if (cacheKey) {
-        try { localStorage.setItem(cacheKey, JSON.stringify({ onsets: chartOnsets, bpm: detectedBpm, ts: Date.now() })); } catch(e) {}
-      }
-    }
+    const _seen = new Set();
+    const _before = chartOnsets.length;
+    chartOnsets = chartOnsets
+      .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
+      .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
+      .sort((a, b) => a.t - b.t);
+    console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
     const dur = audioBuf.duration;
