@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519113744;
+window.__BUILD_TS = 20260519114208;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3282,17 +3282,47 @@ async function _ugcLibrosaDetect(audioBuf) {
   //    라이브 Python: librosa.onset.onset_strength 단일 wideband → 매칭으로 numBands=1.
   const nFft = 2048, hop = 256, nMels = 128, numBands = 1;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Single-band peak picking — delta 0.07 (라이브 default, wideband 라 strong peak 만 통과).
+  // 3. Adaptive delta peak picking (2026-05-19 사용자 'ATLANTIS 잔향 ↓ but Higher 너무 적음').
+  //    초기 delta 0.07 시도 → onset 너무 적으면 (< 2 nps) delta 자동 낮춤 / 너무 많으면 (> 10 nps) 높임.
+  //    목표 nps: 3~8 (ATLANTIS dense / Higher dance 양쪽 적정).
+  const _audioDurForAdaptive = audio.length / sr;
+  const _targetMin = 2 * _audioDurForAdaptive;
+  const _targetMax = 10 * _audioDurForAdaptive;
+  const _deltaCandidates = [0.07, 0.04, 0.025, 0.015, 0.01];
+  let _finalDelta = 0.07;
+  let _allPeaks = null;
+  for (const _d of _deltaCandidates) {
+    let _total = 0;
+    const _peaksByBand = [];
+    for (let b = 0; b < numBands; b++) {
+      const env = envs[b];
+      const peaks = _ugcPeakPick(env, _d, 2, 2, 0, 8, 8);
+      _peaksByBand.push(peaks);
+      _total += peaks.length;
+    }
+    if (_total >= _targetMin) {
+      _finalDelta = _d;
+      _allPeaks = _peaksByBand;
+      // 최소치 도달 + 최대치 초과 X → 최적
+      if (_total <= _targetMax) break;
+    }
+    // delta 가장 낮음 끝나면 그대로 사용
+    if (_d === _deltaCandidates[_deltaCandidates.length - 1]) {
+      _finalDelta = _d;
+      _allPeaks = _peaksByBand;
+    }
+  }
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.07, 2, 2, 0, 8, 8);
+    const peaks = _allPeaks[b];
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
       allOnsets.push({ t: f * hop / sr, energy: env[f] || 0.001, band: b });
     }
   }
+  console.log('[ugc] adaptive delta=' + _finalDelta + ' (peaks ' + allOnsets.length + ' / target ' + _targetMin.toFixed(0) + '~' + _targetMax.toFixed(0) + ')');
   // 4. Sort by time + 30ms dedup (라이브 librosa merge_per_stem 와 동일 로직)
   allOnsets.sort((a, b) => a.t - b.t);
   const merged = [];
