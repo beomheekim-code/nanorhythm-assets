@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519102830;
+window.__BUILD_TS = 20260519103640;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3183,29 +3183,63 @@ function _ugcEstimateBpmFromEnv(env, sr, hop) {
   const maxLag = Math.ceil(fps * 60 / 60);
   const scores = new Float32Array(maxLag - minLag + 1);
   for (let lag = minLag; lag <= maxLag; lag++) {
-    let score = 0;
-    for (let i = lag; i < env.length; i++) score += env[i] * env[i - lag];
-    scores[lag - minLag] = score;
+    let s = 0;
+    for (let i = lag; i < env.length; i++) s += env[i] * env[i - lag];
+    scores[lag - minLag] = s;
   }
-  // peak idx
+  // base peak idx
   let bestIdx = 0, bestScore = 0;
   for (let i = 0; i < scores.length; i++) {
     if (scores[i] > bestScore) { bestScore = scores[i]; bestIdx = i; }
   }
   if (bestScore === 0) return 120;
-  // ★ Parabolic interpolation (sub-bin precision) — BPM 정확도 ↑ (정수 lag round 시 ±2 BPM 오차 fix).
-  //   3-point quadratic fit, peak offset = (a-c) / (2 * (a-2b+c)).
+  // ★ Octave check (2026-05-19, A 작업) — librosa beat_track 처럼 절반/배수 후보 검증.
+  //   autocorr 흔한 오류: 8분음표 lag 에 강한 peak → BPM 2배로 잘못. 절반 lag (=BPM 2배) 와 두 배 lag (=BPM 절반) score 비교.
   let exactLag = bestIdx + minLag;
+  let baseBpm = 60 / (exactLag / fps);
+  const lagHalfIdx = Math.round(exactLag / 2) - minLag;  // BPM 2배 위치
+  const lagDoubleIdx = exactLag * 2 - minLag;             // BPM 절반 위치
+  const halfScore = (lagHalfIdx >= 0 && lagHalfIdx < scores.length) ? scores[lagHalfIdx] : 0;
+  const doubleScore = (lagDoubleIdx >= 0 && lagDoubleIdx < scores.length) ? scores[lagDoubleIdx] : 0;
+  // 100~150 BPM 선호 (librosa perceptual prior). 너무 느리거나 빠르면 octave 보정.
+  let useLag = exactLag;
+  if (baseBpm < 80 && halfScore > bestScore * 0.5) useLag = exactLag / 2;  // 너무 느림 → BPM 2배
+  else if (baseBpm > 160 && doubleScore > bestScore * 0.5) useLag = exactLag * 2;  // 너무 빠름 → BPM 절반
+  // Parabolic refinement (sub-bin)
   if (bestIdx > 0 && bestIdx < scores.length - 1) {
     const a = scores[bestIdx - 1], b = scores[bestIdx], c = scores[bestIdx + 1];
     const denom = 2 * (a - 2 * b + c);
-    if (denom !== 0) exactLag += (a - c) / denom;
+    if (denom !== 0 && useLag === exactLag) useLag += (a - c) / denom;
   }
-  let bpm = 60 / (exactLag / fps);
+  let bpm = 60 / (useLag / fps);
   while (bpm > 200) bpm /= 2;
   while (bpm < 80) bpm *= 2;
-  return Math.round(bpm * 2) / 2; // 0.5 BPM 단위 (정수 round 보다 정밀)
+  return Math.round(bpm * 10) / 10; // 0.1 BPM (이전 0.5)
 }
+
+// ★ BPM grid fit refinement (2026-05-19, A 작업) — onset 들이 16분 grid 에 가장 잘 fit 하는 BPM 찾기.
+//   autocorr BPM 후보 ±3 범위에서 0.1 BPM step 으로 시도. fit score (onset 시각 % sixteenth 의 분산 역수) 최대 선택.
+//   사용자 보고 'Higher BPM 97 (라이브 96), 마지막 2개 어긋남' — 1 BPM 차이 누적 phase shift fix.
+function _ugcBpmGridFit(onsets, baseBpm) {
+  if (!onsets || onsets.length < 20) return baseBpm; // 너무 적으면 refinement 무의미
+  const times = onsets.map(o => o.t);
+  // ±3 BPM 범위 0.1 step 시도
+  let bestBpm = baseBpm, bestFit = -Infinity;
+  for (let b = Math.max(60, baseBpm - 3.0); b <= Math.min(200, baseBpm + 3.0); b += 0.1) {
+    const sixteenth = 60 / b / 4;
+    // 각 onset 의 grid offset (0 ~ sixteenth/2)
+    let sumFit = 0;
+    for (const t of times) {
+      const off = t % sixteenth;
+      const dist = Math.min(off, sixteenth - off);
+      sumFit += 1 - (dist / (sixteenth / 2));  // 1 = 완벽 fit, 0 = 최악
+    }
+    const fit = sumFit / times.length;
+    if (fit > bestFit) { bestFit = fit; bestBpm = b; }
+  }
+  return Math.round(bestBpm * 10) / 10;
+}
+
 
 // Main entry — librosa-style detection. AudioBuffer → { onsets: [{t,energy}], bpm }
 //   async 화 (2026-05-18) — STFT loop 의 setTimeout chunk yield 위해.
@@ -3258,7 +3292,8 @@ async function _ugcLibrosaDetect(audioBuf) {
     merged.push(o);
   }
   // 5. BPM (low band envelope 가 박자 가장 명확 — drums/bass)
-  const bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
+  let bpm = _ugcEstimateBpmFromEnv(envs[0], sr, hop);
+  // ★ BPM grid fit refinement 는 onset 다 나온 후 (8번 단계). 일단 base bpm 보존.
   // 6. Intro filter (t<0.15 & energy<0.5) — match library policy
   let filtered = merged.filter(o => !(o.t < 0.15 && o.energy < 0.5));
   // 7. ★ Fade-out 자동 감지 (2026-05-19, ATLANTIS 케이스 — sparse 곡 끝 hit 보존).
@@ -3282,8 +3317,12 @@ async function _ugcLibrosaDetect(audioBuf) {
   const _beforeCut = filtered.length;
   filtered = filtered.filter(o => o.t < _endCut);
   const _cutCount = _beforeCut - filtered.length;
+  // 8. ★ BPM grid fit refinement — onset 들이 16분 grid 에 가장 잘 align 하는 BPM 으로 미세 조정.
+  //    autocorr ±1 BPM 오차 → 곡 끝에서 누적 phase shift fix. 사용자 보고 'Higher 97 vs 라이브 96, 끝 2개 어긋남'.
+  const _bpmBase = bpm;
+  bpm = _ugcBpmGridFit(filtered, _bpmBase);
   const t1 = performance.now();
-  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + bpm);
+  console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + _bpmBase + '→' + bpm + ' (grid fit)');
   return { onsets: filtered, bpm };
 }
 
