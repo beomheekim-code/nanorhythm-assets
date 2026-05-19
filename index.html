@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519135702;
+window.__BUILD_TS = 20260519141315;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3212,6 +3212,113 @@ function _ugcEstimateBpmFromEnv(env, sr, hop) {
   return Math.round(bpm * 2) / 2; // 0.5 BPM 단위 (정수 round 보다 정밀)
 }
 
+// ★ Pyodide + librosa Python WASM (2026-05-19, 사용자 옵션 C)
+//   라이브 librosa Python 알고리즘 그대로 브라우저 실행 → 정확도 라이브와 동일.
+//   초기 로드: ~15-30초 (Pyodide runtime + scipy/numpy/librosa wheel).
+//   캐시: 두 번째 사용부터 즉시.
+let _pyodideInstance = null;
+let _pyodideLoading = null;
+
+async function _loadPyodideForUgc() {
+  if (_pyodideInstance) return _pyodideInstance;
+  if (_pyodideLoading) return _pyodideLoading;
+  _pyodideLoading = (async () => {
+    showLoginToast('librosa 엔진 로드 중 (~30초, 첫 회만)...', '#b464ff', null, 60);
+    // Pyodide CDN 로드
+    if (!window.loadPyodide) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const py = await window.loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/' });
+    showLoginToast('numpy/scipy 로드 중...', '#b464ff', null, 60);
+    await py.loadPackage(['numpy', 'scipy']);
+    showLoginToast('librosa 로드 중...', '#b464ff', null, 60);
+    await py.loadPackage('librosa', { messageCallback: () => {} });
+    _pyodideInstance = py;
+    console.log('[pyodide] loaded — librosa ready');
+    return py;
+  })();
+  return _pyodideLoading;
+}
+
+async function _ugcPyodideDetect(audioBuf) {
+  const t0 = performance.now();
+  const py = await _loadPyodideForUgc();
+  // mono mix + downsample to 22050
+  const ch0 = audioBuf.getChannelData(0);
+  const ch1 = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : null;
+  const srSrc = audioBuf.sampleRate;
+  const targetSr = 22050;
+  const ratio = Math.max(1, Math.round(srSrc / targetSr));
+  const sr = srSrc / ratio;
+  const len = Math.floor(ch0.length / ratio);
+  const audio = new Float32Array(len);
+  if (ch1) for (let i = 0; i < len; i++) audio[i] = (ch0[i * ratio] + ch1[i * ratio]) * 0.5;
+  else for (let i = 0; i < len; i++) audio[i] = ch0[i * ratio];
+  // Python 으로 전달
+  py.globals.set('_audio_js', py.toPy(audio));
+  py.globals.set('_sr_js', Math.round(sr));
+  await py.runPythonAsync(`
+import librosa
+import numpy as np
+y = np.asarray(_audio_js.to_py() if hasattr(_audio_js, 'to_py') else list(_audio_js), dtype=np.float32)
+sr = int(_sr_js)
+# 라이브 librosa Python 과 동일 알고리즘
+onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=512)
+frames = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr, hop_length=512, backtrack=True, delta=0.07, wait=3)
+times = librosa.frames_to_time(frames, sr=sr, hop_length=512)
+# BPM (beat_track)
+try:
+    tempo, beats = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr, hop_length=512)
+    bpm_val = float(tempo[0]) if hasattr(tempo, '__len__') else float(tempo)
+except Exception:
+    bpm_val = 120.0
+# energy per onset (window ±25ms)
+win = int(sr * 0.025)
+energies = []
+for t in times:
+    idx = int(t * sr)
+    f0, f1 = max(0, idx - win), min(len(y), idx + win)
+    e = float(np.sum(y[f0:f1] ** 2))
+    energies.append(round(e, 4))
+_result = {
+    'onsets': [round(float(t), 4) for t in times],
+    'energies': energies,
+    'bpm': round(bpm_val, 1),
+}
+`);
+  const result = py.globals.get('_result').toJs({ dict_converter: Object.fromEntries });
+  const t1 = performance.now();
+  // Bucket RMS 마지막 정상 musical 시점 (라이브 endCut 정책)
+  const BUCKET = 0.5, FLOOR = 0.05;
+  const bs = Math.floor(sr * BUCKET);
+  const nb = Math.ceil(len / bs);
+  let last_b = -1;
+  for (let b = 0; b < nb; b++) {
+    const s0 = b * bs, s1 = Math.min((b + 1) * bs, len);
+    let sum = 0;
+    for (let i = s0; i < s1; i++) sum += audio[i] * audio[i];
+    if (Math.sqrt(sum / (s1 - s0)) > FLOOR) last_b = b;
+  }
+  const lastMusical = (last_b + 1) * BUCKET;
+  const endCut = Math.max(0.1, lastMusical - 0.5);
+  // onset array 구성
+  const onsets = [];
+  for (let i = 0; i < result.onsets.length; i++) {
+    const t = result.onsets[i];
+    if (t < 0.15 && (result.energies[i] || 0) < 0.5) continue; // intro filter
+    if (t >= endCut) continue;
+    onsets.push({ t, energy: result.energies[i] || 0.001, band: 0 });
+  }
+  console.log('[pyodide-librosa] ' + (t1 - t0).toFixed(0) + 'ms — onsets=' + onsets.length + ', BPM=' + result.bpm + ', endCut=' + endCut.toFixed(2) + 's');
+  return { onsets, bpm: result.bpm, endCut };
+}
+
 // Main entry — librosa-style detection. AudioBuffer → { onsets: [{t,energy}], bpm }
 //   async 화 (2026-05-18) — STFT loop 의 setTimeout chunk yield 위해.
 async function _ugcLibrosaDetect(audioBuf) {
@@ -3406,7 +3513,16 @@ async function handleMyMusicFile(e) {
     //   이전: localStorage rhythm_ugc_v* — 알고리즘 fix 시 자동 무효화 안 됨 (사용자 노트 안 바뀜).
     //   trade-off: 같은 곡 재업로드 시 5~10초 추가 — 신뢰성 우선.
     await new Promise(r => setTimeout(r, 30));
-    const lib = await _ugcLibrosaDetect(audioBuf);
+    // ★ Pyodide + librosa Python WASM 우선 (2026-05-19, 사용자 옵션 C).
+    //   실패 시 기존 JS detect 폴백.
+    let lib;
+    try {
+      lib = await _ugcPyodideDetect(audioBuf);
+      console.log('[ugc] using Pyodide librosa');
+    } catch (err) {
+      console.warn('[ugc] Pyodide 실패, JS 폴백:', err && err.message);
+      lib = await _ugcLibrosaDetect(audioBuf);
+    }
     const STEMS = [0, 1, 3, 5, 6];
     let chartOnsets = lib.onsets.map((o, i) => ({
       t: +o.t.toFixed(4),
