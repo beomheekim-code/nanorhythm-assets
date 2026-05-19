@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519105232;
+window.__BUILD_TS = 20260519105617;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -3136,7 +3136,8 @@ async function _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands)
 }
 
 // Peak picking — librosa.util.peak_pick params (delta, wait, pre/post_max, pre/post_avg)
-function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg) {
+//   ★ absThreshold (2026-05-19): 잔향 (낮은 energy 지속) onset 제거. peak 가 env 전체 mean × X 이상이어야.
+function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg, absThreshold) {
   const n = env.length;
   if (n === 0) return [];
   // Normalize (max → 1)
@@ -3145,10 +3146,17 @@ function _ugcPeakPick(env, delta, wait, preMax, postMax, preAvg, postAvg) {
   if (maxV < 1e-6) return [];
   const normEnv = new Float32Array(n);
   for (let i = 0; i < n; i++) normEnv[i] = env[i] / maxV;
+  // ★ 전체 env mean 계산 (absThreshold 비교 기준)
+  let envSum = 0;
+  for (let i = 0; i < n; i++) envSum += normEnv[i];
+  const envMean = envSum / n;
+  const absMin = (absThreshold || 0) * envMean;
   const peaks = [];
   let lastPeak = -wait - 1;
   for (let i = 1; i < n - 1; i++) {
     if (i - lastPeak < wait) continue;
+    // ★ 절대 energy threshold — 조용한 구간 (잔향) peak 제거
+    if (normEnv[i] < absMin) continue;
     // Local max over [i-preMax, i+postMax]
     const lo = Math.max(0, i - preMax);
     const hi = Math.min(n - 1, i + postMax);
@@ -3272,16 +3280,16 @@ async function _ugcLibrosaDetect(audioBuf) {
   }
   // 2. Multi-band Onset strength — push to 95% (numBands 8, delta 0.02).
   //    각 mel band 16개씩 → 더 narrow band per detect → 더 많은 instrument peak 살림.
-  //    ★ delta 0.07 (2026-05-19): 라이브 librosa default 매칭.
-  //    이전 0.02 는 sensitivity 과해서 ambient 곡 (ATLANTIS 같은) 신스 잔향까지 onset 잡힘
-  //    → '조용한 구간에 노트' 사용자 보고. 라이브 ATLANTIS 도 같은 문제로 delta 0.12 로 fix 했었음.
+  //    ★ delta 0.04 + absThreshold 1.5 (2026-05-19, 균형):
+  //    delta 0.02 (잔향 노트 발생) → 0.07 (노트 현저히 줄음) → 0.04 (균형) + absThreshold (잔향 cut)
+  //    절대 energy threshold = env mean × 1.5 — 조용한 구간 peak 제거 (라이브 stem 별 detect 효과 흉내)
   const nFft = 2048, hop = 256, nMels = 128, numBands = 8;
   const envs = await _ugcOnsetStrengthMultiBand(audio, sr, hop, nFft, nMels, numBands);
-  // 3. Per-band peak picking — delta 0.07 (라이브 default 와 동일).
+  // 3. Per-band peak picking — delta 0.04 + absThreshold 1.5 (라이브 stem detect 흉내).
   const allOnsets = [];
   for (let b = 0; b < numBands; b++) {
     const env = envs[b];
-    const peaks = _ugcPeakPick(env, 0.07, 2, 2, 0, 8, 8);
+    const peaks = _ugcPeakPick(env, 0.04, 2, 2, 0, 8, 8, 1.5);
     const tracked = _ugcBacktrack(env, peaks);
     for (let i = 0; i < tracked.length; i++) {
       const f = tracked[i];
