@@ -22,7 +22,7 @@
 // E2E 6차 — 자동 reload 버튼 제거 + 안내 문구 모달 동작 검증.
 // E2E 7차 — Preview 가드 + 검색/차트 hitTest 차단 적용 후 정상 popup 트리거 검증.
 // E2E 8차 — 업데이트 모달 검은 오버레이 영역 입력 차단 검증.
-window.__BUILD_TS = 20260519103702;
+window.__BUILD_TS = 20260519104513;
 // ★ Firebase goOffline 부작용 — 인게임 진입 시 fbDb.goOffline() 호출하면 in-flight 중이던
 //   .set()/.once() Promise 들이 "Error: disconnect" 로 reject. 모두 fire-and-forget (결과 무관)
 //   이라 의도된 현상이지만 .catch 없이 쏘고 있어 "Uncaught (in promise)" 경고 스팸 발생.
@@ -2902,8 +2902,13 @@ function updateStemVolumes(dt) {
     const _ugcVolMode = curSong && curSong._ugc;
     for (let i = 0; i < allStemAudios.length; i++) {
       const isAlways = ALWAYS_AUDIBLE_STEMS.includes(i);
-      // UGC mastered 단일 mix 라 0.4 도 too loud. 0.15 로 더 낮춤.
-      const vol = _ugcVolMode ? 0.15 : (isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL);
+      // ★ UGC (2026-05-19 사용자 'BGM 음질/음량 클래식과 동일'):
+      //   모든 stem 이 같은 mix buffer → 7개 동시 재생 시 7배 amplitude 클립.
+      //   → stem 0 (drum slot) 만 재생 (vol STEM_VOL_NORMAL = 클래식 동일), 나머지 vol 0.
+      //   이전 0.15 × 7 클램프 = 작아 보임 fix.
+      let vol;
+      if (_ugcVolMode) vol = (i === 0) ? STEM_VOL_NORMAL : 0;
+      else vol = isAlways ? STEM_VOL_VOCAL : STEM_VOL_NORMAL;
       let targetVol = baseVol * vol;
       // ★ Stem pulse (2026-05-15) — 빈 lane press 시 stemPulses[i] 가 set 됨. linear decay 로
       //   peak → base 까지 dur (500ms) 동안 보강. 이전엔 stemPulses SET 만 되고 read 안 돼서
@@ -3301,7 +3306,9 @@ async function _ugcLibrosaDetect(audioBuf) {
   //    이전 fixed 2.0s cut 은 sparse 곡 마지막 진짜 hit 도 잘림 → bucket 자동 감지로 교체.
   const _audioDur = audio.length / sr;
   const BUCKET = 0.5;
-  const FLOOR = 0.02;
+  // ★ FLOOR 0.02 → 0.05 (2026-05-19) — mix RMS 는 stem 합 (√N 배 스케일).
+  //   stem 별 0.02 와 같은 값 쓰면 fade-out tail 일부도 musical 판정. 사용자 보고 '끝 1개 더'.
+  const FLOOR = 0.05;
   const bs = Math.floor(sr * BUCKET);
   const nb = Math.ceil(audio.length / bs);
   let last_b = -1;
@@ -3313,7 +3320,8 @@ async function _ugcLibrosaDetect(audioBuf) {
     if (rms > FLOOR) last_b = b;
   }
   const _last_musical = (last_b + 1) * BUCKET;
-  const _endCut = Math.max(0.1, _last_musical - 0.3); // -0.3s 마진 (library 정책)
+  // ★ margin 0.3 → 0.5 (2026-05-19) — fade-out 시작 직전 보수적 컷.
+  const _endCut = Math.max(0.1, _last_musical - 0.5);
   const _beforeCut = filtered.length;
   filtered = filtered.filter(o => o.t < _endCut);
   const _cutCount = _beforeCut - filtered.length;
@@ -3323,7 +3331,7 @@ async function _ugcLibrosaDetect(audioBuf) {
   bpm = _ugcBpmGridFit(filtered, _bpmBase);
   const t1 = performance.now();
   console.log('[ugc-librosa] ' + (t1 - t0).toFixed(0) + 'ms — frames=' + envs[0].length + ', allOnsets=' + allOnsets.length + ', dedup=' + merged.length + ', last_musical=' + _last_musical.toFixed(2) + 's / endCut=' + _endCut.toFixed(2) + 's (cut ' + _cutCount + '), final=' + filtered.length + ', dur=' + _audioDur.toFixed(1) + 's, BPM=' + _bpmBase + '→' + bpm + ' (grid fit)');
-  return { onsets: filtered, bpm };
+  return { onsets: filtered, bpm, endCut: _endCut };  // ★ endCut 도 반환 (main 에서 snap 후 재filter)
 }
 
 // UGC audio fingerprint v2 — 디코드된 RMS 패턴 SHA-256.
@@ -3457,6 +3465,13 @@ async function handleMyMusicFile(e) {
       .map(o => ({ ...o, t: +(_phase + Math.round((o.t - _phase) / _sixteenth) * _sixteenth).toFixed(4) }))
       .filter(o => { if (_seen.has(o.t)) return false; _seen.add(o.t); return true; })
       .sort((a, b) => a.t - b.t);
+    // ★ snap 후 endCut 재filter (2026-05-19) — round 시 onset 시각이 endCut 너머로 튈 수 있음.
+    if (typeof lib.endCut === 'number') {
+      const _snapBefore = chartOnsets.length;
+      chartOnsets = chartOnsets.filter(o => o.t < lib.endCut);
+      const _snapCut = _snapBefore - chartOnsets.length;
+      if (_snapCut > 0) console.log('[ugc] snap-후 endCut 재filter: cut ' + _snapCut + ' more');
+    }
     console.log('[ugc] grid snap (16th=' + _sixteenth.toFixed(4) + 's, median phase=' + _phase.toFixed(4) + '): ' + _before + ' → ' + chartOnsets.length + ' onsets');
     const blobUrl = URL.createObjectURL(f);
     const baseName = (f.name.replace(/\.[^.]+$/, '') || '나만의 곡').slice(0, 28);
@@ -3674,18 +3689,9 @@ function playEmptyPressSfx(lane) {
           src.buffer = stemAudioBuffers[si];
           gain.gain.setValueAtTime(peakVol, actx.currentTime);
           gain.gain.linearRampToValueAtTime(0, actx.currentTime + 0.5);
-          // ★ UGC: stem-별 band-pass filter — 일반 곡의 6 stem 다른 timbre 흉내. drums=low,
-          //   bass=low-mid, vocals=mid, instrum=mid-hi, piano=mid-hi, guitar=hi, other=hi.
-          if (_isUgcForSfx) {
-            const bp = actx.createBiquadFilter();
-            bp.type = 'bandpass';
-            const _filterFreqs = { 0: 120, 1: 280, 2: 1500, 3: 1800, 4: 1500, 5: 3500, 6: 5000 };
-            bp.frequency.value = _filterFreqs[si] || 1500;
-            bp.Q.value = 1.2;
-            src.connect(bp); bp.connect(gain); gain.connect(actx.destination);
-          } else {
-            src.connect(gain); gain.connect(actx.destination);
-          }
+          // ★ UGC band-pass filter 제거 (2026-05-19) — 사용자 '카운트 사운드 음질 클래식 동일해야'.
+          //   stem-별 다른 timbre 흉내 시도였으나 thin/metallic 사운드. mix raw 가 자연스러움.
+          src.connect(gain); gain.connect(actx.destination);
           const offset = targetOffset > 0 ? targetOffset : (stemMusicalStart[si] || stemFirstSoundTime[si] || 0);
           src.start(0, offset, 0.5);
           if (_isUgcForSfx) console.log('[ugc-sfx] stem=' + si + ' offset=' + offset.toFixed(2) + 's peakVol=' + peakVol.toFixed(2) + ' freq=' + ({0:120,1:280,2:1500,3:1800,4:1500,5:3500,6:5000}[si] || 1500));
